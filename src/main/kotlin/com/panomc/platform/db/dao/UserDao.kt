@@ -86,6 +86,13 @@ interface UserDao : Dao<User> {
         handler: (userList: List<Map<String, Any>>?, asyncResult: AsyncResult<*>) -> Unit
     )
 
+    fun getAllByPageAndPermissionGroup(
+        page: Int,
+        permissionGroupID: Int,
+        sqlConnection: SqlConnection,
+        handler: (userList: List<Map<String, Any>>?, asyncResult: AsyncResult<*>) -> Unit
+    )
+
     fun getUserIDFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlConnection: SqlConnection,

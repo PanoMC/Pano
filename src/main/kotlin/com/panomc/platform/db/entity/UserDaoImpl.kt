@@ -403,6 +403,45 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
             }
     }
 
+    override fun getAllByPageAndPermissionGroup(
+        page: Int,
+        permissionGroupID: Int,
+        sqlConnection: SqlConnection,
+        handler: (userList: List<Map<String, Any>>?, asyncResult: AsyncResult<*>) -> Unit
+    ) {
+        val query =
+            "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+
+        val parameters = Tuple.tuple()
+
+        parameters.addInteger(permissionGroupID)
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(parameters) { queryResult ->
+                if (queryResult.succeeded()) {
+                    val rows: RowSet<Row> = queryResult.result()
+                    val players = mutableListOf<Map<String, Any>>()
+
+                    if (rows.size() > 0)
+                        rows.forEach { row ->
+                            players.add(
+                                mapOf(
+                                    "id" to row.getInteger(0),
+                                    "username" to row.getString(1),
+                                    "email" to row.getString(2),
+                                    "register_date" to row.getLong(3),
+                                    "permission_group_id" to row.getInteger(4)
+                                )
+                            )
+                        }
+
+                    handler.invoke(players, queryResult)
+                } else
+                    handler.invoke(null, queryResult)
+            }
+    }
+
     override fun getUserIDFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlConnection: SqlConnection,

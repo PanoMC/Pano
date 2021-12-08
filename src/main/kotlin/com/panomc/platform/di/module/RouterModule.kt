@@ -163,7 +163,8 @@ class RouterModule(private val mVertx: Vertx) {
 
             CredentialsAPI(),
             RegisterAPI(),
-            PostsByCategoryAPI()
+            PostsByCategoryAPI(),
+            TicketsByCategoryAPI()
         )
     }
 

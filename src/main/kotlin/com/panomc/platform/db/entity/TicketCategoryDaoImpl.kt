@@ -84,6 +84,25 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
             }
     }
 
+    override fun isExistsByURL(
+        url: String,
+        sqlConnection: SqlConnection,
+        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
+    ) {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(url)) { queryResult ->
+                if (queryResult.succeeded()) {
+                    val rows: RowSet<Row> = queryResult.result()
+
+                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
+                } else
+                    handler.invoke(null, queryResult)
+            }
+    }
+
     override fun deleteByID(
         id: Int,
         sqlConnection: SqlConnection,
@@ -211,6 +230,34 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
         sqlConnection
             .preparedQuery(query)
             .execute(Tuple.of(id)) { queryResult ->
+                if (queryResult.succeeded()) {
+                    val rows: RowSet<Row> = queryResult.result()
+                    val row = rows.toList()[0]
+
+                    val ticket = TicketCategory(
+                        id = row.getInteger(0),
+                        title = row.getString(1),
+                        description = row.getString(2),
+                        url = row.getString(3)
+                    )
+
+                    handler.invoke(ticket, queryResult)
+                } else
+                    handler.invoke(null, queryResult)
+            }
+    }
+
+    override fun getByURL(
+        url: String,
+        sqlConnection: SqlConnection,
+        handler: (ticketCategory: TicketCategory?, asyncResult: AsyncResult<*>) -> Unit
+    ) {
+        val query =
+            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(url)) { queryResult ->
                 if (queryResult.succeeded()) {
                     val rows: RowSet<Row> = queryResult.result()
                     val row = rows.toList()[0]

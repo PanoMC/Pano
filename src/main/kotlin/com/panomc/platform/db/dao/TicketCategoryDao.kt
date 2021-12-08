@@ -19,6 +19,12 @@ interface TicketCategoryDao : Dao<TicketCategory> {
         handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
     )
 
+    fun isExistsByURL(
+        url: String,
+        sqlConnection: SqlConnection,
+        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
+    )
+
     fun deleteByID(
         id: Int,
         sqlConnection: SqlConnection,
@@ -47,6 +53,12 @@ interface TicketCategoryDao : Dao<TicketCategory> {
 
     fun getByID(
         id: Int,
+        sqlConnection: SqlConnection,
+        handler: (ticketCategory: TicketCategory?, asyncResult: AsyncResult<*>) -> Unit
+    )
+
+    fun getByURL(
+        url: String,
         sqlConnection: SqlConnection,
         handler: (ticketCategory: TicketCategory?, asyncResult: AsyncResult<*>) -> Unit
     )

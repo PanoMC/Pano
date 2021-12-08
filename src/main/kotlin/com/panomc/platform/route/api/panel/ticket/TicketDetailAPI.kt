@@ -45,7 +45,7 @@ class TicketDetailAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_131))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -73,7 +73,7 @@ class TicketDetailAPI : PanelApi() {
     ) = handler@{ ticket: Ticket?, _: AsyncResult<*> ->
         if (ticket == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_132))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -94,7 +94,7 @@ class TicketDetailAPI : PanelApi() {
     ) = handler@{ username: String?, _: AsyncResult<*> ->
         if (username == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_133))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -115,7 +115,7 @@ class TicketDetailAPI : PanelApi() {
     ) = handler@{ messages: List<TicketMessage>?, _: AsyncResult<*> ->
         if (messages == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_135))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -144,7 +144,7 @@ class TicketDetailAPI : PanelApi() {
     ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
         if (usernameList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_136))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -168,7 +168,7 @@ class TicketDetailAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_137))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -208,7 +208,7 @@ class TicketDetailAPI : PanelApi() {
     ) = handler@{ ticketCategory: TicketCategory?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (ticketCategory == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_134))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

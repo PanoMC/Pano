@@ -47,7 +47,7 @@ class TicketDetailMessagePageAPI : PanelApi() {
         handler@{ exists: Boolean?, _: AsyncResult<*> ->
             if (exists == null) {
                 databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_138))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 }
 
                 return@handler
@@ -75,7 +75,7 @@ class TicketDetailMessagePageAPI : PanelApi() {
     ) = handler@{ messages: List<TicketMessage>?, _: AsyncResult<*> ->
         if (messages == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_139))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -102,7 +102,7 @@ class TicketDetailMessagePageAPI : PanelApi() {
     ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (usernameList == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_140))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

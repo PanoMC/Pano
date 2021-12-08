@@ -46,7 +46,7 @@ class CredentialsAPI : LoggedInApi() {
     ) = handler@{ user: User?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (user == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_242))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

@@ -50,7 +50,7 @@ class PlayerDetailAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_160))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -78,7 +78,7 @@ class PlayerDetailAPI : PanelApi() {
     ) = handler@{ user: User?, _: AsyncResult<*> ->
         if (user == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_161))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -123,7 +123,7 @@ class PlayerDetailAPI : PanelApi() {
     ) = handler@{ permissionGroup: PermissionGroup?, _: AsyncResult<*> ->
         if (permissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_164))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -148,7 +148,7 @@ class PlayerDetailAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_165))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -199,7 +199,7 @@ class PlayerDetailAPI : PanelApi() {
     ) = handler@{ tickets: List<Ticket>?, _: AsyncResult<*> ->
         if (tickets == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_162))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -242,7 +242,7 @@ class PlayerDetailAPI : PanelApi() {
     ) = handler@{ ticketCategoryList: Map<Int, TicketCategory>?, _: AsyncResult<*> ->
         if (ticketCategoryList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_163))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

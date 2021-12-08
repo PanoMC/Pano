@@ -49,7 +49,7 @@ class PostCategoryPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_86))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -83,7 +83,7 @@ class PostCategoryPageInitAPI : PanelApi() {
     ) = handler@{ categories: List<PostCategory>?, _: AsyncResult<*> ->
         if (categories == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_85))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -157,7 +157,7 @@ class PostCategoryPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_148))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -180,7 +180,7 @@ class PostCategoryPageInitAPI : PanelApi() {
     ) = handler@{ posts: List<Post>?, _: AsyncResult<*> ->
         if (posts == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_149))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

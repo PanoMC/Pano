@@ -37,7 +37,7 @@ class PermissionGetGroupsAPI : PanelApi() {
     ) = handler@{ permissionGroups: List<PermissionGroup>?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (permissionGroups == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_201))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

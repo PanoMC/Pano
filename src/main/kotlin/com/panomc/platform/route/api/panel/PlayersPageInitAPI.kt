@@ -47,7 +47,7 @@ class PlayersPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_124))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -82,7 +82,7 @@ class PlayersPageInitAPI : PanelApi() {
     ) = handler@{ userList: List<Map<String, Any>>?, _: AsyncResult<*> ->
         if (userList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_125))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -147,7 +147,7 @@ class PlayersPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_158))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -178,7 +178,7 @@ class PlayersPageInitAPI : PanelApi() {
     ) = handler@{ permissionGroup: PermissionGroup?, _: AsyncResult<*> ->
         if (permissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_200))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

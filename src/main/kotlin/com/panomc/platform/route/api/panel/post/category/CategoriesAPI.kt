@@ -34,7 +34,7 @@ class CategoriesAPI : PanelApi() {
         handler@{ count: Int?, _: AsyncResult<*> ->
             if (count == null) {
                 databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_88))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 }
 
                 return@handler
@@ -50,7 +50,7 @@ class CategoriesAPI : PanelApi() {
         handler@{ categories: List<PostCategory>?, _: AsyncResult<*> ->
             databaseManager.closeConnection(sqlConnection) {
                 if (categories == null) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_87))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
 
                     return@closeConnection
                 }

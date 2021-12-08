@@ -95,7 +95,7 @@ class PlayerEditInfoAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_209))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -125,7 +125,7 @@ class PlayerEditInfoAPI : PanelApi() {
     ) = handler@{ user: User?, _: AsyncResult<*> ->
         if (user == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_210))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -193,7 +193,7 @@ class PlayerEditInfoAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_211))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -235,7 +235,7 @@ class PlayerEditInfoAPI : PanelApi() {
     ) = handler@{ isEmailExists: Boolean?, _: AsyncResult<*> ->
         if (isEmailExists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_212))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -266,7 +266,7 @@ class PlayerEditInfoAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         if (result == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_213))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -288,7 +288,7 @@ class PlayerEditInfoAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         if (result == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_214))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -316,7 +316,7 @@ class PlayerEditInfoAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_215))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

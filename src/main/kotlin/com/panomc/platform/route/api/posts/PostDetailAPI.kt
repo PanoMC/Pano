@@ -49,7 +49,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_229))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -77,7 +77,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         if (result == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_237))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -96,7 +96,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ post: Post?, _: AsyncResult<*> ->
         if (post == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_228))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -126,7 +126,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ category: PostCategory?, _: AsyncResult<*> ->
         if (category == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_227))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -147,7 +147,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ username: String?, _: AsyncResult<*> ->
         if (username == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_230))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -169,7 +169,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_238))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -201,7 +201,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ previousPost: Post?, _: AsyncResult<*> ->
         if (previousPost == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_239))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -224,7 +224,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_240))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -253,7 +253,7 @@ class PostDetailAPI : Api() {
     ) = handler@{ nextPost: Post?, _: AsyncResult<*> ->
         if (nextPost == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_241))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

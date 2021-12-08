@@ -37,7 +37,7 @@ class CloseConnectServerCardAPI : PanelApi() {
         handler@{ isUserInstalledSystem: Boolean?, _: AsyncResult<*> ->
             if (isUserInstalledSystem == null) {
                 databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_27))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 }
 
                 return@handler
@@ -58,7 +58,7 @@ class CloseConnectServerCardAPI : PanelApi() {
         handler@{ result: Result?, _: AsyncResult<*> ->
             databaseManager.closeConnection(sqlConnection) {
                 if (result == null)
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_25))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 else
                     handler.invoke(Successful())
             }

@@ -38,7 +38,7 @@ class AuthProvider(
     ) {
         val isEmailVerifiedByIDHandler = isEmailVerifiedByIDHandler@{ isVerified: Boolean?, _: AsyncResult<*> ->
             if (isVerified == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_218))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@isEmailVerifiedByIDHandler
             }
@@ -56,7 +56,7 @@ class AuthProvider(
         val getUserIDFromUsernameOrEmailHandler =
             getUserIDFromUsernameOrEmailHandler@{ userID: Int?, _: AsyncResult<*> ->
                 if (userID == null) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_217))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
 
                     return@getUserIDFromUsernameOrEmailHandler
                 }
@@ -70,7 +70,7 @@ class AuthProvider(
 
         val isLoginCorrectHandler = isLoginCorrectHandler@{ isLoginCorrect: Boolean?, _: AsyncResult<*> ->
             if (isLoginCorrect == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_216))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@isLoginCorrectHandler
             }
@@ -104,7 +104,7 @@ class AuthProvider(
         val getUserIDFromUsernameOrEmailHandler =
             getUserIDFromUsernameOrEmailHandler@{ userID: Int?, _: AsyncResult<*> ->
                 if (userID == null) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_219))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
 
                     return@getUserIDFromUsernameOrEmailHandler
                 }

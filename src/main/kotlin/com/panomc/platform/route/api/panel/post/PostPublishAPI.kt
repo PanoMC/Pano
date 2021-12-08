@@ -100,7 +100,7 @@ class PostPublishAPI : PanelApi() {
     ) = handler@{ postID: Long?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (postID == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_114))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }
@@ -121,7 +121,7 @@ class PostPublishAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_115))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

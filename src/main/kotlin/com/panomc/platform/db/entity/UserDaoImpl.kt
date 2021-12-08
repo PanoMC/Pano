@@ -75,7 +75,7 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
                 if (queryResult.succeeded())
                     handler.invoke(Successful(), queryResult)
                 else {
-                    val errorCode = ErrorCode.UNKNOWN_ERROR_2
+                    val errorCode = ErrorCode.UNKNOWN
 
                     handler.invoke(Error(errorCode), queryResult)
                 }

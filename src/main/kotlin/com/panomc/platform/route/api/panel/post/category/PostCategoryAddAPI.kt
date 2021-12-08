@@ -55,7 +55,7 @@ class PostCategoryAddAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_94))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -86,7 +86,7 @@ class PostCategoryAddAPI : PanelApi() {
     ) = handler@{ id: Long?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (id == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_93))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

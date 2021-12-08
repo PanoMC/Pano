@@ -40,7 +40,7 @@ class PanelNotificationDeleteAllAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_174))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

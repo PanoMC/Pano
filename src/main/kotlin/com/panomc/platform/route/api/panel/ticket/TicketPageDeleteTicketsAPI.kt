@@ -49,7 +49,7 @@ class TicketPageDeleteTicketsAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         if (result == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_117))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -68,7 +68,7 @@ class TicketPageDeleteTicketsAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_147))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

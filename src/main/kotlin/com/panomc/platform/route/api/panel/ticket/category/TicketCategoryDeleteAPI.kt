@@ -42,7 +42,7 @@ class TicketCategoryDeleteAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_90))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -67,7 +67,7 @@ class TicketCategoryDeleteAPI : PanelApi() {
         handler@{ result: Result?, _: AsyncResult<*> ->
             databaseManager.closeConnection(sqlConnection) {
                 if (result == null) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_89))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
 
                     return@closeConnection
                 }

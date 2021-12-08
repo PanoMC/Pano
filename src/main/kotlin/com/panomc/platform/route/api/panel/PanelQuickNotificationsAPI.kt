@@ -42,7 +42,7 @@ class PanelQuickNotificationsAPI : PanelApi() {
     ) = handler@{ notifications: List<PanelNotification>?, _: AsyncResult<*> ->
         if (notifications == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_73))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -63,7 +63,7 @@ class PanelQuickNotificationsAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (count == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_67))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

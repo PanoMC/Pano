@@ -72,7 +72,7 @@ class PermissionAddGroupAPI : PanelApi() {
     ) = handler@{ isTherePermissionGroup: Boolean?, _: AsyncResult<*> ->
         if (isTherePermissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_193))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -100,7 +100,7 @@ class PermissionAddGroupAPI : PanelApi() {
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
                 databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_194))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 }
 
                 return@closeConnection

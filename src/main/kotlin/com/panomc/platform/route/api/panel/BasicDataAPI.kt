@@ -58,7 +58,7 @@ class BasicDataAPI : PanelApi() {
     ) = handler@{ user: User?, _: AsyncResult<*> ->
         if (user == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_7))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -79,7 +79,7 @@ class BasicDataAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (count == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_68))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

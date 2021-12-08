@@ -101,7 +101,7 @@ class FinishAPI : SetupApi() {
     ) = handler@{ asyncResult: AsyncResult<*> ->
         if (asyncResult.failed()) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_128))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -153,7 +153,7 @@ class FinishAPI : SetupApi() {
             }
 
             if (isLoggedIn is Boolean && !isLoggedIn) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_130))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

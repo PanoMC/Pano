@@ -49,7 +49,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
     ) = handler@{ isTherePermissionGroup: Boolean?, _: AsyncResult<*> ->
         if (isTherePermissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_187))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -77,7 +77,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
     ) = handler@{ permissionGroup: PermissionGroup?, _: AsyncResult<*> ->
         if (permissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_188))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -85,7 +85,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
 
         if (permissionGroup.name == "admin") {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_189))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -109,7 +109,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         if (result == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_190))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -129,7 +129,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         if (result == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_191))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -148,7 +148,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_192))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

@@ -38,7 +38,7 @@ class PostCategoryDeleteAPI : PanelApi() {
 
             if (exists == null) {
                 databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_98))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 }
                 return@handler
             }
@@ -63,7 +63,7 @@ class PostCategoryDeleteAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         if (result == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_121))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -80,7 +80,7 @@ class PostCategoryDeleteAPI : PanelApi() {
         handler@{ result: Result?, _: AsyncResult<*> ->
             databaseManager.closeConnection(sqlConnection) {
                 if (result == null) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_97))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
 
                     return@closeConnection
                 }

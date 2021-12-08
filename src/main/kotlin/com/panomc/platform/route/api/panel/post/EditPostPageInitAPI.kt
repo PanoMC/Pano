@@ -50,7 +50,7 @@ class EditPostPageInitAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_100))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -77,7 +77,7 @@ class EditPostPageInitAPI : PanelApi() {
     ) = handler@{ post: Post?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (post == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_99))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

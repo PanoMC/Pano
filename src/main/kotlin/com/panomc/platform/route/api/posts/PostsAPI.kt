@@ -50,7 +50,7 @@ class PostsAPI : Api() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_223))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -84,7 +84,7 @@ class PostsAPI : Api() {
     ) = handler@{ posts: List<Post>?, _: AsyncResult<*> ->
         if (posts == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_224))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
             return@handler
         }
@@ -113,7 +113,7 @@ class PostsAPI : Api() {
     ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
         if (usernameList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_225))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -144,7 +144,7 @@ class PostsAPI : Api() {
     ) = handler@{ categories: Map<Int, PostCategory>?, _: AsyncResult<*> ->
         if (categories == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_226))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

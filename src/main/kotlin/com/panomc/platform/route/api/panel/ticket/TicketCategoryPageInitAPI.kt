@@ -44,7 +44,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_80))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -78,7 +78,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
     ) = handler@{ categories: List<TicketCategory>?, _: AsyncResult<*> ->
         if (categories == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_79))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -160,7 +160,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_150))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -183,7 +183,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
     ) = handler@{ tickets: List<Ticket>?, _: AsyncResult<*> ->
         if (tickets == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_151))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

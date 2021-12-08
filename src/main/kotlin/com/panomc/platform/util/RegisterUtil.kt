@@ -138,7 +138,7 @@ object RegisterUtil {
     ) = handler@{ exists: Boolean?, asyncResult: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_244), asyncResult)
+                handler.invoke(Error(ErrorCode.UNKNOWN), asyncResult)
             }
 
             return@handler
@@ -182,7 +182,7 @@ object RegisterUtil {
     ) = handler@{ exists: Boolean?, asyncResult: AsyncResult<*> ->
         if (exists == null) {
             handler.invoke(
-                Error(ErrorCode.UNKNOWN_ERROR_1),
+                Error(ErrorCode.UNKNOWN),
                 asyncResult
             )
 
@@ -231,7 +231,7 @@ object RegisterUtil {
     ) = handler@{ permissionGroupID: Int?, asyncResult: AsyncResult<*> ->
         if (permissionGroupID == null) {
             handler.invoke(
-                Error(ErrorCode.UNKNOWN_ERROR_3),
+                Error(ErrorCode.UNKNOWN),
                 asyncResult
             )
 
@@ -265,7 +265,7 @@ object RegisterUtil {
     ) = handler@{ result: Result?, asyncResult: AsyncResult<*> ->
         if (result == null) {
             handler.invoke(
-                Error(ErrorCode.UNKNOWN_ERROR_157),
+                Error(ErrorCode.UNKNOWN),
                 asyncResult
             )
 
@@ -286,7 +286,7 @@ object RegisterUtil {
     ) = handler@{ userID: Int?, asyncResult: AsyncResult<*> ->
         if (userID == null) {
             handler.invoke(
-                Error(ErrorCode.UNKNOWN_ERROR_12),
+                Error(ErrorCode.UNKNOWN),
                 asyncResult
             )
 
@@ -310,7 +310,7 @@ object RegisterUtil {
     ) = handler@{ exists: Boolean?, asyncResult: AsyncResult<*> ->
         if (exists == null) {
             handler.invoke(
-                Error(ErrorCode.UNKNOWN_ERROR_13),
+                Error(ErrorCode.UNKNOWN),
                 asyncResult
             )
 
@@ -339,7 +339,7 @@ object RegisterUtil {
     ) = handler@{ result: Result?, asyncResult: AsyncResult<*> ->
         if (result == null) {
             handler.invoke(
-                Error(ErrorCode.UNKNOWN_ERROR_15),
+                Error(ErrorCode.UNKNOWN),
                 asyncResult
             )
 
@@ -354,7 +354,7 @@ object RegisterUtil {
     ) = handler@{ result: Result?, asyncResult: AsyncResult<*> ->
         if (result == null) {
             handler.invoke(
-                Error(ErrorCode.UNKNOWN_ERROR_14),
+                Error(ErrorCode.UNKNOWN),
                 asyncResult
             )
 
@@ -373,7 +373,7 @@ object RegisterUtil {
     ) {
         databaseManager.getDatabase().userDao.add(user, sqlConnection, isSetup) { isSuccessful, asyncResultOfAdd ->
             if (isSuccessful == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_144), asyncResultOfAdd)
+                handler.invoke(Error(ErrorCode.UNKNOWN), asyncResultOfAdd)
 
                 return@add
             }

@@ -63,7 +63,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_205))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -92,7 +92,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
     ) = handler@{ userPermissionGroupID: Int?, _: AsyncResult<*> ->
         if (userPermissionGroupID == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_206))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -113,7 +113,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
     ) = handler@{ permissionGroup: PermissionGroup?, _: AsyncResult<*> ->
         if (permissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_207))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -145,7 +145,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_208))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -175,7 +175,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
     ) = handler@{ isTherePermissionGroup: Boolean?, _: AsyncResult<*> ->
         if (isTherePermissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_202))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -203,7 +203,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
     ) = handler@{ permissionGroupID: Int?, _: AsyncResult<*> ->
         if (permissionGroupID == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_203))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -222,7 +222,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_204))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

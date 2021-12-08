@@ -76,7 +76,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
     ) = handler@{ isTherePermissionGroup: Boolean?, _: AsyncResult<*> ->
         if (isTherePermissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_195))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -97,7 +97,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
     ) = handler@{ isTherePermissionGroup: Boolean?, _: AsyncResult<*> ->
         if (isTherePermissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_199))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -126,7 +126,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
     ) = handler@{ permissionGroup: PermissionGroup?, _: AsyncResult<*> ->
         if (permissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_197))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -134,7 +134,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
 
         if (permissionGroup.name == "admin") {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_198))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -153,7 +153,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_196))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

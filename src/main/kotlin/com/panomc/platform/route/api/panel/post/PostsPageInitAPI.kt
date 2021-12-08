@@ -54,7 +54,7 @@ class PostsPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_84))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -89,7 +89,7 @@ class PostsPageInitAPI : PanelApi() {
     ) = handler@{ posts: List<Post>?, _: AsyncResult<*> ->
         if (posts == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_82))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
             return@handler
         }
@@ -118,7 +118,7 @@ class PostsPageInitAPI : PanelApi() {
     ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
         if (usernameList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_221))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -149,7 +149,7 @@ class PostsPageInitAPI : PanelApi() {
     ) = handler@{ categories: Map<Int, PostCategory>?, _: AsyncResult<*> ->
         if (categories == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_222))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

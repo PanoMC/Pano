@@ -18,7 +18,7 @@ class LogoutAPI : LoggedInApi() {
 
 //    private fun logoutHandler(handler: (result: Result) -> Unit) = handler@{ isLoggedOut: Result?, _: AsyncResult<*>? ->
 //        if (isLoggedOut == null) {
-//            handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_28))
+//            handler.invoke(Error(ErrorCode.UNKNOWN))
 //
 //            return@handler
 //        }

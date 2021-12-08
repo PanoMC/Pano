@@ -28,7 +28,7 @@ class PostsByCategoryAPI : PanelApi() {
         ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
             if (usernameList == null) {
                 databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_221))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 }
 
                 return@handler
@@ -47,7 +47,7 @@ class PostsByCategoryAPI : PanelApi() {
         ) = getListByPageAndCategoryIDHandler@{ posts: List<Post>?, _: AsyncResult<*> ->
             if (posts == null) {
                 databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_82))
+                    handler.invoke(Error(ErrorCode.UNKNOWN))
                 }
                 return@getListByPageAndCategoryIDHandler
             }
@@ -71,7 +71,7 @@ class PostsByCategoryAPI : PanelApi() {
             countByCategoryHandler@{ count: Int?, _: AsyncResult<*> ->
                 if (count == null) {
                     databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_233))
+                        handler.invoke(Error(ErrorCode.UNKNOWN))
                     }
 
                     return@countByCategoryHandler
@@ -102,7 +102,7 @@ class PostsByCategoryAPI : PanelApi() {
             getByURLHandler@{ category: PostCategory?, _: AsyncResult<*> ->
                 if (category == null) {
                     databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_232))
+                        handler.invoke(Error(ErrorCode.UNKNOWN))
                     }
 
                     return@getByURLHandler
@@ -119,7 +119,7 @@ class PostsByCategoryAPI : PanelApi() {
             isExistsByURLHandler@{ exists: Boolean?, _: AsyncResult<*> ->
                 if (exists == null) {
                     databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_231))
+                        handler.invoke(Error(ErrorCode.UNKNOWN))
                     }
 
                     return@isExistsByURLHandler

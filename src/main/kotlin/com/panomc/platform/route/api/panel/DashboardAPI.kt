@@ -56,7 +56,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ isUserInstalled: Boolean?, _: AsyncResult<*> ->
         if (isUserInstalled == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_17))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -89,7 +89,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ systemProperty: SystemProperty?, _: AsyncResult<*> ->
         if (systemProperty == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_20))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -112,7 +112,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ userCount: Int?, _: AsyncResult<*> ->
         if (userCount == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_18))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -133,7 +133,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ postCount: Int?, _: AsyncResult<*> ->
         if (postCount == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_19))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -154,7 +154,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ ticketCount: Int?, _: AsyncResult<*> ->
         if (ticketCount == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_112))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -185,7 +185,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ openTicketCount: Int?, _: AsyncResult<*> ->
         if (openTicketCount == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_118))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -210,7 +210,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ tickets: List<Ticket>?, _: AsyncResult<*> ->
         if (tickets == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_76))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -238,7 +238,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
         if (usernameList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_155))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -274,7 +274,7 @@ class DashboardAPI : PanelApi() {
     ) = handler@{ ticketCategoryList: Map<Int, TicketCategory>?, _: AsyncResult<*> ->
         if (ticketCategoryList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_154))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

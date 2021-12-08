@@ -20,7 +20,7 @@ class PermissionSetAPI : PanelApi() {
         val mode = data.getString("mode")
 
         if (mode != "ADD" && mode != "DELETE") {
-            handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_180))
+            handler.invoke(Error(ErrorCode.UNKNOWN))
 
             return
         }
@@ -63,7 +63,7 @@ class PermissionSetAPI : PanelApi() {
     ) = handler@{ isTherePermission: Boolean?, _: AsyncResult<*> ->
         if (isTherePermission == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_181))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -93,7 +93,7 @@ class PermissionSetAPI : PanelApi() {
     ) = handler@{ isTherePermissionGroup: Boolean?, _: AsyncResult<*> ->
         if (isTherePermissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_182))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -123,7 +123,7 @@ class PermissionSetAPI : PanelApi() {
     ) = handler@{ permissionGroup: PermissionGroup?, _: AsyncResult<*> ->
         if (permissionGroup == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_185))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -131,7 +131,7 @@ class PermissionSetAPI : PanelApi() {
 
         if (permissionGroup.name == "admin") {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_186))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -160,7 +160,7 @@ class PermissionSetAPI : PanelApi() {
     ) = handler@{ isTherePermission: Boolean?, _: AsyncResult<*> ->
         if (isTherePermission == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_183))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -198,7 +198,7 @@ class PermissionSetAPI : PanelApi() {
     ) = handler@{ result: Result?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_184))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

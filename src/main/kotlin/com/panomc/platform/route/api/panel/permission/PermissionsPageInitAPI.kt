@@ -39,7 +39,7 @@ class PermissionsPageInitAPI : PanelApi() {
     ) = handler@{ permissions: List<Permission>?, _: AsyncResult<*> ->
         if (permissions == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_175))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -62,7 +62,7 @@ class PermissionsPageInitAPI : PanelApi() {
     ) = handler@{ permissionGroups: List<PermissionGroup>?, _: AsyncResult<*> ->
         if (permissionGroups == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_176))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -127,7 +127,7 @@ class PermissionsPageInitAPI : PanelApi() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_178))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -158,7 +158,7 @@ class PermissionsPageInitAPI : PanelApi() {
     ) = handler@{ usernameList: List<String>?, _: AsyncResult<*> ->
         if (usernameList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_179))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -176,7 +176,7 @@ class PermissionsPageInitAPI : PanelApi() {
     ) = handler@{ permissionGroupPerms: List<PermissionGroupPerms>?, _: AsyncResult<*> ->
         databaseManager.closeConnection(sqlConnection) {
             if (permissionGroupPerms == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_177))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
 
                 return@closeConnection
             }

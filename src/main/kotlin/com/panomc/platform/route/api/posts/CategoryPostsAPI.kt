@@ -55,7 +55,7 @@ class CategoryPostsAPI : Api() {
     ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
         if (exists == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_231))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -83,7 +83,7 @@ class CategoryPostsAPI : Api() {
     ) = handler@{ category: PostCategory?, _: AsyncResult<*> ->
         if (category == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_232))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -104,7 +104,7 @@ class CategoryPostsAPI : Api() {
     ) = handler@{ count: Int?, _: AsyncResult<*> ->
         if (count == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_233))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -140,7 +140,7 @@ class CategoryPostsAPI : Api() {
     ) = handler@{ posts: List<Post>?, _: AsyncResult<*> ->
         if (posts == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_234))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
             return@handler
         }
@@ -170,7 +170,7 @@ class CategoryPostsAPI : Api() {
     ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
         if (usernameList == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_235))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler
@@ -202,7 +202,7 @@ class CategoryPostsAPI : Api() {
     ) = handler@{ categories: Map<Int, PostCategory>?, _: AsyncResult<*> ->
         if (categories == null) {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN_ERROR_236))
+                handler.invoke(Error(ErrorCode.UNKNOWN))
             }
 
             return@handler

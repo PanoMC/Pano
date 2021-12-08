@@ -144,6 +144,46 @@ class TicketDaoImpl(override val tableName: String = "ticket") : DaoImpl(), Tick
             }
     }
 
+    override fun getAllByPageAndCategoryID(
+        page: Int,
+        categoryID: Int,
+        sqlConnection: SqlConnection,
+        handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
+    ) {
+        val query =
+            "SELECT `id`, `title`, `category_id`, `user_id`, `date`, `last_update`, `status` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `status`, `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+
+        val parameters = Tuple.tuple()
+
+        parameters.addInteger(categoryID)
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(parameters) { queryResult ->
+                if (queryResult.succeeded()) {
+                    val rows: RowSet<Row> = queryResult.result()
+                    val tickets = mutableListOf<Ticket>()
+
+                    rows.forEach { row ->
+                        tickets.add(
+                            Ticket(
+                                row.getInteger(0),
+                                row.getString(1),
+                                row.getInteger(2),
+                                row.getInteger(3),
+                                row.getLong(4),
+                                row.getLong(5),
+                                row.getInteger(6)
+                            )
+                        )
+                    }
+
+                    handler.invoke(tickets, queryResult)
+                } else
+                    handler.invoke(null, queryResult)
+            }
+    }
+
     override fun getAllByUserIDAndPage(
         userID: Int,
         page: Int,

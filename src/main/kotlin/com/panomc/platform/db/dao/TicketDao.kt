@@ -25,6 +25,13 @@ interface TicketDao : Dao<Ticket> {
         handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
     )
 
+    fun getAllByPageAndCategoryID(
+        page: Int,
+        categoryID: Int,
+        sqlConnection: SqlConnection,
+        handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
+    )
+
     fun getAllByUserIDAndPage(
         userID: Int,
         page: Int,

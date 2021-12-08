@@ -16,10 +16,7 @@ import com.panomc.platform.route.api.panel.playerDetail.PlayerDetailAPI
 import com.panomc.platform.route.api.panel.playerDetail.PlayerEditInfoAPI
 import com.panomc.platform.route.api.panel.playerDetail.PlayerSetPermissionGroupAPI
 import com.panomc.platform.route.api.panel.post.*
-import com.panomc.platform.route.api.panel.post.category.CategoriesAPI
-import com.panomc.platform.route.api.panel.post.category.PostCategoryAddAPI
-import com.panomc.platform.route.api.panel.post.category.PostCategoryDeleteAPI
-import com.panomc.platform.route.api.panel.post.category.PostCategoryUpdateAPI
+import com.panomc.platform.route.api.panel.post.category.*
 import com.panomc.platform.route.api.panel.ticket.*
 import com.panomc.platform.route.api.panel.ticket.category.TicketCategoryAddAPI
 import com.panomc.platform.route.api.panel.ticket.category.TicketCategoryDeleteAPI
@@ -165,7 +162,8 @@ class RouterModule(private val mVertx: Vertx) {
             CategoryPostsAPI(),
 
             CredentialsAPI(),
-            RegisterAPI()
+            RegisterAPI(),
+            PostsByCategoryAPI()
         )
     }
 

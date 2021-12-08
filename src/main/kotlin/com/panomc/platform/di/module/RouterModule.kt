@@ -12,6 +12,7 @@ import com.panomc.platform.route.api.panel.dashboard.CloseConnectServerCardAPI
 import com.panomc.platform.route.api.panel.dashboard.CloseGettingStartedCardAPI
 import com.panomc.platform.route.api.panel.permission.*
 import com.panomc.platform.route.api.panel.platformAuth.RefreshKeyAPI
+import com.panomc.platform.route.api.panel.player.permission.PlayersByPermissionAPI
 import com.panomc.platform.route.api.panel.playerDetail.PlayerDetailAPI
 import com.panomc.platform.route.api.panel.playerDetail.PlayerEditInfoAPI
 import com.panomc.platform.route.api.panel.playerDetail.PlayerSetPermissionGroupAPI
@@ -164,7 +165,8 @@ class RouterModule(private val mVertx: Vertx) {
             CredentialsAPI(),
             RegisterAPI(),
             PostsByCategoryAPI(),
-            TicketsByCategoryAPI()
+            TicketsByCategoryAPI(),
+            PlayersByPermissionAPI()
         )
     }
 

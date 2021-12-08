@@ -45,14 +45,15 @@ class DatabaseManager(
             DatabaseMigration_17_18(),
             DatabaseMigration_18_19(),
             DatabaseMigration_19_20(),
-            DatabaseMigration_20_21()
+            DatabaseMigration_20_21(),
+            DatabaseMigration_21_22()
         )
     }
 
     companion object {
-        const val DATABASE_SCHEME_VERSION = 20
+        const val DATABASE_SCHEME_VERSION = 21
         const val DATABASE_SCHEME_VERSION_INFO =
-            "Convert dates from string to BigInt."
+            "Add URL column to ticket category table."
     }
 
     init {

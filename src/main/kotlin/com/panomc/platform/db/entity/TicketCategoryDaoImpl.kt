@@ -5,6 +5,7 @@ import com.panomc.platform.db.dao.TicketCategoryDao
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
+import com.panomc.platform.util.TextUtil
 import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -35,7 +36,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
         sqlConnection: SqlConnection,
         handler: (categories: List<TicketCategory>?, asyncResult: AsyncResult<*>) -> Unit
     ) {
-        val query = "SELECT id, title FROM `${getTablePrefix() + tableName}`"
+        val query = "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}`"
         val categories = mutableListOf<TicketCategory>()
 
         sqlConnection
@@ -53,7 +54,9 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
                     categories.add(
                         TicketCategory(
                             row.getInteger(0),
-                            row.getString(1)
+                            row.getString(1),
+                            row.getString(2),
+                            row.getString(3)
                         )
                     )
                 }
@@ -105,14 +108,15 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
     ) {
 
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `description`) VALUES (?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `description`, `url`) VALUES (?, ?, ?)"
 
         sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     ticketCategory.title,
-                    ticketCategory.description
+                    ticketCategory.description,
+                    TextUtil.convertStringToURL(ticketCategory.title)
                 )
             ) { queryResult ->
                 if (queryResult.succeeded())
@@ -128,7 +132,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
         handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET title = ?, description = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `title` = ?, `description` = ?, `url` = ? WHERE `id` = ?"
 
         sqlConnection
             .preparedQuery(query)
@@ -136,6 +140,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
                 Tuple.of(
                     ticketCategory.title,
                     ticketCategory.description,
+                    TextUtil.convertStringToURL(ticketCategory.title),
                     ticketCategory.id
                 )
             ) { queryResult ->
@@ -168,7 +173,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
         handler: (categories: List<TicketCategory>?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT id, title, description FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         sqlConnection
             .preparedQuery(query)
@@ -183,7 +188,8 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
                                 TicketCategory(
                                     row.getInteger(0),
                                     row.getString(1),
-                                    row.getString(2)
+                                    row.getString(2),
+                                    row.getString(3)
                                 )
                             )
                         }
@@ -200,7 +206,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
         handler: (ticketCategory: TicketCategory?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT `id`, `title`, `description` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         sqlConnection
             .preparedQuery(query)
@@ -213,6 +219,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
                         id = row.getInteger(0),
                         title = row.getString(1),
                         description = row.getString(2),
+                        url = row.getString(3)
                     )
 
                     handler.invoke(ticket, queryResult)
@@ -236,7 +243,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
         }
 
         val query =
-            "SELECT `id`, `title`, `description` FROM `${getTablePrefix() + tableName}` WHERE  `id` IN ($listText)"
+            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` IN ($listText)"
 
         sqlConnection
             .preparedQuery(query)
@@ -250,6 +257,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
                             id = row.getInteger(0),
                             title = row.getString(1),
                             description = row.getString(2),
+                            url = row.getString(3)
                         )
                     }
 

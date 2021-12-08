@@ -560,6 +560,50 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
             }
     }
 
+    override fun getListByPageAndCategoryID(
+        categoryID: Int,
+        page: Int,
+        sqlConnection: SqlConnection,
+        handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
+    ) {
+        val query =
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    categoryID
+                )
+            )
+            { queryResult ->
+                if (queryResult.succeeded()) {
+                    val rows: RowSet<Row> = queryResult.result()
+                    val posts = mutableListOf<Post>()
+
+                    rows.forEach { row ->
+                        posts.add(
+                            Post(
+                                row.getInteger(0),
+                                row.getString(1),
+                                row.getInteger(2),
+                                row.getInteger(3),
+                                row.getBuffer(4).toString(),
+                                row.getLong(5),
+                                row.getLong(6),
+                                row.getInteger(7),
+                                row.getBuffer(8).toString(),
+                                row.getLong(9)
+                            )
+                        )
+                    }
+
+                    handler.invoke(posts, queryResult)
+                } else
+                    handler.invoke(null, queryResult)
+            }
+    }
+
     override fun increaseViewByOne(
         id: Int,
         sqlConnection: SqlConnection,

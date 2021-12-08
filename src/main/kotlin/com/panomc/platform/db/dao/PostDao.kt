@@ -111,6 +111,13 @@ interface PostDao : Dao<Post> {
         handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
     )
 
+    fun getListByPageAndCategoryID(
+        categoryID: Int,
+        page: Int,
+        sqlConnection: SqlConnection,
+        handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
+    )
+
     fun increaseViewByOne(
         id: Int,
         sqlConnection: SqlConnection,

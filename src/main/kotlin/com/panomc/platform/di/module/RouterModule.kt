@@ -25,6 +25,7 @@ import com.panomc.platform.route.api.panel.ticket.category.TicketCategoryUpdateA
 import com.panomc.platform.route.api.posts.CategoryPostsAPI
 import com.panomc.platform.route.api.posts.PostDetailAPI
 import com.panomc.platform.route.api.posts.PostsAPI
+import com.panomc.platform.route.api.posts.PreviewPostAPI
 import com.panomc.platform.route.api.server.ConnectNewAPI
 import com.panomc.platform.route.api.setup.CheckAPI
 import com.panomc.platform.route.api.setup.DBConnectionTestAPI
@@ -166,7 +167,8 @@ class RouterModule(private val mVertx: Vertx) {
             RegisterAPI(),
             PostsByCategoryAPI(),
             TicketsByCategoryAPI(),
-            PlayersByPermissionAPI()
+            PlayersByPermissionAPI(),
+            PreviewPostAPI()
         )
     }
 

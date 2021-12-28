@@ -280,7 +280,7 @@ class PostDetailAPI : Api() {
                             "title" to post.title,
                             "category" to
                                     if (category == null)
-                                        "-"
+                                        mapOf("id" to -1, "title" to "-")
                                     else
                                         mapOf<String, Any?>(
                                             "title" to category.title,
@@ -289,7 +289,7 @@ class PostDetailAPI : Api() {
                             "writer" to mapOf(
                                 "username" to username
                             ),
-                            "text" to post.post,
+                            "text" to post.text,
                             "date" to post.date,
                             "status" to post.status,
                             "image" to post.image,

@@ -239,7 +239,7 @@ class CategoryPostsAPI : Api() {
                                         post.categoryId,
                                         mapOf("id" to -1, "title" to "-")
                                     ),
-                        "post" to StringUtil.truncateHTML(post.post, 500, "&hellip;"),
+                        "text" to StringUtil.truncateHTML(post.text, 500, "&hellip;"),
                         "writer" to mapOf(
                             "username" to usernameList[post.writerUserID]
                         ),

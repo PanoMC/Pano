@@ -25,7 +25,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
                               `title` MEDIUMTEXT NOT NULL,
                               `category_id` int(11) NOT NULL,
                               `writer_user_id` int(11) NOT NULL,
-                              `post` longblob NOT NULL,
+                              `text` longblob NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `move_date` BIGINT(20) NOT NULL,
                               `status` int(1) NOT NULL,
@@ -91,7 +91,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (post: Post?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         sqlConnection
             .preparedQuery(query)
@@ -204,7 +204,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (postID: Long?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         sqlConnection
             .preparedQuery(query)
@@ -213,7 +213,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
                     post.title,
                     post.categoryId,
                     post.writerUserID,
-                    post.post,
+                    post.text,
                     post.date,
                     post.moveDate,
                     post.status,
@@ -237,7 +237,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET title = ?, category_id = ?, writer_user_id = ?, post = ?, `date` = ?, move_date = ?, status = ?, image = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET title = ?, category_id = ?, writer_user_id = ?, text = ?, `date` = ?, move_date = ?, status = ?, image = ? WHERE `id` = ?"
 
         sqlConnection
             .preparedQuery(query)
@@ -246,7 +246,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
                     post.title,
                     post.categoryId,
                     post.writerUserID,
-                    post.post,
+                    post.text,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
                     1,
@@ -349,7 +349,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT id, title, category_id, writer_user_id, post, `date`, move_date, status, image, views FROM `${getTablePrefix() + tableName}` WHERE category_id = ? ORDER BY `date` DESC LIMIT 5"
+            "SELECT id, title, category_id, writer_user_id, text, `date`, move_date, status, image, views FROM `${getTablePrefix() + tableName}` WHERE category_id = ? ORDER BY `date` DESC LIMIT 5"
 
         sqlConnection
             .preparedQuery(query)
@@ -391,7 +391,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         var query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (pageType == 1) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (pageType == 1) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         sqlConnection
             .preparedQuery(query)
@@ -480,7 +480,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
         sqlConnection
             .preparedQuery(query)
@@ -522,7 +522,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `category_id` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `category_id` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
         sqlConnection
             .preparedQuery(query)
@@ -567,7 +567,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         sqlConnection
             .preparedQuery(query)
@@ -682,7 +682,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (post: Post?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` < ? GROUP BY `id` ) order by `date` DESC limit 1"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` < ? GROUP BY `id` ) order by `date` DESC limit 1"
 
         sqlConnection
             .preparedQuery(query)
@@ -722,7 +722,7 @@ class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao 
         handler: (post: Post?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `post`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN (SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` > ? GROUP BY `id` ) order by `date` limit 1"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN (SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` > ? GROUP BY `id` ) order by `date` limit 1"
 
         sqlConnection
             .preparedQuery(query)

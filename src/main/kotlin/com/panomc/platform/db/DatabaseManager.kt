@@ -46,14 +46,15 @@ class DatabaseManager(
             DatabaseMigration_18_19(),
             DatabaseMigration_19_20(),
             DatabaseMigration_20_21(),
-            DatabaseMigration_21_22()
+            DatabaseMigration_21_22(),
+            DatabaseMigration_22_23()
         )
     }
 
     companion object {
-        const val DATABASE_SCHEME_VERSION = 21
+        const val DATABASE_SCHEME_VERSION = 23
         const val DATABASE_SCHEME_VERSION_INFO =
-            "Add URL column to ticket category table."
+            "Rename post text colum name."
     }
 
     init {

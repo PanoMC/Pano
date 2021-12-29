@@ -47,14 +47,15 @@ class DatabaseManager(
             DatabaseMigration_19_20(),
             DatabaseMigration_20_21(),
             DatabaseMigration_21_22(),
-            DatabaseMigration_22_23()
+            DatabaseMigration_22_23(),
+            DatabaseMigration_23_24()
         )
     }
 
     companion object {
-        const val DATABASE_SCHEME_VERSION = 23
+        const val DATABASE_SCHEME_VERSION = 24
         const val DATABASE_SCHEME_VERSION_INFO =
-            "Rename post text colum name."
+            "Add MC UUID column to users table and set users UUIDs."
     }
 
     init {

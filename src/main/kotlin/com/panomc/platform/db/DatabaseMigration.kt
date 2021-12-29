@@ -3,12 +3,16 @@ package com.panomc.platform.db
 import com.panomc.platform.Main
 import com.panomc.platform.db.model.SchemeVersion
 import io.vertx.core.AsyncResult
+import io.vertx.ext.web.client.WebClient
 import io.vertx.sqlclient.SqlConnection
 import javax.inject.Inject
 
 abstract class DatabaseMigration {
     @Inject
     lateinit var databaseManager: DatabaseManager
+
+    @Inject
+    lateinit var webClient: WebClient
 
     init {
         Main.getComponent().inject(this)

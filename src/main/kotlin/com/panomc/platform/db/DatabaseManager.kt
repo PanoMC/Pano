@@ -48,7 +48,8 @@ class DatabaseManager(
             DatabaseMigration_20_21(),
             DatabaseMigration_21_22(),
             DatabaseMigration_22_23(),
-            DatabaseMigration_23_24()
+            DatabaseMigration_23_24(),
+            DatabaseMigration_24_25()
         )
     }
 

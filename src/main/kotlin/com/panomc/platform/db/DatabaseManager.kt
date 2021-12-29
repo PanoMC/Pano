@@ -52,16 +52,12 @@ class DatabaseManager(
         )
     }
 
-    companion object {
-        const val DATABASE_SCHEME_VERSION = 24
-        const val DATABASE_SCHEME_VERSION_INFO =
-            "Add MC UUID column to users table and set users UUIDs."
-    }
-
     init {
         if (setupManager.isSetupDone())
             checkMigration()
     }
+
+    internal fun getLatestMigration() = mMigrations.maxByOrNull { it.SCHEME_VERSION }!!
 
     private fun checkMigration() {
         createConnection { sqlConnection, _ ->

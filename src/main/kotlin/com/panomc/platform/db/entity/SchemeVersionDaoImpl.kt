@@ -1,8 +1,6 @@
 package com.panomc.platform.db.entity
 
 import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager.Companion.DATABASE_SCHEME_VERSION
-import com.panomc.platform.db.DatabaseManager.Companion.DATABASE_SCHEME_VERSION_INFO
 import com.panomc.platform.db.dao.SchemeVersionDao
 import com.panomc.platform.db.model.SchemeVersion
 import com.panomc.platform.model.Result
@@ -34,7 +32,10 @@ class SchemeVersionDaoImpl(override val tableName: String = "scheme_version") : 
                             if (schemeVersion == null)
                                 add(
                                     sqlConnection,
-                                    SchemeVersion(DATABASE_SCHEME_VERSION.toString(), DATABASE_SCHEME_VERSION_INFO)
+                                    SchemeVersion(
+                                        databaseManager.getLatestMigration().SCHEME_VERSION.toString(),
+                                        databaseManager.getLatestMigration().SCHEME_VERSION_INFO.toString()
+                                    )
                                 ) { _, asyncResultAdd ->
                                     handler.invoke(asyncResultAdd)
                                 }
@@ -44,7 +45,10 @@ class SchemeVersionDaoImpl(override val tableName: String = "scheme_version") : 
                                 if (databaseVersion == 0)
                                     add(
                                         sqlConnection,
-                                        SchemeVersion(DATABASE_SCHEME_VERSION.toString(), DATABASE_SCHEME_VERSION_INFO)
+                                        SchemeVersion(
+                                            databaseManager.getLatestMigration().SCHEME_VERSION.toString(),
+                                            databaseManager.getLatestMigration().SCHEME_VERSION_INFO.toString()
+                                        )
                                     ) { _, asyncResultAdd ->
                                         handler.invoke(asyncResultAdd)
                                     }

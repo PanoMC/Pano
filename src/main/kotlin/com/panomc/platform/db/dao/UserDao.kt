@@ -40,12 +40,6 @@ interface UserDao : Dao<User> {
         handler: (permissionGroupID: Int?, asyncResult: AsyncResult<*>) -> Unit
     )
 
-    fun getSecretKeyByID(
-        userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (secretKey: String?, asyncResult: AsyncResult<*>) -> Unit
-    )
-
     fun isLoginCorrect(
         usernameOrEmail: String,
         password: String,

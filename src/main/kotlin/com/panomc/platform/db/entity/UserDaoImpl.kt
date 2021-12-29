@@ -7,15 +7,12 @@ import com.panomc.platform.db.model.User
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
-import io.jsonwebtoken.SignatureAlgorithm
-import io.jsonwebtoken.security.Keys
 import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import org.apache.commons.codec.digest.DigestUtils
-import java.util.*
 
 class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao {
 
@@ -31,8 +28,6 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
                               `password` varchar(255) NOT NULL,
                               `permission_group_id` int(11) NOT NULL,
                               `registered_ip` varchar(255) NOT NULL,
-                              `secret_key` text NOT NULL,
-                              `public_key` text NOT NULL,
                               `register_date` BIGINT(20) NOT NULL,
                               `email_verified` int(1) NOT NULL DEFAULT 0,
                               `banned` int(1) NOT NULL DEFAULT 0,
@@ -52,10 +47,8 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
         handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registered_ip, permission_group_id, secret_key, public_key, register_date, email_verified) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-
-        val key = Keys.keyPairFor(SignatureAlgorithm.RS256)
+            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registered_ip, permission_group_id, register_date, email_verified) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
 
         sqlConnection
             .preparedQuery(query)
@@ -66,8 +59,6 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
                     DigestUtils.md5Hex(user.password),
                     user.registeredIp,
                     user.permissionGroupID,
-                    Base64.getEncoder().encodeToString(key.private.encoded),
-                    Base64.getEncoder().encodeToString(key.public.encoded),
                     user.registerDate,
                     if (isSetup) 1 else 0
                 )
@@ -173,30 +164,6 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
                     val rows: RowSet<Row> = queryResult.result()
 
                     handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
-    }
-
-    override fun getSecretKeyByID(
-        userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (secretKey: String?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
-        val query =
-            "SELECT secret_key FROM `${getTablePrefix() + tableName}` where `id` = ?"
-
-        sqlConnection
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    userID
-                )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-
-                    handler.invoke(rows.toList()[0].getString(0), queryResult)
                 } else
                     handler.invoke(null, queryResult)
             }

@@ -11,7 +11,6 @@ version = "1.0"
 val vertxVersionVariable = "4.2.3"
 
 repositories {
-    jcenter()
     mavenCentral()
     maven("https://oss.sonatype.org/content/repositories/iovertx-3720/")
     maven("https://jitpack.io")
@@ -38,7 +37,7 @@ dependencies {
     implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersionVariable")
 
     implementation("com.beust:klaxon:5.5")
-    implementation("org.slf4j:slf4j-simple:1.7.32")
+    implementation("org.slf4j:slf4j-simple:1.7.33")
 
     // dagger 2x
     implementation("com.google.dagger:dagger:2.40.5")

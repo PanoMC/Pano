@@ -23,6 +23,7 @@ class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") 
                               `id` int NOT NULL AUTO_INCREMENT,
                               `title` MEDIUMTEXT NOT NULL,
                               `description` text,
+                              `url` mediumtext NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Ticket category table.';
                         """

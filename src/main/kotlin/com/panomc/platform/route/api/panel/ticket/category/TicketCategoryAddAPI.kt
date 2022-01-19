@@ -17,7 +17,7 @@ class TicketCategoryAddAPI : PanelApi() {
         val title = data.getString("title")
         val description = data.getString("description")
 
-        validateForm(handler, title, description) {
+        validateForm(handler, title) {
             databaseManager.createConnection((this::createConnectionHandler)(handler, title, description))
         }
     }
@@ -59,7 +59,7 @@ class TicketCategoryAddAPI : PanelApi() {
     private fun validateForm(
         handler: (result: Result) -> Unit,
         title: String,
-        description: String,
+//        description: String,
         successHandler: () -> Unit
     ) {
         val errors = mutableMapOf<String, Boolean>()
@@ -67,8 +67,8 @@ class TicketCategoryAddAPI : PanelApi() {
         if (title.isEmpty() || title.length > 32)
             errors["title"] = true
 
-        if (description.isEmpty())
-            errors["description"] = true
+//        if (description.isEmpty())
+//            errors["description"] = true
 
         if (errors.isNotEmpty()) {
             handler.invoke(Errors(errors))

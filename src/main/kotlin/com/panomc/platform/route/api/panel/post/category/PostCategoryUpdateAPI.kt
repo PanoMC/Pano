@@ -21,7 +21,7 @@ class PostCategoryUpdateAPI : PanelApi() {
         val url = data.getString("url")
         val color = data.getString("color")
 
-        validateForm(handler, title, description, url, color) {
+        validateForm(handler, title, url, color) {
             databaseManager.createConnection(
                 (this::createConnectionHandler)(
                     handler,
@@ -110,7 +110,7 @@ class PostCategoryUpdateAPI : PanelApi() {
     private fun validateForm(
         handler: (result: Result) -> Unit,
         title: String,
-        description: String,
+//        description: String,
         url: String,
         color: String,
         successHandler: () -> Unit
@@ -126,8 +126,8 @@ class PostCategoryUpdateAPI : PanelApi() {
         if (title.isEmpty() || title.length > 32)
             errors["title"] = true
 
-        if (description.isEmpty())
-            errors["description"] = true
+//        if (description.isEmpty())
+//            errors["description"] = true
 
         if (url.isEmpty() || url.length < 3 || url.length > 32 || !url.matches(Regex("^[a-zA-Z0-9-]+\$")))
             errors["url"] = true

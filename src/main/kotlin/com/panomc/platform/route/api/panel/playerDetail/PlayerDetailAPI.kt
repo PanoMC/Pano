@@ -91,7 +91,8 @@ class PlayerDetailAPI : PanelApi() {
             "username" to user.username,
             "email" to user.email,
             "registerDate" to user.registerDate,
-            "isBanned" to user.banned
+            "isBanned" to user.banned,
+            "isEmailVerified" to user.emailVerified
         )
 
         if (user.permissionGroupID == -1) {

@@ -179,11 +179,11 @@ class PostsPageInitAPI : PanelApi() {
                         "title" to post.title,
                         "category" to
                                 if (post.categoryId == -1)
-                                    mapOf("id" to -1, "title" to "-")
+                                    mapOf("id" to -1, "title" to "-", "url" to "-")
                                 else
                                     categories.getOrDefault(
                                         post.categoryId,
-                                        mapOf("id" to -1, "title" to "-")
+                                        mapOf("id" to -1, "title" to "-", "url" to "-")
                                     ),
                         "writer" to mapOf(
                             "username" to usernameList[post.writerUserID]

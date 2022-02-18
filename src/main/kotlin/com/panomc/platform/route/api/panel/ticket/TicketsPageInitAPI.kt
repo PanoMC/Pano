@@ -172,11 +172,11 @@ class TicketsPageInitAPI : PanelApi() {
                         "title" to ticket.title,
                         "category" to
                                 if (ticket.categoryID == -1)
-                                    mapOf("id" to -1, "title" to "-")
+                                    mapOf("id" to -1, "title" to "-", "url" to "-")
                                 else
                                     ticketCategoryList.getOrDefault(
                                         ticket.categoryID,
-                                        mapOf("id" to -1, "title" to "-")
+                                        mapOf("id" to -1, "title" to "-", "url" to "-")
                                     ),
                         "writer" to mapOf(
                             "username" to usernameList[ticket.userID]

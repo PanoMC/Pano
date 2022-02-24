@@ -33,6 +33,7 @@ class PermissionDaoImpl(override val tableName: String = "permission") : DaoImpl
                     }
 
                     val permissionAddHandlerList = listOf(
+                        add(Permission(-1, "access_panel", "fa-cubes")),
                         add(Permission(-1, "manage_servers", "fa-cubes")),
                         add(Permission(-1, "manage_posts", "fa-sticky-note")),
                         add(Permission(-1, "manage_tickets", "fa-ticket-alt")),

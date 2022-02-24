@@ -85,7 +85,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
 
         if (permissionGroup.name == "admin") {
             databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
+                handler.invoke(Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION))
             }
 
             return@handler

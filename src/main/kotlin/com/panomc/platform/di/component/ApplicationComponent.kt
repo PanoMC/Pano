@@ -11,6 +11,7 @@ import com.panomc.platform.route.api.panel.BasicDataAPI
 import com.panomc.platform.route.api.panel.platformAuth.RefreshKeyAPI
 import com.panomc.platform.route.api.server.ConnectNewAPI
 import com.panomc.platform.route.api.setup.CheckAPI
+import com.panomc.platform.route.api.setup.DBConnectionTestAPI
 import com.panomc.platform.route.api.setup.FinishAPI
 import com.panomc.platform.route.api.setup.step.NextStepAPI
 import com.panomc.platform.route.staticFolder.src.SrcFolderRoute
@@ -64,6 +65,8 @@ interface ApplicationComponent {
     fun inject(databaseMigration: DatabaseMigration)
 
     fun inject(setupApi: SetupApi)
+
+    fun inject(dbConnectionTestAPI: DBConnectionTestAPI)
 
     fun inject(registerAPI: RegisterAPI)
 }

@@ -160,7 +160,7 @@ class FinishAPI : SetupApi() {
 
             setupManager.finishSetup()
 
-            handler.invoke(Successful())
+            handler.invoke(isLoggedIn as Successful)
         }
     }
 }

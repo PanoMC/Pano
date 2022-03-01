@@ -98,6 +98,17 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
+        if (userPermissionGroupID == -1) {
+            databaseManager.getDatabase().userDao.setPermissionGroupByUsername(
+                permissionGroupID,
+                username,
+                sqlConnection,
+                (this::setPermissionGroupByUsernameHandler)(sqlConnection, handler)
+            )
+
+            return@handler
+        }
+
         databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
             userPermissionGroupID,
             sqlConnection,

@@ -8,7 +8,7 @@ plugins {
 group = "com.panomc.platform"
 version = "1.0"
 
-val vertxVersionVariable = "4.2.3"
+val vertxVersionVariable = "4.2.5"
 
 repositories {
     mavenCentral()
@@ -24,7 +24,7 @@ vertx {
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
 
-    testImplementation(group = "junit", name = "junit", version = "4.12")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.8.2")
     testImplementation("io.vertx:vertx-unit:$vertxVersionVariable")
 
     implementation("io.vertx:vertx-web:$vertxVersionVariable")
@@ -37,11 +37,11 @@ dependencies {
     implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersionVariable")
 
     implementation("com.beust:klaxon:5.5")
-    implementation("org.slf4j:slf4j-simple:1.7.33")
+    implementation("org.slf4j:slf4j-simple:1.7.36")
 
     // dagger 2x
-    implementation("com.google.dagger:dagger:2.40.5")
-    kapt("com.google.dagger:dagger-compiler:2.40.5")
+    implementation("com.google.dagger:dagger:2.41")
+    kapt("com.google.dagger:dagger-compiler:2.41")
 
     // recaptcha v2 1.0.4
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")

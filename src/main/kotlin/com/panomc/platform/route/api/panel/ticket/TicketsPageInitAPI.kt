@@ -16,7 +16,7 @@ class TicketsPageInitAPI : PanelApi() {
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val data = context.bodyAsJson
-        val pageType = data.getInteger("page_type")
+        val pageType = data.getInteger("pageType")
         val page = data.getInteger("page")
 
         databaseManager.createConnection((this::createConnectionHandler)(handler, pageType, page))
@@ -182,7 +182,7 @@ class TicketsPageInitAPI : PanelApi() {
                             "username" to usernameList[ticket.userID]
                         ),
                         "date" to ticket.date,
-                        "last_update" to ticket.lastUpdate,
+                        "lastUpdate" to ticket.lastUpdate,
                         "status" to ticket.status
                     )
                 )
@@ -190,8 +190,8 @@ class TicketsPageInitAPI : PanelApi() {
 
             val result = mutableMapOf<String, Any?>(
                 "tickets" to ticketDataList,
-                "tickets_count" to count,
-                "total_page" to totalPage
+                "ticketCount" to count,
+                "totalPage" to totalPage
             )
 
             handler.invoke(Successful(result))

@@ -139,8 +139,8 @@ class PostCategoryPageInitAPI : PanelApi() {
         databaseManager.closeConnection(sqlConnection) {
             val result = mutableMapOf<String, Any?>(
                 "categories" to categoryDataList,
-                "category_count" to count,
-                "total_page" to totalPage,
+                "categoryCount" to count,
+                "totalPage" to totalPage,
                 "host" to "http://"
             )
 
@@ -204,7 +204,7 @@ class PostCategoryPageInitAPI : PanelApi() {
                 "description" to category.description,
                 "url" to category.url,
                 "color" to category.color,
-                "post_count" to count,
+                "postCount" to count,
                 "posts" to postsDataList
             )
         )

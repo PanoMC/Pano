@@ -15,7 +15,7 @@ class TicketDetailMessagePageAPI : PanelApi() {
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val data = context.bodyAsJson
         val id = data.getInteger("id")
-        val lastMessageID = data.getInteger("last_message_id")
+        val lastMessageID = data.getInteger("lastMessageId")
 
         databaseManager.createConnection((this::createConnectionHandler)(handler, lastMessageID, id))
     }

@@ -142,8 +142,8 @@ class TicketCategoryPageInitAPI : PanelApi() {
                 Successful(
                     mutableMapOf<String, Any?>(
                         "categories" to categoryDataList,
-                        "category_count" to count,
-                        "total_page" to totalPage,
+                        "categoryCount" to count,
+                        "totalPage" to totalPage,
                         "host" to "http://"
                     )
                 )
@@ -205,7 +205,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
                 "id" to category.id,
                 "title" to category.title,
                 "description" to category.description,
-                "ticket_count" to count,
+                "ticketCount" to count,
                 "tickets" to ticketDataList
             )
         )

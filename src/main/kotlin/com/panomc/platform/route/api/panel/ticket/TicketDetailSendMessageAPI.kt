@@ -15,7 +15,7 @@ class TicketDetailSendMessageAPI : PanelApi() {
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val data = context.bodyAsJson
 
-        val ticketID = data.getInteger("ticket_id")
+        val ticketID = data.getInteger("ticketId")
         val message = data.getString("message")
 
         val userID = authProvider.getUserIDFromRoutingContext(context)

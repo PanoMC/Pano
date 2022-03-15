@@ -190,7 +190,7 @@ class TicketsByCategoryAPI : PanelApi() {
                             "username" to usernameList[ticket.userID]
                         ),
                         "date" to ticket.date,
-                        "last_update" to ticket.lastUpdate,
+                        "lastUpdate" to ticket.lastUpdate,
                         "status" to ticket.status
                     )
                 )
@@ -198,8 +198,8 @@ class TicketsByCategoryAPI : PanelApi() {
 
             val result = mutableMapOf<String, Any?>(
                 "tickets" to ticketDataList,
-                "tickets_count" to count,
-                "total_page" to totalPage,
+                "ticketCount" to count,
+                "totalPage" to totalPage,
                 "category" to ticketCategory
             )
 

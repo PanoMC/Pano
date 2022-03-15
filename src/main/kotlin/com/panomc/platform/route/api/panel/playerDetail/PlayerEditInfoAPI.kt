@@ -18,8 +18,8 @@ class PlayerEditInfoAPI : PanelApi() {
         val id = data.getInteger("id")
         val username = data.getString("username")
         val email = data.getString("email")
-        val newPassword = data.getString("new_password")
-        val newPasswordRepeat = data.getString("new_password_repeat")
+        val newPassword = data.getString("newPassword")
+        val newPasswordRepeat = data.getString("newPasswordRepeat")
 
         validateForm(handler, username, email, newPassword, newPasswordRepeat) {
             databaseManager.createConnection(

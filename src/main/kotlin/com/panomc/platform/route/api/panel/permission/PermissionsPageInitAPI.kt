@@ -99,7 +99,7 @@ class PermissionsPageInitAPI : PanelApi() {
         fun invoke() {
             val localHandler: () -> Unit = {
                 if (currentIndex == handlers.lastIndex) {
-                    result["permission_groups"] = permissionGroupsList
+                    result["permissionGroups"] = permissionGroupsList
 
                     databaseManager.getDatabase().permissionGroupPermsDao.getPermissionGroupPerms(
                         sqlConnection,
@@ -133,7 +133,7 @@ class PermissionsPageInitAPI : PanelApi() {
             return@handler
         }
 
-        permissionGroupList.find { it["id"] == permissionGroup.id }!!["user_count"] = count
+        permissionGroupList.find { it["id"] == permissionGroup.id }!!["userCount"] = count
 
         databaseManager.getDatabase().userDao.getUsernamesByPermissionGroupID(
             permissionGroup.id,
@@ -189,7 +189,7 @@ class PermissionsPageInitAPI : PanelApi() {
                 permissionGroupPermIDListMap[perm.permissionGroupID]!!.add(perm.permissionID)
             }
 
-            result["permission_group_perms"] = permissionGroupPermIDListMap
+            result["permissionGroupPerms"] = permissionGroupPermIDListMap
 
             handler.invoke(Successful(result))
         }

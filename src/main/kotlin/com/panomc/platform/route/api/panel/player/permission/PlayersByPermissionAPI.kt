@@ -36,8 +36,8 @@ class PlayersByPermissionAPI : PanelApi() {
 
             val result = mutableMapOf(
                 "players" to playerList,
-                "players_count" to count,
-                "total_page" to totalPage,
+                "playerCount" to count,
+                "totalPage" to totalPage,
                 "permissionGroup" to permissionGroup
             )
 
@@ -209,7 +209,7 @@ class PlayersByPermissionAPI : PanelApi() {
             return@handler
         }
 
-        if (user["permission_group_id"] as Int == -1) {
+        if (user["permissionGroupId"] as Int == -1) {
             addToPlayerList(user, playerList, count, null)
 
             localHandler.invoke()
@@ -218,7 +218,7 @@ class PlayersByPermissionAPI : PanelApi() {
         }
 
         databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
-            user["permission_group_id"] as Int,
+            user["permissionGroupId"] as Int,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(handler, sqlConnection, user, playerList, count, localHandler)
         )
@@ -256,10 +256,10 @@ class PlayersByPermissionAPI : PanelApi() {
                 "id" to user["id"] as Int,
                 "username" to user["username"] as String,
                 "email" to user["email"] as String,
-                "permission_group_id" to user["permission_group_id"] as Int,
-                "permission_group" to (permissionGroup?.name ?: "-"),
-                "ticket_count" to ticketCount,
-                "register_date" to user["register_date"] as Long
+                "permissionGroupId" to user["permissionGroupId"] as Int,
+                "permissionGroup" to (permissionGroup?.name ?: "-"),
+                "ticketCount" to ticketCount,
+                "registerDate" to user["registerDate"] as Long
             )
         )
     }

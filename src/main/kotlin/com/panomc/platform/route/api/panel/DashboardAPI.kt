@@ -18,13 +18,13 @@ class DashboardAPI : PanelApi() {
         val userID = authProvider.getUserIDFromRoutingContext(context)
 
         val result = mutableMapOf<String, Any?>(
-            "getting_started_blocks" to mapOf(
-                "welcome_board" to false
+            "gettingStartedBlocks" to mapOf(
+                "welcomeBoard" to false
             ),
-            "registered_player_count" to 0,
-            "post_count" to 0,
-            "tickets_count" to 0,
-            "open_tickets_count" to 0,
+            "registeredPlayerCount" to 0,
+            "postCount" to 0,
+            "ticketCount" to 0,
+            "openTicketCount" to 0,
             "tickets" to mutableListOf<Map<String, Any?>>()
         )
 
@@ -95,8 +95,8 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        result["getting_started_blocks"] = mapOf(
-            "welcome_board" to systemProperty.value.toBoolean()
+        result["gettingStartedBlocks"] = mapOf(
+            "welcomeBoard" to systemProperty.value.toBoolean()
         )
 
         databaseManager.getDatabase().userDao.count(
@@ -118,7 +118,7 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        result["registered_player_count"] = userCount
+        result["registeredPlayerCount"] = userCount
 
         databaseManager.getDatabase().postDao.count(
             sqlConnection,
@@ -139,7 +139,7 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        result["post_count"] = postCount
+        result["postCount"] = postCount
 
         databaseManager.getDatabase().ticketDao.count(
             sqlConnection,
@@ -160,7 +160,7 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        result["tickets_count"] = ticketCount
+        result["ticketCount"] = ticketCount
 
         if (ticketCount == 0) {
             sendResults(handler, sqlConnection, result)
@@ -191,7 +191,7 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        result["open_tickets_count"] = openTicketCount
+        result["openTicketCount"] = openTicketCount
 
         databaseManager.getDatabase().ticketDao.getLast5Tickets(
             sqlConnection,
@@ -310,7 +310,7 @@ class DashboardAPI : PanelApi() {
                         "username" to usernameList[ticket.userID]
                     ),
                     "date" to ticket.date,
-                    "last_update" to ticket.lastUpdate,
+                    "lastUpdate" to ticket.lastUpdate,
                     "status" to ticket.status
                 )
             )

@@ -89,7 +89,7 @@ class EditPostPageInitAPI : PanelApi() {
                             "id" to post.id,
                             "title" to post.title,
                             "category" to post.categoryId,
-                            "writer_user_id" to post.writerUserID,
+                            "writerUserId" to post.writerUserID,
                             "text" to post.text,
                             "date" to post.date,
                             "status" to post.status,

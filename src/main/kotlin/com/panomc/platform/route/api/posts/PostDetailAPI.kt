@@ -295,7 +295,7 @@ class PostDetailAPI : Api() {
                             "image" to post.image,
                             "views" to post.views
                         ),
-                        "previous_post" to
+                        "previousPost" to
                                 if (previousPost == null)
                                     "-"
                                 else
@@ -303,7 +303,7 @@ class PostDetailAPI : Api() {
                                         "id" to previousPost.id,
                                         "title" to previousPost.title
                                     ),
-                        "next_post" to
+                        "nextPost" to
                                 if (nextPost == null)
                                     "-"
                                 else

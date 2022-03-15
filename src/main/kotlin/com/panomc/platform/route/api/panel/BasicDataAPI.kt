@@ -90,17 +90,17 @@ class BasicDataAPI : PanelApi() {
                         "user" to mapOf(
                             "username" to user.username,
                             "email" to user.email,
-                            "permission_id" to user.permissionGroupID
+                            "permissionId" to user.permissionGroupID
                         ),
                         "website" to mapOf(
                             "name" to configManager.getConfig()["website-name"],
                             "description" to configManager.getConfig()["website-description"]
                         ),
-                        "platform_server_match_key" to platformCodeManager.getPlatformKey(),
-                        "platform_server_match_key_time_started" to platformCodeManager.getTimeStarted(),
-                        "platform_host_address" to context.request().host(),
+                        "platformServerMatchKey" to platformCodeManager.getPlatformKey(),
+                        "platformServerMatchKeyTimeStarted" to platformCodeManager.getTimeStarted(),
+                        "platformHostAddress" to context.request().host(),
                         "servers" to listOf<Map<String, Any?>>(),
-                        "notifications_count" to count
+                        "notificationCount" to count
                     )
                 )
             )

@@ -16,7 +16,7 @@ class PostsPageInitAPI : PanelApi() {
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val data = context.bodyAsJson
-        val pageType = data.getInteger("page_type")
+        val pageType = data.getInteger("pageType")
         val page = data.getInteger("page")
 
         databaseManager.createConnection(
@@ -199,8 +199,8 @@ class PostsPageInitAPI : PanelApi() {
                 Successful(
                     mutableMapOf<String, Any?>(
                         "posts" to postsDataList,
-                        "posts_count" to count,
-                        "total_page" to totalPage
+                        "postCount" to count,
+                        "totalPage" to totalPage
                     )
                 )
             )

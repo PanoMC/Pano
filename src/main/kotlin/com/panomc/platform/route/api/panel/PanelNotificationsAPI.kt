@@ -96,7 +96,7 @@ class PanelNotificationsAPI : PanelApi() {
                 notificationsDataList.add(
                     mapOf(
                         "id" to notification.id,
-                        "type_ID" to notification.typeID,
+                        "typeId" to notification.typeID,
                         "date" to notification.date,
                         "status" to notification.status,
                         "isPersonal" to (notification.userID == userID)
@@ -108,7 +108,7 @@ class PanelNotificationsAPI : PanelApi() {
                 Successful(
                     mutableMapOf(
                         "notifications" to notificationsDataList,
-                        "notifications_count" to count
+                        "notificationCount" to count
                     )
                 )
             )

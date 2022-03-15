@@ -57,7 +57,7 @@ class CategoriesAPI : PanelApi() {
 
                 val result = mutableMapOf<String, Any?>(
                     "categories" to categories,
-                    "category_count" to count
+                    "categoryCount" to count
                 )
 
                 handler.invoke(Successful(result))

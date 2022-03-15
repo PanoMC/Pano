@@ -15,8 +15,8 @@ class PermissionSetAPI : PanelApi() {
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val data = context.bodyAsJson
 
-        val permissionGroupID = data.getInteger("permission_group_id")
-        val permissionID = data.getInteger("permission_id")
+        val permissionGroupID = data.getInteger("permissionGroupId")
+        val permissionID = data.getInteger("permissionId")
         val mode = data.getString("mode")
 
         if (mode != "ADD" && mode != "DELETE") {

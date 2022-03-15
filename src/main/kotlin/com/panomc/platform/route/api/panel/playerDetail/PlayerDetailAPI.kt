@@ -97,7 +97,7 @@ class PlayerDetailAPI : PanelApi() {
 
         if (user.permissionGroupID == -1) {
             @Suppress("UNCHECKED_CAST")
-            (result["player"] as MutableMap<String, Any?>)["permission_group"] = "-"
+            (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = "-"
 
             databaseManager.getDatabase().ticketDao.countByUserID(
                 user.id,
@@ -131,7 +131,7 @@ class PlayerDetailAPI : PanelApi() {
         }
 
         @Suppress("UNCHECKED_CAST")
-        (result["player"] as MutableMap<String, Any?>)["permission_group"] = permissionGroup.name
+        (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
 
         databaseManager.getDatabase().ticketDao.countByUserID(
             user.id,
@@ -280,7 +280,7 @@ class PlayerDetailAPI : PanelApi() {
                             "username" to username
                         ),
                         "date" to ticket.date,
-                        "last_update" to ticket.lastUpdate,
+                        "lastUpdate" to ticket.lastUpdate,
                         "status" to ticket.status
                     )
                 )

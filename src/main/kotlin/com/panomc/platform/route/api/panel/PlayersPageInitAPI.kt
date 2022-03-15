@@ -15,7 +15,7 @@ class PlayersPageInitAPI : PanelApi() {
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val data = context.bodyAsJson
-        val pageType = data.getInteger("page_type")
+        val pageType = data.getInteger("pageType")
         val page = data.getInteger("page")
 
         databaseManager.createConnection((this::createConnectionHandler)(handler, pageType, page))
@@ -92,8 +92,8 @@ class PlayersPageInitAPI : PanelApi() {
 
         val result = mutableMapOf(
             "players" to playerList,
-            "players_count" to count,
-            "total_page" to totalPage
+            "playerCount" to count,
+            "totalPage" to totalPage
         )
 
         val handlers: List<(handler: () -> Unit) -> Any> =
@@ -153,7 +153,7 @@ class PlayersPageInitAPI : PanelApi() {
             return@handler
         }
 
-        if (user["permission_group_id"] as Int == -1) {
+        if (user["permissionGroupId"] as Int == -1) {
             addToPlayerList(user, playerList, count, null)
 
             localHandler.invoke()
@@ -162,7 +162,7 @@ class PlayersPageInitAPI : PanelApi() {
         }
 
         databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
-            user["permission_group_id"] as Int,
+            user["permissionGroupId"] as Int,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(handler, sqlConnection, user, playerList, count, localHandler)
         )
@@ -200,10 +200,10 @@ class PlayersPageInitAPI : PanelApi() {
                 "id" to user["id"] as Int,
                 "username" to user["username"] as String,
                 "email" to user["email"] as String,
-                "permission_group_id" to user["permission_group_id"] as Int,
-                "permission_group" to (permissionGroup?.name ?: "-"),
-                "ticket_count" to ticketCount,
-                "register_date" to user["register_date"] as Long
+                "permissionGroupId" to user["permissionGroupId"] as Int,
+                "permissionGroup" to (permissionGroup?.name ?: "-"),
+                "ticketCount" to ticketCount,
+                "registerDate" to user["registerDate"] as Long
             )
         )
     }

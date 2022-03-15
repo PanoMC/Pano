@@ -254,8 +254,8 @@ class CategoryPostsAPI : Api() {
                 Successful(
                     mutableMapOf<String, Any?>(
                         "posts" to postsDataList,
-                        "posts_count" to count,
-                        "total_page" to totalPage,
+                        "postCount" to count,
+                        "totalPage" to totalPage,
                         "category" to category
                     )
                 )

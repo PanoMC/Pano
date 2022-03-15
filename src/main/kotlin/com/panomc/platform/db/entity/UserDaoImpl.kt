@@ -359,8 +359,8 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
                                     "id" to row.getInteger(0),
                                     "username" to row.getString(1),
                                     "email" to row.getString(2),
-                                    "register_date" to row.getLong(3),
-                                    "permission_group_id" to row.getInteger(4)
+                                    "registerDate" to row.getLong(3),
+                                    "permissionGroupId" to row.getInteger(4)
                                 )
                             )
                         }
@@ -398,8 +398,8 @@ class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao 
                                     "id" to row.getInteger(0),
                                     "username" to row.getString(1),
                                     "email" to row.getString(2),
-                                    "register_date" to row.getLong(3),
-                                    "permission_group_id" to row.getInteger(4)
+                                    "registerDate" to row.getLong(3),
+                                    "permissionGroupId" to row.getInteger(4)
                                 )
                             )
                         }

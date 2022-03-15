@@ -36,7 +36,7 @@ class SetupManager(private val mConfigManager: ConfigManager) {
             data["panoAccount"] = mapOf(
                 "username" to ((mConfigManager.getConfig()["pano-account"] as Map<*, *>)["username"] as String),
                 "email" to ((mConfigManager.getConfig()["pano-account"] as Map<*, *>)["email"] as String),
-                "access_token" to ((mConfigManager.getConfig()["pano-account"] as Map<*, *>)["access_token"] as String)
+                "accessToken" to ((mConfigManager.getConfig()["pano-account"] as Map<*, *>)["access-token"] as String)
             )
         }
 

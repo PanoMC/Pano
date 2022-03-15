@@ -2,6 +2,7 @@ package com.panomc.platform.config
 
 import com.panomc.platform.config.migration.ConfigMigration_1_2
 import com.panomc.platform.config.migration.ConfigMigration_2_3
+import com.panomc.platform.config.migration.ConfigMigration_3_4
 import com.panomc.platform.util.KeyGeneratorUtil
 import io.jsonwebtoken.io.Encoders
 import io.vertx.config.ConfigRetriever
@@ -18,7 +19,8 @@ class ConfigManager(mLogger: Logger, mVertx: Vertx) {
 
     private val mMigrations = listOf(
         ConfigMigration_1_2(),
-        ConfigMigration_2_3()
+        ConfigMigration_2_3(),
+        ConfigMigration_3_4()
     )
 
     private val mConfig = com.beust.klaxon.JsonObject()
@@ -64,7 +66,7 @@ class ConfigManager(mLogger: Logger, mVertx: Vertx) {
                     "pano-account" to mapOf(
                         "username" to "",
                         "email" to "",
-                        "access_token" to ""
+                        "access-token" to ""
                     ),
 
                     "current-theme" to "Vanilla",

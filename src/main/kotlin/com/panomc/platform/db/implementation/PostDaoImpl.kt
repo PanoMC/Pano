@@ -1,4 +1,4 @@
-package com.panomc.platform.db.entity
+package com.panomc.platform.db.implementation
 
 import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.dao.PostDao

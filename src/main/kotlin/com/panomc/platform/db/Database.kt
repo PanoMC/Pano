@@ -1,7 +1,7 @@
 package com.panomc.platform.db
 
 import com.panomc.platform.db.dao.*
-import com.panomc.platform.db.entity.*
+import com.panomc.platform.db.implementation.*
 
 data class Database(
     val schemeVersionDao: SchemeVersionDao = SchemeVersionDaoImpl(),

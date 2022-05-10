@@ -1,14 +1,23 @@
 package com.panomc.platform.route.api.posts
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PreviewPostAPI : PanelApi() {
+@Endpoint
+class PreviewPostAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/post/preview")
@@ -35,7 +44,7 @@ class PreviewPostAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.isExistsByID(
+        databaseManager.postDao.isExistsByID(
             id,
             sqlConnection,
             (this::isExistsByIDHandler)(handler, sqlConnection, id)
@@ -63,7 +72,7 @@ class PreviewPostAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getByID(
+        databaseManager.postDao.getByID(
             id,
             sqlConnection,
             (this::getByIDHandler)(handler, sqlConnection)
@@ -83,7 +92,7 @@ class PreviewPostAPI : PanelApi() {
         }
 
         if (post.categoryId == -1) {
-            databaseManager.getDatabase().userDao.getUsernameFromUserID(
+            databaseManager.userDao.getUsernameFromUserID(
                 post.writerUserID,
                 sqlConnection,
                 (this::getUsernameFromUserIDHandler)(handler, sqlConnection, post, null)
@@ -92,7 +101,7 @@ class PreviewPostAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getByID(
+        databaseManager.postCategoryDao.getByID(
             post.categoryId,
             sqlConnection,
             (this::getPostCategoryByIDHandler)(handler, sqlConnection, post)
@@ -112,7 +121,7 @@ class PreviewPostAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getUsernameFromUserID(
+        databaseManager.userDao.getUsernameFromUserID(
             post.writerUserID,
             sqlConnection,
             (this::getUsernameFromUserIDHandler)(handler, sqlConnection, post, category)

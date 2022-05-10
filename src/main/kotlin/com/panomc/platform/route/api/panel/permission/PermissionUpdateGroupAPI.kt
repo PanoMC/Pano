@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.permission
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PermissionUpdateGroupAPI : PanelApi() {
+@Endpoint
+class PermissionUpdateGroupAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/permission/update/group")
@@ -61,7 +70,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.isThereByID(
+        databaseManager.permissionGroupDao.isThereByID(
             id,
             sqlConnection,
             (this::isThereByIDHandler)(sqlConnection, handler, id, name)
@@ -82,7 +91,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.isThere(
+        databaseManager.permissionGroupDao.isThere(
             PermissionGroup(id, name),
             sqlConnection,
             (this::isThereHandler)(sqlConnection, handler, id, name)
@@ -111,7 +120,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+        databaseManager.permissionGroupDao.getPermissionGroupByID(
             id,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(sqlConnection, handler, id, name)
@@ -140,7 +149,7 @@ class PermissionUpdateGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.update(
+        databaseManager.permissionGroupDao.update(
             PermissionGroup(id, name),
             sqlConnection,
             (this::updateHandler)(sqlConnection, handler)

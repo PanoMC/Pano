@@ -4,9 +4,11 @@ import com.panomc.platform.model.LoggedInApi
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 
-class LogoutAPI : LoggedInApi() {
+class LogoutAPI(setupManager: SetupManager, authProvider: AuthProvider) : LoggedInApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/auth/logout")

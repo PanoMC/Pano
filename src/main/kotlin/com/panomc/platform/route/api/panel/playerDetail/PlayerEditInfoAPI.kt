@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.playerDetail
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PlayerEditInfoAPI : PanelApi() {
+@Endpoint
+class PlayerEditInfoAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/player/edit/info")
@@ -78,7 +87,7 @@ class PlayerEditInfoAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.isExistsByID(
+        databaseManager.userDao.isExistsByID(
             id,
             sqlConnection,
             (this::isExistsByIDHandler)(sqlConnection, handler, id, username, email, newPassword)
@@ -109,7 +118,7 @@ class PlayerEditInfoAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getByID(
+        databaseManager.userDao.getByID(
             id,
             sqlConnection,
             (this::getByIDHandler)(sqlConnection, handler, username, email, newPassword)
@@ -141,7 +150,7 @@ class PlayerEditInfoAPI : PanelApi() {
                     return@handler
                 }
 
-                databaseManager.getDatabase().userDao.setPasswordByID(
+                databaseManager.userDao.setPasswordByID(
                     user.id,
                     newPassword,
                     sqlConnection,
@@ -151,7 +160,7 @@ class PlayerEditInfoAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().userDao.isEmailExists(
+            databaseManager.userDao.isEmailExists(
                 email,
                 sqlConnection,
                 (this::isEmailExistsHandler)(
@@ -167,7 +176,7 @@ class PlayerEditInfoAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.isExistsByUsername(
+        databaseManager.userDao.isExistsByUsername(
             username,
             sqlConnection,
             (this::isExistsByUsernameHandler)(
@@ -208,7 +217,7 @@ class PlayerEditInfoAPI : PanelApi() {
         }
 
         if (email == user.email) {
-            databaseManager.getDatabase().userDao.setUsernameByID(
+            databaseManager.userDao.setUsernameByID(
                 id,
                 username,
                 sqlConnection,
@@ -218,7 +227,7 @@ class PlayerEditInfoAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.isEmailExists(
+        databaseManager.userDao.isEmailExists(
             email,
             sqlConnection,
             (this::isEmailExistsHandler)(sqlConnection, handler, id, username, email, newPassword)
@@ -249,7 +258,7 @@ class PlayerEditInfoAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.setUsernameByID(
+        databaseManager.userDao.setUsernameByID(
             id,
             username,
             sqlConnection,
@@ -272,7 +281,7 @@ class PlayerEditInfoAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.setEmailByID(
+        databaseManager.userDao.setEmailByID(
             id,
             email,
             sqlConnection,
@@ -302,7 +311,7 @@ class PlayerEditInfoAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.setPasswordByID(
+        databaseManager.userDao.setPasswordByID(
             id,
             newPassword,
             sqlConnection,

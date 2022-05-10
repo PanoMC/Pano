@@ -1,30 +1,29 @@
 package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.Main.Companion.getComponent
+import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.PlatformCodeManager
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
-import javax.inject.Inject
 
-class BasicDataAPI : PanelApi() {
+@Endpoint
+class BasicDataAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    private val platformCodeManager: PlatformCodeManager,
+    private val configManager: ConfigManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/panel/basicData")
-
-    init {
-        getComponent().inject(this)
-    }
-
-    @Inject
-    lateinit var platformCodeManager: PlatformCodeManager
-
-    @Inject
-    lateinit var configManager: ConfigManager
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val userID = authProvider.getUserIDFromRoutingContext(context)
@@ -43,7 +42,7 @@ class BasicDataAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getByID(
+        databaseManager.userDao.getByID(
             userID,
             sqlConnection,
             (this::getByIDHandler)(handler, context, sqlConnection, userID)
@@ -64,7 +63,7 @@ class BasicDataAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.getCountOfNotReadByUserID(
+        databaseManager.panelNotificationDao.getCountOfNotReadByUserID(
             userID,
             sqlConnection,
             (this::getCountByUserIDHandler)(handler, context, sqlConnection, user)
@@ -93,8 +92,8 @@ class BasicDataAPI : PanelApi() {
                             "permissionId" to user.permissionGroupID
                         ),
                         "website" to mapOf(
-                            "name" to configManager.getConfig()["website-name"],
-                            "description" to configManager.getConfig()["website-description"]
+                            "name" to configManager.getConfig().getString("website-name"),
+                            "description" to configManager.getConfig().getString("website-description")
                         ),
                         "platformServerMatchKey" to platformCodeManager.getPlatformKey(),
                         "platformServerMatchKeyTimeStarted" to platformCodeManager.getTimeStarted(),

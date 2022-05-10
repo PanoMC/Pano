@@ -1,6 +1,8 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PostCategoryDao
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.Result
@@ -12,7 +14,9 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
-class PostCategoryDaoImpl(override val tableName: String = "post_category") : DaoImpl(), PostCategoryDao {
+@Dao
+class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "post_category"),
+    PostCategoryDao {
 
     override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
         { sqlConnection, handler ->

@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel.permission
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionGroupPerms
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PermissionsPageInitAPI : PanelApi() {
+@Endpoint
+class PermissionsPageInitAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/panel/initPage/permissionsPage")
@@ -27,7 +36,7 @@ class PermissionsPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionDao.getPermissions(
+        databaseManager.permissionDao.getPermissions(
             sqlConnection,
             (this::getPermissionsHandler)(sqlConnection, handler)
         )
@@ -49,7 +58,7 @@ class PermissionsPageInitAPI : PanelApi() {
 
         result["permissions"] = permissions
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroups(
+        databaseManager.permissionGroupDao.getPermissionGroups(
             sqlConnection,
             (this::getPermissionGroupsHandler)(sqlConnection, handler, result)
         )
@@ -78,7 +87,7 @@ class PermissionsPageInitAPI : PanelApi() {
         val handlers: List<(handler: () -> Unit) -> Any> =
             permissionGroups.map { permissionGroup ->
                 val localHandler: (handler: () -> Unit) -> Any = { localHandler ->
-                    databaseManager.getDatabase().userDao.getCountOfUsersByPermissionGroupID(
+                    databaseManager.userDao.getCountOfUsersByPermissionGroupID(
                         permissionGroup.id,
                         sqlConnection,
                         (this::getCountOfUsersByPermissionGroupIDHandler)(
@@ -101,7 +110,7 @@ class PermissionsPageInitAPI : PanelApi() {
                 if (currentIndex == handlers.lastIndex) {
                     result["permissionGroups"] = permissionGroupsList
 
-                    databaseManager.getDatabase().permissionGroupPermsDao.getPermissionGroupPerms(
+                    databaseManager.permissionGroupPermsDao.getPermissionGroupPerms(
                         sqlConnection,
                         (this::getPermissionGroupPermsHandler)(sqlConnection, handler, result)
                     )
@@ -135,7 +144,7 @@ class PermissionsPageInitAPI : PanelApi() {
 
         permissionGroupList.find { it["id"] == permissionGroup.id }!!["userCount"] = count
 
-        databaseManager.getDatabase().userDao.getUsernamesByPermissionGroupID(
+        databaseManager.userDao.getUsernamesByPermissionGroupID(
             permissionGroup.id,
             3,
             sqlConnection,

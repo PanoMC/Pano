@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class DashboardAPI : PanelApi() {
+@Endpoint
+class DashboardAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/panel/initPage/dashboard")
@@ -42,7 +51,7 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().systemPropertyDao.isUserInstalledSystemByUserID(
+        databaseManager.systemPropertyDao.isUserInstalledSystemByUserID(
             userID,
             sqlConnection,
             (this::isUserInstalledSystemByUserIDHandler)(handler, sqlConnection, result)
@@ -63,7 +72,7 @@ class DashboardAPI : PanelApi() {
         }
 
         if (!isUserInstalled) {
-            databaseManager.getDatabase().userDao.count(
+            databaseManager.userDao.count(
                 sqlConnection,
                 (this::userDaoCountHandler)(handler, sqlConnection, result)
             )
@@ -71,7 +80,7 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().systemPropertyDao.getValue(
+        databaseManager.systemPropertyDao.getValue(
             SystemProperty(
                 -1,
                 "show_getting_started",
@@ -99,7 +108,7 @@ class DashboardAPI : PanelApi() {
             "welcomeBoard" to systemProperty.value.toBoolean()
         )
 
-        databaseManager.getDatabase().userDao.count(
+        databaseManager.userDao.count(
             sqlConnection,
             (this::userDaoCountHandler)(handler, sqlConnection, result)
         )
@@ -120,7 +129,7 @@ class DashboardAPI : PanelApi() {
 
         result["registeredPlayerCount"] = userCount
 
-        databaseManager.getDatabase().postDao.count(
+        databaseManager.postDao.count(
             sqlConnection,
             (this::postDaoCount)(handler, sqlConnection, result)
         )
@@ -141,7 +150,7 @@ class DashboardAPI : PanelApi() {
 
         result["postCount"] = postCount
 
-        databaseManager.getDatabase().ticketDao.count(
+        databaseManager.ticketDao.count(
             sqlConnection,
             (this::ticketDaoCount)(handler, sqlConnection, result)
         )
@@ -168,7 +177,7 @@ class DashboardAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.countOfOpenTickets(
+        databaseManager.ticketDao.countOfOpenTickets(
             sqlConnection,
             (this::countOfOpenTicketsHandler)(
                 handler,
@@ -193,7 +202,7 @@ class DashboardAPI : PanelApi() {
 
         result["openTicketCount"] = openTicketCount
 
-        databaseManager.getDatabase().ticketDao.getLast5Tickets(
+        databaseManager.ticketDao.getLast5Tickets(
             sqlConnection,
             (this::getLast5TicketsHandler)(
                 handler,
@@ -218,7 +227,7 @@ class DashboardAPI : PanelApi() {
 
         val userIDList = tickets.distinctBy { it.userID }.map { it.userID }
 
-        databaseManager.getDatabase().userDao.getUsernameByListOfID(
+        databaseManager.userDao.getUsernameByListOfID(
             userIDList,
             sqlConnection,
             (this::getUsernameByListOfIDHandler)(
@@ -247,7 +256,7 @@ class DashboardAPI : PanelApi() {
         val categoryIDList = tickets.filter { it.categoryID != -1 }.distinctBy { it.categoryID }.map { it.categoryID }
 
         if (categoryIDList.isNotEmpty()) {
-            databaseManager.getDatabase().ticketCategoryDao.getByIDList(
+            databaseManager.ticketCategoryDao.getByIDList(
                 categoryIDList,
                 sqlConnection,
                 (this::getByIDListHandler)(

@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.playerDetail
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PlayerSetPermissionGroupAPI : PanelApi() {
+@Endpoint
+class PlayerSetPermissionGroupAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/player/set/permissionGroup")
@@ -39,7 +48,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
         }
 
         if (permissionGroup == "-") {
-            databaseManager.getDatabase().userDao.isExistsByUsername(
+            databaseManager.userDao.isExistsByUsername(
                 username,
                 sqlConnection,
                 (this::isExistsByUsernameHandler)(sqlConnection, handler, username, 0)
@@ -48,7 +57,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.isThere(
+        databaseManager.permissionGroupDao.isThere(
             PermissionGroup(-1, permissionGroup),
             sqlConnection,
             (this::isThereHandler)(sqlConnection, handler, username, permissionGroup)
@@ -77,7 +86,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getPermissionGroupIDFromUsername(
+        databaseManager.userDao.getPermissionGroupIDFromUsername(
             username,
             sqlConnection,
             (this::getPermissionGroupIDFromUsernameHandler)(sqlConnection, handler, username, permissionGroupID)
@@ -99,7 +108,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
         }
 
         if (userPermissionGroupID == -1) {
-            databaseManager.getDatabase().userDao.setPermissionGroupByUsername(
+            databaseManager.userDao.setPermissionGroupByUsername(
                 permissionGroupID,
                 username,
                 sqlConnection,
@@ -109,7 +118,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+        databaseManager.permissionGroupDao.getPermissionGroupByID(
             userPermissionGroupID,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(sqlConnection, handler, username, permissionGroupID)
@@ -131,7 +140,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
         }
 
         if (permissionGroup.name == "admin") {
-            databaseManager.getDatabase().userDao.getCountOfUsersByPermissionGroupID(
+            databaseManager.userDao.getCountOfUsersByPermissionGroupID(
                 permissionGroup.id,
                 sqlConnection,
                 (this::getCountOfUsersByPermissionGroupIDHandler)(sqlConnection, handler, username, permissionGroupID)
@@ -140,7 +149,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.setPermissionGroupByUsername(
+        databaseManager.userDao.setPermissionGroupByUsername(
             permissionGroupID,
             username,
             sqlConnection,
@@ -170,7 +179,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.setPermissionGroupByUsername(
+        databaseManager.userDao.setPermissionGroupByUsername(
             permissionGroupID,
             username,
             sqlConnection,
@@ -200,7 +209,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupID(
+        databaseManager.permissionGroupDao.getPermissionGroupID(
             PermissionGroup(-1, permissionGroup),
             sqlConnection,
             (this::getPermissionGroupIDHandler)(sqlConnection, handler, username)
@@ -220,7 +229,7 @@ class PlayerSetPermissionGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.isExistsByUsername(
+        databaseManager.userDao.isExistsByUsername(
             username,
             sqlConnection,
             (this::isExistsByUsernameHandler)(sqlConnection, handler, username, permissionGroupID)

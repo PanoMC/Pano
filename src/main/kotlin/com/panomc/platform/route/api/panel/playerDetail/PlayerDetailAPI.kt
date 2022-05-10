@@ -1,17 +1,26 @@
 package com.panomc.platform.route.api.panel.playerDetail
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class PlayerDetailAPI : PanelApi() {
+@Endpoint
+class PlayerDetailAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/initPage/playerDetail")
@@ -35,7 +44,7 @@ class PlayerDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.isExistsByUsername(
+        databaseManager.userDao.isExistsByUsername(
             username,
             sqlConnection,
             (this::isExistsByHandler)(handler, username, sqlConnection, page)
@@ -64,7 +73,7 @@ class PlayerDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getByUsername(
+        databaseManager.userDao.getByUsername(
             username,
             sqlConnection,
             (this::getByUsernameHandler)(handler, sqlConnection, page)
@@ -99,7 +108,7 @@ class PlayerDetailAPI : PanelApi() {
             @Suppress("UNCHECKED_CAST")
             (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = "-"
 
-            databaseManager.getDatabase().ticketDao.countByUserID(
+            databaseManager.ticketDao.countByUserID(
                 user.id,
                 sqlConnection,
                 (this::countByUserIDHandler)(handler, sqlConnection, result, user, page)
@@ -108,7 +117,7 @@ class PlayerDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+        databaseManager.permissionGroupDao.getPermissionGroupByID(
             user.permissionGroupID,
             sqlConnection,
             (this::getPermissionByIDHandler)(handler, sqlConnection, result, user, page)
@@ -133,7 +142,7 @@ class PlayerDetailAPI : PanelApi() {
         @Suppress("UNCHECKED_CAST")
         (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
 
-        databaseManager.getDatabase().ticketDao.countByUserID(
+        databaseManager.ticketDao.countByUserID(
             user.id,
             sqlConnection,
             (this::countByUserIDHandler)(handler, sqlConnection, result, user, page)
@@ -184,7 +193,7 @@ class PlayerDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.getAllByUserIDAndPage(
+        databaseManager.ticketDao.getAllByUserIDAndPage(
             user.id,
             page,
             sqlConnection,
@@ -221,7 +230,7 @@ class PlayerDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketCategoryDao.getByIDList(
+        databaseManager.ticketCategoryDao.getByIDList(
             categoryIDList,
             sqlConnection,
             (this::getByIDListHandler)(

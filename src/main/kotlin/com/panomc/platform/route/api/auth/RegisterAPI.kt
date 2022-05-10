@@ -1,7 +1,8 @@
 package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.Main
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Api
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
@@ -11,19 +12,15 @@ import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
-import javax.inject.Inject
 
-class RegisterAPI : Api() {
+@Endpoint
+class RegisterAPI(
+    private val reCaptcha: ReCaptcha,
+    private val databaseManager: DatabaseManager
+) : Api() {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/auth/register")
-
-    @Inject
-    lateinit var reCaptcha: ReCaptcha
-
-    init {
-        Main.getComponent().inject(this)
-    }
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val data = context.bodyAsJson

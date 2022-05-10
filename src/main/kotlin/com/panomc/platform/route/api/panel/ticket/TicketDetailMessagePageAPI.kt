@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class TicketDetailMessagePageAPI : PanelApi() {
+@Endpoint
+class TicketDetailMessagePageAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/ticket/detail/message/page")
@@ -31,7 +40,7 @@ class TicketDetailMessagePageAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.isExistsByID(
+        databaseManager.ticketDao.isExistsByID(
             id,
             sqlConnection,
             (this::isExistsByHandler)(handler, lastMessageID, id, sqlConnection)
@@ -61,7 +70,7 @@ class TicketDetailMessagePageAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().ticketMessageDao.getByTicketIDPageAndStartFromID(
+            databaseManager.ticketMessageDao.getByTicketIDPageAndStartFromID(
                 lastMessageID,
                 id,
                 sqlConnection,
@@ -88,7 +97,7 @@ class TicketDetailMessagePageAPI : PanelApi() {
                 userIDList.add(message.userID)
         }
 
-        databaseManager.getDatabase().userDao.getUsernameByListOfID(
+        databaseManager.userDao.getUsernameByListOfID(
             userIDList,
             sqlConnection,
             (this::invokeHandler)(handler, sqlConnection, messages)

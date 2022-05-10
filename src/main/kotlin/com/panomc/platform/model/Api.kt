@@ -1,29 +1,10 @@
 package com.panomc.platform.model
 
-import com.beust.klaxon.JsonObject
-import com.panomc.platform.Main
-import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.SetupManager
 import io.vertx.core.Handler
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
-import javax.inject.Inject
 
 abstract class Api : Route() {
-    @Inject
-    lateinit var setupManager: SetupManager
-
-    @Inject
-    lateinit var databaseManager: DatabaseManager
-
-    @Inject
-    lateinit var authProvider: AuthProvider
-
-    init {
-        @Suppress("LeakingThis")
-        Main.getComponent().inject(this)
-    }
-
     fun sendResult(result: Result, context: RoutingContext) {
         val response = context.response()
 
@@ -41,7 +22,7 @@ abstract class Api : Route() {
                 response.end(
                     JsonObject(
                         responseMap
-                    ).toJsonString()
+                    ).encode()
                 )
             }
             is Error -> response.end(
@@ -50,7 +31,7 @@ abstract class Api : Route() {
                         "result" to "error",
                         "error" to result.errorCode
                     )
-                ).toJsonString()
+                ).encode()
             )
             is Errors -> response.end(
                 JsonObject(
@@ -58,7 +39,7 @@ abstract class Api : Route() {
                         "result" to "error",
                         "error" to result.errors
                     )
-                ).toJsonString()
+                ).encode()
             )
         }
     }

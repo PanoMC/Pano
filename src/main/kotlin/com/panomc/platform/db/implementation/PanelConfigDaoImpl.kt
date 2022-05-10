@@ -1,11 +1,14 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PanelConfigDao
 import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
-class PanelConfigDaoImpl(override val tableName: String = "panel_config") : DaoImpl(), PanelConfigDao {
+@Dao
+class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "panel_config"), PanelConfigDao {
     override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
         { sqlConnection, handler ->
             sqlConnection

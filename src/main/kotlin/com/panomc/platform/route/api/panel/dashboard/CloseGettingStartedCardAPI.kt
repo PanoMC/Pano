@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.dashboard
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class CloseGettingStartedCardAPI : PanelApi() {
+@Endpoint
+class CloseGettingStartedCardAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/dashboard/closeGettingStartedCard")
@@ -26,7 +35,7 @@ class CloseGettingStartedCardAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().systemPropertyDao.isUserInstalledSystemByUserID(
+            databaseManager.systemPropertyDao.isUserInstalledSystemByUserID(
                 userID,
                 sqlConnection,
                 (this::isUserInstalledSystemByUserIDHandler)(handler, sqlConnection)
@@ -43,7 +52,7 @@ class CloseGettingStartedCardAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().systemPropertyDao.update(
+            databaseManager.systemPropertyDao.update(
                 SystemProperty(
                     -1,
                     "show_getting_started",

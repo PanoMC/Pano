@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class PostCategoryPageInitAPI : PanelApi() {
+@Endpoint
+class PostCategoryPageInitAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/initPage/posts/categoryPage")
@@ -36,7 +45,7 @@ class PostCategoryPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getCount(
+        databaseManager.postCategoryDao.getCount(
             sqlConnection,
             (this::getCountHandler)(handler, sqlConnection, page)
         )
@@ -68,7 +77,7 @@ class PostCategoryPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getCategories(
+        databaseManager.postCategoryDao.getCategories(
             page,
             sqlConnection,
             (this::getCategoriesHandler)(handler, sqlConnection, count, totalPage)
@@ -94,7 +103,7 @@ class PostCategoryPageInitAPI : PanelApi() {
         val handlers: List<(handler: () -> Unit) -> Any> =
             categories.map { category ->
                 val localHandler: (handler: () -> Unit) -> Any = { localHandler ->
-                    databaseManager.getDatabase().postDao.countByCategory(
+                    databaseManager.postDao.countByCategory(
                         category.id,
                         sqlConnection,
                         (this::countByCategoryHandler)(handler, sqlConnection, localHandler, category, categoryDataList)
@@ -163,7 +172,7 @@ class PostCategoryPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getByCategory(
+        databaseManager.postDao.getByCategory(
             category.id,
             sqlConnection,
             (this::getByCategoryHandler)(handler, sqlConnection, localHandler, category, categoryDataList, count)

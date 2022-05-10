@@ -1,7 +1,7 @@
 package com.panomc.platform.util
 
-import com.beust.klaxon.JsonObject
 import com.panomc.platform.config.ConfigManager
+import io.vertx.core.json.JsonObject
 import java.net.InetAddress
 
 class SetupManager(private val mConfigManager: ConfigManager) {
@@ -12,31 +12,38 @@ class SetupManager(private val mConfigManager: ConfigManager) {
         val data = JsonObject()
         val step = getStep()
 
-        data["step"] = step
+        data.put("step", step)
 
         if (step == 1 || step == 3) {
-            data["websiteName"] = mConfigManager.getConfig().string("website-name")
-            data["websiteDescription"] = mConfigManager.getConfig().string("website-description")
+            data.put("websiteName", mConfigManager.getConfig().getString("website-name"))
+            data.put("websiteDescription", mConfigManager.getConfig().getString("website-description"))
         } else if (step == 2) {
-            data["db"] = mapOf(
-                "host" to ((mConfigManager.getConfig()["database"] as Map<*, *>)["host"] as String),
-                "dbName" to ((mConfigManager.getConfig()["database"] as Map<*, *>)["name"] as String),
-                "username" to ((mConfigManager.getConfig()["database"] as Map<*, *>)["username"] as String),
-                "password" to ((mConfigManager.getConfig()["database"] as Map<*, *>)["password"] as String),
-                "prefix" to ((mConfigManager.getConfig()["database"] as Map<*, *>)["prefix"] as String)
+            val databaseConfig = mConfigManager.getConfig().getJsonObject("database")
+
+            data.put(
+                "db", mapOf(
+                    "host" to databaseConfig.getString("host"),
+                    "dbName" to databaseConfig.getString("name"),
+                    "username" to databaseConfig.getString("username"),
+                    "password" to databaseConfig.getString("password"),
+                    "prefix" to databaseConfig.getString("prefix")
+                )
             )
         }
 
         if (step == 3) {
             val localHost = InetAddress.getLocalHost()
+            val panoAccountConfig = mConfigManager.getConfig().getJsonObject("pano-account")
 
-            data["host"] = localHost.hostName
-            data["ip"] = localHost.hostAddress
+            data.put("host", localHost.hostName)
+            data.put("ip", localHost.hostAddress)
 
-            data["panoAccount"] = mapOf(
-                "username" to ((mConfigManager.getConfig()["pano-account"] as Map<*, *>)["username"] as String),
-                "email" to ((mConfigManager.getConfig()["pano-account"] as Map<*, *>)["email"] as String),
-                "accessToken" to ((mConfigManager.getConfig()["pano-account"] as Map<*, *>)["access-token"] as String)
+            data.put(
+                "panoAccount", mapOf(
+                    "username" to panoAccountConfig.getString("username"),
+                    "email" to panoAccountConfig.getString("email"),
+                    "accessToken" to panoAccountConfig.getString("access-token")
+                )
             )
         }
 
@@ -65,11 +72,10 @@ class SetupManager(private val mConfigManager: ConfigManager) {
         setStep(4)
     }
 
-    fun getStep() = (mConfigManager.getConfig()["setup"] as Map<*, *>)["step"] as Int
+    fun getStep() = mConfigManager.getConfig().getJsonObject("setup").getInteger("step")
 
     private fun setStep(step: Int) {
-        @Suppress("UNCHECKED_CAST")
-        (mConfigManager.getConfig()["setup"] as MutableMap<String, Any>).replace("step", step)
+        mConfigManager.getConfig().getJsonObject("setup").put("step", step)
 
         mConfigManager.saveConfig()
     }

@@ -1,24 +1,23 @@
 package com.panomc.platform.route.api.server
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.Main.Companion.getComponent
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
 import com.panomc.platform.util.PlatformCodeManager
+import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
-import javax.inject.Inject
 
-class ConnectNewAPI : Api() {
+@Endpoint
+class ConnectNewAPI(
+    private val platformCodeManager: PlatformCodeManager,
+    private val databaseManager: DatabaseManager,
+    private val setupManager: SetupManager
+) : Api() {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/server/connectNew")
-
-    init {
-        getComponent().inject(this)
-    }
-
-    @Inject
-    lateinit var platformCodeManager: PlatformCodeManager
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         if (!setupManager.isSetupDone()) {
@@ -39,7 +38,7 @@ class ConnectNewAPI : Api() {
             when {
                 sqlConnection == null -> handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
                 data.getString("platformCode", "") == platformCodeManager.getPlatformKey()
-                    .toString() -> databaseManager.getDatabase().serverDao.add(
+                    .toString() -> databaseManager.serverDao.add(
                     Server(
                         -1,
                         data.getString("serverName"),

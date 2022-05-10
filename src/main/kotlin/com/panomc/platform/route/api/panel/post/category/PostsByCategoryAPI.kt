@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel.post.category
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class PostsByCategoryAPI : PanelApi() {
+@Endpoint
+class PostsByCategoryAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/post/category/postsByCategory")
@@ -60,7 +69,7 @@ class PostsByCategoryAPI : PanelApi() {
 
             val userIDList = posts.distinctBy { it.writerUserID }.map { it.writerUserID }
 
-            databaseManager.getDatabase().userDao.getUsernameByListOfID(
+            databaseManager.userDao.getUsernameByListOfID(
                 userIDList,
                 sqlConnection,
                 getUsernameByListOfIDHandler(sqlConnection, category, count, totalPage, posts)
@@ -90,7 +99,7 @@ class PostsByCategoryAPI : PanelApi() {
                     return@countByCategoryHandler
                 }
 
-                databaseManager.getDatabase().postDao.getListByPageAndCategoryID(
+                databaseManager.postDao.getListByPageAndCategoryID(
                     category.id,
                     page,
                     sqlConnection,
@@ -108,7 +117,7 @@ class PostsByCategoryAPI : PanelApi() {
                     return@getByURLHandler
                 }
 
-                databaseManager.getDatabase().postDao.countByCategory(
+                databaseManager.postDao.countByCategory(
                     category.id,
                     sqlConnection,
                     countByCategoryHandler(sqlConnection, category)
@@ -133,7 +142,7 @@ class PostsByCategoryAPI : PanelApi() {
                     return@isExistsByURLHandler
                 }
 
-                databaseManager.getDatabase().postCategoryDao.getByURL(
+                databaseManager.postCategoryDao.getByURL(
                     categoryURL,
                     sqlConnection,
                     getByURLHandler(sqlConnection)
@@ -151,7 +160,7 @@ class PostsByCategoryAPI : PanelApi() {
                 if (categoryURL == "-") {
                     val nullCategory = PostCategory()
 
-                    databaseManager.getDatabase().postDao.countByCategory(
+                    databaseManager.postDao.countByCategory(
                         nullCategory.id,
                         sqlConnection,
                         countByCategoryHandler(sqlConnection, nullCategory)
@@ -160,7 +169,7 @@ class PostsByCategoryAPI : PanelApi() {
                     return@createConnectionHandler
                 }
 
-                databaseManager.getDatabase().postCategoryDao.isExistsByURL(
+                databaseManager.postCategoryDao.isExistsByURL(
                     categoryURL,
                     sqlConnection,
                     isExistsByURLHandler(sqlConnection)

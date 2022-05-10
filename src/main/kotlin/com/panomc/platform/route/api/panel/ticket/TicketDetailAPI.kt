@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class TicketDetailAPI : PanelApi() {
+@Endpoint
+class TicketDetailAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/initPage/ticket/detail")
@@ -31,7 +40,7 @@ class TicketDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.isExistsByID(
+        databaseManager.ticketDao.isExistsByID(
             id,
             sqlConnection,
             (this::isExistsByHandler)(handler, id, sqlConnection)
@@ -59,7 +68,7 @@ class TicketDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.getByID(
+        databaseManager.ticketDao.getByID(
             id,
             sqlConnection,
             (this::getByIDHandler)(handler, id, sqlConnection)
@@ -79,7 +88,7 @@ class TicketDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getUsernameFromUserID(
+        databaseManager.userDao.getUsernameFromUserID(
             ticket.userID,
             sqlConnection,
             (this::getUsernameFromUserIDHandler)(handler, id, sqlConnection, ticket)
@@ -100,7 +109,7 @@ class TicketDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketMessageDao.getByTicketIDAndPage(
+        databaseManager.ticketMessageDao.getByTicketIDAndPage(
             id,
             sqlConnection,
             (this::getByTicketIDAndPageHandler)(handler, sqlConnection, ticket, username)
@@ -128,7 +137,7 @@ class TicketDetailAPI : PanelApi() {
                 userIDList.add(message.userID)
         }
 
-        databaseManager.getDatabase().userDao.getUsernameByListOfID(
+        databaseManager.userDao.getUsernameByListOfID(
             userIDList,
             sqlConnection,
             (this::getUsernameByListOfIDHandler)(handler, sqlConnection, ticket, username, messages)
@@ -150,7 +159,7 @@ class TicketDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketMessageDao.getCountByTicketID(
+        databaseManager.ticketMessageDao.getCountByTicketID(
             ticket.id,
             sqlConnection,
             (this::getCountByTicketIDHandler)(handler, sqlConnection, ticket, username, messages, usernameList)
@@ -182,7 +191,7 @@ class TicketDetailAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketCategoryDao.getByID(
+        databaseManager.ticketCategoryDao.getByID(
             ticket.categoryID,
             sqlConnection,
             (this::ticketCategoryGetByIDHandler)(

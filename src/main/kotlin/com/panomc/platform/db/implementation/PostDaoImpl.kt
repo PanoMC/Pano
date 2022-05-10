@@ -1,6 +1,8 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PostDao
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.model.PostStatus
@@ -13,7 +15,8 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
-class PostDaoImpl(override val tableName: String = "post") : DaoImpl(), PostDao {
+@Dao
+class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "post"), PostDao {
 
     override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
         { sqlConnection, handler ->

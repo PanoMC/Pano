@@ -1,41 +1,19 @@
 package com.panomc.platform.config
 
-import com.panomc.platform.config.migration.ConfigMigration_1_2
-import com.panomc.platform.config.migration.ConfigMigration_2_3
-import com.panomc.platform.config.migration.ConfigMigration_3_4
+import com.panomc.platform.annotation.Migration
 import com.panomc.platform.util.KeyGeneratorUtil
 import io.jsonwebtoken.io.Encoders
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.Logger
-import io.vertx.kotlin.config.getConfigAwait
-import kotlinx.coroutines.runBlocking
+import org.slf4j.Logger
+import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.io.File
 
-class ConfigManager(mLogger: Logger, mVertx: Vertx) {
-
-    private val mMigrations = listOf(
-        ConfigMigration_1_2(),
-        ConfigMigration_2_3(),
-        ConfigMigration_3_4()
-    )
-
-    private val mConfig = com.beust.klaxon.JsonObject()
-
-    private val mConfigFile = File("config.json")
-
-    private val mIsFileConfig = when {
-        mConfigFile.exists() -> true
-        mConfigFile.createNewFile() -> {
-            mConfigFile.writeText(DEFAULT_CONFIG.toJsonString(true))
-
-            true
-        }
-        else -> false
-    }
+class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
 
     companion object {
         private const val CONFIG_VERSION = 3
@@ -87,74 +65,95 @@ class ConfigManager(mLogger: Logger, mVertx: Vertx) {
                 )
             )
         }
-    }
 
-    init {
-        if (mIsFileConfig) {
-            val fileStore = ConfigStoreOptions()
-                .setType("file")
-                .setConfig(JsonObject().put("path", "config.json"))
-
-            val options = ConfigRetrieverOptions().addStore(fileStore)
-
-            val retriever = ConfigRetriever.create(mVertx, options)
-
-            loadConfigFromFile(retriever)
-
-            migrate()
-
-            loadConfigFromFile(retriever)
-
-            retriever.listen { change ->
-                mConfig.clear()
-
-                mConfig.putAll(change.newConfiguration.map)
+        fun JsonObject.putAll(jsonObject: Map<String, Any>) {
+            jsonObject.forEach {
+                this.put(it.key, it.value)
             }
-        } else {
-            mConfig.clear()
-
-            mConfig.putAll(DEFAULT_CONFIG.map)
         }
     }
 
-    private fun loadConfigFromFile(retriever: ConfigRetriever) {
-        runBlocking {
-            mConfig.clear()
-
-            mConfig.putAll(retriever.getConfigAwait().map)
-        }
+    fun saveConfig() {
+        configFile.writeText(config.encodePrettily())
     }
+
+    fun getConfig() = config
+
+    internal fun init(): Future<Any> = Future.future { future ->
+        if (!configFile.exists()) {
+            configFile.writeText(DEFAULT_CONFIG.encodePrettily())
+        }
+
+        configRetriever.config
+            .onSuccess {
+                config.putAll(it.map)
+
+                migrate()
+
+                listenConfigFile()
+
+                future.complete()
+            }
+            .onFailure {
+                logger.error("Error occurred while loading config file!")
+
+                throw it
+            }
+    }
+
+    private fun getConfigVersion(): Int = config.getInteger("config-version")
+
+    private val config = JsonObject()
+
+    private val migrations by lazy {
+        val beans = applicationContext.getBeansWithAnnotation(Migration::class.java)
+
+        beans.filter { it.value is ConfigMigration }.map { it.value as ConfigMigration }.sortedBy { it.FROM_VERSION }
+    }
+
+    private val configFile = File("config.json")
+
+    private val fileStore = ConfigStoreOptions()
+        .setType("file")
+        .setConfig(JsonObject().put("path", "config.json"))
+
+    private val options = ConfigRetrieverOptions().addStore(fileStore)
+
+    private val configRetriever = ConfigRetriever.create(vertx, options)
 
     private fun migrate() {
-        if (getConfigVersion() != CONFIG_VERSION) {
-            val listOfMigratableMigrations = mMigrations
-                .filter { configMigration -> configMigration.isMigratable(getConfigVersion()) }
+        logger.info("Checking available config migrations...")
 
-            listOfMigratableMigrations
+        if (getConfigVersion() != CONFIG_VERSION) {
+            val listOfPossibleMigrations =
+                migrations.filter { configMigration -> configMigration.isMigratable(getConfigVersion()) }
+
+            listOfPossibleMigrations
                 .forEach {
-                    getConfig()["config-version"] = it.VERSION
+                    logger.info("Migration Found! Migrating config from version ${it.FROM_VERSION} to ${it.VERSION}: ${it.VERSION_INFO}")
+
+                    config.put("config-version", it.VERSION)
 
                     it.migrate(this)
                 }
 
-            if (listOfMigratableMigrations.isNotEmpty())
+            if (listOfPossibleMigrations.isNotEmpty()) {
                 saveConfig()
+            }
         }
     }
 
-    fun JsonObject.toJsonString(prettyPrint: Boolean = false, canonical: Boolean = false): String {
-        val jsonObject = com.beust.klaxon.JsonObject()
+    private fun listenConfigFile() {
+        configRetriever.listen { change ->
+            config.clear()
 
-        jsonObject.putAll(this.map)
-
-        return jsonObject.toJsonString(prettyPrint, canonical)
+            updateConfig(change.newConfiguration)
+        }
     }
 
-    fun saveConfig() {
-        mConfigFile.writeText(mConfig.toJsonString(true))
+    private fun updateConfig(newConfig: JsonObject) {
+        newConfig.map.forEach {
+            config.put(it.key, it.value)
+        }
     }
-
-    fun getConfigVersion() = mConfig["config-version"] as Int
-
-    fun getConfig() = mConfig
 }

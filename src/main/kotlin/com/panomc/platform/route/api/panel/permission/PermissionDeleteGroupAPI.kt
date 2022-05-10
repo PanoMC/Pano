@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.permission
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PermissionDeleteGroupAPI : PanelApi() {
+@Endpoint
+class PermissionDeleteGroupAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/permission/delete/group")
@@ -35,7 +44,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.isThereByID(
+        databaseManager.permissionGroupDao.isThereByID(
             permissionGroupID,
             sqlConnection,
             (this::isThereByIDHandler)(sqlConnection, handler, permissionGroupID)
@@ -63,7 +72,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+        databaseManager.permissionGroupDao.getPermissionGroupByID(
             permissionGroupID,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(sqlConnection, handler, permissionGroupID)
@@ -91,7 +100,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupPermsDao.removePermissionGroup(
+        databaseManager.permissionGroupPermsDao.removePermissionGroup(
             permissionGroupID,
             sqlConnection,
             (this::removePermissionGroupHandler)(
@@ -115,7 +124,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.removePermissionGroupByPermissionGroupID(
+        databaseManager.userDao.removePermissionGroupByPermissionGroupID(
             permissionGroupID,
             sqlConnection,
             (this::removePermissionGroupByPermissionGroupIDHandler)(sqlConnection, handler, permissionGroupID)
@@ -135,7 +144,7 @@ class PermissionDeleteGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.deleteByID(
+        databaseManager.permissionGroupDao.deleteByID(
             permissionGroupID,
             sqlConnection,
             (this::deleteByIDHandler)(sqlConnection, handler)

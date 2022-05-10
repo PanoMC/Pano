@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.posts
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
@@ -10,7 +12,10 @@ import io.vertx.sqlclient.SqlConnection
 import util.StringUtil
 import java.lang.Math.ceil
 
-class CategoryPostsAPI : Api() {
+@Endpoint
+class CategoryPostsAPI(
+    private val databaseManager: DatabaseManager
+) : Api() {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/posts/categoryPosts")
@@ -40,7 +45,7 @@ class CategoryPostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.isExistsByURL(
+        databaseManager.postCategoryDao.isExistsByURL(
             categoryUrl,
             sqlConnection,
             (this::isExistsByURLHandler)(handler, sqlConnection, categoryUrl, page)
@@ -69,7 +74,7 @@ class CategoryPostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getByURL(
+        databaseManager.postCategoryDao.getByURL(
             categoryUrl,
             sqlConnection,
             (this::getByURLHandler)(handler, sqlConnection, page)
@@ -89,7 +94,7 @@ class CategoryPostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.countOfPublishedByCategoryID(
+        databaseManager.postDao.countOfPublishedByCategoryID(
             category.id,
             sqlConnection,
             (this::countOfPublishedByCategoryID)(handler, sqlConnection, page, category)
@@ -123,7 +128,7 @@ class CategoryPostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getPublishedListByPageAndCategoryID(
+        databaseManager.postDao.getPublishedListByPageAndCategoryID(
             category.id,
             page,
             sqlConnection,
@@ -153,7 +158,7 @@ class CategoryPostsAPI : Api() {
 
         val userIDList = posts.distinctBy { it.writerUserID }.map { it.writerUserID }
 
-        databaseManager.getDatabase().userDao.getUsernameByListOfID(
+        databaseManager.userDao.getUsernameByListOfID(
             userIDList,
             sqlConnection,
             (this::getUsernameByListOfIDHandler)(category, posts, count, totalPage, handler, sqlConnection)
@@ -184,7 +189,7 @@ class CategoryPostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getByIDList(
+        databaseManager.postCategoryDao.getByIDList(
             categoryIDList,
             sqlConnection,
             (this::getByIDListHandler)(category, posts, count, totalPage, usernameList, handler, sqlConnection)

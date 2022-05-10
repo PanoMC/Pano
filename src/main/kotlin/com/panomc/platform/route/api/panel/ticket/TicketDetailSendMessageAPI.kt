@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class TicketDetailSendMessageAPI : PanelApi() {
+@Endpoint
+class TicketDetailSendMessageAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/ticket/detail/message/send")
@@ -35,7 +44,7 @@ class TicketDetailSendMessageAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.isExistsByID(
+        databaseManager.ticketDao.isExistsByID(
             ticketID,
             sqlConnection,
             (this::isExistsByHandler)(handler, ticketID, message, sqlConnection, userID)
@@ -65,7 +74,7 @@ class TicketDetailSendMessageAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getUsernameFromUserID(
+        databaseManager.userDao.getUsernameFromUserID(
             userID,
             sqlConnection,
             (this::getUsernameFromUserIDHandler)(handler, sqlConnection, ticketID, message, userID)
@@ -89,7 +98,7 @@ class TicketDetailSendMessageAPI : PanelApi() {
 
         val ticketMessage = TicketMessage(-1, userID, ticketID, message, System.currentTimeMillis(), 1)
 
-        databaseManager.getDatabase().ticketMessageDao.addMessage(
+        databaseManager.ticketMessageDao.addMessage(
             ticketMessage,
             sqlConnection,
             (this::addMessageHandler)(handler, sqlConnection, ticketMessage, username)
@@ -111,7 +120,7 @@ class TicketDetailSendMessageAPI : PanelApi() {
         }
 
         if (result is Successful)
-            databaseManager.getDatabase().ticketDao.makeStatus(
+            databaseManager.ticketDao.makeStatus(
                 ticketMessage.ticketID,
                 2,
                 sqlConnection,
@@ -134,7 +143,7 @@ class TicketDetailSendMessageAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.updateLastUpdateDate(
+        databaseManager.ticketDao.updateLastUpdateDate(
             ticketMessage.ticketID,
             System.currentTimeMillis(),
             sqlConnection,

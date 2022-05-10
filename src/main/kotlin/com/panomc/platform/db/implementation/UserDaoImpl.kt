@@ -1,7 +1,9 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.UserDao
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.Error
@@ -14,7 +16,8 @@ import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import org.apache.commons.codec.digest.DigestUtils
 
-class UserDaoImpl(override val tableName: String = "user") : DaoImpl(), UserDao {
+@Dao
+class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "user"), UserDao {
 
     override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
         { sqlConnection, handler ->

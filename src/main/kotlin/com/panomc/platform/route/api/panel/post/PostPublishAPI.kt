@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PostPublishAPI : PanelApi() {
+@Endpoint
+class PostPublishAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/post/publish")
@@ -77,7 +86,7 @@ class PostPublishAPI : PanelApi() {
         )
 
         if (id == -1) {
-            databaseManager.getDatabase().postDao.insertAndPublish(
+            databaseManager.postDao.insertAndPublish(
                 post,
                 sqlConnection,
                 (this::insertAndPublishHandler)(handler, sqlConnection)
@@ -86,7 +95,7 @@ class PostPublishAPI : PanelApi() {
             return
         }
 
-        databaseManager.getDatabase().postDao.updateAndPublish(
+        databaseManager.postDao.updateAndPublish(
             userID,
             post,
             sqlConnection,

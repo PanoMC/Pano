@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.posts
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
@@ -10,7 +12,10 @@ import io.vertx.sqlclient.SqlConnection
 import util.StringUtil
 import java.lang.Math.ceil
 
-class PostsAPI : Api() {
+@Endpoint
+class PostsAPI(
+    private val databaseManager: DatabaseManager
+) : Api() {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/posts")
@@ -37,7 +42,7 @@ class PostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.countOfPublished(
+        databaseManager.postDao.countOfPublished(
             sqlConnection,
             (this::countOfPublishedHandler)(handler, sqlConnection, page)
         )
@@ -69,7 +74,7 @@ class PostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getPublishedListByPage(
+        databaseManager.postDao.getPublishedListByPage(
             page,
             sqlConnection,
             (this::getPublishedListByPageHandler)(handler, sqlConnection, count, totalPage)
@@ -97,7 +102,7 @@ class PostsAPI : Api() {
 
         val userIDList = posts.distinctBy { it.writerUserID }.map { it.writerUserID }
 
-        databaseManager.getDatabase().userDao.getUsernameByListOfID(
+        databaseManager.userDao.getUsernameByListOfID(
             userIDList,
             sqlConnection,
             (this::getUsernameByListOfIDHandler)(posts, count, totalPage, handler, sqlConnection)
@@ -127,7 +132,7 @@ class PostsAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getByIDList(
+        databaseManager.postCategoryDao.getByIDList(
             categoryIDList,
             sqlConnection,
             (this::getByIDListHandler)(posts, count, totalPage, usernameList, handler, sqlConnection)

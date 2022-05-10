@@ -1,16 +1,21 @@
 package com.panomc.platform.db.migration
 
+import com.panomc.platform.annotation.Migration
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.core.AsyncResult
 import io.vertx.core.buffer.Buffer
 import io.vertx.ext.web.client.HttpResponse
+import io.vertx.ext.web.client.WebClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
 @Suppress("ClassName")
-class DatabaseMigration_23_24 : DatabaseMigration() {
+@Migration
+class DatabaseMigration_23_24(databaseManager: DatabaseManager, private val webClient: WebClient) :
+    DatabaseMigration(databaseManager) {
     override val FROM_SCHEME_VERSION = 23
     override val SCHEME_VERSION = 24
     override val SCHEME_VERSION_INFO =

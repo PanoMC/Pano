@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class TicketPageDeleteTicketsAPI : PanelApi() {
+@Endpoint
+class TicketPageDeleteTicketsAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/ticket/delete/selectedTickets")
@@ -35,7 +44,7 @@ class TicketPageDeleteTicketsAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.delete(
+        databaseManager.ticketDao.delete(
             selectedTickets,
             sqlConnection,
             (this::deleteHandler)(handler, sqlConnection, selectedTickets)
@@ -55,7 +64,7 @@ class TicketPageDeleteTicketsAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketMessageDao.deleteByTicketIDList(
+        databaseManager.ticketMessageDao.deleteByTicketIDList(
             selectedTickets,
             sqlConnection,
             (this::deleteByTicketIDListHandler)(handler, sqlConnection)

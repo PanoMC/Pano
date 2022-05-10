@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.permission
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PermissionAddGroupAPI : PanelApi() {
+@Endpoint
+class PermissionAddGroupAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/permission/add/group")
@@ -58,7 +67,7 @@ class PermissionAddGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.isThere(
+        databaseManager.permissionGroupDao.isThere(
             PermissionGroup(-1, name),
             sqlConnection,
             (this::isThereHandler)(sqlConnection, handler, name)
@@ -86,7 +95,7 @@ class PermissionAddGroupAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.add(
+        databaseManager.permissionGroupDao.add(
             PermissionGroup(-1, name),
             sqlConnection,
             (this::addHandler)(sqlConnection, handler)

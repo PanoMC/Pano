@@ -1,12 +1,21 @@
 package com.panomc.platform.route.api.panel.post.category
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PostCategoryDeleteAPI : PanelApi() {
+@Endpoint
+class PostCategoryDeleteAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/post/category/delete")
@@ -26,7 +35,7 @@ class PostCategoryDeleteAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().postCategoryDao.isExistsByID(
+            databaseManager.postCategoryDao.isExistsByID(
                 id,
                 sqlConnection,
                 (this::isExistsByID)(handler, sqlConnection, id)
@@ -49,7 +58,7 @@ class PostCategoryDeleteAPI : PanelApi() {
                 }
             }
 
-            databaseManager.getDatabase().postDao.removePostCategoriesByCategoryID(
+            databaseManager.postDao.removePostCategoriesByCategoryID(
                 id,
                 sqlConnection,
                 (this::removePostCategoriesByCategoryIDHandler)(handler, sqlConnection, id)
@@ -69,7 +78,7 @@ class PostCategoryDeleteAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.deleteByID(
+        databaseManager.postCategoryDao.deleteByID(
             id,
             sqlConnection,
             (this::deleteByIDHandler)(handler, sqlConnection)

@@ -1,25 +1,24 @@
 package com.panomc.platform.route.api.panel.platformAuth
 
-import com.panomc.platform.Main.Companion.getComponent
+import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
+import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.PlatformCodeManager
+import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
-import javax.inject.Inject
 
-class RefreshKeyAPI : PanelApi() {
+@Endpoint
+class RefreshKeyAPI(
+    private val platformCodeManager: PlatformCodeManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/panel/platformAuth/refreshKey")
-
-    init {
-        getComponent().inject(this)
-    }
-
-    @Inject
-    lateinit var platformCodeManager: PlatformCodeManager
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         handler.invoke(

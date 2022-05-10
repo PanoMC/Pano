@@ -19,7 +19,7 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 
 class AuthProvider(
-    private val mDatabaseManager: DatabaseManager,
+    private val databaseManager: DatabaseManager,
     private val mConfigManager: ConfigManager
 ) {
     companion object {
@@ -61,7 +61,7 @@ class AuthProvider(
                     return@getUserIDFromUsernameOrEmailHandler
                 }
 
-                mDatabaseManager.getDatabase().userDao.isEmailVerifiedByID(
+                databaseManager.userDao.isEmailVerifiedByID(
                     userID,
                     sqlConnection,
                     isEmailVerifiedByIDHandler
@@ -81,14 +81,14 @@ class AuthProvider(
                 return@isLoginCorrectHandler
             }
 
-            mDatabaseManager.getDatabase().userDao.getUserIDFromUsernameOrEmail(
+            databaseManager.userDao.getUserIDFromUsernameOrEmail(
                 usernameOrEmail,
                 sqlConnection,
                 getUserIDFromUsernameOrEmailHandler
             )
         }
 
-        mDatabaseManager.getDatabase().userDao.isLoginCorrect(
+        databaseManager.userDao.isLoginCorrect(
             usernameOrEmail,
             password,
             sqlConnection,
@@ -111,7 +111,7 @@ class AuthProvider(
 
                 val privateKeySpec = PKCS8EncodedKeySpec(
                     Decoders.BASE64.decode(
-                        (mConfigManager.getConfig()["jwt-keys"] as Map<*, *>)["private"] as String
+                        mConfigManager.getConfig().getJsonObject("jwt-keys").getString("private")
                     )
                 )
                 val keyFactory = KeyFactory.getInstance("RSA")
@@ -132,7 +132,7 @@ class AuthProvider(
                 )
             }
 
-        mDatabaseManager.getDatabase().userDao.getUserIDFromUsernameOrEmail(
+        databaseManager.userDao.getUserIDFromUsernameOrEmail(
             usernameOrEmail,
             sqlConnection,
             getUserIDFromUsernameOrEmailHandler
@@ -170,7 +170,7 @@ class AuthProvider(
 //                return@createConnection
 //            }
 //
-//            databaseManager.getDatabase().tokenDao.getUserIDFromToken(
+//            databaseManager.tokenDao.getUserIDFromToken(
 //                token,
 //                sqlConnection
 //            ) { userID, asyncResultGetUserIDFromToken ->
@@ -190,7 +190,7 @@ class AuthProvider(
 //                    return@getUserIDFromToken
 //                }
 //
-//                databaseManager.getDatabase().userDao.getPermissionGroupIDFromUserID(
+//                databaseManager.userDao.getPermissionGroupIDFromUserID(
 //                    userID,
 //                    sqlConnection
 //                ) { permissionGroupID, asyncResultOfGetPermissionGroupIDFromUserID ->
@@ -210,7 +210,7 @@ class AuthProvider(
 //                        return@getPermissionGroupIDFromUserID
 //                    }
 //
-//                    databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+//                    databaseManager.permissionGroupDao.getPermissionGroupByID(
 //                        permissionGroupID,
 //                        sqlConnection
 //                    ) { permissionGroup, asyncResultOfGetPermissionGroupID ->
@@ -241,7 +241,7 @@ class AuthProvider(
     ) {
         fun hasAccessPanelHandler(sqlConnection: SqlConnection) =
             hasAccessPanelHandler@{ hasAccess: Boolean, asyncResult: AsyncResult<*>? ->
-                mDatabaseManager.closeConnection(sqlConnection) {
+                databaseManager.closeConnection(sqlConnection) {
                     handler.invoke(hasAccess, asyncResult)
                 }
             }
@@ -258,7 +258,7 @@ class AuthProvider(
                 hasAccessPanel(routingContext, sqlConnection, hasAccessPanelHandler(sqlConnection))
             }
 
-        mDatabaseManager.createConnection(createConnectionHandler)
+        databaseManager.createConnection(createConnectionHandler)
     }
 
     fun hasAccessPanel(
@@ -285,7 +285,7 @@ class AuthProvider(
                 handler.invoke(true, asyncResult)
             }
 
-        mDatabaseManager.getDatabase().userDao.getPermissionGroupIDFromUserID(
+        databaseManager.userDao.getPermissionGroupIDFromUserID(
             userID,
             sqlConnection,
             getPermissionGroupIDFromUserIDHandler
@@ -385,7 +385,7 @@ class AuthProvider(
     fun parseToken(token: String): Jws<Claims> {
         val publicKeySpec = X509EncodedKeySpec(
             Decoders.BASE64.decode(
-                (mConfigManager.getConfig()["jwt-keys"] as Map<*, *>)["public"] as String
+                mConfigManager.getConfig().getJsonObject("jwt-keys").getString("public")
             )
         )
         val keyFactory = KeyFactory.getInstance("RSA")

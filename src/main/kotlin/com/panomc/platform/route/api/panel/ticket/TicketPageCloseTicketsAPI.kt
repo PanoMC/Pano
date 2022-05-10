@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class TicketPageCloseTicketsAPI : PanelApi() {
+@Endpoint
+class TicketPageCloseTicketsAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/ticket/close/selectedList")
@@ -35,7 +44,7 @@ class TicketPageCloseTicketsAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.closeTickets(
+        databaseManager.ticketDao.closeTickets(
             selectedTickets,
             sqlConnection,
             (this::closeTicketsHandler)(handler, sqlConnection)

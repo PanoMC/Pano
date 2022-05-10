@@ -1,5 +1,7 @@
 package com.panomc.platform.db.migration
 
+import com.panomc.platform.annotation.Migration
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.util.TextUtil
@@ -10,7 +12,8 @@ import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
 @Suppress("ClassName")
-class DatabaseMigration_21_22 : DatabaseMigration() {
+@Migration
+class DatabaseMigration_21_22(databaseManager: DatabaseManager) : DatabaseMigration(databaseManager) {
     override val FROM_SCHEME_VERSION = 21
     override val SCHEME_VERSION = 22
     override val SCHEME_VERSION_INFO =

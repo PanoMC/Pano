@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.permission
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PermissionSetAPI : PanelApi() {
+@Endpoint
+class PermissionSetAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/permission/set")
@@ -47,7 +56,7 @@ class PermissionSetAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionDao.isTherePermissionByID(
+        databaseManager.permissionDao.isTherePermissionByID(
             permissionID,
             sqlConnection,
             (this::isTherePermissionByIDHandler)(sqlConnection, handler, permissionGroupID, permissionID, mode)
@@ -77,7 +86,7 @@ class PermissionSetAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.isThereByID(
+        databaseManager.permissionGroupDao.isThereByID(
             permissionGroupID,
             sqlConnection,
             (this::isThereByIDHandler)(sqlConnection, handler, permissionGroupID, permissionID, mode)
@@ -107,7 +116,7 @@ class PermissionSetAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+        databaseManager.permissionGroupDao.getPermissionGroupByID(
             permissionGroupID,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(sqlConnection, handler, permissionGroupID, permissionID, mode)
@@ -137,7 +146,7 @@ class PermissionSetAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupPermsDao.doesPermissionGroupHavePermission(
+        databaseManager.permissionGroupPermsDao.doesPermissionGroupHavePermission(
             permissionGroupID,
             permissionID,
             sqlConnection,
@@ -172,7 +181,7 @@ class PermissionSetAPI : PanelApi() {
                     handler.invoke(Successful())
                 }
             else
-                databaseManager.getDatabase().permissionGroupPermsDao.addPermission(
+                databaseManager.permissionGroupPermsDao.addPermission(
                     permissionGroupID,
                     permissionID,
                     sqlConnection,
@@ -184,7 +193,7 @@ class PermissionSetAPI : PanelApi() {
                     handler.invoke(Successful())
                 }
             else
-                databaseManager.getDatabase().permissionGroupPermsDao.removePermission(
+                databaseManager.permissionGroupPermsDao.removePermission(
                     permissionGroupID,
                     permissionID,
                     sqlConnection,

@@ -1,14 +1,23 @@
 package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class PlayersPageInitAPI : PanelApi() {
+@Endpoint
+class PlayersPageInitAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/initPage/playersPage")
@@ -32,7 +41,7 @@ class PlayersPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.countByPageType(
+        databaseManager.userDao.countByPageType(
             pageType,
             sqlConnection,
             (this::countByPageTypeHandler)(handler, sqlConnection, pageType, page)
@@ -66,7 +75,7 @@ class PlayersPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getAllByPageAndPageType(
+        databaseManager.userDao.getAllByPageAndPageType(
             page,
             pageType,
             sqlConnection,
@@ -99,7 +108,7 @@ class PlayersPageInitAPI : PanelApi() {
         val handlers: List<(handler: () -> Unit) -> Any> =
             userList.map { user ->
                 val localHandler: (handler: () -> Unit) -> Any = { localHandler ->
-                    databaseManager.getDatabase().ticketDao.countByUserID(
+                    databaseManager.ticketDao.countByUserID(
                         user["id"] as Int,
                         sqlConnection,
                         (this::countByUserIDHandler)(handler, sqlConnection, user, playerList, localHandler)
@@ -161,7 +170,7 @@ class PlayersPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+        databaseManager.permissionGroupDao.getPermissionGroupByID(
             user["permissionGroupId"] as Int,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(handler, sqlConnection, user, playerList, count, localHandler)

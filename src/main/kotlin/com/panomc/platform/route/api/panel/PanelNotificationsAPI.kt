@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PanelNotificationsAPI : PanelApi() {
+@Endpoint
+class PanelNotificationsAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/panel/notifications")
@@ -28,7 +37,7 @@ class PanelNotificationsAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.getCountByUserID(
+        databaseManager.panelNotificationDao.getCountByUserID(
             userID,
             sqlConnection,
             (this::getCountByUserIDHandler)(handler, sqlConnection, userID)
@@ -48,7 +57,7 @@ class PanelNotificationsAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.getLast10ByUserID(
+        databaseManager.panelNotificationDao.getLast10ByUserID(
             userID,
             sqlConnection,
             (this::getLast10ByUserIDHandler)(handler, sqlConnection, userID, count)
@@ -69,7 +78,7 @@ class PanelNotificationsAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.markReadLast10(
+        databaseManager.panelNotificationDao.markReadLast10(
             userID,
             sqlConnection,
             (this::markReadLast10Handler)(handler, sqlConnection, count, userID, notifications)

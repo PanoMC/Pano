@@ -1,6 +1,8 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PermissionGroupDao
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.Result
@@ -11,7 +13,9 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
-class PermissionGroupDaoImpl(override val tableName: String = "permission_group") : DaoImpl(), PermissionGroupDao {
+@Dao
+class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "permission_group"),
+    PermissionGroupDao {
     private val adminPermissionName = "admin"
 
     override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =

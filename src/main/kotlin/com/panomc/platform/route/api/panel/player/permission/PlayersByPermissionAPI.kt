@@ -1,14 +1,23 @@
 package com.panomc.platform.route.api.panel.player.permission
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class PlayersByPermissionAPI : PanelApi() {
+@Endpoint
+class PlayersByPermissionAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/players/byPermission")
@@ -44,7 +53,7 @@ class PlayersByPermissionAPI : PanelApi() {
             val handlers: List<(handler: () -> Unit) -> Any> =
                 userList.map { user ->
                     val localHandler: (handler: () -> Unit) -> Any = { localHandler ->
-                        databaseManager.getDatabase().ticketDao.countByUserID(
+                        databaseManager.ticketDao.countByUserID(
                             user["id"] as Int,
                             sqlConnection,
                             (this::countByUserIDHandler)(handler, sqlConnection, user, playerList, localHandler)
@@ -111,7 +120,7 @@ class PlayersByPermissionAPI : PanelApi() {
                     return@getCountOfUsersByPermissionGroupIDHandler
                 }
 
-                databaseManager.getDatabase().userDao.getAllByPageAndPermissionGroup(
+                databaseManager.userDao.getAllByPageAndPermissionGroup(
                     page,
                     permissionGroup.id,
                     sqlConnection,
@@ -131,7 +140,7 @@ class PlayersByPermissionAPI : PanelApi() {
 
                 val permissionGroupObject = PermissionGroup(permissionGroupID, permissionGroup)
 
-                databaseManager.getDatabase().userDao.getCountOfUsersByPermissionGroupID(
+                databaseManager.userDao.getCountOfUsersByPermissionGroupID(
                     permissionGroupID,
                     sqlConnection,
                     getCountOfUsersByPermissionGroupIDHandler(sqlConnection, permissionGroupObject)
@@ -156,7 +165,7 @@ class PlayersByPermissionAPI : PanelApi() {
                     return@isTherePermissionHandler
                 }
 
-                databaseManager.getDatabase().permissionGroupDao.getPermissionGroupID(
+                databaseManager.permissionGroupDao.getPermissionGroupID(
                     permissionGroup,
                     sqlConnection,
                     getPermissionGroupIDHandler(sqlConnection)
@@ -174,7 +183,7 @@ class PlayersByPermissionAPI : PanelApi() {
                 val permissionGroupObject = PermissionGroup(-1, permissionGroup)
 
                 if (permissionGroup == "-") {
-                    databaseManager.getDatabase().userDao.getCountOfUsersByPermissionGroupID(
+                    databaseManager.userDao.getCountOfUsersByPermissionGroupID(
                         permissionGroupObject.id,
                         sqlConnection,
                         getCountOfUsersByPermissionGroupIDHandler(sqlConnection, permissionGroupObject)
@@ -184,7 +193,7 @@ class PlayersByPermissionAPI : PanelApi() {
                 }
 
 
-                databaseManager.getDatabase().permissionGroupDao.isThere(
+                databaseManager.permissionGroupDao.isThere(
                     permissionGroupObject,
                     sqlConnection,
                     isTherePermissionHandler(sqlConnection, permissionGroupObject)
@@ -217,7 +226,7 @@ class PlayersByPermissionAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupByID(
+        databaseManager.permissionGroupDao.getPermissionGroupByID(
             user["permissionGroupId"] as Int,
             sqlConnection,
             (this::getPermissionGroupByIDHandler)(handler, sqlConnection, user, playerList, count, localHandler)

@@ -1,141 +1,71 @@
 package com.panomc.platform.db
 
+import com.panomc.platform.annotation.Dao
+import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.db.migration.*
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.db.dao.*
 import io.vertx.core.AsyncResult
+import io.vertx.core.Future
 import io.vertx.core.Vertx
-import io.vertx.core.logging.Logger
 import io.vertx.mysqlclient.MySQLConnectOptions
 import io.vertx.mysqlclient.MySQLPool
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
 import io.vertx.sqlclient.SqlConnection
+import org.slf4j.Logger
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import org.springframework.context.annotation.Lazy
+import org.springframework.stereotype.Component
 
+@Lazy
+@Component
 class DatabaseManager(
-    private val mVertx: Vertx,
-    private val mLogger: Logger,
-    private val mConfigManager: ConfigManager,
-    setupManager: SetupManager
+    @Lazy val schemeVersionDao: SchemeVersionDao,
+    @Lazy val userDao: UserDao,
+    @Lazy val permissionDao: PermissionDao,
+    @Lazy val panelConfigDao: PanelConfigDao,
+    @Lazy val serverDao: ServerDao,
+    @Lazy val systemPropertyDao: SystemPropertyDao,
+    @Lazy val panelNotificationDao: PanelNotificationDao,
+    @Lazy val postDao: PostDao,
+    @Lazy val postCategoryDao: PostCategoryDao,
+    @Lazy val ticketDao: TicketDao,
+    @Lazy val ticketCategoryDao: TicketCategoryDao,
+    @Lazy val ticketMessageDao: TicketMessageDao,
+    @Lazy val permissionGroupDao: PermissionGroupDao,
+    @Lazy val permissionGroupPermsDao: PermissionGroupPermsDao
 ) {
-    private lateinit var mPool: Pool
 
-    private val mDatabase by lazy {
-        Database()
-    }
+    @Autowired
+    private lateinit var vertx: Vertx
+
+    @Autowired
+    private lateinit var logger: Logger
+
+    @Autowired
+    private lateinit var configManager: ConfigManager
+
+    @Autowired
+    private lateinit var applicationContext: AnnotationConfigApplicationContext
+
+    private lateinit var pool: Pool
 
     private val mMigrations by lazy {
-        listOf(
-            DatabaseMigration_1_2(),
-            DatabaseMigration_2_3(),
-            DatabaseMigration_3_4(),
-            DatabaseMigration_4_5(),
-            DatabaseMigration_5_6(),
-            DatabaseMigration_6_7(),
-            DatabaseMigration_7_8(),
-            DatabaseMigration_8_9(),
-            DatabaseMigration_9_10(),
-            DatabaseMigration_10_11(),
-            DatabaseMigration_11_12(),
-            DatabaseMigration_12_13(),
-            DatabaseMigration_13_14(),
-            DatabaseMigration_14_15(),
-            DatabaseMigration_15_16(),
-            DatabaseMigration_16_17(),
-            DatabaseMigration_17_18(),
-            DatabaseMigration_18_19(),
-            DatabaseMigration_19_20(),
-            DatabaseMigration_20_21(),
-            DatabaseMigration_21_22(),
-            DatabaseMigration_22_23(),
-            DatabaseMigration_23_24(),
-            DatabaseMigration_24_25(),
-            DatabaseMigration_25_26(),
-        )
+        val beans = applicationContext.getBeansWithAnnotation(Migration::class.java)
+
+        beans.filter { it.value is DatabaseMigration }.map { it.value as DatabaseMigration }
+            .sortedBy { it.FROM_SCHEME_VERSION }
     }
 
-    init {
-        if (setupManager.isSetupDone())
-            checkMigration()
-    }
-
-    internal fun getLatestMigration() = mMigrations.maxByOrNull { it.SCHEME_VERSION }!!
-
-    private fun checkMigration() {
-        createConnection { sqlConnection, _ ->
-            if (sqlConnection != null) {
-                mDatabase.schemeVersionDao.getLastSchemeVersion(sqlConnection) { schemeVersion, _ ->
-                    if (schemeVersion == null)
-                        mLogger.error("Database Error: Database scheme is not correct, please reinstall platform")
-                    else {
-                        val databaseVersion = schemeVersion.key.toIntOrNull() ?: 0
-
-                        if (databaseVersion == 0)
-                            mLogger.error("Database Error: Database scheme is not correct, please reinstall platform")
-                        else
-                            migrate(sqlConnection, databaseVersion)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun migrate(sqlConnection: SqlConnection, databaseVersion: Int) {
-        val handlers = mMigrations.map { it.migrate(sqlConnection) }
-
-        var currentIndex = 0
-
-        fun invoke() {
-            val localHandler: (AsyncResult<*>) -> Unit = { localHandlerResult ->
-                fun check() {
-                    when {
-                        localHandlerResult.failed() -> closeConnection(sqlConnection) {
-                            mLogger.error("Database Error: Migration failed from version ${mMigrations[currentIndex].FROM_SCHEME_VERSION} to ${mMigrations[currentIndex].SCHEME_VERSION}, error: " + localHandlerResult.cause())
-                        }
-                        currentIndex == handlers.lastIndex -> closeConnection(sqlConnection)
-                        else -> {
-                            currentIndex++
-
-                            invoke()
-                        }
-                    }
-                }
-
-                if (localHandlerResult.succeeded())
-                    mMigrations[currentIndex].updateSchemeVersion(sqlConnection)
-                        .invoke { updateSchemeVersion ->
-                            if (updateSchemeVersion.failed())
-                                closeConnection(sqlConnection) {
-                                    mLogger.error("Database Error: Migration failed from version ${mMigrations[currentIndex].FROM_SCHEME_VERSION} to ${mMigrations[currentIndex].SCHEME_VERSION}, error: " + updateSchemeVersion.cause())
-                                }
-                            else
-                                check()
-                        }
-                else
-                    check()
-            }
-
-            if (mMigrations[currentIndex].isMigratable(databaseVersion)) {
-                if (currentIndex <= handlers.lastIndex)
-                    handlers[currentIndex].invoke(localHandler)
-            } else if (currentIndex == handlers.lastIndex)
-                closeConnection(sqlConnection)
-            else {
-                currentIndex++
-
-                invoke()
-            }
-        }
-
-        invoke()
-    }
+    fun getTablePrefix() = configManager.getConfig().getJsonObject("database").getString("prefix")
 
     fun createConnection(handler: (sqlConnection: SqlConnection?, asyncResult: AsyncResult<SqlConnection>) -> Unit) {
-        if (!::mPool.isInitialized) {
-            val databaseConfig = (mConfigManager.getConfig()["database"] as Map<*, *>)
+        if (!::pool.isInitialized) {
+            val databaseConfig = configManager.getConfig().getJsonObject("database")
 
             var port = 3306
-            var host = databaseConfig["host"] as String
+            var host = databaseConfig.getString("host")
 
             if (host.contains(":")) {
                 val splitHost = host.split(":")
@@ -148,23 +78,23 @@ class DatabaseManager(
             val connectOptions = MySQLConnectOptions()
                 .setPort(port)
                 .setHost(host)
-                .setDatabase(databaseConfig["name"] as String)
-                .setUser(databaseConfig["username"] as String)
+                .setDatabase(databaseConfig.getString("name"))
+                .setUser(databaseConfig.getString("username"))
 
-            if (databaseConfig["password"] != "")
-                connectOptions.password = databaseConfig["password"] as String
+            if (databaseConfig.getString("password") != "")
+                connectOptions.password = databaseConfig.getString("password")
 
             val poolOptions = PoolOptions()
                 .setMaxSize(10)
 
-            mPool = MySQLPool.pool(mVertx, connectOptions, poolOptions)
+            pool = MySQLPool.pool(vertx, connectOptions, poolOptions)
         }
 
-        mPool.getConnection { getConnection ->
+        pool.getConnection { getConnection ->
             if (getConnection.succeeded())
                 handler.invoke(getConnection.result(), getConnection)
             else {
-                mLogger.error("Failed to connect database! Please check your configuration! Error is: ${getConnection.cause()}")
+                logger.error("Failed to connect database! Please check your configuration! Error is: ${getConnection.cause()}")
 
                 handler.invoke(null, getConnection)
             }
@@ -177,8 +107,14 @@ class DatabaseManager(
         }
     }
 
-    fun initDatabase(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit = {}) {
-        val databaseInitProcessHandlers = mDatabase.init()
+    internal fun init(): Future<Any> = Future.future { future ->
+        checkMigration().onComplete {
+            future.complete(it)
+        }
+    }
+
+    internal fun initDatabase(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit = {}) {
+        val databaseInitProcessHandlers = getDatabaseInitList()
 
         var currentIndex = 0
 
@@ -205,7 +141,97 @@ class DatabaseManager(
         invoke()
     }
 
-    fun getDatabase() = mDatabase
+    internal fun getLatestMigration() = mMigrations.maxByOrNull { it.SCHEME_VERSION }!!
 
-    fun getTablePrefix() = (mConfigManager.getConfig()["database"] as Map<*, *>)["prefix"].toString()
+    private fun checkMigration(): Future<Any> = Future.future { future ->
+        logger.info("Checking available database migrations...")
+
+        createConnection { sqlConnection, _ ->
+            if (sqlConnection == null) {
+                logger.error("Connection to database failed! Database migration is skipped.")
+
+                future.complete()
+
+                return@createConnection
+            }
+
+            schemeVersionDao.getLastSchemeVersion(sqlConnection) { schemeVersion, _ ->
+                if (schemeVersion == null)
+                    logger.error("Database Error: Database scheme is not correct, please reinstall platform")
+                else {
+                    val databaseVersion = schemeVersion.key.toIntOrNull() ?: 0
+
+                    if (databaseVersion == 0)
+                        logger.error("Database Error: Database scheme is not correct, please reinstall platform")
+                    else
+                        migrate(sqlConnection, databaseVersion).onComplete {
+                            future.complete(it)
+                        }
+                }
+            }
+        }
+    }
+
+    private fun migrate(sqlConnection: SqlConnection, databaseVersion: Int): Future<Any> = Future.future { future ->
+        val handlers = mMigrations.map { it.migrate(sqlConnection) }
+
+        var currentIndex = 0
+
+        fun invoke() {
+            val localHandler: (AsyncResult<*>) -> Unit = { localHandlerResult ->
+                fun check() {
+                    when {
+                        localHandlerResult.failed() -> closeConnection(sqlConnection) {
+                            logger.error("Database Error: Migration failed from version ${mMigrations[currentIndex].FROM_SCHEME_VERSION} to ${mMigrations[currentIndex].SCHEME_VERSION}, error: " + localHandlerResult.cause())
+                        }
+                        currentIndex == handlers.lastIndex -> closeConnection(sqlConnection)
+                        else -> {
+                            currentIndex++
+
+                            invoke()
+                        }
+                    }
+                }
+
+                if (localHandlerResult.succeeded())
+                    mMigrations[currentIndex].updateSchemeVersion(sqlConnection)
+                        .invoke { updateSchemeVersion ->
+                            if (updateSchemeVersion.failed())
+                                closeConnection(sqlConnection) {
+                                    logger.error("Database Error: Migration failed from version ${mMigrations[currentIndex].FROM_SCHEME_VERSION} to ${mMigrations[currentIndex].SCHEME_VERSION}, error: " + updateSchemeVersion.cause())
+                                }
+                            else
+                                check()
+                        }
+                else
+                    check()
+            }
+
+            if (mMigrations[currentIndex].isMigratable(databaseVersion)) {
+                if (currentIndex <= handlers.lastIndex) {
+                    logger.info("Migration Found! Migrating database from version ${mMigrations[currentIndex].FROM_SCHEME_VERSION} to ${mMigrations[currentIndex].SCHEME_VERSION}: ${mMigrations[currentIndex].SCHEME_VERSION_INFO}")
+
+                    handlers[currentIndex].invoke(localHandler)
+                }
+            } else if (currentIndex == handlers.lastIndex) {
+                closeConnection(sqlConnection) {
+                    future.complete()
+                }
+            } else {
+                currentIndex++
+
+                invoke()
+            }
+        }
+
+        invoke()
+    }
+
+    private fun getDatabaseInitList(): List<(SqlConnection, (AsyncResult<*>) -> Unit) -> Unit> {
+        val beans = applicationContext.getBeansWithAnnotation(Dao::class.java)
+
+        val daoList = beans.map { it.value as com.panomc.platform.db.Dao<*> }
+
+        return daoList.map { it.init() }
+    }
 }

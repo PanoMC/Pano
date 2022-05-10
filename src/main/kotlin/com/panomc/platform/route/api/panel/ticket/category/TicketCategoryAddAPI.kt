@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class TicketCategoryAddAPI : PanelApi() {
+@Endpoint
+class TicketCategoryAddAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/ticket/category/add")
@@ -34,7 +43,7 @@ class TicketCategoryAddAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().ticketCategoryDao.add(
+            databaseManager.ticketCategoryDao.add(
                 TicketCategory(-1, title, description),
                 sqlConnection,
                 (this::addHandler)(handler, sqlConnection)

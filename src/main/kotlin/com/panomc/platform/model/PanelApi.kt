@@ -1,10 +1,12 @@
 package com.panomc.platform.model
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 
-abstract class PanelApi : Api() {
+abstract class PanelApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) : Api() {
 
     override fun getHandler() = Handler<RoutingContext> { context ->
         if (!setupManager.isSetupDone()) {

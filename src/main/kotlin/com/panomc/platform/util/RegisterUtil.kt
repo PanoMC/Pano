@@ -108,7 +108,7 @@ object RegisterUtil {
         isSetup: Boolean = false,
         handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit
     ) {
-        databaseManager.getDatabase().userDao.isExistsByUsername(
+        databaseManager.userDao.isExistsByUsername(
             username,
             sqlConnection,
             (this::isExistsByUsernameHandler)(
@@ -152,7 +152,7 @@ object RegisterUtil {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.isEmailExists(
+        databaseManager.userDao.isEmailExists(
             email,
             sqlConnection,
             (this::isEmailExistsHandler)(
@@ -203,7 +203,7 @@ object RegisterUtil {
             return@handler
         }
 
-        databaseManager.getDatabase().permissionGroupDao.getPermissionGroupID(
+        databaseManager.permissionGroupDao.getPermissionGroupID(
             PermissionGroup(-1, "admin"),
             sqlConnection,
             (this::getPermissionGroupIDHandler)(
@@ -272,7 +272,7 @@ object RegisterUtil {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getUserIDFromUsername(
+        databaseManager.userDao.getUserIDFromUsername(
             username,
             sqlConnection,
             (this::getUserIDFromUsernameHandler)(databaseManager, sqlConnection, handler)
@@ -295,7 +295,7 @@ object RegisterUtil {
 
         val property = SystemProperty(-1, "who_installed_user_id", userID.toString())
 
-        databaseManager.getDatabase().systemPropertyDao.isPropertyExists(
+        databaseManager.systemPropertyDao.isPropertyExists(
             property,
             sqlConnection,
             (this::isPropertyExistsHandler)(databaseManager, sqlConnection, handler, property)
@@ -318,7 +318,7 @@ object RegisterUtil {
         }
 
         if (exists) {
-            databaseManager.getDatabase().systemPropertyDao.update(
+            databaseManager.systemPropertyDao.update(
                 property,
                 sqlConnection,
                 (this::updateHandler)(handler)
@@ -327,7 +327,7 @@ object RegisterUtil {
             return@handler
         }
 
-        databaseManager.getDatabase().systemPropertyDao.add(
+        databaseManager.systemPropertyDao.add(
             property,
             sqlConnection,
             (this::addHandler)(handler)
@@ -371,7 +371,7 @@ object RegisterUtil {
         isSetup: Boolean,
         handler: (result: Result, asyncResult: AsyncResult<*>) -> Unit
     ) {
-        databaseManager.getDatabase().userDao.add(user, sqlConnection, isSetup) { isSuccessful, asyncResultOfAdd ->
+        databaseManager.userDao.add(user, sqlConnection, isSetup) { isSuccessful, asyncResultOfAdd ->
             if (isSuccessful == null) {
                 handler.invoke(Error(ErrorCode.UNKNOWN), asyncResultOfAdd)
 

@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class TicketCategoryPageInitAPI : PanelApi() {
+@Endpoint
+class TicketCategoryPageInitAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/initPage/tickets/categoryPage")
@@ -31,7 +40,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketCategoryDao.count(
+        databaseManager.ticketCategoryDao.count(
             sqlConnection,
             (this::countHandler)(handler, sqlConnection, page)
         )
@@ -63,7 +72,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketCategoryDao.getByPage(
+        databaseManager.ticketCategoryDao.getByPage(
             page,
             sqlConnection,
             (this::getByPageHandler)(handler, sqlConnection, count, totalPage)
@@ -89,7 +98,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
         val handlers: List<(handler: () -> Unit) -> Any> =
             categories.map { category ->
                 val localHandler: (handler: () -> Unit) -> Any = { localHandler ->
-                    databaseManager.getDatabase().ticketDao.countByCategory(
+                    databaseManager.ticketDao.countByCategory(
                         category.id,
                         sqlConnection,
                         (this::countByCategoryHandler)(
@@ -166,7 +175,7 @@ class TicketCategoryPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().ticketDao.getByCategory(
+        databaseManager.ticketDao.getByCategory(
             category.id,
             sqlConnection,
             (this::getByCategoryHandler)(handler, sqlConnection, category, count, categoryDataList, localHandler)

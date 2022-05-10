@@ -1,25 +1,29 @@
 package com.panomc.platform.route.api.setup
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.Main.Companion.getComponent
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.RegisterUtil
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class FinishAPI : SetupApi() {
+@Endpoint
+class FinishAPI(
+    private val setupManager: SetupManager,
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
+) : SetupApi(setupManager) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/setup/finish")
 
-    init {
-        getComponent().inject(this)
-    }
-
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         if (setupManager.getStep() != 3) {
-            handler.invoke(Successful(setupManager.getCurrentStepData()))
+            handler.invoke(Successful(setupManager.getCurrentStepData().map))
 
             return
         }

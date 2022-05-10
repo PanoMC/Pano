@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class TicketsByCategoryAPI : PanelApi() {
+@Endpoint
+class TicketsByCategoryAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/ticket/byCategory")
@@ -60,7 +69,7 @@ class TicketsByCategoryAPI : PanelApi() {
 
             val userIDList = tickets.distinctBy { it.userID }.map { it.userID }
 
-            databaseManager.getDatabase().userDao.getUsernameByListOfID(
+            databaseManager.userDao.getUsernameByListOfID(
                 userIDList,
                 sqlConnection,
                 getUsernameByListOfIDHandler(sqlConnection, count, totalPage, tickets, ticketCategory)
@@ -88,7 +97,7 @@ class TicketsByCategoryAPI : PanelApi() {
                     return@countByCategoryHandler
                 }
 
-                databaseManager.getDatabase().ticketDao.getAllByPageAndCategoryID(
+                databaseManager.ticketDao.getAllByPageAndCategoryID(
                     page,
                     ticketCategory.id,
                     sqlConnection,
@@ -106,7 +115,7 @@ class TicketsByCategoryAPI : PanelApi() {
                     return@getByIDHandler
                 }
 
-                databaseManager.getDatabase().ticketDao.countByCategory(
+                databaseManager.ticketDao.countByCategory(
                     ticketCategory.id,
                     sqlConnection,
                     countByCategoryHandler(sqlConnection, ticketCategory)
@@ -131,7 +140,7 @@ class TicketsByCategoryAPI : PanelApi() {
                     return@isExistsByIDHandler
                 }
 
-                databaseManager.getDatabase().ticketCategoryDao.getByURL(
+                databaseManager.ticketCategoryDao.getByURL(
                     categoryURL,
                     sqlConnection,
                     getByURLHandler(sqlConnection)
@@ -149,7 +158,7 @@ class TicketsByCategoryAPI : PanelApi() {
                 if (categoryURL == "-") {
                     val ticketCategory = TicketCategory(-1, "-", "", "-")
 
-                    databaseManager.getDatabase().ticketDao.countByCategory(
+                    databaseManager.ticketDao.countByCategory(
                         ticketCategory.id,
                         sqlConnection,
                         countByCategoryHandler(sqlConnection, ticketCategory)
@@ -158,7 +167,7 @@ class TicketsByCategoryAPI : PanelApi() {
                     return@createConnectionHandler
                 }
 
-                databaseManager.getDatabase().ticketCategoryDao.isExistsByURL(
+                databaseManager.ticketCategoryDao.isExistsByURL(
                     categoryURL,
                     sqlConnection,
                     isExistsByURLHandler(sqlConnection)

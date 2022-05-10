@@ -1,5 +1,7 @@
 package com.panomc.platform.db.migration
 
+import com.panomc.platform.annotation.Migration
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import com.panomc.platform.db.model.Permission
 import io.vertx.core.AsyncResult
@@ -7,7 +9,8 @@ import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
 @Suppress("ClassName")
-class DatabaseMigration_18_19 : DatabaseMigration() {
+@Migration
+class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigration(databaseManager) {
     override val FROM_SCHEME_VERSION = 18
     override val SCHEME_VERSION = 19
     override val SCHEME_VERSION_INFO =

@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class EditPostPageInitAPI : PanelApi() {
+@Endpoint
+class EditPostPageInitAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/initPage/editPost")
@@ -36,7 +45,7 @@ class EditPostPageInitAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().postDao.isExistsByID(
+            databaseManager.postDao.isExistsByID(
                 id,
                 sqlConnection,
                 (this::isExistsByIDHandler)(handler, sqlConnection, id)
@@ -64,7 +73,7 @@ class EditPostPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getByID(
+        databaseManager.postDao.getByID(
             id,
             sqlConnection,
             (this::getByIDHandler)(handler, sqlConnection)

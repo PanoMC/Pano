@@ -1,6 +1,8 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PanelNotificationDao
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.model.Result
@@ -12,7 +14,8 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
-class PanelNotificationDaoImpl(override val tableName: String = "panel_notification") : DaoImpl(),
+@Dao
+class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "panel_notification"),
     PanelNotificationDao {
 
     override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =

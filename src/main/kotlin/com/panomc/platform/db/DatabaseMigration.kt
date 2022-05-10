@@ -1,25 +1,11 @@
 package com.panomc.platform.db
 
-import com.panomc.platform.Main
 import com.panomc.platform.db.model.SchemeVersion
 import io.vertx.core.AsyncResult
-import io.vertx.ext.web.client.WebClient
 import io.vertx.sqlclient.SqlConnection
-import javax.inject.Inject
 
-abstract class DatabaseMigration {
-    @Inject
-    lateinit var databaseManager: DatabaseManager
-
-    @Inject
-    lateinit var webClient: WebClient
-
-    init {
-        Main.getComponent().inject(this)
-    }
-
+abstract class DatabaseMigration(val databaseManager: DatabaseManager) {
     abstract val handlers: List<(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit>
-
 
     abstract val FROM_SCHEME_VERSION: Int
     abstract val SCHEME_VERSION: Int
@@ -55,7 +41,7 @@ abstract class DatabaseMigration {
     fun updateSchemeVersion(
         sqlConnection: SqlConnection
     ): (handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit = { handler ->
-        databaseManager.getDatabase().schemeVersionDao.add(
+        databaseManager.schemeVersionDao.add(
             sqlConnection,
             SchemeVersion(SCHEME_VERSION.toString(), SCHEME_VERSION_INFO)
         ) { _, asyncResult ->

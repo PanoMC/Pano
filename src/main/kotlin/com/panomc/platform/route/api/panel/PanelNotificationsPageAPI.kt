@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PanelNotificationsPageAPI : PanelApi() {
+@Endpoint
+class PanelNotificationsPageAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/notifications/loadMore")
@@ -32,7 +41,7 @@ class PanelNotificationsPageAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.get10ByUserIDAndStartFromID(
+        databaseManager.panelNotificationDao.get10ByUserIDAndStartFromID(
             userID,
             lastNotificationID,
             sqlConnection,
@@ -54,7 +63,7 @@ class PanelNotificationsPageAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.markReadLast10StartFromID(
+        databaseManager.panelNotificationDao.markReadLast10StartFromID(
             userID,
             lastNotificationID,
             sqlConnection,

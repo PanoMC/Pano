@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PanelNotificationDeleteAPI : PanelApi() {
+@Endpoint
+class PanelNotificationDeleteAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/notifications/delete")
@@ -31,7 +40,7 @@ class PanelNotificationDeleteAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.existsByID(
+        databaseManager.panelNotificationDao.existsByID(
             id,
             sqlConnection,
             (this::existsByIDHandler)(handler, sqlConnection, id, userID)
@@ -60,7 +69,7 @@ class PanelNotificationDeleteAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.getByID(
+        databaseManager.panelNotificationDao.getByID(
             id,
             sqlConnection,
             (this::getByIDHandler)(handler, sqlConnection, userID)
@@ -88,7 +97,7 @@ class PanelNotificationDeleteAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.deleteByID(
+        databaseManager.panelNotificationDao.deleteByID(
             notification.id,
             sqlConnection,
             (this::deleteByIDHandler)(handler, sqlConnection)

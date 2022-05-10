@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.panel.post.category
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PostCategoryAddAPI : PanelApi() {
+@Endpoint
+class PostCategoryAddAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/post/category/add")
@@ -38,7 +47,7 @@ class PostCategoryAddAPI : PanelApi() {
                 return@handler
             }
 
-            databaseManager.getDatabase().postCategoryDao.isExistsByURL(
+            databaseManager.postCategoryDao.isExistsByURL(
                 url,
                 sqlConnection,
                 (this::isExistsByURLHandler)(handler, title, description, url, color, sqlConnection)
@@ -73,7 +82,7 @@ class PostCategoryAddAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.add(
+        databaseManager.postCategoryDao.add(
             PostCategory(-1, title, description, url, color),
             sqlConnection,
             (this::addHandler)(handler, sqlConnection)

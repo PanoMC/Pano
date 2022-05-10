@@ -1,7 +1,6 @@
 package com.panomc.platform.route.template
 
-import com.panomc.platform.Main
-import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.Template
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
@@ -9,30 +8,18 @@ import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
-import javax.inject.Inject
 
-class IndexTemplate : Template() {
+@Endpoint
+class IndexTemplate(
+    private val templateEngine: HandlebarsTemplateEngine,
+    private val setupManager: SetupManager,
+    private val authProvider: AuthProvider
+) : Template() {
     private val mHotLinks = mapOf<String, String>()
 
     override val routes = arrayListOf("/*")
 
     override val order = 999
-
-    init {
-        Main.getComponent().inject(this)
-    }
-
-    @Inject
-    lateinit var templateEngine: HandlebarsTemplateEngine
-
-    @Inject
-    lateinit var setupManager: SetupManager
-
-    @Inject
-    lateinit var databaseManager: DatabaseManager
-
-    @Inject
-    lateinit var authProvider: AuthProvider
 
     override fun getHandler() = Handler<RoutingContext> { context ->
         val response = context.response()

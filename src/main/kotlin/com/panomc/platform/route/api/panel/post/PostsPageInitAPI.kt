@@ -1,15 +1,24 @@
 package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
-class PostsPageInitAPI : PanelApi() {
+@Endpoint
+class PostsPageInitAPI(
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager,
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/initPage/postPage")
@@ -39,7 +48,7 @@ class PostsPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.countByPageType(
+        databaseManager.postDao.countByPageType(
             pageType,
             sqlConnection,
             (this::countByPageTypeHandler)(handler, sqlConnection, pageType, page)
@@ -73,7 +82,7 @@ class PostsPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getByPageAndPageType(
+        databaseManager.postDao.getByPageAndPageType(
             page,
             pageType,
             sqlConnection,
@@ -102,7 +111,7 @@ class PostsPageInitAPI : PanelApi() {
 
         val userIDList = posts.distinctBy { it.writerUserID }.map { it.writerUserID }
 
-        databaseManager.getDatabase().userDao.getUsernameByListOfID(
+        databaseManager.userDao.getUsernameByListOfID(
             userIDList,
             sqlConnection,
             (this::getUsernameByListOfIDHandler)(posts, count, totalPage, handler, sqlConnection)
@@ -132,7 +141,7 @@ class PostsPageInitAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getByIDList(
+        databaseManager.postCategoryDao.getByIDList(
             categoryIDList,
             sqlConnection,
             (this::getByIDListHandler)(posts, count, totalPage, usernameList, handler, sqlConnection)

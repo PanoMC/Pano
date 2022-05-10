@@ -1,13 +1,22 @@
 package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class CredentialsAPI : LoggedInApi() {
+@Endpoint
+class CredentialsAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : LoggedInApi(setupManager, authProvider) {
     override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/auth/credentials")
@@ -33,7 +42,7 @@ class CredentialsAPI : LoggedInApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getByID(
+        databaseManager.userDao.getByID(
             userID,
             sqlConnection,
             (this::getByIDHandler)(handler, sqlConnection)

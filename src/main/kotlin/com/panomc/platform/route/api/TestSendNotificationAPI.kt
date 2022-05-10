@@ -1,20 +1,33 @@
 package com.panomc.platform.route.api
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.TestSendNotificationService
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.NotificationStatus
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class TestSendNotificationAPI : PanelApi() {
+@Endpoint
+class TestSendNotificationAPI(
+    private val service: TestSendNotificationService,
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/testNotification")
 
     override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
         val userID = authProvider.getUserIDFromRoutingContext(context)
+
+//        testServiceSpring.sayHello()
 
         databaseManager.createConnection((this::createConnectionHandler)(handler, userID))
     }
@@ -29,7 +42,7 @@ class TestSendNotificationAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.add(
+        databaseManager.panelNotificationDao.add(
             getNotification(userID),
             sqlConnection,
             (this::addHandler)(handler, sqlConnection)

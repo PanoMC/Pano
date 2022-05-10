@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.posts
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
@@ -8,7 +10,10 @@ import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PostDetailAPI : Api() {
+@Endpoint
+class PostDetailAPI(
+    private val databaseManager: DatabaseManager
+) : Api() {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/posts/detail")
@@ -35,7 +40,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.isExistsByID(
+        databaseManager.postDao.isExistsByID(
             id,
             sqlConnection,
             (this::isExistsByIDHandler)(handler, sqlConnection, id)
@@ -63,7 +68,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.increaseViewByOne(
+        databaseManager.postDao.increaseViewByOne(
             id,
             sqlConnection,
             (this::increaseViewByOneHandler)(handler, sqlConnection, id)
@@ -83,7 +88,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getByID(
+        databaseManager.postDao.getByID(
             id,
             sqlConnection,
             (this::getByIDHandler)(handler, sqlConnection)
@@ -103,7 +108,7 @@ class PostDetailAPI : Api() {
         }
 
         if (post.categoryId == -1) {
-            databaseManager.getDatabase().userDao.getUsernameFromUserID(
+            databaseManager.userDao.getUsernameFromUserID(
                 post.writerUserID,
                 sqlConnection,
                 (this::getUsernameFromUserIDHandler)(handler, sqlConnection, post, null)
@@ -112,7 +117,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postCategoryDao.getByID(
+        databaseManager.postCategoryDao.getByID(
             post.categoryId,
             sqlConnection,
             (this::getPostCategoryByIDHandler)(handler, sqlConnection, post)
@@ -132,7 +137,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().userDao.getUsernameFromUserID(
+        databaseManager.userDao.getUsernameFromUserID(
             post.writerUserID,
             sqlConnection,
             (this::getUsernameFromUserIDHandler)(handler, sqlConnection, post, category)
@@ -153,7 +158,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.isPreviousPostExistsByDate(
+        databaseManager.postDao.isPreviousPostExistsByDate(
             post.date,
             sqlConnection,
             (this::isPreviousPostExistsByDateHandler)(handler, sqlConnection, post, category, username)
@@ -176,7 +181,7 @@ class PostDetailAPI : Api() {
         }
 
         if (!exists) {
-            databaseManager.getDatabase().postDao.isNextPostExistsByDate(
+            databaseManager.postDao.isNextPostExistsByDate(
                 post.date,
                 sqlConnection,
                 (this::isNextPostExistsByDateHandler)(handler, sqlConnection, post, category, username, null)
@@ -185,7 +190,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getPreviousPostByDate(
+        databaseManager.postDao.getPreviousPostByDate(
             post.date,
             sqlConnection,
             (this::getPreviousPostByDateHandler)(handler, sqlConnection, post, category, username)
@@ -207,7 +212,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.isNextPostExistsByDate(
+        databaseManager.postDao.isNextPostExistsByDate(
             post.date,
             sqlConnection,
             (this::isNextPostExistsByDateHandler)(handler, sqlConnection, post, category, username, previousPost)
@@ -236,7 +241,7 @@ class PostDetailAPI : Api() {
             return@handler
         }
 
-        databaseManager.getDatabase().postDao.getNextPostByDate(
+        databaseManager.postDao.getNextPostByDate(
             post.date,
             sqlConnection,
             (this::getNextPostByDateHandler)(handler, sqlConnection, post, category, username, previousPost)

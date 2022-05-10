@@ -1,31 +1,32 @@
 package com.panomc.platform
 
+import com.panomc.platform.annotation.Boot
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.di.component.ApplicationComponent
-import com.panomc.platform.di.component.DaggerApplicationComponent
-import com.panomc.platform.di.module.*
+import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.util.SetupManager
+import com.panomc.platform.util.TimeUtil
 import io.vertx.core.*
-import io.vertx.core.logging.Logger
-import io.vertx.core.logging.LoggerFactory
 import io.vertx.ext.web.Router
+import io.vertx.kotlin.coroutines.await
+import kotlinx.coroutines.runBlocking
+import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.util.jar.Manifest
-import javax.inject.Inject
 
+@Boot
 class Main : AbstractVerticle() {
-    private val mLogger = LoggerFactory.getLogger("Pano Platform")
-    private val mConfigManager by lazy {
-        ConfigManager(mLogger, vertx)
-    }
-
     companion object {
-        private val mOptions by lazy {
+        const val PORT = 8088
+
+        private val options by lazy {
             VertxOptions()
         }
-        private val mVertx by lazy {
-            Vertx.vertx(mOptions)
+
+        private val vertx by lazy {
+            Vertx.vertx(options)
         }
 
-        private val mMode by lazy {
+        private val mode by lazy {
             try {
                 val urlClassLoader = ClassLoader.getSystemClassLoader()
                 val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
@@ -38,34 +39,40 @@ class Main : AbstractVerticle() {
         }
 
         val ENVIRONMENT =
-            if (mMode != "DEVELOPMENT" && System.getenv("EnvironmentType").isNullOrEmpty())
+            if (mode != "DEVELOPMENT" && System.getenv("EnvironmentType").isNullOrEmpty())
                 EnvironmentType.RELEASE
             else
                 EnvironmentType.DEVELOPMENT
 
-        const val PORT = 8088
-
         @JvmStatic
         fun main(args: Array<String>) {
-            mVertx.deployVerticle(Main())
+            vertx.deployVerticle(Main())
         }
-
-        private lateinit var mComponent: ApplicationComponent
-
-        internal fun getComponent() = mComponent
 
         enum class EnvironmentType {
             DEVELOPMENT, RELEASE
         }
     }
 
-    @Inject
-    lateinit var logger: Logger
+    private val logger by lazy {
+        LoggerFactory.getLogger("Pano")
+    }
 
-    @Inject
-    lateinit var router: Router
+    private lateinit var router: Router
+    private lateinit var applicationContext: AnnotationConfigApplicationContext
 
     override fun start(startPromise: Promise<Void>?) {
+        println(
+            "\n" +
+                    " ______   ______     __   __     ______    \n" +
+                    "/\\  == \\ /\\  __ \\   /\\ \"-.\\ \\   /\\  __ \\   \n" +
+                    "\\ \\  _-/ \\ \\  __ \\  \\ \\ \\-.  \\  \\ \\ \\/\\ \\  \n" +
+                    " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n" +
+                    "  \\/_/     \\/_/\\/_/   \\/_/ \\/_/   \\/_____/ \n" +
+                    "                                           "
+        )
+        logger.info("Hello World!")
+
         vertx.executeBlocking<Any>({ future ->
             init().onComplete { init ->
                 future.complete(init.result())
@@ -76,29 +83,50 @@ class Main : AbstractVerticle() {
     }
 
     private fun init() = Future.future<Boolean> { init ->
-        mComponent = DaggerApplicationComponent
-            .builder()
-            .vertxModule(VertxModule(vertx))
-            .loggerModule(LoggerModule(mLogger))
-            .routerModule(RouterModule(vertx))
-            .configManagerModule(ConfigManagerModule(mConfigManager))
-            .mailClientModule(MailClientModule(mConfigManager))
-            .build()
+        logger.info("Initializing dependency injection...")
 
-        getComponent().inject(this)
+        SpringConfig.setDefaults(vertx, logger)
+
+        applicationContext = AnnotationConfigApplicationContext(SpringConfig::class.java)
+
+        router = applicationContext.getBean(Router::class.java)
+        val configManager = applicationContext.getBean(ConfigManager::class.java)
+        val databaseManager = applicationContext.getBean(DatabaseManager::class.java)
+        val setupManager = applicationContext.getBean(SetupManager::class.java)
+
+        logger.info("Initializing config manager...")
+
+        runBlocking {
+            configManager.init().await()
+        }
+
+        if (setupManager.isSetupDone()) {
+            logger.info("Platform is installed.")
+
+            logger.info("Initializing database manager...")
+
+            runBlocking {
+                databaseManager.init().await()
+            }
+        } else {
+            logger.info("Platform is not installed! Skipping database manager initializing...")
+        }
 
         init.complete(true)
     }
 
     private fun startWebServer() {
+        logger.info("Creating HTTP server...")
+
         vertx
             .createHttpServer()
             .requestHandler(router)
             .listen(PORT) { result ->
-                if (result.succeeded())
-                    logger.info("Started listening port $PORT")
-                else
-                    logger.error("Failed to listen port $PORT")
+                if (result.succeeded()) {
+                    logger.info("Started listening on port $PORT, and ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+                } else {
+                    logger.error("Failed to listen on port $PORT, reason: " + result.cause().toString())
+                }
             }
     }
 }

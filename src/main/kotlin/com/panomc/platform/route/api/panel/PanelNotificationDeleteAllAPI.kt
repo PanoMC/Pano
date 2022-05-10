@@ -1,12 +1,21 @@
 package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.SetupManager
 import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 
-class PanelNotificationDeleteAllAPI : PanelApi() {
+@Endpoint
+class PanelNotificationDeleteAllAPI(
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    setupManager: SetupManager
+) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/panel/notifications/deleteAll")
@@ -27,7 +36,7 @@ class PanelNotificationDeleteAllAPI : PanelApi() {
             return@handler
         }
 
-        databaseManager.getDatabase().panelNotificationDao.deleteAllByUserID(
+        databaseManager.panelNotificationDao.deleteAllByUserID(
             userID,
             sqlConnection,
             (this::deleteAllByUserIDHandler)(handler, sqlConnection)

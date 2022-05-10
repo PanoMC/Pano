@@ -1,6 +1,8 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TicketCategoryDao
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.Result
@@ -12,7 +14,9 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
-class TicketCategoryDaoImpl(override val tableName: String = "ticket_category") : DaoImpl(), TicketCategoryDao {
+@Dao
+class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "ticket_category"),
+    TicketCategoryDao {
 
     override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
         { sqlConnection, handler ->

@@ -9,7 +9,6 @@ import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
-import io.vertx.kotlin.coroutines.await
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.util.jar.Manifest
@@ -93,7 +92,7 @@ class Main : CoroutineVerticle() {
 
         logger.info("Initializing config manager...")
 
-        configManager.init().await()
+        configManager.init()
 
         if (setupManager.isSetupDone()) {
             logger.info("Platform is installed.")

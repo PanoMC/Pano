@@ -6,9 +6,9 @@ import io.jsonwebtoken.io.Encoders
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
-import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.coroutines.await
 import org.slf4j.Logger
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.io.File
@@ -79,26 +79,29 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
 
     fun getConfig() = config
 
-    internal fun init(): Future<Any> = Future.future { future ->
+    internal suspend fun init() {
         if (!configFile.exists()) {
             configFile.writeText(DEFAULT_CONFIG.encodePrettily())
         }
 
-        configRetriever.config
-            .onSuccess {
-                config.putAll(it.map)
+        val configValues: Map<String, Any>
 
-                migrate()
+        try {
+            configValues = configRetriever.config.await().map
+        } catch (e: Exception) {
+            logger.error("Error occurred while loading config file! Error: $e")
+            logger.info("Using default config!")
 
-                listenConfigFile()
+            config.putAll(DEFAULT_CONFIG.map)
 
-                future.complete()
-            }
-            .onFailure {
-                logger.error("Error occurred while loading config file!")
+            return
+        }
 
-                throw it
-            }
+        config.putAll(configValues)
+
+        migrate()
+
+        listenConfigFile()
     }
 
     private fun getConfigVersion(): Int = config.getInteger("config-version")

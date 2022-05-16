@@ -3,7 +3,7 @@ package com.panomc.platform.db.migration
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
@@ -14,7 +14,7 @@ class DatabaseMigration_7_8(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION = 8
     override val SCHEME_VERSION_INFO = "Restore post, postCategory, ticket and ticketCategory tables."
 
-    override val handlers: List<(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit> =
+    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
         listOf(
             createPostTable(),
             createPostCategoryTable(),
@@ -22,8 +22,8 @@ class DatabaseMigration_7_8(databaseManager: DatabaseManager) : DatabaseMigratio
             createTicketCategoryTable()
         )
 
-    private fun createPostTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createPostTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(
                     """
@@ -41,13 +41,12 @@ class DatabaseMigration_7_8(databaseManager: DatabaseManager) : DatabaseMigratio
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Posts table.';
                         """
                 )
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun createPostCategoryTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createPostCategoryTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(
                     """
@@ -61,37 +60,27 @@ class DatabaseMigration_7_8(databaseManager: DatabaseManager) : DatabaseMigratio
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Post category table.';
                         """
                 )
-                .execute {
-                    if (it.succeeded())
-                        sqlConnection
-                            .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
-                            .execute(Tuple.of("Genel", "Genel", "genel", "48CFAD"))
-                            {
-                                if (it.succeeded())
-                                    sqlConnection
-                                        .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
-                                        .execute(Tuple.of("Duyuru", "Duyuru", "duyuru", "5D9CEC"))
-                                        {
-                                            if (it.succeeded())
-                                                sqlConnection
-                                                    .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
-                                                    .execute(Tuple.of("Haber", "Haber", "haber", "FFCE54"))
-                                                    {
-                                                        handler.invoke(it)
-                                                    }
-                                            else
-                                                handler.invoke(it)
-                                        }
-                                else
-                                    handler.invoke(it)
-                            }
-                    else
-                        handler.invoke(it)
-                }
+                .execute()
+                .await()
+
+            sqlConnection
+                .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
+                .execute(Tuple.of("Genel", "Genel", "genel", "48CFAD"))
+                .await()
+
+            sqlConnection
+                .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
+                .execute(Tuple.of("Duyuru", "Duyuru", "duyuru", "5D9CEC"))
+                .await()
+
+            sqlConnection
+                .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
+                .execute(Tuple.of("Haber", "Haber", "haber", "FFCE54"))
+                .await()
         }
 
-    private fun createTicketTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createTicketTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(
                     """
@@ -106,13 +95,12 @@ class DatabaseMigration_7_8(databaseManager: DatabaseManager) : DatabaseMigratio
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tickets table.';
                         """
                 )
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun createTicketCategoryTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createTicketCategoryTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(
                     """
@@ -124,15 +112,12 @@ class DatabaseMigration_7_8(databaseManager: DatabaseManager) : DatabaseMigratio
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Ticket category table.';
                         """
                 )
-                .execute {
-                    if (it.succeeded())
-                        sqlConnection
-                            .preparedQuery("INSERT INTO ${getTablePrefix()}ticket_category (title) VALUES (?)")
-                            .execute(Tuple.of("Genel")) {
-                                handler.invoke(it)
-                            }
-                    else
-                        handler.invoke(it)
-                }
+                .execute()
+                .await()
+
+            sqlConnection
+                .preparedQuery("INSERT INTO ${getTablePrefix()}ticket_category (title) VALUES (?)")
+                .execute(Tuple.of("Genel"))
+                .await()
         }
 }

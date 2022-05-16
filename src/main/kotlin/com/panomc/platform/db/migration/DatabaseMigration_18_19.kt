@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import com.panomc.platform.db.model.Permission
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
@@ -16,7 +16,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Improve permission name type, add icon_name field and create system permissions."
 
-    override val handlers: List<(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit> =
+    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
         listOf(
             updatePermissionTableNameColumn(),
             addIconNameFieldToPermissionTable(),
@@ -29,26 +29,24 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
             createManagePlatformSettingsPermission()
         )
 
-    private fun updatePermissionTableNameColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updatePermissionTableNameColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}permission` MODIFY `name` varchar(128);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun addIconNameFieldToPermissionTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun addIconNameFieldToPermissionTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}permission` ADD `icon_name` varchar(128) NOT NULL DEFAULT '';")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun createManageServersPermission(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createManageServersPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permission = Permission(-1, "manage_servers", "fa-cubes")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
@@ -60,13 +58,12 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
                         permission.name,
                         permission.iconName
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 
-    private fun createManagePostsPermission(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createManagePostsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permission = Permission(-1, "manage_posts", "fa-sticky-note")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
@@ -78,13 +75,12 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
                         permission.name,
                         permission.iconName
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 
-    private fun createManageTicketsPermission(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createManageTicketsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permission = Permission(-1, "manage_tickets", "fa-ticket-alt")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
@@ -96,13 +92,12 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
                         permission.name,
                         permission.iconName
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 
-    private fun createManagePlayersPermission(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createManagePlayersPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permission = Permission(-1, "manage_players", "fa-users")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
@@ -114,13 +109,12 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
                         permission.name,
                         permission.iconName
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 
-    private fun createManageViewPermission(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createManageViewPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permission = Permission(-1, "manage_view", "fa-palette")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
@@ -132,13 +126,12 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
                         permission.name,
                         permission.iconName
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 
-    private fun createManageAddonsPermission(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createManageAddonsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permission = Permission(-1, "manage_addons", "fa-puzzle-piece")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
@@ -150,13 +143,12 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
                         permission.name,
                         permission.iconName
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 
-    private fun createManagePlatformSettingsPermission(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createManagePlatformSettingsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permission = Permission(-1, "manage_platform_settings", "fa-cog")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
@@ -168,8 +160,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
                         permission.name,
                         permission.iconName
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 }

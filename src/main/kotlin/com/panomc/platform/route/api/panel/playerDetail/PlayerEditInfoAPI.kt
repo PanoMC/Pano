@@ -3,13 +3,10 @@ package com.panomc.platform.route.api.panel.playerDetail
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.User
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class PlayerEditInfoAPI(
@@ -21,7 +18,7 @@ class PlayerEditInfoAPI(
 
     override val routes = arrayListOf("/api/panel/player/edit/info")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
 
         val id = data.getInteger("id")
@@ -30,26 +27,50 @@ class PlayerEditInfoAPI(
         val newPassword = data.getString("newPassword")
         val newPasswordRepeat = data.getString("newPasswordRepeat")
 
-        validateForm(handler, username, email, newPassword, newPasswordRepeat) {
-            databaseManager.createConnection(
-                (this::createConnectionHandler)(
-                    handler,
-                    id,
-                    username,
-                    email,
-                    newPassword
-                )
-            )
+        validateForm(username, email, newPassword, newPasswordRepeat)
+
+        val sqlConnection = createConnection(databaseManager, context)
+
+        val exists = databaseManager.userDao.isExistsByID(id, sqlConnection)
+
+        if (!exists) {
+            throw Error(ErrorCode.NOT_EXISTS)
         }
+
+        val user = databaseManager.userDao.getByID(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+
+        if (username != user.username) {
+            val usernameExists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
+
+            if (usernameExists) {
+                throw Errors(mapOf("username" to "EXISTS"))
+            }
+
+            databaseManager.userDao.setUsernameByID(user.id, username, sqlConnection)
+        }
+
+        if (email != user.email) {
+            val emailExists = databaseManager.userDao.isEmailExists(email, sqlConnection)
+
+            if (emailExists) {
+                throw Errors(mapOf("username" to "EXISTS"))
+            }
+
+            databaseManager.userDao.setEmailByID(user.id, username, sqlConnection)
+        }
+
+        if (newPassword.isNotEmpty()) {
+            databaseManager.userDao.setPasswordByID(user.id, newPassword, sqlConnection)
+        }
+
+        return Successful()
     }
 
     private fun validateForm(
-        handler: (result: Result) -> Unit,
         username: String,
         email: String,
         newPassword: String,
-        newPasswordRepeat: String,
-        successHandler: () -> Unit
+        newPasswordRepeat: String
     ) {
         val errors = mutableMapOf<String, Any>()
 
@@ -66,271 +87,7 @@ class PlayerEditInfoAPI(
             errors["newPasswordRepeat"] = "NOT_MATCH"
 
         if (errors.isNotEmpty()) {
-            handler.invoke(Errors(errors))
-
-            return
-        }
-
-        successHandler.invoke()
-    }
-
-    private fun createConnectionHandler(
-        handler: (result: Result) -> Unit,
-        id: Int,
-        username: String,
-        email: String,
-        newPassword: String
-    ) = handler@{ sqlConnection: SqlConnection?, _: AsyncResult<SqlConnection> ->
-        if (sqlConnection == null) {
-            handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
-
-            return@handler
-        }
-
-        databaseManager.userDao.isExistsByID(
-            id,
-            sqlConnection,
-            (this::isExistsByIDHandler)(sqlConnection, handler, id, username, email, newPassword)
-        )
-    }
-
-    private fun isExistsByIDHandler(
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
-        id: Int,
-        username: String,
-        email: String,
-        newPassword: String
-    ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
-        if (exists == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        if (!exists) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.NOT_EXISTS))
-            }
-
-            return@handler
-        }
-
-        databaseManager.userDao.getByID(
-            id,
-            sqlConnection,
-            (this::getByIDHandler)(sqlConnection, handler, username, email, newPassword)
-        )
-    }
-
-    private fun getByIDHandler(
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
-        username: String,
-        email: String,
-        newPassword: String
-    ) = handler@{ user: User?, _: AsyncResult<*> ->
-        if (user == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        if (username == user.username) {
-            if (email == user.email) {
-                if (newPassword.isEmpty()) {
-                    databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Successful())
-                    }
-
-                    return@handler
-                }
-
-                databaseManager.userDao.setPasswordByID(
-                    user.id,
-                    newPassword,
-                    sqlConnection,
-                    (this::setPasswordByIDHandler)(sqlConnection, handler)
-                )
-
-                return@handler
-            }
-
-            databaseManager.userDao.isEmailExists(
-                email,
-                sqlConnection,
-                (this::isEmailExistsHandler)(
-                    sqlConnection,
-                    handler,
-                    user.id,
-                    username,
-                    email,
-                    newPassword
-                )
-            )
-
-            return@handler
-        }
-
-        databaseManager.userDao.isExistsByUsername(
-            username,
-            sqlConnection,
-            (this::isExistsByUsernameHandler)(
-                sqlConnection,
-                handler,
-                user.id,
-                user,
-                username,
-                email,
-                newPassword
-            )
-        )
-    }
-
-    private fun isExistsByUsernameHandler(
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
-        id: Int,
-        user: User,
-        username: String,
-        email: String,
-        newPassword: String
-    ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
-        if (exists == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        if (exists) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Errors(mapOf("username" to "EXISTS")))
-            }
-
-            return@handler
-        }
-
-        if (email == user.email) {
-            databaseManager.userDao.setUsernameByID(
-                id,
-                username,
-                sqlConnection,
-                (this::setUsernameByIDHandler)(sqlConnection, handler, id, email, newPassword)
-            )
-
-            return@handler
-        }
-
-        databaseManager.userDao.isEmailExists(
-            email,
-            sqlConnection,
-            (this::isEmailExistsHandler)(sqlConnection, handler, id, username, email, newPassword)
-        )
-    }
-
-    private fun isEmailExistsHandler(
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
-        id: Int,
-        username: String,
-        email: String,
-        newPassword: String
-    ) = handler@{ isEmailExists: Boolean?, _: AsyncResult<*> ->
-        if (isEmailExists == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        if (isEmailExists) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Errors(mapOf("email" to "EXISTS")))
-            }
-
-            return@handler
-        }
-
-        databaseManager.userDao.setUsernameByID(
-            id,
-            username,
-            sqlConnection,
-            (this::setUsernameByIDHandler)(sqlConnection, handler, id, email, newPassword)
-        )
-    }
-
-    private fun setUsernameByIDHandler(
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
-        id: Int,
-        email: String,
-        newPassword: String
-    ) = handler@{ result: Result?, _: AsyncResult<*> ->
-        if (result == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        databaseManager.userDao.setEmailByID(
-            id,
-            email,
-            sqlConnection,
-            (this::setEmailByIDHandler)(sqlConnection, handler, id, newPassword)
-        )
-    }
-
-    private fun setEmailByIDHandler(
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
-        id: Int,
-        newPassword: String
-    ) = handler@{ result: Result?, _: AsyncResult<*> ->
-        if (result == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        if (newPassword.isEmpty()) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Successful())
-            }
-
-            return@handler
-        }
-
-        databaseManager.userDao.setPasswordByID(
-            id,
-            newPassword,
-            sqlConnection,
-            (this::setPasswordByIDHandler)(sqlConnection, handler)
-        )
-    }
-
-    private fun setPasswordByIDHandler(
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
-    ) = handler@{ result: Result?, _: AsyncResult<*> ->
-        databaseManager.closeConnection(sqlConnection) {
-            if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                return@closeConnection
-            }
-
-            handler.invoke(Successful())
+            throw Errors(errors)
         }
     }
 }

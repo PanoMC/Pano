@@ -8,9 +8,7 @@ import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
 @Endpoint
@@ -23,46 +21,13 @@ class PostCategoryPageInitAPI(
 
     override val routes = arrayListOf("/api/panel/initPage/posts/categoryPage")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
         val page = data.getInteger("page")
 
-        databaseManager.createConnection(
-            (this::createConnectionHandler)(
-                handler,
-                page
-            )
-        )
-    }
+        val sqlConnection = createConnection(databaseManager, context)
 
-    private fun createConnectionHandler(
-        handler: (result: Result) -> Unit,
-        page: Int
-    ) = handler@{ sqlConnection: SqlConnection?, _: AsyncResult<SqlConnection> ->
-        if (sqlConnection == null) {
-            handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
-
-            return@handler
-        }
-
-        databaseManager.postCategoryDao.getCount(
-            sqlConnection,
-            (this::getCountHandler)(handler, sqlConnection, page)
-        )
-    }
-
-    private fun getCountHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        page: Int
-    ) = handler@{ count: Int?, _: AsyncResult<*> ->
-        if (count == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val count = databaseManager.postCategoryDao.getCount(sqlConnection)
 
         var totalPage = ceil(count.toDouble() / 10).toInt()
 
@@ -70,154 +35,67 @@ class PostCategoryPageInitAPI(
             totalPage = 1
 
         if (page > totalPage || page < 1) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.PAGE_NOT_FOUND))
-            }
-
-            return@handler
+            throw Error(ErrorCode.PAGE_NOT_FOUND)
         }
 
-        databaseManager.postCategoryDao.getCategories(
-            page,
-            sqlConnection,
-            (this::getCategoriesHandler)(handler, sqlConnection, count, totalPage)
-        )
-    }
-
-    private fun getCategoriesHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        count: Int,
-        totalPage: Int
-    ) = handler@{ categories: List<PostCategory>?, _: AsyncResult<*> ->
-        if (categories == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val categories = databaseManager.postCategoryDao.getCategories(page, sqlConnection)
 
         val categoryDataList = mutableListOf<Map<String, Any?>>()
 
-        val handlers: List<(handler: () -> Unit) -> Any> =
-            categories.map { category ->
-                val localHandler: (handler: () -> Unit) -> Any = { localHandler ->
-                    databaseManager.postDao.countByCategory(
-                        category.id,
-                        sqlConnection,
-                        (this::countByCategoryHandler)(handler, sqlConnection, localHandler, category, categoryDataList)
+        if (categories.isEmpty()) {
+            return getResult(categoryDataList, count, totalPage)
+        }
+
+        val addCategoryToList =
+            { category: PostCategory, count: Int, categoryDataList: MutableList<Map<String, Any?>>, posts: List<Post> ->
+                val postsDataList = mutableListOf<Map<String, Any?>>()
+
+                posts.forEach { post ->
+                    postsDataList.add(
+                        mapOf(
+                            "id" to post.id,
+                            "title" to post.title
+                        )
                     )
                 }
 
-                localHandler
+                categoryDataList.add(
+                    mapOf(
+                        "id" to category.id,
+                        "title" to category.title,
+                        "description" to category.description,
+                        "url" to category.url,
+                        "color" to category.color,
+                        "postCount" to count,
+                        "posts" to postsDataList
+                    )
+                )
             }
 
-        var currentIndex = -1
+        val getCategoryData: suspend (PostCategory) -> Unit = { category ->
+            val count = databaseManager.postDao.countByCategory(category.id, sqlConnection)
+            val posts = databaseManager.postDao.getByCategory(category.id, sqlConnection)
 
-        fun invoke() {
-            val localHandler: () -> Unit = {
-                if (currentIndex == handlers.lastIndex)
-                    returnResult(handler, sqlConnection, categoryDataList, count, totalPage)
-                else
-                    invoke()
-            }
-
-            currentIndex++
-
-            if (currentIndex <= handlers.lastIndex)
-                handlers[currentIndex].invoke(localHandler)
+            addCategoryToList(category, count, categoryDataList, posts)
         }
 
-        if (categories.isNotEmpty()) {
-            invoke()
-
-            return@handler
+        categories.forEach {
+            getCategoryData(it)
         }
 
-        returnResult(handler, sqlConnection, categoryDataList, count, totalPage)
+        return getResult(categoryDataList, count, totalPage)
     }
 
-    private fun returnResult(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
+    private fun getResult(
         categoryDataList: MutableList<Map<String, Any?>>,
         count: Int,
         totalPage: Int
-    ) {
-        databaseManager.closeConnection(sqlConnection) {
-            val result = mutableMapOf<String, Any?>(
-                "categories" to categoryDataList,
-                "categoryCount" to count,
-                "totalPage" to totalPage,
-                "host" to "http://"
-            )
-
-            handler.invoke(Successful(result))
-        }
-    }
-
-    private fun countByCategoryHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        localHandler: () -> Unit,
-        category: PostCategory,
-        categoryDataList: MutableList<Map<String, Any?>>
-    ) = handler@{ count: Int?, _: AsyncResult<*> ->
-        if (count == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        databaseManager.postDao.getByCategory(
-            category.id,
-            sqlConnection,
-            (this::getByCategoryHandler)(handler, sqlConnection, localHandler, category, categoryDataList, count)
+    ) = Successful(
+        mutableMapOf<String, Any?>(
+            "categories" to categoryDataList,
+            "categoryCount" to count,
+            "totalPage" to totalPage,
+            "host" to "http://"
         )
-    }
-
-    private fun getByCategoryHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        localHandler: () -> Unit,
-        category: PostCategory,
-        categoryDataList: MutableList<Map<String, Any?>>,
-        count: Int
-    ) = handler@{ posts: List<Post>?, _: AsyncResult<*> ->
-        if (posts == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        val postsDataList = mutableListOf<Map<String, Any?>>()
-
-        posts.forEach { post ->
-            postsDataList.add(
-                mapOf(
-                    "id" to post.id,
-                    "title" to post.title
-                )
-            )
-        }
-
-        categoryDataList.add(
-            mapOf(
-                "id" to category.id,
-                "title" to category.title,
-                "description" to category.description,
-                "url" to category.url,
-                "color" to category.color,
-                "postCount" to count,
-                "posts" to postsDataList
-            )
-        )
-
-        localHandler.invoke()
-    }
+    )
 }

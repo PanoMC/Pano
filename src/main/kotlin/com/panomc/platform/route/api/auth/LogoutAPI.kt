@@ -15,8 +15,8 @@ class LogoutAPI(setupManager: SetupManager, authProvider: AuthProvider) : Logged
 
     override val routes = arrayListOf("/api/auth/logout")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
-        handler.invoke(Successful())
+    override suspend fun handler(context: RoutingContext): Result {
+        return Successful()
 //        authProvider.logout(databaseManager, context, (this::logoutHandler)(handler))
     }
 

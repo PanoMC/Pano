@@ -13,6 +13,8 @@ abstract class SetupApi(private val setupManager: SetupManager) : Api() {
             return@Handler
         }
 
-        handler(context)
+        handler(context) {
+            sendResult(it, context)
+        }
     }
 }

@@ -5,16 +5,17 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.util.SetupManager
 import com.panomc.platform.util.TimeUtil
-import io.vertx.core.*
+import io.vertx.core.Vertx
+import io.vertx.core.VertxOptions
 import io.vertx.ext.web.Router
+import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
-import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.util.jar.Manifest
 
 @Boot
-class Main : AbstractVerticle() {
+class Main : CoroutineVerticle() {
     companion object {
         const val PORT = 8088
 
@@ -61,7 +62,7 @@ class Main : AbstractVerticle() {
     private lateinit var router: Router
     private lateinit var applicationContext: AnnotationConfigApplicationContext
 
-    override fun start(startPromise: Promise<Void>?) {
+    override suspend fun start() {
         println(
             "\n" +
                     " ______   ______     __   __     ______    \n" +
@@ -73,16 +74,12 @@ class Main : AbstractVerticle() {
         )
         logger.info("Hello World!")
 
-        vertx.executeBlocking<Any>({ future ->
-            init().onComplete { init ->
-                future.complete(init.result())
-            }
-        }, {
-            startWebServer()
-        })
+        init()
+
+        startWebServer()
     }
 
-    private fun init() = Future.future<Boolean> { init ->
+    private suspend fun init() {
         logger.info("Initializing dependency injection...")
 
         SpringConfig.setDefaults(vertx, logger)
@@ -96,23 +93,17 @@ class Main : AbstractVerticle() {
 
         logger.info("Initializing config manager...")
 
-        runBlocking {
-            configManager.init().await()
-        }
+        configManager.init().await()
 
         if (setupManager.isSetupDone()) {
             logger.info("Platform is installed.")
 
             logger.info("Initializing database manager...")
 
-            runBlocking {
-                databaseManager.init().await()
-            }
+            databaseManager.init()
         } else {
             logger.info("Platform is not installed! Skipping database manager initializing...")
         }
-
-        init.complete(true)
     }
 
     private fun startWebServer() {

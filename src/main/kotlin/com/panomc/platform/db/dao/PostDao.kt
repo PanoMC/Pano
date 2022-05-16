@@ -2,149 +2,125 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Post
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PostDao : Dao<Post> {
-    fun removePostCategoriesByCategoryID(
+    suspend fun removePostCategoriesByCategoryID(
         categoryID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun isExistsByID(
+    suspend fun isExistsByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun getByID(
+    suspend fun getByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (post: Post?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Post?
 
-    fun moveTrashByID(
+    suspend fun moveTrashByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun moveDraftByID(
+    suspend fun moveDraftByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun publishByID(
+    suspend fun publishByID(
         id: Int,
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun insertAndPublish(
+    suspend fun insertAndPublish(
         post: Post,
-        sqlConnection: SqlConnection,
-        handler: (postID: Long?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Long
 
-    fun updateAndPublish(
+    suspend fun updateAndPublish(
         userID: Int,
         post: Post,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun count(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit)
+    suspend fun count(sqlConnection: SqlConnection): Int
 
-    fun countByCategory(
+    suspend fun countByCategory(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun countByPageType(
+    suspend fun countByPageType(
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun delete(id: Int, sqlConnection: SqlConnection, handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit)
+    suspend fun delete(id: Int, sqlConnection: SqlConnection)
 
-    fun getByCategory(
+    suspend fun getByCategory(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Post>
 
-    fun getByPageAndPageType(
+    suspend fun getByPageAndPageType(
         page: Int,
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Post>
 
-    fun countOfPublished(
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun countOfPublished(
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun countOfPublishedByCategoryID(
+    suspend fun countOfPublishedByCategoryID(
         categoryID: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun getPublishedListByPage(
+    suspend fun getPublishedListByPage(
         page: Int,
-        sqlConnection: SqlConnection,
-        handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Post>
 
-    fun getPublishedListByPageAndCategoryID(
+    suspend fun getPublishedListByPageAndCategoryID(
         categoryID: Int,
         page: Int,
-        sqlConnection: SqlConnection,
-        handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Post>
 
-    fun getListByPageAndCategoryID(
+    suspend fun getListByPageAndCategoryID(
         categoryID: Int,
         page: Int,
-        sqlConnection: SqlConnection,
-        handler: (posts: List<Post>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Post>
 
-    fun increaseViewByOne(
+    suspend fun increaseViewByOne(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun isPreviousPostExistsByDate(
+    suspend fun isPreviousPostExistsByDate(
         date: Long,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun isNextPostExistsByDate(
+    suspend fun isNextPostExistsByDate(
         date: Long,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun getPreviousPostByDate(
+    suspend fun getPreviousPostByDate(
         date: Long,
-        sqlConnection: SqlConnection,
-        handler: (post: Post?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Post?
 
-    fun getNextPostByDate(
+    suspend fun getNextPostByDate(
         date: Long,
-        sqlConnection: SqlConnection,
-        handler: (post: Post?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Post?
 }

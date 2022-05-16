@@ -7,9 +7,7 @@ import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class PostCategoryAddAPI(
@@ -21,107 +19,47 @@ class PostCategoryAddAPI(
 
     override val routes = arrayListOf("/api/panel/post/category/add")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
         val title = data.getString("title")
         val description = data.getString("description")
         val url = data.getString("url")
         val color = data.getString("color")
 
-        validateForm(handler, title, url, color) {
-            databaseManager.createConnection((this::createConnectionHandler)(handler, title, description, url, color))
-        }
-    }
+        validateForm(title, url, color)
 
-    private fun createConnectionHandler(
-        handler: (result: Result) -> Unit,
-        title: String,
-        description: String,
-        url: String,
-        color: String
-    ) =
-        handler@{ sqlConnection: SqlConnection?, _: AsyncResult<SqlConnection> ->
-            if (sqlConnection == null) {
-                handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
+        val sqlConnection = createConnection(databaseManager, context)
 
-                return@handler
-            }
-
-            databaseManager.postCategoryDao.isExistsByURL(
-                url,
-                sqlConnection,
-                (this::isExistsByURLHandler)(handler, title, description, url, color, sqlConnection)
-            )
-        }
-
-    private fun isExistsByURLHandler(
-        handler: (result: Result) -> Unit,
-        title: String,
-        description: String,
-        url: String,
-        color: String,
-        sqlConnection: SqlConnection
-    ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
-        if (exists == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val exists = databaseManager.postCategoryDao.isExistsByURL(url, sqlConnection)
 
         if (exists) {
             val errors = mutableMapOf<String, Boolean>()
 
             errors["url"] = true
 
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Errors(errors))
-            }
-
-            return@handler
+            throw Errors(errors)
         }
 
-        databaseManager.postCategoryDao.add(
+        val id = databaseManager.postCategoryDao.add(
             PostCategory(-1, title, description, url, color),
-            sqlConnection,
-            (this::addHandler)(handler, sqlConnection)
+            sqlConnection
+        )
+
+        return Successful(
+            mapOf(
+                "id" to id
+            )
         )
     }
 
-    private fun addHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection
-    ) = handler@{ id: Long?, _: AsyncResult<*> ->
-        databaseManager.closeConnection(sqlConnection) {
-            if (id == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                return@closeConnection
-            }
-
-            handler.invoke(
-                Successful(
-                    mapOf(
-                        "id" to id
-                    )
-                )
-            )
-        }
-    }
-
     private fun validateForm(
-        handler: (result: Result) -> Unit,
         title: String,
 //        description: String,
         url: String,
-        color: String,
-        successHandler: () -> Unit
+        color: String
     ) {
         if (color.length != 7) {
-            handler.invoke(Error(ErrorCode.UNKNOWN))
-
-            return
+            throw Error(ErrorCode.UNKNOWN)
         }
 
         val errors = mutableMapOf<String, Boolean>()
@@ -136,11 +74,7 @@ class PostCategoryAddAPI(
             errors["url"] = true
 
         if (errors.isNotEmpty()) {
-            handler.invoke(Errors(errors))
-
-            return
+            throw Errors(errors)
         }
-
-        successHandler.invoke()
     }
 }

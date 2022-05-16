@@ -5,6 +5,9 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
+import io.vertx.kotlin.coroutines.dispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 abstract class PanelApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) : Api() {
 
@@ -15,19 +18,19 @@ abstract class PanelApi(private val setupManager: SetupManager, private val auth
             return@Handler
         }
 
-        authProvider.isLoggedIn(context) { isLoggedIn ->
-            if (!isLoggedIn) {
-                sendResult(Error(ErrorCode.NOT_LOGGED_IN), context)
+        val isLoggedIn = authProvider.isLoggedIn(context)
 
-                return@isLoggedIn
-            }
+        if (!isLoggedIn) {
+            throw Error(ErrorCode.NOT_LOGGED_IN)
+        }
 
-            authProvider.hasAccessPanel(context) { isAdmin, _ ->
-                if (isAdmin)
-                    handler(context)
-                else
-                    sendResult(Error(ErrorCode.NO_PERMISSION), context)
-            }
+        CoroutineScope(context.vertx().dispatcher()).launch {
+            if (authProvider.hasAccessPanel(context))
+                handler(context) {
+                    sendResult(it, context)
+                }
+            else
+                sendResult(Error(ErrorCode.NO_PERMISSION), context)
         }
     }
 }

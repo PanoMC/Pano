@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import com.panomc.platform.db.model.PermissionGroup
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
@@ -16,7 +16,7 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Delete permissions, create permission group and permission group permission tables."
 
-    override val handlers: List<(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit> =
+    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
         listOf(
             deletePermissions(),
             createPermissionGroupTable(),
@@ -25,17 +25,16 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
             changePermissionIDFieldName()
         )
 
-    private fun deletePermissions(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun deletePermissions(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("DELETE FROM `${getTablePrefix()}permission`")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun createPermissionGroupTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createPermissionGroupTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(
                     """
@@ -46,13 +45,12 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Table';
                         """
                 )
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun createPermissionGroupPermsTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createPermissionGroupPermsTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(
                     """
@@ -64,13 +62,12 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Permission Table';
                         """
                 )
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun createAdminPermissionGroup(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createAdminPermissionGroup(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             val permissionGroup = PermissionGroup(-1, "admin")
 
             val query = "INSERT INTO `${getTablePrefix()}permission_group` (name) VALUES (?)"
@@ -81,17 +78,15 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
                     Tuple.of(
                         permissionGroup.name
                     )
-                ) { queryResult ->
-                    handler.invoke(queryResult)
-                }
+                )
+                .await()
         }
 
-    private fun changePermissionIDFieldName(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun changePermissionIDFieldName(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}user` RENAME COLUMN `permission_id` TO `permission_group_id`;")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 }

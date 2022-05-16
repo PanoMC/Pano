@@ -1,15 +1,12 @@
 package com.panomc.platform.db.implementation
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.UserDao
 import com.panomc.platform.db.model.User
-import com.panomc.platform.model.Error
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
+import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
@@ -19,11 +16,10 @@ import org.apache.commons.codec.digest.DigestUtils
 @Dao
 class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "user"), UserDao {
 
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` int NOT NULL AUTO_INCREMENT,
                               `username` varchar(16) NOT NULL UNIQUE,
@@ -38,23 +34,21 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User Table';
                         """
-                )
-                .execute {
-                    handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
+    }
 
-    override fun add(
+    override suspend fun add(
         user: User,
         sqlConnection: SqlConnection,
-        isSetup: Boolean,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        isSetup: Boolean
+    ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registered_ip, permission_group_id, register_date, email_verified) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?)"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -66,123 +60,109 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     user.registerDate,
                     if (isSetup) 1 else 0
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else {
-                    val errorCode = ErrorCode.UNKNOWN
+            )
+            .await()
 
-                    handler.invoke(Error(errorCode), queryResult)
-                }
-            }
+        return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override fun isEmailExists(
+    override suspend fun isEmailExists(
         email: String,
-        sqlConnection: SqlConnection,
-        handler: (isEmailExists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(email) FROM `${getTablePrefix() + tableName}` where email = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     email
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 
-    override fun getUserIDFromUsername(
+    override suspend fun getUserIDFromUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (userID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int? {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where username = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     username
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun getPermissionGroupIDFromUserID(
+    override suspend fun getPermissionGroupIDFromUserID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int? {
         val query =
             "SELECT permission_group_id FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     userID
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun getPermissionGroupIDFromUsername(
+    override suspend fun getPermissionGroupIDFromUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int? {
         val query =
             "SELECT permission_group_id FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     username
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun isLoginCorrect(
+    override suspend fun isLoginCorrect(
         usernameOrEmail: String,
         password: String,
-        sqlConnection: SqlConnection,
-        handler: (isLoginCorrect: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where (`username` = ? or `email` = ?) and `password` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -190,124 +170,108 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     usernameOrEmail,
                     DigestUtils.md5Hex(password)
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 
-    override fun count(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit) {
+    override suspend fun count(sqlConnection: SqlConnection): Int {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute()
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun getUsernameFromUserID(
+    override suspend fun getUsernameFromUserID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (username: String?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): String? {
         val query =
             "SELECT username FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(userID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(userID))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getString(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getString(0)
     }
 
-    override fun getByID(
+    override suspend fun getByID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (user: User?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): User? {
         val query =
             "SELECT `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `email_verified`, `banned` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(userID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val row = rows.toList()[0]
+            .execute(Tuple.of(userID))
+            .await()
 
-                    handler.invoke(
-                        User(
-                            userID,
-                            row.getString(0),
-                            row.getString(1),
-                            row.getString(2),
-                            row.getString(3),
-                            row.getInteger(4),
-                            row.getLong(5),
-                            row.getInteger(6),
-                            row.getInteger(7)
-                        ),
-                        queryResult
-                    )
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val row = rows.toList()[0]
+
+        return User(
+            userID,
+            row.getString(0),
+            row.getString(1),
+            row.getString(2),
+            row.getString(3),
+            row.getInteger(4),
+            row.getLong(5),
+            row.getInteger(6),
+            row.getInteger(7)
+        )
     }
 
-    override fun getByUsername(
+    override suspend fun getByUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (user: User?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): User? {
         val query =
             "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `email_verified`, `banned` FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(username)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val row = rows.toList()[0]
+            .execute(Tuple.of(username))
+            .await()
 
-                    handler.invoke(
-                        User(
-                            row.getInteger(0),
-                            row.getString(1),
-                            row.getString(2),
-                            row.getString(3),
-                            row.getString(4),
-                            row.getInteger(5),
-                            row.getLong(6),
-                            row.getInteger(7),
-                            row.getInteger(8)
-                        ),
-                        queryResult
-                    )
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val row = rows.toList()[0]
+
+        return User(
+            row.getInteger(0),
+            row.getString(1),
+            row.getString(2),
+            row.getString(3),
+            row.getString(4),
+            row.getInteger(5),
+            row.getLong(6),
+            row.getInteger(7),
+            row.getInteger(8)
+        )
     }
 
-    override fun countByPageType(
+    override suspend fun countByPageType(
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (pageType == 2) "WHERE permission_group_id != ?" else if (pageType == 0) "WHERE banned = ?" else ""}"
 
@@ -319,24 +283,19 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         if (pageType == 0)
             parameters.addInteger(1)
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(parameters) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(parameters)
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun getAllByPageAndPageType(
+    override suspend fun getAllByPageAndPageType(
         page: Int,
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (userList: List<Map<String, Any>>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): List<Map<String, Any>> {
         val query =
             "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` ${if (pageType == 2) "WHERE permission_group_id != ? " else if (pageType == 0) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
 
@@ -348,38 +307,38 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         if (pageType == 0)
             parameters.addInteger(1)
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(parameters) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val players = mutableListOf<Map<String, Any>>()
+            .execute(parameters)
+            .await()
 
-                    if (rows.size() > 0)
-                        rows.forEach { row ->
-                            players.add(
-                                mapOf(
-                                    "id" to row.getInteger(0),
-                                    "username" to row.getString(1),
-                                    "email" to row.getString(2),
-                                    "registerDate" to row.getLong(3),
-                                    "permissionGroupId" to row.getInteger(4)
-                                )
-                            )
-                        }
+        val players = mutableListOf<Map<String, Any>>()
 
-                    handler.invoke(players, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
+        if (rows.size() == 0) {
+            return players
+        }
+
+        if (rows.size() > 0)
+            rows.forEach { row ->
+                players.add(
+                    mapOf(
+                        "id" to row.getInteger(0),
+                        "username" to row.getString(1),
+                        "email" to row.getString(2),
+                        "registerDate" to row.getLong(3),
+                        "permissionGroupId" to row.getInteger(4)
+                    )
+                )
             }
+
+        return players
     }
 
-    override fun getAllByPageAndPermissionGroup(
+    override suspend fun getAllByPageAndPermissionGroup(
         page: Int,
         permissionGroupID: Int,
-        sqlConnection: SqlConnection,
-        handler: (userList: List<Map<String, Any>>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): List<Map<String, Any>> {
         val query =
             "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
 
@@ -387,57 +346,52 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         parameters.addInteger(permissionGroupID)
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(parameters) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val players = mutableListOf<Map<String, Any>>()
+            .execute(parameters)
+            .await()
 
-                    if (rows.size() > 0)
-                        rows.forEach { row ->
-                            players.add(
-                                mapOf(
-                                    "id" to row.getInteger(0),
-                                    "username" to row.getString(1),
-                                    "email" to row.getString(2),
-                                    "registerDate" to row.getLong(3),
-                                    "permissionGroupId" to row.getInteger(4)
-                                )
-                            )
-                        }
+        val players = mutableListOf<Map<String, Any>>()
 
-                    handler.invoke(players, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
+        if (rows.size() > 0)
+            rows.forEach { row ->
+                players.add(
+                    mapOf(
+                        "id" to row.getInteger(0),
+                        "username" to row.getString(1),
+                        "email" to row.getString(2),
+                        "registerDate" to row.getLong(3),
+                        "permissionGroupId" to row.getInteger(4)
+                    )
+                )
             }
+
+        return players
     }
 
-    override fun getUserIDFromUsernameOrEmail(
+    override suspend fun getUserIDFromUsernameOrEmail(
         usernameOrEmail: String,
-        sqlConnection: SqlConnection,
-        handler: (userID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int? {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where username = ? or email = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(usernameOrEmail, usernameOrEmail)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(usernameOrEmail, usernameOrEmail))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun getUsernameByListOfID(
+    override suspend fun getUsernameByListOfID(
         userIDList: List<Int>,
-        sqlConnection: SqlConnection,
-        handler: (usernameList: Map<Int, String>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Map<Int, String> {
         var listText = ""
 
         userIDList.forEach { id ->
@@ -450,111 +404,88 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         val query =
             "SELECT id, username FROM `${getTablePrefix() + tableName}` where id IN ($listText)"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val listOfUsers = mutableMapOf<Int, String>()
+            .execute()
+            .await()
 
-                    rows.forEach { row ->
-                        listOfUsers[row.getInteger(0)] = row.getString(1)
-                    }
+        val listOfUsers = mutableMapOf<Int, String>()
 
-                    handler.invoke(listOfUsers, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        rows.forEach { row ->
+            listOfUsers[row.getInteger(0)] = row.getString(1)
+        }
+
+        return listOfUsers
     }
 
-    override fun isExistsByUsername(
+    override suspend fun isExistsByUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(username)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(username))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 
-    override fun isExistsByID(
+    override suspend fun isExistsByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(id)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(id))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 
-    override fun getUsernamesByPermissionGroupID(
+    override suspend fun getUsernamesByPermissionGroupID(
         permissionGroupID: Int,
         limit: Int,
-        sqlConnection: SqlConnection,
-        handler: (usernameList: List<String>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): List<String> {
         val query =
             "SELECT username FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? ${if (limit == -1) "" else "LIMIT $limit"}"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(permissionGroupID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val listOfUsernames = mutableListOf<String>()
+            .execute(Tuple.of(permissionGroupID))
+            .await()
 
-                    rows.forEach { row ->
-                        listOfUsernames.add(row.getString(0))
-                    }
+        val listOfUsernames = mutableListOf<String>()
 
-                    handler.invoke(listOfUsernames, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        rows.forEach { row ->
+            listOfUsernames.add(row.getString(0))
+        }
+
+        return listOfUsernames
     }
 
-    override fun getCountOfUsersByPermissionGroupID(
+    override suspend fun getCountOfUsersByPermissionGroupID(
         permissionGroupID: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(permissionGroupID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(permissionGroupID))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun removePermissionGroupByPermissionGroupID(
+    override suspend fun removePermissionGroupByPermissionGroupID(
         permissionGroupID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `permission_group_id` = ? WHERE `permission_group_id` = ?"
@@ -566,19 +497,14 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     -1,
                     permissionGroupID
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    override fun setPermissionGroupByUsername(
+    override suspend fun setPermissionGroupByUsername(
         permissionGroupID: Int,
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `permission_group_id` = ? WHERE `username` = ?"
@@ -590,19 +516,14 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     permissionGroupID,
                     username
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    override fun setUsernameByID(
+    override suspend fun setUsernameByID(
         id: Int,
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `username` = ? WHERE `id` = ?"
@@ -614,19 +535,14 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     username,
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    override fun setEmailByID(
+    override suspend fun setEmailByID(
         id: Int,
         email: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `email` = ? WHERE `id` = ?"
@@ -638,19 +554,14 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     email,
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    override fun setPasswordByID(
+    override suspend fun setPasswordByID(
         id: Int,
         password: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `password` = ? WHERE `id` = ?"
@@ -662,36 +573,27 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     DigestUtils.md5Hex(password),
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    override fun isEmailVerifiedByID(
+    override suspend fun isEmailVerifiedByID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (isVerified: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(email) FROM `${getTablePrefix() + tableName}` WHERE `id` = ? and `email_verified` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     userID,
                     1
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 }

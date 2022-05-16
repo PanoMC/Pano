@@ -2,70 +2,58 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.TicketCategory
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface TicketCategoryDao : Dao<TicketCategory> {
-    fun getAll(
-        sqlConnection: SqlConnection,
-        handler: (categories: List<TicketCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun getAll(
+        sqlConnection: SqlConnection
+    ): List<TicketCategory>
 
-    fun isExistsByID(
+    suspend fun isExistsByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun isExistsByURL(
+    suspend fun isExistsByURL(
         url: String,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun deleteByID(
+    suspend fun deleteByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun add(
+    suspend fun add(
         ticketCategory: TicketCategory,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun update(
+    suspend fun update(
         ticketCategory: TicketCategory,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun count(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit)
+    suspend fun count(sqlConnection: SqlConnection): Int
 
-    fun getByPage(
+    suspend fun getByPage(
         page: Int,
-        sqlConnection: SqlConnection,
-        handler: (categories: List<TicketCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<TicketCategory>
 
-    fun getByID(
+    suspend fun getByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (ticketCategory: TicketCategory?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): TicketCategory?
 
-    fun getByURL(
+    suspend fun getByURL(
         url: String,
-        sqlConnection: SqlConnection,
-        handler: (ticketCategory: TicketCategory?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): TicketCategory?
 
-    fun getByIDList(
+    suspend fun getByIDList(
         ticketCategoryIdList: List<Int>,
-        sqlConnection: SqlConnection,
-        handler: (ticketCategoryList: Map<Int, TicketCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Map<Int, TicketCategory>
 }

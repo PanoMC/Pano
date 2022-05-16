@@ -3,7 +3,7 @@ package com.panomc.platform.db.migration
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("ClassName")
@@ -13,7 +13,7 @@ class DatabaseMigration_5_6(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION = 6
     override val SCHEME_VERSION_INFO = "Drop post, post_category, ticket and ticket_category."
 
-    override val handlers: List<(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit> =
+    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
         listOf(
             dropPanelPostTable(),
             dropPanelPostCategoryTable(),
@@ -21,39 +21,35 @@ class DatabaseMigration_5_6(databaseManager: DatabaseManager) : DatabaseMigratio
             dropPanelTicketCategoryTable()
         )
 
-    private fun dropPanelPostTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun dropPanelPostTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("DROP TABLE IF EXISTS `${getTablePrefix()}post`;")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun dropPanelPostCategoryTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun dropPanelPostCategoryTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("DROP TABLE IF EXISTS `${getTablePrefix()}post_category`;")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun dropPanelTicketTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun dropPanelTicketTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(" DROP TABLE IF EXISTS `${getTablePrefix()}ticket`;")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun dropPanelTicketCategoryTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun dropPanelTicketCategoryTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("DROP TABLE IF EXISTS `${getTablePrefix()}ticket_category`;")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 }

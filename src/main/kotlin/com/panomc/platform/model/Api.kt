@@ -1,8 +1,14 @@
 package com.panomc.platform.model
 
+import com.panomc.platform.db.DatabaseManager
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
+import io.vertx.sqlclient.SqlConnection
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 abstract class Api : Route() {
     fun sendResult(result: Result, context: RoutingContext) {
@@ -44,15 +50,50 @@ abstract class Api : Route() {
         }
     }
 
-    override fun getHandler() = Handler<RoutingContext> { context ->
-        handler(context)
+    suspend fun createConnection(databaseManager: DatabaseManager, routingContext: RoutingContext): SqlConnection {
+        val sqlConnection = databaseManager.createConnection()
+
+        routingContext.put("sqlConnection", sqlConnection)
+
+        return sqlConnection
     }
 
-    fun handler(context: RoutingContext) {
-        handler(context) { result ->
-            sendResult(result, context)
+    override fun getHandler() = Handler<RoutingContext> { context ->
+        handler(context) {
+            sendResult(it, context)
         }
     }
 
-    abstract fun handler(context: RoutingContext, handler: (result: Result) -> Unit)
+    override fun getFailureHandler() = Handler<RoutingContext> { context ->
+        CoroutineScope(context.vertx().dispatcher()).launch {
+            getFailureHandler(context)
+
+            val failure = context.failure()
+            val sqlConnection = context.get<SqlConnection>("sqlConnection")
+
+            sqlConnection?.close()?.await()
+
+            if (!(failure is Result && (failure is Error || failure is Errors))) {
+                throw failure
+            }
+
+            sendResult(failure, context)
+        }
+    }
+
+    fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+        CoroutineScope(context.vertx().dispatcher()).launch {
+            val result = handler(context)
+
+            val sqlConnection = context.get<SqlConnection>("sqlConnection")
+
+            sqlConnection?.close()?.await()
+
+            result?.let(handler)
+        }
+    }
+
+    abstract suspend fun handler(context: RoutingContext): Result?
+
+    open suspend fun getFailureHandler(context: RoutingContext) = Unit
 }

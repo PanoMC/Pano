@@ -5,9 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PostCategoryDao
 import com.panomc.platform.db.model.PostCategory
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -18,11 +16,10 @@ import io.vertx.sqlclient.Tuple
 class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "post_category"),
     PostCategoryDao {
 
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` int NOT NULL AUTO_INCREMENT,
                               `title` MEDIUMTEXT NOT NULL,
@@ -32,40 +29,32 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Post category table.';
                         """
-                )
-                .execute {
-                    handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
+    }
 
-    override fun isExistsByID(
+    override suspend fun isExistsByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            ).await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 
-    override fun deleteByID(
+    override suspend fun deleteByID(
         id: Int,
         sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
             "DELETE FROM `${getTablePrefix() + tableName}` WHERE id = ?"
@@ -76,35 +65,25 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                 Tuple.of(
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            ).await()
     }
 
-    override fun getCount(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit) {
+    override suspend fun getCount(sqlConnection: SqlConnection): Int {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute()
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun getByIDList(
+    override suspend fun getByIDList(
         IDList: List<Int>,
-        sqlConnection: SqlConnection,
-        handler: (categories: Map<Int, PostCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Map<Int, PostCategory> {
         var listText = ""
 
         IDList.forEach { id ->
@@ -117,145 +96,123 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE  `id` IN ($listText) ORDER BY id DESC"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val categories = mutableMapOf<Int, PostCategory>()
+            .execute()
+            .await()
 
-                    rows.forEach { row ->
-                        categories[row.getInteger(0)] = PostCategory(
-                            row.getInteger(0),
-                            row.getString(1),
-                            row.getString(2),
-                            row.getString(3),
-                            row.getString(4)
-                        )
-                    }
+        val categories = mutableMapOf<Int, PostCategory>()
 
-                    handler.invoke(categories, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        rows.forEach { row ->
+            categories[row.getInteger(0)] = PostCategory(
+                row.getInteger(0),
+                row.getString(1),
+                row.getString(2),
+                row.getString(3),
+                row.getString(4)
+            )
+        }
+
+        return categories
     }
 
-    override fun getAll(
-        sqlConnection: SqlConnection,
-        handler: (categories: List<PostCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+    override suspend fun getAll(
+        sqlConnection: SqlConnection
+    ): List<PostCategory> {
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val categories = mutableListOf<PostCategory>()
+            .execute()
+            .await()
 
-                    rows.forEach { row ->
-                        categories.add(
-                            PostCategory(
-                                row.getInteger(0),
-                                row.getString(1),
-                                row.getString(2),
-                                row.getString(3),
-                                row.getString(4)
-                            )
-                        )
-                    }
+        val categories = mutableListOf<PostCategory>()
 
-                    handler.invoke(categories, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        rows.forEach { row ->
+            categories.add(
+                PostCategory(
+                    row.getInteger(0),
+                    row.getString(1),
+                    row.getString(2),
+                    row.getString(3),
+                    row.getString(4)
+                )
+            )
+        }
+
+        return categories
     }
 
-    override fun getCategories(
+    override suspend fun getCategories(
         page: Int,
-        sqlConnection: SqlConnection,
-        handler: (categories: List<PostCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): List<PostCategory> {
         val query =
             "SELECT id, title, description, url, color FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val categories = mutableListOf<PostCategory>()
+            .execute()
+            .await()
 
-                    if (rows.size() > 0)
-                        rows.forEach { row ->
-                            categories.add(
-                                PostCategory(
-                                    row.getInteger(0),
-                                    row.getString(1),
-                                    row.getString(2),
-                                    row.getString(3),
-                                    row.getString(4)
-                                )
-                            )
-                        }
+        val categories = mutableListOf<PostCategory>()
 
-                    handler.invoke(categories, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
+        if (rows.size() > 0)
+            rows.forEach { row ->
+                categories.add(
+                    PostCategory(
+                        row.getInteger(0),
+                        row.getString(1),
+                        row.getString(2),
+                        row.getString(3),
+                        row.getString(4)
+                    )
+                )
             }
+
+        return categories
     }
 
-    override fun isExistsByURL(
+    override suspend fun isExistsByURL(
         url: String,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(url)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(url))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 
-    override fun isExistsByURLNotByID(
+    override suspend fun isExistsByURLNotByID(
         url: String,
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ? and id != ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(url, id)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(url, id))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) == 1, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) == 1
     }
 
-    override fun add(
+    override suspend fun add(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection,
-        handler: (id: Long?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `description`, `url`, `color`) VALUES (?, ?, ?, ?)"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -264,20 +221,15 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                     postCategory.url,
                     postCategory.color.replace("#", "")
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.property(MySQLClient.LAST_INSERTED_ID), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override fun update(
+    override suspend fun update(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET title = ?, description = ?, url = ?, color = ? WHERE `id` = ?"
@@ -292,73 +244,68 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                     postCategory.color.replace("#", ""),
                     postCategory.id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            ).await()
     }
 
-    override fun getByID(
+    override suspend fun getByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (category: PostCategory?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): PostCategory? {
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(id)
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val row = rows.toList()[0]
+            )
+            .await()
 
-                    val category = PostCategory(
-                        row.getInteger(0),
-                        row.getString(1),
-                        row.getString(2),
-                        row.getString(3),
-                        row.getString(4)
-                    )
+        if (rows.size() == 0) {
+            return null
+        }
 
-                    handler.invoke(category, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        val row = rows.toList()[0]
+
+        val category = PostCategory(
+            row.getInteger(0),
+            row.getString(1),
+            row.getString(2),
+            row.getString(3),
+            row.getString(4)
+        )
+
+        return category
     }
 
-    override fun getByURL(
+    override suspend fun getByURL(
         url: String,
-        sqlConnection: SqlConnection,
-        handler: (category: PostCategory?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): PostCategory? {
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE `url` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(url)
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val row = rows.toList()[0]
+            )
+            .await()
 
-                    val category = PostCategory(
-                        row.getInteger(0),
-                        row.getString(1),
-                        row.getString(2),
-                        row.getString(3),
-                        row.getString(4)
-                    )
+        if (rows.size() == 0) {
+            return null
+        }
 
-                    handler.invoke(category, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        val row = rows.toList()[0]
+
+        val category = PostCategory(
+            row.getInteger(0),
+            row.getString(1),
+            row.getString(2),
+            row.getString(3),
+            row.getString(4)
+        )
+
+        return category
     }
 }

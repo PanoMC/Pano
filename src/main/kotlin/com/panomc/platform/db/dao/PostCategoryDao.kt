@@ -2,77 +2,64 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PostCategory
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PostCategoryDao : Dao<PostCategory> {
-    fun isExistsByID(
+    suspend fun isExistsByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
+    ): Boolean
+
+    suspend fun deleteByID(
+        id: Int,
+        sqlConnection: SqlConnection
     )
 
-    fun deleteByID(
-        id: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun getCount(sqlConnection: SqlConnection): Int
 
-    fun getCount(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit)
-
-    fun getByIDList(
+    suspend fun getByIDList(
         IDList: List<Int>,
-        sqlConnection: SqlConnection,
-        handler: (categories: Map<Int, PostCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Map<Int, PostCategory>
 
-    fun getAll(
-        sqlConnection: SqlConnection,
-        handler: (categories: List<PostCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun getAll(
+        sqlConnection: SqlConnection
+    ): List<PostCategory>
 
-    fun getCategories(
+    suspend fun getCategories(
         page: Int,
-        sqlConnection: SqlConnection,
-        handler: (categories: List<PostCategory>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<PostCategory>
 
-    fun isExistsByURL(
+    suspend fun isExistsByURL(
         url: String,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun isExistsByURLNotByID(
+    suspend fun isExistsByURLNotByID(
         url: String,
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun add(
+    suspend fun add(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection,
-        handler: (id: Long?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Long
 
-    fun update(
+    suspend fun update(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun getByID(
+    suspend fun getByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (category: PostCategory?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): PostCategory?
 
-    fun getByURL(
+    suspend fun getByURL(
         url: String,
-        sqlConnection: SqlConnection,
-        handler: (category: PostCategory?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): PostCategory?
 }

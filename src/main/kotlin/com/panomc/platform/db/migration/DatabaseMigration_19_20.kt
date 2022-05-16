@@ -3,7 +3,7 @@ package com.panomc.platform.db.migration
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("ClassName")
@@ -14,7 +14,7 @@ class DatabaseMigration_19_20(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Convert dates from string to BigInt."
 
-    override val handlers: List<(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit> =
+    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
         listOf(
             updatePanelNotificationTableDateColumn(),
             updatePostTableDateColumn(),
@@ -27,85 +27,76 @@ class DatabaseMigration_19_20(databaseManager: DatabaseManager) : DatabaseMigrat
             updateUserTableRegisterDateColumn()
         )
 
-    private fun updatePanelNotificationTableDateColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updatePanelNotificationTableDateColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}panel_notification` MODIFY `date` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updatePostTableDateColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updatePostTableDateColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}post` MODIFY `date` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updatePostTableMoveDateColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updatePostTableMoveDateColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}post` MODIFY `move_date` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updatePostTableViewsColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updatePostTableViewsColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}post` MODIFY `views` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updateTicketTableDateColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updateTicketTableDateColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}ticket` MODIFY `date` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updateTicketTableLastUpdateColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updateTicketTableLastUpdateColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}ticket` MODIFY `last_update` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updateTicketMessageTableDateColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updateTicketMessageTableDateColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}ticket_message` MODIFY `date` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updateTokenTableCreatedTimeColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updateTokenTableCreatedTimeColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}token` MODIFY `created_time` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
-    private fun updateUserTableRegisterDateColumn(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun updateUserTableRegisterDateColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}user` MODIFY `register_date` BIGINT(20);")
-                .execute {
-                    handler.invoke(it)
-                }
+                .execute()
+                .await()
         }
 
 }

@@ -2,165 +2,139 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.User
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface UserDao : Dao<User> {
 
-    fun add(
+    suspend fun add(
         user: User,
         sqlConnection: SqlConnection,
-        isSetup: Boolean,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        isSetup: Boolean
+    ): Long
 
-    fun isEmailExists(
+    suspend fun isEmailExists(
         email: String,
-        sqlConnection: SqlConnection,
-        handler: (isEmailExists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun getUserIDFromUsername(
+    suspend fun getUserIDFromUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (userID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int?
 
-    fun getPermissionGroupIDFromUserID(
+    suspend fun getPermissionGroupIDFromUserID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int?
 
-    fun getPermissionGroupIDFromUsername(
+    suspend fun getPermissionGroupIDFromUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int?
 
-    fun isLoginCorrect(
+    suspend fun isLoginCorrect(
         usernameOrEmail: String,
         password: String,
-        sqlConnection: SqlConnection,
-        handler: (isLoginCorrect: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun count(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit)
+    suspend fun count(sqlConnection: SqlConnection): Int
 
-    fun getUsernameFromUserID(
+    suspend fun getUsernameFromUserID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (username: String?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): String?
 
-    fun getByID(
+    suspend fun getByID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (user: User?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): User?
 
-    fun getByUsername(
+    suspend fun getByUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (user: User?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): User?
 
-    fun countByPageType(
+    suspend fun countByPageType(
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun getAllByPageAndPageType(
+    suspend fun getAllByPageAndPageType(
         page: Int,
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (userList: List<Map<String, Any>>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Map<String, Any>>
 
-    fun getAllByPageAndPermissionGroup(
+    suspend fun getAllByPageAndPermissionGroup(
         page: Int,
         permissionGroupID: Int,
-        sqlConnection: SqlConnection,
-        handler: (userList: List<Map<String, Any>>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Map<String, Any>>
 
-    fun getUserIDFromUsernameOrEmail(
+    suspend fun getUserIDFromUsernameOrEmail(
         usernameOrEmail: String,
-        sqlConnection: SqlConnection,
-        handler: (userID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int?
 
-    fun getUsernameByListOfID(
+    suspend fun getUsernameByListOfID(
         userIDList: List<Int>,
-        sqlConnection: SqlConnection,
-        handler: (usernameList: Map<Int, String>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Map<Int, String>
 
-    fun isExistsByUsername(
+    suspend fun isExistsByUsername(
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun isExistsByID(
+    suspend fun isExistsByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun getUsernamesByPermissionGroupID(
+    suspend fun getUsernamesByPermissionGroupID(
         permissionGroupID: Int,
         limit: Int,
-        sqlConnection: SqlConnection,
-        handler: (usernameList: List<String>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<String>
 
-    fun getCountOfUsersByPermissionGroupID(
+    suspend fun getCountOfUsersByPermissionGroupID(
         permissionGroupID: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun removePermissionGroupByPermissionGroupID(
+    suspend fun removePermissionGroupByPermissionGroupID(
         permissionGroupID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun setPermissionGroupByUsername(
+    suspend fun setPermissionGroupByUsername(
         permissionGroupID: Int,
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun setUsernameByID(
+    suspend fun setUsernameByID(
         id: Int,
         username: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun setEmailByID(
+    suspend fun setEmailByID(
         id: Int,
         email: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun setPasswordByID(
+    suspend fun setPasswordByID(
         id: Int,
         password: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun isEmailVerifiedByID(
+    suspend fun isEmailVerifiedByID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (isVerified: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 }

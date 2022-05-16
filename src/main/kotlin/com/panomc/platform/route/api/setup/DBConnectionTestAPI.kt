@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLConnectOptions
 import io.vertx.mysqlclient.MySQLPool
 import io.vertx.sqlclient.PoolOptions
@@ -16,7 +17,7 @@ class DBConnectionTestAPI(private val logger: Logger, private val setupManager: 
 
     override val routes = arrayListOf("/api/setup/dbConnectionTest")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
 
         var port = 3306
@@ -44,19 +45,18 @@ class DBConnectionTestAPI(private val logger: Logger, private val setupManager: 
 
         val mySQLPool = MySQLPool.pool(context.vertx(), connectOptions, poolOptions)
 
-        mySQLPool.getConnection { connection ->
-            if (connection.succeeded())
-                connection.result().close {
-                    mySQLPool.close {
-                        handler.invoke(Successful())
-                    }
-                }
-            else
-                mySQLPool.close {
-                    logger.error(connection.cause().toString())
+        try {
+            val connection = mySQLPool.connection.await()
 
-                    handler.invoke(Error(ErrorCode.INVALID_DATA))
-                }
+            connection.close().await()
+
+            mySQLPool.close().await()
+
+            return Successful()
+        } catch (e: java.lang.Exception) {
+            logger.error(e.toString())
+
+            throw Error(ErrorCode.INVALID_DATA)
         }
     }
 }

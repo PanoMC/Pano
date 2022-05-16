@@ -15,7 +15,10 @@ abstract class Route {
     open fun getFailureHandler(): Handler<RoutingContext> = Handler { request ->
         val response = request.response()
 
-        if (!response.ended())
-            response.end()
+        if (response.ended()) {
+            return@Handler
+        }
+
+        response.end()
     }
 }

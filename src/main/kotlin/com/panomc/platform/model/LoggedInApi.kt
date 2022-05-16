@@ -14,15 +14,14 @@ abstract class LoggedInApi(private val setupManager: SetupManager, private val a
             return@Handler
         }
 
-        authProvider.isLoggedIn(context) { isLoggedIn ->
-            if (!isLoggedIn) {
-                sendResult(Error(ErrorCode.NOT_LOGGED_IN), context)
+        val isLoggedIn = authProvider.isLoggedIn(context)
 
+        if (!isLoggedIn) {
+            throw Error(ErrorCode.NOT_LOGGED_IN)
+        }
 
-                return@isLoggedIn
-            }
-
-            handler(context)
+        handler(context) {
+            sendResult(it, context)
         }
     }
 }

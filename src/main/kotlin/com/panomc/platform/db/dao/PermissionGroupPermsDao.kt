@@ -2,41 +2,34 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PermissionGroupPerms
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PermissionGroupPermsDao : Dao<PermissionGroupPerms> {
-    fun getPermissionGroupPerms(
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupPerms: List<PermissionGroupPerms>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun getPermissionGroupPerms(
+        sqlConnection: SqlConnection
+    ): List<PermissionGroupPerms>
 
-    fun doesPermissionGroupHavePermission(
+    suspend fun doesPermissionGroupHavePermission(
         permissionGroupID: Int,
         permissionID: Int,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermission: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun addPermission(
+    suspend fun addPermission(
         permissionGroupID: Int,
         permissionID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun removePermission(
+    suspend fun removePermission(
         permissionGroupID: Int,
         permissionID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun removePermissionGroup(
+    suspend fun removePermissionGroup(
         permissionGroupID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 }

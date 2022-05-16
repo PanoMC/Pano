@@ -5,9 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PermissionGroupDao
 import com.panomc.platform.db.model.PermissionGroup
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
@@ -18,80 +16,62 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
     PermissionGroupDao {
     private val adminPermissionName = "admin"
 
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` int NOT NULL AUTO_INCREMENT,
                               `name` varchar(32) NOT NULL UNIQUE,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Table';
                         """
-                )
-                .execute {
-                    if (it.succeeded())
-                        createAdminPermission(sqlConnection) { createAdminPermissionResult ->
-                            handler.invoke(createAdminPermissionResult)
-                        }
-                    else
-                        handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
 
-    override fun isThere(
+        createAdminPermission(sqlConnection)
+    }
+
+    override suspend fun isThere(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermissionGroup: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(`name`) FROM `${getTablePrefix() + tableName}` where `name` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     permissionGroup.name
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            ).await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) != 0, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) != 0
     }
 
-    override fun isThereByID(
+    override suspend fun isThereByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermissionGroup: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            ).await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) != 0, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) != 0
     }
 
-    override fun add(
+    override suspend fun add(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query = "INSERT INTO `${getTablePrefix() + tableName}` (name) VALUES (?)"
 
@@ -101,89 +81,74 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
                 Tuple.of(
                     permissionGroup.name
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            ).await()
     }
 
-    override fun getPermissionGroupByID(
+    override suspend fun getPermissionGroupByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroup: PermissionGroup?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): PermissionGroup? {
         val query =
             "SELECT `name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            ).await()
 
-                    handler.invoke(PermissionGroup(id, rows.toList()[0].getString(0)), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return PermissionGroup(id, rows.toList()[0].getString(0))
     }
 
-    override fun getPermissionGroupID(
+    override suspend fun getPermissionGroupID(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int? {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where `name` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     permissionGroup.name
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            ).await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun getPermissionGroups(
-        sqlConnection: SqlConnection,
-        handler: (permissionGroups: List<PermissionGroup>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+    override suspend fun getPermissionGroups(
+        sqlConnection: SqlConnection
+    ): List<PermissionGroup> {
         val query =
             "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `ID` ASC"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute()
+            .await()
 
-                    val permissionsGroups = rows.map { row ->
-                        PermissionGroup(row.getInteger(0), row.getString(1))
-                    }
+        val permissionsGroups = rows.map { row ->
+            PermissionGroup(row.getInteger(0), row.getString(1))
+        }
 
-                    handler.invoke(permissionsGroups, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return permissionsGroups
     }
 
-    override fun deleteByID(
+    override suspend fun deleteByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "DELETE FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
@@ -194,18 +159,13 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
                 Tuple.of(
                     id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    override fun update(
+    override suspend fun update(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `name` = ? WHERE `id` = ?"
@@ -217,34 +177,19 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
                     permissionGroup.name,
                     permissionGroup.id
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    private fun createAdminPermission(
-        sqlConnection: SqlConnection,
-        handler: (asyncResult: AsyncResult<*>) -> Unit
+    private suspend fun createAdminPermission(
+        sqlConnection: SqlConnection
     ) {
-        isThere(PermissionGroup(-1, adminPermissionName), sqlConnection) { isTherePermissionGroup, asyncResult ->
-            if (isTherePermissionGroup == null) {
-                handler.invoke(asyncResult)
+        val isThere = isThere(PermissionGroup(-1, adminPermissionName), sqlConnection)
 
-                return@isThere
-            }
-
-            if (isTherePermissionGroup) {
-                handler.invoke(asyncResult)
-
-                return@isThere
-            }
-
-            add(PermissionGroup(-1, adminPermissionName), sqlConnection) { _, asyncResultAdd ->
-                handler.invoke(asyncResultAdd)
-            }
+        if (isThere) {
+            return
         }
+
+        add(PermissionGroup(-1, adminPermissionName), sqlConnection)
     }
 }

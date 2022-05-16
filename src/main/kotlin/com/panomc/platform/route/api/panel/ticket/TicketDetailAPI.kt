@@ -9,9 +9,7 @@ import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class TicketDetailAPI(
@@ -23,112 +21,25 @@ class TicketDetailAPI(
 
     override val routes = arrayListOf("/api/panel/initPage/ticket/detail")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
         val id = data.getInteger("id")
 
-        databaseManager.createConnection((this::createConnectionHandler)(handler, id))
-    }
+        val sqlConnection = createConnection(databaseManager, context)
 
-    private fun createConnectionHandler(
-        handler: (result: Result) -> Unit,
-        id: Int
-    ) = handler@{ sqlConnection: SqlConnection?, _: AsyncResult<SqlConnection> ->
-        if (sqlConnection == null) {
-            handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
-
-            return@handler
-        }
-
-        databaseManager.ticketDao.isExistsByID(
-            id,
-            sqlConnection,
-            (this::isExistsByHandler)(handler, id, sqlConnection)
-        )
-    }
-
-    private fun isExistsByHandler(
-        handler: (result: Result) -> Unit,
-        id: Int,
-        sqlConnection: SqlConnection
-    ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
-        if (exists == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val exists = databaseManager.ticketDao.isExistsByID(id, sqlConnection)
 
         if (!exists) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.NOT_EXISTS))
-            }
-
-            return@handler
+            throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        databaseManager.ticketDao.getByID(
-            id,
-            sqlConnection,
-            (this::getByIDHandler)(handler, id, sqlConnection)
+        val ticket = databaseManager.ticketDao.getByID(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+
+        val username = databaseManager.userDao.getUsernameFromUserID(ticket.userID, sqlConnection) ?: throw Error(
+            ErrorCode.UNKNOWN
         )
-    }
 
-    private fun getByIDHandler(
-        handler: (result: Result) -> Unit,
-        id: Int,
-        sqlConnection: SqlConnection
-    ) = handler@{ ticket: Ticket?, _: AsyncResult<*> ->
-        if (ticket == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        databaseManager.userDao.getUsernameFromUserID(
-            ticket.userID,
-            sqlConnection,
-            (this::getUsernameFromUserIDHandler)(handler, id, sqlConnection, ticket)
-        )
-    }
-
-    private fun getUsernameFromUserIDHandler(
-        handler: (result: Result) -> Unit,
-        id: Int,
-        sqlConnection: SqlConnection,
-        ticket: Ticket
-    ) = handler@{ username: String?, _: AsyncResult<*> ->
-        if (username == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        databaseManager.ticketMessageDao.getByTicketIDAndPage(
-            id,
-            sqlConnection,
-            (this::getByTicketIDAndPageHandler)(handler, sqlConnection, ticket, username)
-        )
-    }
-
-    private fun getByTicketIDAndPageHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticket: Ticket,
-        username: String
-    ) = handler@{ messages: List<TicketMessage>?, _: AsyncResult<*> ->
-        if (messages == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val messages = databaseManager.ticketMessageDao.getByTicketIDAndPage(id, sqlConnection)
 
         val userIDList = mutableListOf<Int>()
 
@@ -137,104 +48,27 @@ class TicketDetailAPI(
                 userIDList.add(message.userID)
         }
 
-        databaseManager.userDao.getUsernameByListOfID(
-            userIDList,
-            sqlConnection,
-            (this::getUsernameByListOfIDHandler)(handler, sqlConnection, ticket, username, messages)
-        )
-    }
+        val usernameList = databaseManager.userDao.getUsernameByListOfID(userIDList, sqlConnection)
 
-    private fun getUsernameByListOfIDHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticket: Ticket,
-        username: String,
-        messages: List<TicketMessage>
-    ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
-        if (usernameList == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        databaseManager.ticketMessageDao.getCountByTicketID(
-            ticket.id,
-            sqlConnection,
-            (this::getCountByTicketIDHandler)(handler, sqlConnection, ticket, username, messages, usernameList)
-        )
-    }
-
-
-    private fun getCountByTicketIDHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticket: Ticket,
-        username: String,
-        messages: List<TicketMessage>,
-        usernameList: Map<Int, String>
-    ) = handler@{ count: Int?, _: AsyncResult<*> ->
-        if (count == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val count = databaseManager.ticketMessageDao.getCountByTicketID(ticket.id, sqlConnection)
 
         if (ticket.categoryID == -1) {
-            databaseManager.closeConnection(sqlConnection) {
-                invokeHandler(handler, ticket, usernameList, null, username, messages, count)
-            }
-
-            return@handler
+            return getResult(ticket, usernameList, null, username, messages, count)
         }
 
-        databaseManager.ticketCategoryDao.getByID(
-            ticket.categoryID,
-            sqlConnection,
-            (this::ticketCategoryGetByIDHandler)(
-                handler,
-                sqlConnection,
-                ticket,
-                username,
-                messages,
-                usernameList,
-                count
-            )
-        )
+        val ticketCategory = databaseManager.ticketCategoryDao.getByID(ticket.categoryID, sqlConnection)
+
+        return getResult(ticket, usernameList, ticketCategory, username, messages, count)
     }
 
-    private fun ticketCategoryGetByIDHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticket: Ticket,
-        username: String,
-        messages: List<TicketMessage>,
-        usernameList: Map<Int, String>,
-        count: Int
-    ) = handler@{ ticketCategory: TicketCategory?, _: AsyncResult<*> ->
-        databaseManager.closeConnection(sqlConnection) {
-            if (ticketCategory == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                return@closeConnection
-            }
-
-            invokeHandler(handler, ticket, usernameList, ticketCategory, username, messages, count)
-        }
-    }
-
-    private fun invokeHandler(
-        handler: (result: Result) -> Unit,
+    private fun getResult(
         ticket: Ticket,
         usernameList: Map<Int, String>,
         ticketCategory: TicketCategory?,
         username: String,
         ticketMessages: List<TicketMessage>,
         messageCount: Int
-    ) {
+    ): Result {
         val messages = mutableListOf<Map<String, Any?>>()
 
         ticketMessages.forEach { ticketMessage ->
@@ -252,18 +86,17 @@ class TicketDetailAPI(
             )
         }
 
-        handler.invoke(
-            Successful(
-                mapOf(
-                    "ticket" to mapOf(
-                        "username" to username,
-                        "title" to ticket.title,
-                        "category" to
-                                if (ticketCategory == null)
-                                    "-"
-                                else
-                                    mapOf(
-                                        "title" to ticketCategory.title
+        return Successful(
+            mapOf(
+                "ticket" to mapOf(
+                    "username" to username,
+                    "title" to ticket.title,
+                    "category" to
+                            if (ticketCategory == null)
+                                "-"
+                            else
+                                mapOf(
+                                    "title" to ticketCategory.title
                                     ),
                         "messages" to messages,
                         "status" to ticket.status,
@@ -272,6 +105,5 @@ class TicketDetailAPI(
                     )
                 )
             )
-        )
     }
 }

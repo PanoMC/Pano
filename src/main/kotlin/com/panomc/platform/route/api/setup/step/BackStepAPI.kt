@@ -16,9 +16,9 @@ class BackStepAPI(
 
     override val routes = arrayListOf("/api/setup/step/backStep")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         setupManager.backStep()
 
-        handler.invoke(Successful(setupManager.getCurrentStepData().map))
+        return Successful(setupManager.getCurrentStepData().map)
     }
 }

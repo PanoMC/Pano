@@ -5,9 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PermissionGroupPermsDao
 import com.panomc.platform.db.model.PermissionGroupPerms
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
@@ -16,11 +14,10 @@ import io.vertx.sqlclient.Tuple
 @Dao
 class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
     DaoImpl(databaseManager, "permission_group_perms"), PermissionGroupPermsDao {
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` int NOT NULL AUTO_INCREMENT,
                               `permission_id` int NOT NULL,
@@ -28,66 +25,53 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Permission Table';
                         """
-                )
-                .execute {
-                    handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
+    }
 
-    override fun getPermissionGroupPerms(
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupPerms: List<PermissionGroupPerms>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+    override suspend fun getPermissionGroupPerms(
+        sqlConnection: SqlConnection
+    ): List<PermissionGroupPerms> {
         val query =
             "SELECT `id`, `permission_id`, `permission_group_id` FROM `${getTablePrefix() + tableName}`"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute()
+            .await()
 
-                    val permissionGroupPerms = rows.map { row ->
-                        PermissionGroupPerms(row.getInteger(0), row.getInteger(1), row.getInteger(2))
-                    }
+        val permissionGroupPerms = rows.map { row ->
+            PermissionGroupPerms(row.getInteger(0), row.getInteger(1), row.getInteger(2))
+        }
 
-                    handler.invoke(permissionGroupPerms, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return permissionGroupPerms
     }
 
-    override fun doesPermissionGroupHavePermission(
+    override suspend fun doesPermissionGroupHavePermission(
         permissionGroupID: Int,
         permissionID: Int,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermission: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? AND  `permission_id` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     permissionGroupID,
                     permissionID
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            ).await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) != 0, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) != 0
     }
 
-    override fun addPermission(
+    override suspend fun addPermission(
         permissionGroupID: Int,
         permissionID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`permission_id`, `permission_group_id`) VALUES (?, ?)"
@@ -99,19 +83,13 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
                     permissionID,
                     permissionGroupID
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            ).await()
     }
 
-    override fun removePermission(
+    override suspend fun removePermission(
         permissionGroupID: Int,
         permissionID: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query =
             "DELETE FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? AND `permission_id` = ?"
@@ -123,18 +101,12 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
                     permissionGroupID,
                     permissionID
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            ).await()
     }
 
-    override fun removePermissionGroup(
+    override suspend fun removePermissionGroup(
         permissionGroupID: Int,
         sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
     ) {
         val query =
             "DELETE FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ?"
@@ -145,11 +117,6 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
                 Tuple.of(
                     permissionGroupID
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            ).await()
     }
 }

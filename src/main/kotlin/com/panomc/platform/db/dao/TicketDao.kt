@@ -2,102 +2,86 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Ticket
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface TicketDao : Dao<Ticket> {
-    fun count(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit)
+    suspend fun count(sqlConnection: SqlConnection): Int
 
-    fun countOfOpenTickets(sqlConnection: SqlConnection, handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit)
+    suspend fun countOfOpenTickets(sqlConnection: SqlConnection): Int
 
-    fun getLast5Tickets(
-        sqlConnection: SqlConnection,
-        handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun getLast5Tickets(
+        sqlConnection: SqlConnection
+    ): List<Ticket>
 
-    fun getAllByPageAndPageType(
+    suspend fun getAllByPageAndPageType(
         page: Int,
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Ticket>
 
-    fun getAllByPageAndCategoryID(
+    suspend fun getAllByPageAndCategoryID(
         page: Int,
         categoryID: Int,
-        sqlConnection: SqlConnection,
-        handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Ticket>
 
-    fun getAllByUserIDAndPage(
+    suspend fun getAllByUserIDAndPage(
         userID: Int,
         page: Int,
-        sqlConnection: SqlConnection,
-        handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Ticket>
 
-    fun getCountByPageType(
+    suspend fun getCountByPageType(
         pageType: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun getByCategory(
+    suspend fun getByCategory(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (tickets: List<Ticket>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): List<Ticket>
 
-    fun closeTickets(
+    suspend fun closeTickets(
         selectedTickets: JsonArray,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun countByCategory(
+    suspend fun countByCategory(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun delete(
+    suspend fun delete(
         ticketList: JsonArray,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun countByUserID(
+    suspend fun countByUserID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun getByID(
+    suspend fun getByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (ticket: Ticket?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Ticket?
 
-    fun isExistsByID(
+    suspend fun isExistsByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun makeStatus(
+    suspend fun makeStatus(
         id: Int,
         status: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun updateLastUpdateDate(
+    suspend fun updateLastUpdateDate(
         id: Int,
         date: Long,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 }

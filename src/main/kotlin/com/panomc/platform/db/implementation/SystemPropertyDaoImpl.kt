@@ -5,9 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.SystemPropertyDao
 import com.panomc.platform.db.model.SystemProperty
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
@@ -17,11 +15,10 @@ import io.vertx.sqlclient.Tuple
 class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "system_property"),
     SystemPropertyDao {
 
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                         CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                           `id` int NOT NULL AUTO_INCREMENT,
                           `option` text NOT NULL,
@@ -29,21 +26,16 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
                           PRIMARY KEY (`id`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='System Property table.';
                     """
-                )
-                .execute {
-                    if (it.succeeded())
-                        addShowGettingStartedOption(sqlConnection) {
-                            handler.invoke(it)
-                        }
-                    else
-                        handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
 
-    override fun add(
+        addShowGettingStartedOption(sqlConnection)
+    }
+
+    override suspend fun add(
         systemProperty: SystemProperty,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val query = "INSERT INTO `${getTablePrefix() + tableName}` (`option`, `value`) VALUES (?, ?)"
 
@@ -54,18 +46,13 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
                     systemProperty.option,
                     systemProperty.value
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
-    override fun update(
+    override suspend fun update(
         systemProperty: SystemProperty,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val params = Tuple.tuple()
 
@@ -83,96 +70,76 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .preparedQuery(query)
             .execute(
                 params
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            )
+            .await()
     }
 
 
-    override fun isPropertyExists(
+    override suspend fun isPropertyExists(
         systemProperty: SystemProperty,
-        sqlConnection: SqlConnection,
-        handler: (exists: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query = "SELECT COUNT(`value`) FROM `${getTablePrefix() + tableName}` where `option` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(systemProperty.option)
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) != 0, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) != 0
     }
 
-    override fun isUserInstalledSystemByUserID(
+    override suspend fun isUserInstalledSystemByUserID(
         userID: Int,
-        sqlConnection: SqlConnection,
-        handler: (isUserInstalledSystem: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val query =
             "SELECT COUNT(`value`) FROM `${getTablePrefix() + tableName}` where `option` = ? and `value` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     "who_installed_user_id",
                     userID.toString()
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0) != 0, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0) != 0
     }
 
-    override fun getValue(
+    override suspend fun getValue(
         systemProperty: SystemProperty,
-        sqlConnection: SqlConnection,
-        handler: (systemProperty: SystemProperty?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): SystemProperty? {
         val query = "SELECT `value` FROM `${getTablePrefix() + tableName}` where `option` = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     systemProperty.option
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(
-                        SystemProperty(
-                            systemProperty.id,
-                            systemProperty.option,
-                            rows.toList()[0].getString(0)
-                        ), queryResult
-                    )
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return SystemProperty(
+            systemProperty.id,
+            systemProperty.option,
+            rows.toList()[0].getString(0)
+        )
     }
 
-    private fun addShowGettingStartedOption(
-        sqlConnection: SqlConnection,
-        handler: (asyncResult: AsyncResult<*>) -> Unit
+    private suspend fun addShowGettingStartedOption(
+        sqlConnection: SqlConnection
     ) {
-        add(SystemProperty(-1, "show_getting_started", "true"), sqlConnection) { _, asyncResult ->
-            handler.invoke(asyncResult)
-        }
+        add(SystemProperty(-1, "show_getting_started", "true"), sqlConnection)
     }
 }

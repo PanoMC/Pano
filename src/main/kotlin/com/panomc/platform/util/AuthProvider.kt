@@ -4,15 +4,13 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Error
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jws
 import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.io.Decoders
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 import java.security.KeyFactory
 import java.security.spec.PKCS8EncodedKeySpec
@@ -30,128 +28,69 @@ class AuthProvider(
      * authenticate method validates input and login
      * Successful() if login is valid
      */
-    fun authenticate(
+    suspend fun authenticate(
         usernameOrEmail: String,
         password: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit,
+        sqlConnection: SqlConnection
     ) {
-        val isEmailVerifiedByIDHandler = isEmailVerifiedByIDHandler@{ isVerified: Boolean?, _: AsyncResult<*> ->
-            if (isVerified == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
+        val isLoginCorrect = databaseManager.userDao.isLoginCorrect(usernameOrEmail, password, sqlConnection)
 
-                return@isEmailVerifiedByIDHandler
-            }
-
-            if (!isVerified) {
-                // TODO v2 Add sending e-mail again
-                handler.invoke(Error(ErrorCode.LOGIN_EMAIL_NOT_VERIFIED))
-
-                return@isEmailVerifiedByIDHandler
-            }
-
-            handler.invoke(Successful())
+        if (!isLoginCorrect) {
+            throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 
-        val getUserIDFromUsernameOrEmailHandler =
-            getUserIDFromUsernameOrEmailHandler@{ userID: Int?, _: AsyncResult<*> ->
-                if (userID == null) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                    return@getUserIDFromUsernameOrEmailHandler
-                }
-
-                databaseManager.userDao.isEmailVerifiedByID(
-                    userID,
-                    sqlConnection,
-                    isEmailVerifiedByIDHandler
-                )
-            }
-
-        val isLoginCorrectHandler = isLoginCorrectHandler@{ isLoginCorrect: Boolean?, _: AsyncResult<*> ->
-            if (isLoginCorrect == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                return@isLoginCorrectHandler
-            }
-
-            if (!isLoginCorrect) {
-                handler.invoke(Error(ErrorCode.LOGIN_IS_INVALID))
-
-                return@isLoginCorrectHandler
-            }
-
-            databaseManager.userDao.getUserIDFromUsernameOrEmail(
-                usernameOrEmail,
-                sqlConnection,
-                getUserIDFromUsernameOrEmailHandler
+        val userId =
+            databaseManager.userDao.getUserIDFromUsernameOrEmail(usernameOrEmail, sqlConnection) ?: throw Error(
+                ErrorCode.UNKNOWN
             )
-        }
 
-        databaseManager.userDao.isLoginCorrect(
-            usernameOrEmail,
-            password,
-            sqlConnection,
-            isLoginCorrectHandler
-        )
+        val isVerified = databaseManager.userDao.isEmailVerifiedByID(userId, sqlConnection)
+
+        if (!isVerified) {
+            throw Error(ErrorCode.LOGIN_EMAIL_NOT_VERIFIED)
+        }
     }
 
-    fun login(
+    suspend fun login(
         usernameOrEmail: String,
-        sqlConnection: SqlConnection,
-        handler: (result: Result) -> Unit
-    ) {
-        val getUserIDFromUsernameOrEmailHandler =
-            getUserIDFromUsernameOrEmailHandler@{ userID: Int?, _: AsyncResult<*> ->
-                if (userID == null) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                    return@getUserIDFromUsernameOrEmailHandler
-                }
-
-                val privateKeySpec = PKCS8EncodedKeySpec(
-                    Decoders.BASE64.decode(
-                        mConfigManager.getConfig().getJsonObject("jwt-keys").getString("private")
-                    )
-                )
-                val keyFactory = KeyFactory.getInstance("RSA")
-
-                val token = Jwts.builder()
-                    .setSubject(userID.toString())
-                    .signWith(
-                        keyFactory.generatePrivate(privateKeySpec)
-                    )
-                    .compact()
-
-                handler.invoke(
-                    Successful(
-                        mapOf(
-                            "jwt" to token
-                        )
-                    )
-                )
-            }
-
-        databaseManager.userDao.getUserIDFromUsernameOrEmail(
+        sqlConnection: SqlConnection
+    ): String {
+        val userId = databaseManager.userDao.getUserIDFromUsernameOrEmail(
             usernameOrEmail,
-            sqlConnection,
-            getUserIDFromUsernameOrEmailHandler
+            sqlConnection
         )
+
+        if (userId == null) {
+            throw Error(ErrorCode.UNKNOWN)
+        }
+
+        val privateKeySpec = PKCS8EncodedKeySpec(
+            Decoders.BASE64.decode(
+                mConfigManager.getConfig().getJsonObject("jwt-keys").getString("private")
+            )
+        )
+        val keyFactory = KeyFactory.getInstance("RSA")
+
+        val token = Jwts.builder()
+            .setSubject(userId.toString())
+            .signWith(
+                keyFactory.generatePrivate(privateKeySpec)
+            )
+            .compact()
+
+        return token
     }
 
     fun isLoggedIn(
-        routingContext: RoutingContext,
-        handler: (isLoggedIn: Boolean) -> Unit
-    ) {
+        routingContext: RoutingContext
+    ): Boolean {
         val token = getTokenFromRoutingContext(routingContext)
 
         if (token == null) {
-            handler.invoke(false)
-
-            return
+            return false
         }
 
-        handler.invoke(isTokenValid(token))
+        return isTokenValid(token)
     }
 
 //    fun isAdmin(
@@ -235,91 +174,52 @@ class AuthProvider(
 //        }
 //    }
 
-    fun hasAccessPanel(
-        routingContext: RoutingContext,
-        handler: (hasAccess: Boolean, asyncResult: AsyncResult<*>?) -> Unit
-    ) {
-        fun hasAccessPanelHandler(sqlConnection: SqlConnection) =
-            hasAccessPanelHandler@{ hasAccess: Boolean, asyncResult: AsyncResult<*>? ->
-                databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(hasAccess, asyncResult)
-                }
-            }
+    suspend fun hasAccessPanel(
+        routingContext: RoutingContext
+    ): Boolean {
+        val sqlConnection = databaseManager.createConnection()
 
-        val createConnectionHandler =
-            createConnectionHandler@{ sqlConnection: SqlConnection?, asyncResult: AsyncResult<SqlConnection> ->
-                if (sqlConnection == null) {
-                    handler.invoke(false, asyncResult)
+        val hasAccess = hasAccessPanel(routingContext, sqlConnection)
 
-                    return@createConnectionHandler
-                }
+        databaseManager.closeConnection(sqlConnection).await()
 
-
-                hasAccessPanel(routingContext, sqlConnection, hasAccessPanelHandler(sqlConnection))
-            }
-
-        databaseManager.createConnection(createConnectionHandler)
+        return hasAccess
     }
 
-    fun hasAccessPanel(
+    suspend fun hasAccessPanel(
         routingContext: RoutingContext,
-        sqlConnection: SqlConnection,
-        handler: (hasAccess: Boolean, asyncResult: AsyncResult<*>?) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Boolean {
         val userID = getUserIDFromRoutingContext(routingContext)
 
-        val getPermissionGroupIDFromUserIDHandler =
-            getPermissionGroupIDFromUserIDHandler@{ permissionGroupID: Int?, asyncResult: AsyncResult<*> ->
-                if (permissionGroupID == null) {
-                    handler.invoke(false, asyncResult)
+        val permissionGroupID = databaseManager.userDao.getPermissionGroupIDFromUserID(userID, sqlConnection)
 
-                    return@getPermissionGroupIDFromUserIDHandler
-                }
+        if (permissionGroupID == null || permissionGroupID == -1) {
+            return false
+        }
 
-                if (permissionGroupID == -1) {
-                    handler.invoke(false, asyncResult)
-
-                    return@getPermissionGroupIDFromUserIDHandler
-                }
-
-                handler.invoke(true, asyncResult)
-            }
-
-        databaseManager.userDao.getPermissionGroupIDFromUserID(
-            userID,
-            sqlConnection,
-            getPermissionGroupIDFromUserIDHandler
-        )
+        return true
     }
 
     fun inputValidator(
         usernameOrEmail: String,
         password: String,
-        recaptcha: String,
-        handler: (result: Result) -> Unit,
+        recaptcha: String
     ) {
         if (usernameOrEmail.isEmpty()) {
-            handler.invoke(Error(ErrorCode.LOGIN_IS_INVALID))
-
-            return
+            throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 
         if (!usernameOrEmail.matches(Regex("^[a-zA-Z0-9_]+\$")) && !usernameOrEmail.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$"))) {
-            handler.invoke(Error(ErrorCode.LOGIN_IS_INVALID))
-
-            return
+            throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 
         if (password.isEmpty()) {
-            handler.invoke(Error(ErrorCode.LOGIN_IS_INVALID))
-
-            return
+            throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 
         if (password.length < 6 || password.length > 128) {
-            handler.invoke(Error(ErrorCode.LOGIN_IS_INVALID))
-
-            return
+            throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 
 //        if (!this.reCaptcha.isValid(reCaptcha)) {
@@ -327,8 +227,6 @@ class AuthProvider(
 //
 //            return
 //        }
-
-        handler.invoke(Successful())
     }
 
 //    fun logout(

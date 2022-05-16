@@ -3,7 +3,7 @@ package com.panomc.platform.db.migration
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
@@ -14,13 +14,11 @@ class DatabaseMigration_1_2(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION = 2
     override val SCHEME_VERSION_INFO = ""
 
-    override val handlers: List<(sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit> =
-        listOf(
-            createSystemPropertyTable()
-        )
+    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+        listOf(createSystemPropertyTable())
 
-    private fun createSystemPropertyTable(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
+    private fun createSystemPropertyTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+        { sqlConnection: SqlConnection ->
             sqlConnection
                 .query(
                     """
@@ -32,22 +30,17 @@ class DatabaseMigration_1_2(databaseManager: DatabaseManager) : DatabaseMigratio
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='System Property table.';
                         """
                 )
-                .execute {
-                    if (it.succeeded())
-                        sqlConnection
-                            .preparedQuery("INSERT INTO ${getTablePrefix()}system_property (`option`, `value`) VALUES (?, ?)")
-                            .execute(Tuple.of("show_getting_started", "true")) { queryResult ->
-                                if (queryResult.succeeded())
-                                    sqlConnection
-                                        .preparedQuery("INSERT INTO ${getTablePrefix()}system_property (`option`, `value`) VALUES (?, ?)")
-                                        .execute(Tuple.of("show_connect_server_info", "true")) { queryResult2 ->
-                                            handler.invoke(queryResult2)
-                                        }
-                                else
-                                    handler.invoke(queryResult)
-                            }
-                    else
-                        handler.invoke(it)
-                }
+                .execute()
+                .await()
+
+            sqlConnection
+                .preparedQuery("INSERT INTO ${getTablePrefix()}system_property (`option`, `value`) VALUES (?, ?)")
+                .execute(Tuple.of("show_getting_started", "true"))
+                .await()
+
+            sqlConnection
+                .preparedQuery("INSERT INTO ${getTablePrefix()}system_property (`option`, `value`) VALUES (?, ?)")
+                .execute(Tuple.of("show_connect_server_info", "true"))
+                .await()
         }
 }

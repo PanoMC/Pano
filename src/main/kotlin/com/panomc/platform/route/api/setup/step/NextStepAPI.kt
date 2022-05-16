@@ -18,7 +18,7 @@ class NextStepAPI(
 
     override val routes = arrayListOf("/api/setup/step/nextStep")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
 
         val clientStep = data.getInteger("step")
@@ -65,6 +65,6 @@ class NextStepAPI(
                 setupManager.nextStep()
         }
 
-        handler.invoke(Successful(setupManager.getCurrentStepData().map))
+        return Successful(setupManager.getCurrentStepData().map)
     }
 }

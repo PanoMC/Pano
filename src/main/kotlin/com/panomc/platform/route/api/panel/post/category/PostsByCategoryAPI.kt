@@ -8,9 +8,7 @@ import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
 import kotlin.math.ceil
 
 @Endpoint
@@ -23,200 +21,83 @@ class PostsByCategoryAPI(
 
     override val routes = arrayListOf("/api/panel/post/category/postsByCategory")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
         val categoryURL = data.getString("url")
         val page = data.getInteger("page")
 
-        fun getUsernameByListOfIDHandler(
-            sqlConnection: SqlConnection,
-            category: PostCategory,
-            count: Int,
-            totalPage: Int,
-            posts: List<Post>
-        ) = handler@{ usernameList: Map<Int, String>?, _: AsyncResult<*> ->
-            if (usernameList == null) {
-                databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN))
-                }
+        val sqlConnection = createConnection(databaseManager, context)
 
-                return@handler
-            }
+        val exists = databaseManager.postCategoryDao.isExistsByURL(categoryURL, sqlConnection)
 
-            sendResults(
-                posts, usernameList, category, count, totalPage, handler, sqlConnection
+        if (!exists) {
+            throw Error(ErrorCode.NOT_EXISTS)
+        }
+
+        var category = PostCategory()
+
+        if (categoryURL != "-") {
+            category = databaseManager.postCategoryDao.getByURL(categoryURL, sqlConnection) ?: throw Error(
+                ErrorCode.UNKNOWN
             )
         }
 
-        fun getListByPageAndCategoryIDHandler(
-            sqlConnection: SqlConnection,
-            category: PostCategory,
-            count: Int,
-            totalPage: Int
-        ) = getListByPageAndCategoryIDHandler@{ posts: List<Post>?, _: AsyncResult<*> ->
-            if (posts == null) {
-                databaseManager.closeConnection(sqlConnection) {
-                    handler.invoke(Error(ErrorCode.UNKNOWN))
-                }
-                return@getListByPageAndCategoryIDHandler
-            }
+        val count = databaseManager.postDao.countByCategory(category.id, sqlConnection)
 
-            if (posts.isEmpty()) {
-                sendResults(posts, mapOf(), category, count, totalPage, handler, sqlConnection)
+        var totalPage = ceil(count.toDouble() / 10).toInt()
 
-                return@getListByPageAndCategoryIDHandler
-            }
+        if (totalPage < 1)
+            totalPage = 1
 
-            val userIDList = posts.distinctBy { it.writerUserID }.map { it.writerUserID }
-
-            databaseManager.userDao.getUsernameByListOfID(
-                userIDList,
-                sqlConnection,
-                getUsernameByListOfIDHandler(sqlConnection, category, count, totalPage, posts)
-            )
+        if (page > totalPage || page < 1) {
+            throw Error(ErrorCode.PAGE_NOT_FOUND)
         }
 
-        fun countByCategoryHandler(sqlConnection: SqlConnection, category: PostCategory) =
-            countByCategoryHandler@{ count: Int?, _: AsyncResult<*> ->
-                if (count == null) {
-                    databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.UNKNOWN))
-                    }
+        val posts = databaseManager.postDao.getListByPageAndCategoryID(category.id, page, sqlConnection)
 
-                    return@countByCategoryHandler
-                }
+        if (posts.isEmpty()) {
+            return getResults(posts, mapOf(), category, count, totalPage)
+        }
 
-                var totalPage = ceil(count.toDouble() / 10).toInt()
+        val userIDList = posts.distinctBy { it.writerUserID }.map { it.writerUserID }
 
-                if (totalPage < 1)
-                    totalPage = 1
+        val usernameList = databaseManager.userDao.getUsernameByListOfID(userIDList, sqlConnection)
 
-                if (page > totalPage || page < 1) {
-                    databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.PAGE_NOT_FOUND))
-                    }
-
-                    return@countByCategoryHandler
-                }
-
-                databaseManager.postDao.getListByPageAndCategoryID(
-                    category.id,
-                    page,
-                    sqlConnection,
-                    getListByPageAndCategoryIDHandler(sqlConnection, category, count, totalPage)
-                )
-            }
-
-        fun getByURLHandler(sqlConnection: SqlConnection) =
-            getByURLHandler@{ category: PostCategory?, _: AsyncResult<*> ->
-                if (category == null) {
-                    databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.UNKNOWN))
-                    }
-
-                    return@getByURLHandler
-                }
-
-                databaseManager.postDao.countByCategory(
-                    category.id,
-                    sqlConnection,
-                    countByCategoryHandler(sqlConnection, category)
-                )
-            }
-
-        fun isExistsByURLHandler(sqlConnection: SqlConnection) =
-            isExistsByURLHandler@{ exists: Boolean?, _: AsyncResult<*> ->
-                if (exists == null) {
-                    databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.UNKNOWN))
-                    }
-
-                    return@isExistsByURLHandler
-                }
-
-                if (!exists) {
-                    databaseManager.closeConnection(sqlConnection) {
-                        handler.invoke(Error(ErrorCode.NOT_EXISTS))
-                    }
-
-                    return@isExistsByURLHandler
-                }
-
-                databaseManager.postCategoryDao.getByURL(
-                    categoryURL,
-                    sqlConnection,
-                    getByURLHandler(sqlConnection)
-                )
-            }
-
-        val createConnectionHandler =
-            createConnectionHandler@{ sqlConnection: SqlConnection?, _: AsyncResult<SqlConnection> ->
-                if (sqlConnection == null) {
-                    handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
-
-                    return@createConnectionHandler
-                }
-
-                if (categoryURL == "-") {
-                    val nullCategory = PostCategory()
-
-                    databaseManager.postDao.countByCategory(
-                        nullCategory.id,
-                        sqlConnection,
-                        countByCategoryHandler(sqlConnection, nullCategory)
-                    )
-
-                    return@createConnectionHandler
-                }
-
-                databaseManager.postCategoryDao.isExistsByURL(
-                    categoryURL,
-                    sqlConnection,
-                    isExistsByURLHandler(sqlConnection)
-                )
-            }
-
-        databaseManager.createConnection(createConnectionHandler)
+        return getResults(posts, usernameList, category, count, totalPage)
     }
 
-    private fun sendResults(
+    private fun getResults(
         posts: List<Post>,
         usernameList: Map<Int, String>,
         category: PostCategory,
         count: Int,
-        totalPage: Int,
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection
-    ) {
-        databaseManager.closeConnection(sqlConnection) {
-            val postsDataList = mutableListOf<Map<String, Any?>>()
+        totalPage: Int
+    ): Result {
+        val postsDataList = mutableListOf<Map<String, Any?>>()
 
-            posts.forEach { post ->
-                postsDataList.add(
-                    mapOf(
-                        "id" to post.id,
-                        "title" to post.title,
-                        "category" to category,
-                        "writer" to mapOf(
-                            "username" to usernameList[post.writerUserID]
-                        ),
-                        "date" to post.date,
-                        "views" to post.views,
-                        "status" to post.status
-                    )
-                )
-            }
-
-            handler.invoke(
-                Successful(
-                    mutableMapOf<String, Any?>(
-                        "posts" to postsDataList,
-                        "postCount" to count,
-                        "totalPage" to totalPage,
-                        "category" to category
-                    )
+        posts.forEach { post ->
+            postsDataList.add(
+                mapOf(
+                    "id" to post.id,
+                    "title" to post.title,
+                    "category" to category,
+                    "writer" to mapOf(
+                        "username" to usernameList[post.writerUserID]
+                    ),
+                    "date" to post.date,
+                    "views" to post.views,
+                    "status" to post.status
                 )
             )
         }
+
+        return Successful(
+            mutableMapOf<String, Any?>(
+                "posts" to postsDataList,
+                "postCount" to count,
+                "totalPage" to totalPage,
+                "category" to category
+            )
+        )
     }
 }

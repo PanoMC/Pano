@@ -6,10 +6,7 @@ import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.Error
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
 import de.triology.recaptchav2java.ReCaptcha
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 object RegisterUtil {
@@ -21,83 +18,58 @@ object RegisterUtil {
         passwordRepeat: String = password,
         agreement: Boolean,
         recaptchaToken: String = "",
-        reCaptcha: ReCaptcha? = null,
-        handler: (result: Result) -> Unit
+        reCaptcha: ReCaptcha? = null
     ) {
         if (username.isEmpty()) {
-            handler.invoke(Error(ErrorCode.REGISTER_USERNAME_EMPTY))
-
-            return
+            throw Error(ErrorCode.REGISTER_USERNAME_EMPTY)
         }
 
         if (email.isEmpty()) {
-            handler.invoke(Error(ErrorCode.REGISTER_EMAIL_EMPTY))
-
-            return
+            throw Error(ErrorCode.REGISTER_EMAIL_EMPTY)
         }
 
         if (password.isEmpty()) {
-            handler.invoke(Error(ErrorCode.REGISTER_PASSWORD_EMPTY))
-
-            return
+            throw Error(ErrorCode.REGISTER_PASSWORD_EMPTY)
         }
 
         if (username.length < 3) {
-            handler.invoke(Error(ErrorCode.REGISTER_USERNAME_TOO_SHORT))
-
-            return
+            throw Error(ErrorCode.REGISTER_USERNAME_TOO_SHORT)
         }
 
         if (username.length > 16) {
-            handler.invoke(Error(ErrorCode.REGISTER_USERNAME_TOO_LONG))
-
-            return
+            throw Error(ErrorCode.REGISTER_USERNAME_TOO_LONG)
         }
 
         if (password.length < 6) {
-            handler.invoke(Error(ErrorCode.REGISTER_PASSWORD_TOO_SHORT))
-
-            return
+            throw Error(ErrorCode.REGISTER_PASSWORD_TOO_SHORT)
         }
 
         if (password.length > 128) {
-            handler.invoke(Error(ErrorCode.REGISTER_PASSWORD_TOO_LONG))
-
-            return
+            throw Error(ErrorCode.REGISTER_PASSWORD_TOO_LONG)
         }
 
         if (!username.matches(Regex("^[a-zA-Z0-9_]+\$"))) {
-            handler.invoke(Error(ErrorCode.REGISTER_INVALID_USERNAME))
-
-            return
+            throw Error(ErrorCode.REGISTER_INVALID_USERNAME)
         }
 
         if (!email.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$"))) {
-            handler.invoke(Error(ErrorCode.REGISTER_INVALID_USERNAME))
-
-            return
+            throw Error(ErrorCode.REGISTER_INVALID_USERNAME)
         }
 
         if (password != passwordRepeat) {
-            handler.invoke(Error(ErrorCode.REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME))
-
-            return
+            throw Error(ErrorCode.REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME)
         }
 
         if (!agreement) {
-            handler.invoke(Error(ErrorCode.REGISTER_NOT_ACCEPTED_AGREEMENT))
+            throw Error(ErrorCode.REGISTER_NOT_ACCEPTED_AGREEMENT)
         }
 
         if (reCaptcha != null && !reCaptcha.isValid(recaptchaToken)) {
-            handler.invoke(Error(ErrorCode.REGISTER_CANT_VERIFY_ROBOT))
-
-            return
+            throw Error(ErrorCode.REGISTER_CANT_VERIFY_ROBOT)
         }
-
-        handler.invoke(Successful())
     }
 
-    fun register(
+    suspend fun register(
         databaseManager: DatabaseManager,
         sqlConnection: SqlConnection,
         username: String,
@@ -106,137 +78,34 @@ object RegisterUtil {
         remoteIP: String,
         isAdmin: Boolean = false,
         isSetup: Boolean = false,
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit
     ) {
-        databaseManager.userDao.isExistsByUsername(
+        val isUsernameExists = databaseManager.userDao.isExistsByUsername(
             username,
-            sqlConnection,
-            (this::isExistsByUsernameHandler)(
-                databaseManager,
-                sqlConnection,
-                handler,
-                username,
-                email,
-                password,
-                remoteIP,
-                isAdmin,
-                isSetup
-            )
+            sqlConnection
         )
-    }
 
-    private fun isExistsByUsernameHandler(
-        databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit,
-        username: String,
-        email: String,
-        password: String,
-        remoteIP: String,
-        isAdmin: Boolean,
-        isSetup: Boolean
-    ) = handler@{ exists: Boolean?, asyncResult: AsyncResult<*> ->
-        if (exists == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN), asyncResult)
-            }
-
-            return@handler
+        if (isUsernameExists) {
+            throw Error(ErrorCode.REGISTER_USERNAME_NOT_AVAILABLE)
         }
 
-        if (exists) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.REGISTER_USERNAME_NOT_AVAILABLE), null)
-            }
+        val isEmailExists = databaseManager.userDao.isEmailExists(email, sqlConnection)
 
-            return@handler
-        }
-
-        databaseManager.userDao.isEmailExists(
-            email,
-            sqlConnection,
-            (this::isEmailExistsHandler)(
-                databaseManager,
-                sqlConnection,
-                handler,
-                username,
-                email,
-                password,
-                remoteIP,
-                isAdmin,
-                isSetup
-            )
-        )
-    }
-
-    private fun isEmailExistsHandler(
-        databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit,
-        username: String,
-        email: String,
-        password: String,
-        remoteIP: String,
-        isAdmin: Boolean,
-        isSetup: Boolean
-    ) = handler@{ exists: Boolean?, asyncResult: AsyncResult<*> ->
-        if (exists == null) {
-            handler.invoke(
-                Error(ErrorCode.UNKNOWN),
-                asyncResult
-            )
-
-            return@handler
-        }
-
-        if (exists) {
-            handler.invoke(Error(ErrorCode.REGISTER_EMAIL_NOT_AVAILABLE), null)
-
-            return@handler
+        if (isEmailExists) {
+            throw Error(ErrorCode.REGISTER_EMAIL_NOT_AVAILABLE)
         }
 
         val user = User(-1, username, email, password, remoteIP, -1, System.currentTimeMillis())
 
         if (!isAdmin) {
-            addUser(user, databaseManager, sqlConnection, isSetup, handler)
+            databaseManager.userDao.add(user, sqlConnection, isSetup)
 
-            return@handler
+            return
         }
 
-        databaseManager.permissionGroupDao.getPermissionGroupID(
+        val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupID(
             PermissionGroup(-1, "admin"),
-            sqlConnection,
-            (this::getPermissionGroupIDHandler)(
-                databaseManager,
-                sqlConnection,
-                handler,
-                username,
-                email,
-                password,
-                remoteIP,
-                isSetup
-            )
-        )
-    }
-
-    private fun getPermissionGroupIDHandler(
-        databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit,
-        username: String,
-        email: String,
-        password: String,
-        remoteIP: String,
-        isSetup: Boolean
-    ) = handler@{ permissionGroupID: Int?, asyncResult: AsyncResult<*> ->
-        if (permissionGroupID == null) {
-            handler.invoke(
-                Error(ErrorCode.UNKNOWN),
-                asyncResult
-            )
-
-            return@handler
-        }
+            sqlConnection
+        ) ?: throw Error(ErrorCode.UNKNOWN)
 
         val adminUser = User(
             -1,
@@ -244,141 +113,30 @@ object RegisterUtil {
             email,
             password,
             remoteIP,
-            permissionGroupID,
+            adminPermissionGroupId,
             System.currentTimeMillis()
         )
 
-        addUser(
-            adminUser,
-            databaseManager,
-            sqlConnection,
-            isSetup,
-            (this::addUserHandler)(databaseManager, sqlConnection, handler, username)
-        )
-    }
+        val userId = databaseManager.userDao.add(adminUser, sqlConnection, isSetup)
+        val property = SystemProperty(-1, "who_installed_user_id", userId.toString())
 
-    private fun addUserHandler(
-        databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit,
-        username: String
-    ) = handler@{ result: Result?, asyncResult: AsyncResult<*> ->
-        if (result == null) {
-            handler.invoke(
-                Error(ErrorCode.UNKNOWN),
-                asyncResult
-            )
-
-            return@handler
-        }
-
-        databaseManager.userDao.getUserIDFromUsername(
-            username,
-            sqlConnection,
-            (this::getUserIDFromUsernameHandler)(databaseManager, sqlConnection, handler)
-        )
-    }
-
-    private fun getUserIDFromUsernameHandler(
-        databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit
-    ) = handler@{ userID: Int?, asyncResult: AsyncResult<*> ->
-        if (userID == null) {
-            handler.invoke(
-                Error(ErrorCode.UNKNOWN),
-                asyncResult
-            )
-
-            return@handler
-        }
-
-        val property = SystemProperty(-1, "who_installed_user_id", userID.toString())
-
-        databaseManager.systemPropertyDao.isPropertyExists(
+        val isPropertyExists = databaseManager.systemPropertyDao.isPropertyExists(
             property,
-            sqlConnection,
-            (this::isPropertyExistsHandler)(databaseManager, sqlConnection, handler, property)
+            sqlConnection
         )
-    }
 
-    private fun isPropertyExistsHandler(
-        databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit,
-        property: SystemProperty
-    ) = handler@{ exists: Boolean?, asyncResult: AsyncResult<*> ->
-        if (exists == null) {
-            handler.invoke(
-                Error(ErrorCode.UNKNOWN),
-                asyncResult
-            )
-
-            return@handler
-        }
-
-        if (exists) {
+        if (isPropertyExists) {
             databaseManager.systemPropertyDao.update(
                 property,
-                sqlConnection,
-                (this::updateHandler)(handler)
+                sqlConnection
             )
 
-            return@handler
+            return
         }
 
         databaseManager.systemPropertyDao.add(
             property,
-            sqlConnection,
-            (this::addHandler)(handler)
+            sqlConnection
         )
-    }
-
-    private fun updateHandler(
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit
-    ) = handler@{ result: Result?, asyncResult: AsyncResult<*> ->
-        if (result == null) {
-            handler.invoke(
-                Error(ErrorCode.UNKNOWN),
-                asyncResult
-            )
-
-            return@handler
-        }
-
-        handler.invoke(Successful(), asyncResult)
-    }
-
-    private fun addHandler(
-        handler: (result: Result, asyncResult: AsyncResult<*>?) -> Unit
-    ) = handler@{ result: Result?, asyncResult: AsyncResult<*> ->
-        if (result == null) {
-            handler.invoke(
-                Error(ErrorCode.UNKNOWN),
-                asyncResult
-            )
-
-            return@handler
-        }
-
-        handler.invoke(Successful(), asyncResult)
-    }
-
-    private fun addUser(
-        user: User,
-        databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
-        isSetup: Boolean,
-        handler: (result: Result, asyncResult: AsyncResult<*>) -> Unit
-    ) {
-        databaseManager.userDao.add(user, sqlConnection, isSetup) { isSuccessful, asyncResultOfAdd ->
-            if (isSuccessful == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN), asyncResultOfAdd)
-
-                return@add
-            }
-
-            handler.invoke(Successful(), asyncResultOfAdd)
-        }
     }
 }

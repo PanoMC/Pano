@@ -16,7 +16,7 @@ class CheckAPI(
 
     override val routes = arrayListOf("/api/setup/step/check")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
-        handler.invoke(Successful(setupManager.getCurrentStepData().map))
+    override suspend fun handler(context: RoutingContext): Result {
+        return Successful(setupManager.getCurrentStepData().map)
     }
 }

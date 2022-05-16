@@ -1,15 +1,15 @@
 package com.panomc.platform.route.api.panel.post
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
-import com.panomc.platform.model.*
+import com.panomc.platform.model.PanelApi
+import com.panomc.platform.model.Result
+import com.panomc.platform.model.RouteType
+import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class PostPublishAPI(
@@ -21,7 +21,7 @@ class PostPublishAPI(
 
     override val routes = arrayListOf("/api/panel/post/publish")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
         val id = data.getValue("id").toString().toInt()
         val title = data.getString("title")
@@ -31,47 +31,8 @@ class PostPublishAPI(
 
         val userID = authProvider.getUserIDFromRoutingContext(context)
 
-        databaseManager.createConnection(
-            (this::createConnectionHandler)(
-                handler,
-                id,
-                title,
-                categoryID,
-                text,
-                imageCode,
-                userID
-            )
-        )
-    }
+        val sqlConnection = createConnection(databaseManager, context)
 
-    private fun createConnectionHandler(
-        handler: (result: Result) -> Unit,
-        id: Int,
-        title: String,
-        categoryID: Int,
-        text: String,
-        imageCode: String,
-        userID: Int
-    ) = handler@{ sqlConnection: SqlConnection?, _: AsyncResult<SqlConnection> ->
-        if (sqlConnection == null) {
-            handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
-
-            return@handler
-        }
-
-        updateOrInsert(handler, sqlConnection, id, title, categoryID, text, imageCode, userID)
-    }
-
-    private fun updateOrInsert(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        id: Int,
-        title: String,
-        categoryID: Int,
-        text: String,
-        imageCode: String,
-        userID: Int
-    ) {
         val post = Post(
             id,
             title,
@@ -86,56 +47,17 @@ class PostPublishAPI(
         )
 
         if (id == -1) {
-            databaseManager.postDao.insertAndPublish(
-                post,
-                sqlConnection,
-                (this::insertAndPublishHandler)(handler, sqlConnection)
-            )
+            val postId = databaseManager.postDao.insertAndPublish(post, sqlConnection)
 
-            return
-        }
-
-        databaseManager.postDao.updateAndPublish(
-            userID,
-            post,
-            sqlConnection,
-            (this::updateAndPublishHandler)(handler, sqlConnection)
-        )
-    }
-
-    private fun insertAndPublishHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection
-    ) = handler@{ postID: Long?, _: AsyncResult<*> ->
-        databaseManager.closeConnection(sqlConnection) {
-            if (postID == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                return@closeConnection
-            }
-
-            handler.invoke(
-                Successful(
-                    mapOf(
-                        "id" to postID
-                    )
+            return Successful(
+                mapOf(
+                    "id" to postId
                 )
             )
         }
-    }
 
-    private fun updateAndPublishHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection
-    ) = handler@{ result: Result?, _: AsyncResult<*> ->
-        databaseManager.closeConnection(sqlConnection) {
-            if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
+        databaseManager.postDao.updateAndPublish(userID, post, sqlConnection)
 
-                return@closeConnection
-            }
-
-            handler.invoke(Successful())
-        }
+        return Successful()
     }
 }

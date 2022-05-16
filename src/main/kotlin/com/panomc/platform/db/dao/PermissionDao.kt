@@ -2,44 +2,36 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Permission
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PermissionDao : Dao<Permission> {
-    fun isTherePermission(
+    suspend fun isTherePermission(
         permission: Permission,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermission: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun isTherePermissionByID(
+    suspend fun isTherePermissionByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermission: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun add(
+    suspend fun add(
         permission: Permission,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun getPermissionID(
+    suspend fun getPermissionID(
         permission: Permission,
-        sqlConnection: SqlConnection,
-        handler: (permissionID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int
 
-    fun getPermissionByID(
+    suspend fun getPermissionByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (permission: Permission?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Permission?
 
-    fun getPermissions(
-        sqlConnection: SqlConnection,
-        handler: (permissions: List<Permission>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun getPermissions(
+        sqlConnection: SqlConnection
+    ): List<Permission>
 }

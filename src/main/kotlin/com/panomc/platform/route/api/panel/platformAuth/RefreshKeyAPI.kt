@@ -2,7 +2,6 @@ package com.panomc.platform.route.api.panel.platformAuth
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.PanelApi
-import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
@@ -20,14 +19,10 @@ class RefreshKeyAPI(
 
     override val routes = arrayListOf("/api/panel/platformAuth/refreshKey")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
-        handler.invoke(
-            Successful(
-                mapOf(
-                    "key" to platformCodeManager.getPlatformKey(),
-                    "timeStarted" to platformCodeManager.getTimeStarted()
-                )
-            )
+    override suspend fun handler(context: RoutingContext) = Successful(
+        mapOf(
+            "key" to platformCodeManager.getPlatformKey(),
+            "timeStarted" to platformCodeManager.getTimeStarted()
         )
-    }
+    )
 }

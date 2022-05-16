@@ -2,56 +2,46 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PermissionGroup
-import com.panomc.platform.model.Result
-import io.vertx.core.AsyncResult
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PermissionGroupDao : Dao<PermissionGroup> {
-    fun isThere(
+    suspend fun isThere(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermissionGroup: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun isThereByID(
+    suspend fun isThereByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (isTherePermissionGroup: Boolean?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Boolean
 
-    fun add(
+    suspend fun add(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun getPermissionGroupByID(
+    suspend fun getPermissionGroupByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroup: PermissionGroup?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): PermissionGroup?
 
-    fun getPermissionGroupID(
+    suspend fun getPermissionGroupID(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (permissionGroupID: Int?, asyncResult: AsyncResult<*>) -> Unit
-    )
+        sqlConnection: SqlConnection
+    ): Int?
 
-    fun getPermissionGroups(
-        sqlConnection: SqlConnection,
-        handler: (permissionGroups: List<PermissionGroup>?, asyncResult: AsyncResult<*>) -> Unit
-    )
+    suspend fun getPermissionGroups(
+        sqlConnection: SqlConnection
+    ): List<PermissionGroup>
 
-    fun deleteByID(
+    suspend fun deleteByID(
         id: Int,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 
-    fun update(
+    suspend fun update(
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     )
 }

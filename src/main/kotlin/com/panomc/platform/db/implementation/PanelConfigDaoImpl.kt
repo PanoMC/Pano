@@ -4,16 +4,15 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PanelConfigDao
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 
 @Dao
 class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "panel_config"), PanelConfigDao {
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` int NOT NULL AUTO_INCREMENT,
                               `user_id` int(11) NOT NULL,
@@ -22,9 +21,8 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Panel Config per player table.';
                         """
-                )
-                .execute {
-                    handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
+    }
 }

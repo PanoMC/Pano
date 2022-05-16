@@ -5,10 +5,8 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TicketMessageDao
 import com.panomc.platform.db.model.TicketMessage
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.Successful
-import io.vertx.core.AsyncResult
 import io.vertx.core.json.JsonArray
+import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -18,11 +16,10 @@ import io.vertx.sqlclient.Tuple
 @Dao
 class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "ticket_message"),
     TicketMessageDao {
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` int NOT NULL AUTO_INCREMENT,
                               `user_id` int NOT NULL,
@@ -33,112 +30,97 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Ticket message table.';
                         """
-                )
-                .execute {
-                    handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
+    }
 
-    override fun getByTicketIDAndPage(
+    override suspend fun getByTicketIDAndPage(
         ticketID: Int,
-        sqlConnection: SqlConnection,
-        handler: (messages: List<TicketMessage>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): List<TicketMessage> {
         val query =
             "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? ORDER BY id DESC LIMIT 5"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val messages = mutableListOf<TicketMessage>()
+            .execute(Tuple.of(ticketID))
+            .await()
 
-                    if (rows.size() > 0)
-                        rows.forEach { row ->
-                            messages.add(
-                                TicketMessage(
-                                    id = row.getInteger(0),
-                                    userID = row.getInteger(1),
-                                    ticketID = row.getInteger(2),
-                                    message = row.getString(3),
-                                    date = row.getLong(4),
-                                    panel = row.getInteger(5)
-                                )
-                            )
-                        }
+        val messages = mutableListOf<TicketMessage>()
 
-                    handler.invoke(messages, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
+        if (rows.size() > 0)
+            rows.forEach { row ->
+                messages.add(
+                    TicketMessage(
+                        id = row.getInteger(0),
+                        userID = row.getInteger(1),
+                        ticketID = row.getInteger(2),
+                        message = row.getString(3),
+                        date = row.getLong(4),
+                        panel = row.getInteger(5)
+                    )
+                )
             }
+
+        return messages
     }
 
-    override fun getByTicketIDPageAndStartFromID(
+    override suspend fun getByTicketIDPageAndStartFromID(
         lastMessageID: Int,
         ticketID: Int,
-        sqlConnection: SqlConnection,
-        handler: (messages: List<TicketMessage>?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): List<TicketMessage> {
         val query =
             "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? and id < ? ORDER BY id DESC LIMIT 5"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID, lastMessageID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val messages = mutableListOf<TicketMessage>()
+            .execute(Tuple.of(ticketID, lastMessageID))
+            .await()
 
-                    if (rows.size() > 0)
-                        rows.forEach { row ->
-                            messages.add(
-                                TicketMessage(
-                                    id = row.getInteger(0),
-                                    userID = row.getInteger(1),
-                                    ticketID = row.getInteger(2),
-                                    message = row.getString(3),
-                                    date = row.getLong(4),
-                                    panel = row.getInteger(5)
-                                )
-                            )
-                        }
+        val messages = mutableListOf<TicketMessage>()
 
-                    handler.invoke(messages, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
+        if (rows.size() > 0)
+            rows.forEach { row ->
+                messages.add(
+                    TicketMessage(
+                        id = row.getInteger(0),
+                        userID = row.getInteger(1),
+                        ticketID = row.getInteger(2),
+                        message = row.getString(3),
+                        date = row.getLong(4),
+                        panel = row.getInteger(5)
+                    )
+                )
             }
+
+        return messages
     }
 
-    override fun getCountByTicketID(
+    override suspend fun getCountByTicketID(
         ticketID: Int,
-        sqlConnection: SqlConnection,
-        handler: (count: Int?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Int {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where ticket_id = ?"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            .execute(Tuple.of(ticketID))
+            .await()
 
-                    handler.invoke(rows.toList()[0].getInteger(0), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.toList()[0].getInteger(0)
     }
 
-    override fun addMessage(
+    override suspend fun addMessage(
         ticketMessage: TicketMessage,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (user_id, ticket_id, message, `date`, panel) VALUES (?, ?, ?, ?, ?)"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -148,20 +130,15 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
                     ticketMessage.date,
                     ticketMessage.panel,
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
+            )
+            .await()
 
-                    handler.invoke(Successful(mapOf("id" to rows.property(MySQLClient.LAST_INSERTED_ID))), queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override fun deleteByTicketIDList(
+    override suspend fun deleteByTicketIDList(
         ticketIDList: JsonArray,
-        sqlConnection: SqlConnection,
-        handler: (result: Result?, asyncResult: AsyncResult<*>) -> Unit
+        sqlConnection: SqlConnection
     ) {
         val parameters = Tuple.tuple()
 
@@ -181,41 +158,38 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         sqlConnection
             .preparedQuery(query)
-            .execute(parameters) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(Successful(), queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            .execute(parameters)
+            .await()
     }
 
-    override fun getLastMessageByTicketID(
+    override suspend fun getLastMessageByTicketID(
         ticketID: Int,
-        sqlConnection: SqlConnection,
-        handler: (ticketMessage: TicketMessage?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): TicketMessage? {
         val query =
             "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? DESC LIMIT 1"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID)) { queryResult ->
-                if (queryResult.succeeded()) {
-                    val rows: RowSet<Row> = queryResult.result()
-                    val ticketRow = rows.toList()[0]
+            .execute(Tuple.of(ticketID))
+            .await()
 
-                    val ticketMessage = TicketMessage(
-                        ticketRow.getInteger(0),
-                        ticketRow.getInteger(1),
-                        ticketRow.getInteger(2),
-                        ticketRow.getString(3),
-                        ticketRow.getLong(4),
-                        ticketRow.getInteger(5)
-                    )
 
-                    handler.invoke(ticketMessage, queryResult)
-                } else
-                    handler.invoke(null, queryResult)
-            }
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val ticketRow = rows.toList()[0]
+
+        val ticketMessage = TicketMessage(
+            ticketRow.getInteger(0),
+            ticketRow.getInteger(1),
+            ticketRow.getInteger(2),
+            ticketRow.getString(3),
+            ticketRow.getLong(4),
+            ticketRow.getInteger(5)
+        )
+
+        return ticketMessage
     }
 }

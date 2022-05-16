@@ -8,7 +8,7 @@ import com.panomc.platform.db.model.Server
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.security.Keys
-import io.vertx.core.AsyncResult
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.util.*
@@ -16,11 +16,10 @@ import java.util.*
 @Dao
 class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "server"), ServerDao {
 
-    override fun init(): (sqlConnection: SqlConnection, handler: (asyncResult: AsyncResult<*>) -> Unit) -> Unit =
-        { sqlConnection, handler ->
-            sqlConnection
-                .query(
-                    """
+    override suspend fun init(sqlConnection: SqlConnection) {
+        sqlConnection
+            .query(
+                """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` int NOT NULL AUTO_INCREMENT,
                               `name` varchar(255) NOT NULL,
@@ -37,17 +36,15 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Connected server table.';
                         """
-                )
-                .execute {
-                    handler.invoke(it)
-                }
-        }
+            )
+            .execute()
+            .await()
+    }
 
-    override fun add(
+    override suspend fun add(
         server: Server,
-        sqlConnection: SqlConnection,
-        handler: (token: String?, asyncResult: AsyncResult<*>) -> Unit
-    ) {
+        sqlConnection: SqlConnection
+    ): String {
         val key = Keys.keyPairFor(SignatureAlgorithm.RS256)
 
         val token = Jwts.builder()
@@ -76,11 +73,8 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                     token,
                     server.status
                 )
-            ) { queryResult ->
-                if (queryResult.succeeded())
-                    handler.invoke(token, queryResult)
-                else
-                    handler.invoke(null, queryResult)
-            }
+            ).await()
+
+        return token
     }
 }

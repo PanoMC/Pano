@@ -7,9 +7,7 @@ import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import io.vertx.core.AsyncResult
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class TicketDetailSendMessageAPI(
@@ -21,7 +19,7 @@ class TicketDetailSendMessageAPI(
 
     override val routes = arrayListOf("/api/panel/ticket/detail/message/send")
 
-    override fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
 
         val ticketID = data.getInteger("ticketId")
@@ -29,157 +27,40 @@ class TicketDetailSendMessageAPI(
 
         val userID = authProvider.getUserIDFromRoutingContext(context)
 
-        databaseManager.createConnection((this::createConnectionHandler)(handler, ticketID, message, userID))
-    }
+        val sqlConnection = createConnection(databaseManager, context)
 
-    private fun createConnectionHandler(
-        handler: (result: Result) -> Unit,
-        ticketID: Int,
-        message: String,
-        userID: Int
-    ) = handler@{ sqlConnection: SqlConnection?, _: AsyncResult<SqlConnection> ->
-        if (sqlConnection == null) {
-            handler.invoke(Error(ErrorCode.CANT_CONNECT_DATABASE))
-
-            return@handler
-        }
-
-        databaseManager.ticketDao.isExistsByID(
-            ticketID,
-            sqlConnection,
-            (this::isExistsByHandler)(handler, ticketID, message, sqlConnection, userID)
-        )
-    }
-
-    private fun isExistsByHandler(
-        handler: (result: Result) -> Unit,
-        ticketID: Int,
-        message: String,
-        sqlConnection: SqlConnection,
-        userID: Int
-    ) = handler@{ exists: Boolean?, _: AsyncResult<*> ->
-        if (exists == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val exists = databaseManager.ticketDao.isExistsByID(ticketID, sqlConnection)
 
         if (!exists) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.NOT_EXISTS))
-            }
-
-            return@handler
+            throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        databaseManager.userDao.getUsernameFromUserID(
-            userID,
-            sqlConnection,
-            (this::getUsernameFromUserIDHandler)(handler, sqlConnection, ticketID, message, userID)
-        )
-    }
-
-    private fun getUsernameFromUserIDHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticketID: Int,
-        message: String,
-        userID: Int
-    ) = handler@{ username: String?, _: AsyncResult<*> ->
-        if (username == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        val username = databaseManager.userDao.getUsernameFromUserID(userID, sqlConnection)
 
         val ticketMessage = TicketMessage(-1, userID, ticketID, message, System.currentTimeMillis(), 1)
 
-        databaseManager.ticketMessageDao.addMessage(
-            ticketMessage,
-            sqlConnection,
-            (this::addMessageHandler)(handler, sqlConnection, ticketMessage, username)
-        )
-    }
+        val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlConnection)
 
-    private fun addMessageHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticketMessage: TicketMessage,
-        username: String
-    ) = handler@{ result: Result?, _: AsyncResult<*> ->
-        if (result == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
-
-        if (result is Successful)
-            databaseManager.ticketDao.makeStatus(
-                ticketMessage.ticketID,
-                2,
-                sqlConnection,
-                (this::makeStatusHandler)(handler, sqlConnection, ticketMessage, username, result.map["id"] as Long)
-            )
-    }
-
-    private fun makeStatusHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticketMessage: TicketMessage,
-        username: String,
-        lastInsertID: Long
-    ) = handler@{ result: Result?, _: AsyncResult<*> ->
-        if (result == null) {
-            databaseManager.closeConnection(sqlConnection) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-            }
-
-            return@handler
-        }
+        databaseManager.ticketDao.makeStatus(ticketMessage.ticketID, 2, sqlConnection)
 
         databaseManager.ticketDao.updateLastUpdateDate(
             ticketMessage.ticketID,
             System.currentTimeMillis(),
-            sqlConnection,
-            (this::updateLastUpdateDateHandler)(handler, sqlConnection, ticketMessage, username, lastInsertID)
+            sqlConnection
         )
-    }
 
-    private fun updateLastUpdateDateHandler(
-        handler: (result: Result) -> Unit,
-        sqlConnection: SqlConnection,
-        ticketMessage: TicketMessage,
-        username: String,
-        lastInsertID: Long
-    ) = handler@{ result: Result?, _: AsyncResult<*> ->
-        databaseManager.closeConnection(sqlConnection) {
-            if (result == null) {
-                handler.invoke(Error(ErrorCode.UNKNOWN))
-
-                return@closeConnection
-            }
-
-            handler.invoke(
-                Successful(
-                    mapOf(
-                        "message" to mapOf(
-                            "id" to lastInsertID,
-                            "userID" to ticketMessage.userID,
-                            "ticketID" to ticketMessage.ticketID,
-                            "username" to username,
-                            "message" to ticketMessage.message,
-                            "date" to ticketMessage.date,
-                            "panel" to ticketMessage.panel
-                        )
-                    )
+        return Successful(
+            mapOf(
+                "message" to mapOf(
+                    "id" to messageId,
+                    "userID" to ticketMessage.userID,
+                    "ticketID" to ticketMessage.ticketID,
+                    "username" to username,
+                    "message" to ticketMessage.message,
+                    "date" to ticketMessage.date,
+                    "panel" to ticketMessage.panel
                 )
             )
-        }
+        )
     }
 }

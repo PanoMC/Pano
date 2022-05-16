@@ -124,7 +124,7 @@ class DatabaseManager(
         try {
             sqlConnection = createConnection()
         } catch (e: Exception) {
-            logger.error("Connection to database failed! Database migration is skipped.")
+            logger.info("Connection to database failed! Database migration is skipped.")
 
             return
         }

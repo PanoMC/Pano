@@ -10,7 +10,6 @@ import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.io.Decoders
 import io.vertx.ext.web.RoutingContext
-import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 import java.security.KeyFactory
 import java.security.spec.PKCS8EncodedKeySpec
@@ -181,7 +180,7 @@ class AuthProvider(
 
         val hasAccess = hasAccessPanel(routingContext, sqlConnection)
 
-        databaseManager.closeConnection(sqlConnection).await()
+        databaseManager.closeConnection(sqlConnection)
 
         return hasAccess
     }

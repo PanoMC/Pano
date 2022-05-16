@@ -5,7 +5,6 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.*
 import com.panomc.platform.db.model.SchemeVersion
-import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLConnectOptions
@@ -100,8 +99,8 @@ class DatabaseManager(
         }
     }
 
-    fun closeConnection(sqlConnection: SqlConnection): Future<Void> = Future.future { future ->
-        sqlConnection.close(future)
+    suspend fun closeConnection(sqlConnection: SqlConnection) {
+        sqlConnection.close().await()
     }
 
     internal suspend fun init() {

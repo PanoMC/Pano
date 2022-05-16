@@ -94,15 +94,17 @@ class Main : CoroutineVerticle() {
 
         configManager.init()
 
-        if (setupManager.isSetupDone()) {
-            logger.info("Platform is installed.")
-
-            logger.info("Initializing database manager...")
-
-            databaseManager.init()
-        } else {
+        if (!setupManager.isSetupDone()) {
             logger.info("Platform is not installed! Skipping database manager initializing...")
+
+            return
         }
+
+        logger.info("Platform is installed.")
+
+        logger.info("Initializing database manager...")
+
+        databaseManager.init()
     }
 
     private fun startWebServer() {

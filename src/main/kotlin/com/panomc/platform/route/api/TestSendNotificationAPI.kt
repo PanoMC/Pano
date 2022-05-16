@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api
 
-import com.panomc.platform.TestSendNotificationService
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
@@ -15,7 +14,6 @@ import io.vertx.ext.web.RoutingContext
 
 @Endpoint
 class TestSendNotificationAPI(
-    private val service: TestSendNotificationService,
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager

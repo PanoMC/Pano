@@ -2,6 +2,7 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Ticket
+import com.panomc.platform.util.TicketPageType
 import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlConnection
 
@@ -17,7 +18,7 @@ interface TicketDao : Dao<Ticket> {
 
     suspend fun getAllByPageAndPageType(
         page: Int,
-        pageType: Int,
+        pageType: TicketPageType,
         sqlConnection: SqlConnection
     ): List<Ticket>
 
@@ -34,7 +35,7 @@ interface TicketDao : Dao<Ticket> {
     ): List<Ticket>
 
     suspend fun getCountByPageType(
-        pageType: Int,
+        pageType: TicketPageType,
         sqlConnection: SqlConnection
     ): Int
 

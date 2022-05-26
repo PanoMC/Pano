@@ -8,6 +8,7 @@ import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
+import com.panomc.platform.util.TicketPageType
 import io.vertx.ext.web.RoutingContext
 import kotlin.math.ceil
 
@@ -23,7 +24,8 @@ class TicketsPageInitAPI(
 
     override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson
-        val pageType = data.getInteger("pageType")
+
+        val pageType = TicketPageType.valueOf(type = data.getString("pageType"))!!
         val page = data.getInteger("page")
 
         val sqlConnection = createConnection(databaseManager, context)

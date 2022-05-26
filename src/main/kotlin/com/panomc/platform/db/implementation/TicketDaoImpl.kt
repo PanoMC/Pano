@@ -5,6 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TicketDao
 import com.panomc.platform.db.model.Ticket
+import com.panomc.platform.util.TicketPageType
 import io.vertx.core.json.JsonArray
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
@@ -53,7 +54,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(1))
+            .execute(Tuple.of(TicketPageType.WAITING_REPLY.value))
             .await()
 
         return rows.toList()[0].getInteger(0)
@@ -91,16 +92,16 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getAllByPageAndPageType(
         page: Int,
-        pageType: Int,
+        pageType: TicketPageType,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
-            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` ${if (pageType != 2) "WHERE status = ? " else ""}ORDER BY ${if (pageType == 2) "`status` ASC, " else ""}`last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketPageType.ALL) "WHERE status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        if (pageType != 2)
-            parameters.addInteger(pageType)
+        if (pageType != TicketPageType.ALL)
+            parameters.addInteger(pageType.value)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -199,16 +200,16 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun getCountByPageType(
-        pageType: Int,
+        pageType: TicketPageType,
         sqlConnection: SqlConnection
     ): Int {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (pageType != 2) "WHERE status = ?" else ""}"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketPageType.ALL) "WHERE status = ?" else ""}"
 
         val parameters = Tuple.tuple()
 
-        if (pageType != 2)
-            parameters.addInteger(pageType)
+        if (pageType != TicketPageType.ALL)
+            parameters.addInteger(pageType.value)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -255,7 +256,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     ) {
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(3)
+        parameters.addInteger(TicketPageType.CLOSED.value)
 
         var selectedTicketsSQLText = ""
 

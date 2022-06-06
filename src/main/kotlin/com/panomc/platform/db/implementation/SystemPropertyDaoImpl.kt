@@ -91,8 +91,8 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return rows.toList()[0].getInteger(0) != 0
     }
 
-    override suspend fun isUserInstalledSystemByUserID(
-        userID: Int,
+    override suspend fun isUserInstalledSystemByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -103,7 +103,7 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute(
                 Tuple.of(
                     "who_installed_user_id",
-                    userID.toString()
+                    userId.toString()
                 )
             )
             .await()

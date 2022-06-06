@@ -34,7 +34,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .await()
     }
 
-    override suspend fun isExistsByID(
+    override suspend fun isExistsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -52,7 +52,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return rows.toList()[0].getInteger(0) == 1
     }
 
-    override suspend fun deleteByID(
+    override suspend fun deleteById(
         id: Int,
         sqlConnection: SqlConnection,
     ) {
@@ -80,13 +80,13 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return rows.toList()[0].getInteger(0)
     }
 
-    override suspend fun getByIDList(
-        IDList: List<Int>,
+    override suspend fun getByIdList(
+        idList: List<Int>,
         sqlConnection: SqlConnection
     ): Map<Int, PostCategory> {
         var listText = ""
 
-        IDList.forEach { id ->
+        idList.forEach { id ->
             if (listText == "")
                 listText = "'$id'"
             else
@@ -174,7 +174,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return categories
     }
 
-    override suspend fun isExistsByURL(
+    override suspend fun isExistsByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -189,7 +189,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return rows.toList()[0].getInteger(0) == 1
     }
 
-    override suspend fun isExistsByURLNotByID(
+    override suspend fun isExistsByUrlNotById(
         url: String,
         id: Int,
         sqlConnection: SqlConnection
@@ -247,7 +247,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             ).await()
     }
 
-    override suspend fun getByID(
+    override suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): PostCategory? {
@@ -278,7 +278,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return category
     }
 
-    override suspend fun getByURL(
+    override suspend fun getByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): PostCategory? {

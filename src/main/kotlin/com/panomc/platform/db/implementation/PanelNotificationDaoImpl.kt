@@ -46,16 +46,16 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    panelNotification.userID,
-                    panelNotification.typeID,
+                    panelNotification.userId,
+                    panelNotification.typeId,
                     panelNotification.date,
                     panelNotification.status
                 )
             ).await()
     }
 
-    override suspend fun getCountOfNotReadByUserID(
-        userID: Int,
+    override suspend fun getCountOfNotReadByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): Int {
         val query =
@@ -65,7 +65,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userID,
+                    userId,
                     NotificationStatus.NOT_READ,
                 )
             ).await()
@@ -73,8 +73,8 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         return rows.toList()[0].getInteger(0)
     }
 
-    override suspend fun getCountByUserID(
-        userID: Int,
+    override suspend fun getCountByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): Int {
         val query =
@@ -84,15 +84,15 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userID
+                    userId
                 )
             ).await()
 
         return rows.toList()[0].getInteger(0)
     }
 
-    override suspend fun getLast10ByUserID(
-        userID: Int,
+    override suspend fun getLast10ByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
@@ -102,7 +102,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userID
+                    userId
                 )
             ).await()
 
@@ -124,9 +124,9 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         return notifications
     }
 
-    override suspend fun get10ByUserIDAndStartFromID(
-        userID: Int,
-        notificationID: Int,
+    override suspend fun get10ByUserIdAndStartFromId(
+        userId: Int,
+        notificationId: Int,
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
@@ -136,8 +136,8 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userID,
-                    notificationID
+                    userId,
+                    notificationId
                 )
             ).await()
 
@@ -160,7 +160,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
     }
 
     override suspend fun markReadLast10(
-        userID: Int,
+        userId: Int,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -171,14 +171,14 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .execute(
                 Tuple.of(
                     NotificationStatus.READ,
-                    userID
+                    userId
                 )
             ).await()
     }
 
-    override suspend fun markReadLast10StartFromID(
-        userID: Int,
-        notificationID: Int,
+    override suspend fun markReadLast10StartFromId(
+        userId: Int,
+        notificationId: Int,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -189,14 +189,14 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .execute(
                 Tuple.of(
                     NotificationStatus.READ,
-                    userID,
-                    notificationID
+                    userId,
+                    notificationId
                 )
             ).await()
     }
 
-    override suspend fun getLast5ByUserID(
-        userID: Int,
+    override suspend fun getLast5ByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
@@ -206,7 +206,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userID
+                    userId
                 )
             ).await()
 
@@ -228,8 +228,8 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         return notifications
     }
 
-    override suspend fun markReadLat5ByUserID(
-        userID: Int,
+    override suspend fun markReadLat5ByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -240,12 +240,12 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .execute(
                 Tuple.of(
                     NotificationStatus.READ,
-                    userID
+                    userId
                 )
             ).await()
     }
 
-    override suspend fun existsByID(
+    override suspend fun existsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -259,7 +259,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         return rows.toList()[0].getInteger(0) == 1
     }
 
-    override suspend fun getByID(
+    override suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): PanelNotification? {
@@ -291,7 +291,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         return notification
     }
 
-    override suspend fun deleteByID(
+    override suspend fun deleteById(
         id: Int,
         sqlConnection: SqlConnection
     ) {
@@ -307,8 +307,8 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             ).await()
     }
 
-    override suspend fun deleteAllByUserID(
-        userID: Int,
+    override suspend fun deleteAllByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -318,7 +318,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userID
+                    userId
                 )
             )
             .await()

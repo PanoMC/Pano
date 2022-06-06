@@ -8,6 +8,10 @@ import com.panomc.platform.model.SetupApi
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class NextStepAPI(
@@ -18,8 +22,26 @@ class NextStepAPI(
 
     override val routes = arrayListOf("/api/setup/step/nextStep")
 
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser)
+            .body(
+                Bodies.json(
+                    Schemas.objectSchema()
+                        .property("step", Schemas.intSchema())
+                        .optionalProperty("websiteName", Schemas.stringSchema())
+                        .optionalProperty("websiteDescription", Schemas.stringSchema())
+                        .optionalProperty("host", Schemas.stringSchema())
+                        .optionalProperty("dbName", Schemas.stringSchema())
+                        .optionalProperty("username", Schemas.stringSchema())
+                        .optionalProperty("password", Schemas.stringSchema())
+                        .optionalProperty("prefix", Schemas.stringSchema())
+                )
+            )
+            .build()
+
     override suspend fun handler(context: RoutingContext): Result {
-        val data = context.bodyAsJson
+        val parameters = getParameters(context)
+        val data = parameters.body().jsonObject
 
         val clientStep = data.getInteger("step")
 

@@ -35,8 +35,8 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             .await()
     }
 
-    override suspend fun getByTicketIDAndPage(
-        ticketID: Int,
+    override suspend fun getByTicketIdAndPage(
+        ticketId: Int,
         sqlConnection: SqlConnection
     ): List<TicketMessage> {
         val query =
@@ -44,7 +44,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID))
+            .execute(Tuple.of(ticketId))
             .await()
 
         val messages = mutableListOf<TicketMessage>()
@@ -54,8 +54,8 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
                 messages.add(
                     TicketMessage(
                         id = row.getInteger(0),
-                        userID = row.getInteger(1),
-                        ticketID = row.getInteger(2),
+                        userId = row.getInteger(1),
+                        ticketId = row.getInteger(2),
                         message = row.getString(3),
                         date = row.getLong(4),
                         panel = row.getInteger(5)
@@ -66,9 +66,9 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         return messages
     }
 
-    override suspend fun getByTicketIDPageAndStartFromID(
-        lastMessageID: Int,
-        ticketID: Int,
+    override suspend fun getByTicketIdPageAndStartFromId(
+        lastMessageId: Int,
+        ticketId: Int,
         sqlConnection: SqlConnection
     ): List<TicketMessage> {
         val query =
@@ -76,7 +76,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID, lastMessageID))
+            .execute(Tuple.of(ticketId, lastMessageId))
             .await()
 
         val messages = mutableListOf<TicketMessage>()
@@ -86,8 +86,8 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
                 messages.add(
                     TicketMessage(
                         id = row.getInteger(0),
-                        userID = row.getInteger(1),
-                        ticketID = row.getInteger(2),
+                        userId = row.getInteger(1),
+                        ticketId = row.getInteger(2),
                         message = row.getString(3),
                         date = row.getLong(4),
                         panel = row.getInteger(5)
@@ -98,8 +98,8 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         return messages
     }
 
-    override suspend fun getCountByTicketID(
-        ticketID: Int,
+    override suspend fun getCountByTicketId(
+        ticketId: Int,
         sqlConnection: SqlConnection
     ): Int {
         val query =
@@ -107,7 +107,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID))
+            .execute(Tuple.of(ticketId))
             .await()
 
         return rows.toList()[0].getInteger(0)
@@ -124,8 +124,8 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    ticketMessage.userID,
-                    ticketMessage.ticketID,
+                    ticketMessage.userId,
+                    ticketMessage.ticketId,
                     ticketMessage.message,
                     ticketMessage.date,
                     ticketMessage.panel,
@@ -136,15 +136,15 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun deleteByTicketIDList(
-        ticketIDList: JsonArray,
+    override suspend fun deleteByTicketIdList(
+        ticketIdList: JsonArray,
         sqlConnection: SqlConnection
     ) {
         val parameters = Tuple.tuple()
 
         var selectedTicketsSQLText = ""
 
-        ticketIDList.forEach {
+        ticketIdList.forEach {
             if (selectedTicketsSQLText.isEmpty())
                 selectedTicketsSQLText = "?"
             else
@@ -162,8 +162,8 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             .await()
     }
 
-    override suspend fun getLastMessageByTicketID(
-        ticketID: Int,
+    override suspend fun getLastMessageByTicketId(
+        ticketId: Int,
         sqlConnection: SqlConnection
     ): TicketMessage? {
         val query =
@@ -171,7 +171,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(ticketID))
+            .execute(Tuple.of(ticketId))
             .await()
 
 
@@ -191,5 +191,16 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         )
 
         return ticketMessage
+    }
+
+    override suspend fun isExistsById(id: Int, sqlConnection: SqlConnection): Boolean {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(id))
+            .await()
+
+        return rows.toList()[0].getInteger(0) == 1
     }
 }

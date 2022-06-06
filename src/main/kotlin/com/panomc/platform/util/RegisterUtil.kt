@@ -102,7 +102,7 @@ object RegisterUtil {
             return
         }
 
-        val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupID(
+        val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupId(
             PermissionGroup(-1, "admin"),
             sqlConnection
         ) ?: throw Error(ErrorCode.UNKNOWN)

@@ -6,7 +6,7 @@ data class User(
     val email: String,
     val password: String,
     val registeredIp: String,
-    val permissionGroupID: Int = 0,
+    val permissionGroupId: Int = 0,
     val registerDate: Long,
     val emailVerified: Int = 0,
     val banned: Int = 0

@@ -7,21 +7,25 @@ import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 
 abstract class LoggedInApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) : Api() {
-    override fun getHandler() = Handler<RoutingContext> { context ->
+    fun checkSetup() {
         if (!setupManager.isSetupDone()) {
-            sendResult(Error(ErrorCode.INSTALLATION_REQUIRED), context)
-
-            return@Handler
+            throw Error(ErrorCode.INSTALLATION_REQUIRED)
         }
+    }
 
+    fun checkLoggedIn(context: RoutingContext) {
         val isLoggedIn = authProvider.isLoggedIn(context)
 
         if (!isLoggedIn) {
             throw Error(ErrorCode.NOT_LOGGED_IN)
         }
+    }
 
-        handler(context) {
-            sendResult(it, context)
-        }
+    override fun getHandler() = Handler<RoutingContext> { context ->
+        checkSetup()
+
+        checkLoggedIn(context)
+
+        callHandler(context)
     }
 }

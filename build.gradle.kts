@@ -37,6 +37,8 @@ dependencies {
     implementation("io.vertx:vertx-config:$vertxVersion")
     implementation("io.vertx:vertx-config-hocon:$vertxVersion")
     implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
+    implementation("io.vertx:vertx-web-validation:$vertxVersion")
+    implementation("io.vertx:vertx-json-schema:$vertxVersion")
 
     implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = "2.17.2")
     implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = "2.17.2")

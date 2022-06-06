@@ -4,51 +4,18 @@ import com.panomc.platform.db.DatabaseManager
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestParameters
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.ValidationHandler.REQUEST_CONTEXT_KEY
+import io.vertx.json.schema.SchemaParser
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.sqlclient.SqlConnection
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 abstract class Api : Route() {
-    fun sendResult(result: Result, context: RoutingContext) {
-        val response = context.response()
-
-        response
-            .putHeader("content-type", "application/json; charset=utf-8")
-
-        when (result) {
-            is Successful -> {
-                val responseMap = mutableMapOf<String, Any?>(
-                    "result" to "ok"
-                )
-
-                responseMap.putAll(result.map)
-
-                response.end(
-                    JsonObject(
-                        responseMap
-                    ).encode()
-                )
-            }
-            is Error -> response.end(
-                JsonObject(
-                    mapOf(
-                        "result" to "error",
-                        "error" to result.errorCode
-                    )
-                ).encode()
-            )
-            is Errors -> response.end(
-                JsonObject(
-                    mapOf(
-                        "result" to "error",
-                        "error" to result.errors
-                    )
-                ).encode()
-            )
-        }
-    }
 
     suspend fun createConnection(databaseManager: DatabaseManager, routingContext: RoutingContext): SqlConnection {
         val sqlConnection = databaseManager.createConnection()
@@ -59,9 +26,7 @@ abstract class Api : Route() {
     }
 
     override fun getHandler() = Handler<RoutingContext> { context ->
-        handler(context) {
-            sendResult(it, context)
-        }
+        callHandler(context)
     }
 
     override fun getFailureHandler() = Handler<RoutingContext> { context ->
@@ -74,6 +39,7 @@ abstract class Api : Route() {
             sqlConnection?.close()?.await()
 
             if (!(failure is Result && (failure is Error || failure is Errors))) {
+                println("Error on endpoint URL: " + context.request().path())
                 throw failure
             }
 
@@ -82,7 +48,8 @@ abstract class Api : Route() {
     }
 
     fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
-        CoroutineScope(context.vertx().dispatcher()).launch {
+
+        CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
             val result = handler(context)
 
             val sqlConnection = context.get<SqlConnection>("sqlConnection")
@@ -92,6 +59,53 @@ abstract class Api : Route() {
             result?.let(handler)
         }
     }
+
+    fun callHandler(context: RoutingContext) {
+        handler(context) { sendResult(it, context) }
+    }
+
+    fun sendResult(result: Result, context: RoutingContext) {
+        val response = context.response()
+
+        response
+            .putHeader("content-type", "application/json; charset=utf-8")
+
+        val responseMap = mutableMapOf<String, Any?>(
+            "result" to "ok"
+        )
+
+        if (result is Successful) {
+            responseMap.putAll(result.map)
+        }
+
+        if (result is Error) {
+            responseMap.putAll(
+                mapOf(
+                    "result" to "error",
+                    "error" to result.errorCode
+                )
+            )
+        }
+
+        if (result is Errors) {
+            responseMap.putAll(
+                mapOf(
+                    "result" to "error",
+                    "error" to result.errors
+                )
+            )
+        }
+
+        response.end(JsonObject(responseMap).encode())
+    }
+
+    fun getParameters(context: RoutingContext): RequestParameters = context.get(REQUEST_CONTEXT_KEY)
+
+    fun getExceptionHandler(context: RoutingContext) = CoroutineExceptionHandler { _, exception ->
+        context.fail(exception)
+    }
+
+    abstract override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler
 
     abstract suspend fun handler(context: RoutingContext): Result?
 

@@ -11,65 +11,65 @@ interface PanelNotificationDao : Dao<PanelNotification> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun getCountOfNotReadByUserID(
-        userID: Int,
+    suspend fun getCountOfNotReadByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): Int
 
-    suspend fun getCountByUserID(
-        userID: Int,
+    suspend fun getCountByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): Int
 
-    suspend fun getLast10ByUserID(
-        userID: Int,
+    suspend fun getLast10ByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): List<PanelNotification>
 
-    suspend fun get10ByUserIDAndStartFromID(
-        userID: Int,
-        notificationID: Int,
+    suspend fun get10ByUserIdAndStartFromId(
+        userId: Int,
+        notificationId: Int,
         sqlConnection: SqlConnection
     ): List<PanelNotification>
 
     suspend fun markReadLast10(
-        userID: Int,
+        userId: Int,
         sqlConnection: SqlConnection
     )
 
-    suspend fun markReadLast10StartFromID(
-        userID: Int,
-        notificationID: Int,
+    suspend fun markReadLast10StartFromId(
+        userId: Int,
+        notificationId: Int,
         sqlConnection: SqlConnection
     )
 
-    suspend fun getLast5ByUserID(
-        userID: Int,
+    suspend fun getLast5ByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): List<PanelNotification>
 
-    suspend fun markReadLat5ByUserID(
-        userID: Int,
+    suspend fun markReadLat5ByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     )
 
-    suspend fun existsByID(
+    suspend fun existsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun getByID(
+    suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): PanelNotification?
 
-    suspend fun deleteByID(
+    suspend fun deleteById(
         id: Int,
         sqlConnection: SqlConnection
     )
 
-    suspend fun deleteAllByUserID(
-        userID: Int,
+    suspend fun deleteAllByUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     )
 }

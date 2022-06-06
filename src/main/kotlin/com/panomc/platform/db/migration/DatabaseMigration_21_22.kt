@@ -21,11 +21,11 @@ class DatabaseMigration_21_22(databaseManager: DatabaseManager) : DatabaseMigrat
 
     override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
         listOf(
-            addURLColumnToTicketTable(),
-            convertTicketCategoryTitlesToURL()
+            addUrlColumnToTicketTable(),
+            convertTicketCategoryTitlesToUrl()
         )
 
-    private fun addURLColumnToTicketTable(): suspend (sqlConnection: SqlConnection) -> Unit =
+    private fun addUrlColumnToTicketTable(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}ticket_category` ADD `url` mediumtext NOT NULL DEFAULT '';")
@@ -33,7 +33,7 @@ class DatabaseMigration_21_22(databaseManager: DatabaseManager) : DatabaseMigrat
                 .await()
         }
 
-    private fun convertTicketCategoryTitlesToURL(): suspend (sqlConnection: SqlConnection) -> Unit =
+    private fun convertTicketCategoryTitlesToUrl(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
             val rows: RowSet<Row> = sqlConnection
                 .preparedQuery("SELECT id, title FROM `${getTablePrefix()}ticket_category`")
@@ -54,7 +54,7 @@ class DatabaseMigration_21_22(databaseManager: DatabaseManager) : DatabaseMigrat
             categories.forEach { category ->
                 val query = "UPDATE `${getTablePrefix()}ticket_category` SET url = ? WHERE id = ?"
 
-                val url = TextUtil.convertStringToURL(category.title)
+                val url = TextUtil.convertStringToUrl(category.title)
 
                 sqlConnection
                     .preparedQuery(query)

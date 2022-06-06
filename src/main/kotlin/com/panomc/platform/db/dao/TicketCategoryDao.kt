@@ -10,17 +10,17 @@ interface TicketCategoryDao : Dao<TicketCategory> {
         sqlConnection: SqlConnection
     ): List<TicketCategory>
 
-    suspend fun isExistsByID(
+    suspend fun isExistsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isExistsByURL(
+    suspend fun isExistsByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun deleteByID(
+    suspend fun deleteById(
         id: Int,
         sqlConnection: SqlConnection
     )
@@ -42,17 +42,17 @@ interface TicketCategoryDao : Dao<TicketCategory> {
         sqlConnection: SqlConnection
     ): List<TicketCategory>
 
-    suspend fun getByID(
+    suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): TicketCategory?
 
-    suspend fun getByURL(
+    suspend fun getByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): TicketCategory?
 
-    suspend fun getByIDList(
+    suspend fun getByIdList(
         ticketCategoryIdList: List<Int>,
         sqlConnection: SqlConnection
     ): Map<Int, TicketCategory>

@@ -35,6 +35,7 @@ enum class ErrorCode {
     PAGE_NOT_FOUND,
 
     NOT_EXISTS,
+    CATEGORY_NOT_EXISTS,
 
     POST_NOT_FOUND,
 

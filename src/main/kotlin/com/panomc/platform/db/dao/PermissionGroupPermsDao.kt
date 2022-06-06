@@ -11,25 +11,25 @@ interface PermissionGroupPermsDao : Dao<PermissionGroupPerms> {
     ): List<PermissionGroupPerms>
 
     suspend fun doesPermissionGroupHavePermission(
-        permissionGroupID: Int,
-        permissionID: Int,
+        permissionGroupId: Int,
+        permissionId: Int,
         sqlConnection: SqlConnection
     ): Boolean
 
     suspend fun addPermission(
-        permissionGroupID: Int,
-        permissionID: Int,
+        permissionGroupId: Int,
+        permissionId: Int,
         sqlConnection: SqlConnection
     )
 
     suspend fun removePermission(
-        permissionGroupID: Int,
-        permissionID: Int,
+        permissionGroupId: Int,
+        permissionId: Int,
         sqlConnection: SqlConnection
     )
 
     suspend fun removePermissionGroup(
-        permissionGroupID: Int,
+        permissionGroupId: Int,
         sqlConnection: SqlConnection
     )
 }

@@ -60,7 +60,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
         return rows.toList()[0].getInteger(0) != 0
     }
 
-    override suspend fun isTherePermissionByID(
+    override suspend fun isTherePermissionById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -94,7 +94,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
             ).await()
     }
 
-    override suspend fun getPermissionID(
+    override suspend fun getPermissionId(
         permission: Permission,
         sqlConnection: SqlConnection
     ): Int {
@@ -112,7 +112,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
         return rows.toList()[0].getInteger(0)
     }
 
-    override suspend fun getPermissionByID(
+    override suspend fun getPermissionById(
         id: Int,
         sqlConnection: SqlConnection
     ): Permission? {

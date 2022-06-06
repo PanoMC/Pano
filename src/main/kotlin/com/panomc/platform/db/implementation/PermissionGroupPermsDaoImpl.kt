@@ -49,8 +49,8 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
     }
 
     override suspend fun doesPermissionGroupHavePermission(
-        permissionGroupID: Int,
-        permissionID: Int,
+        permissionGroupId: Int,
+        permissionId: Int,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -60,8 +60,8 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    permissionGroupID,
-                    permissionID
+                    permissionGroupId,
+                    permissionId
                 )
             ).await()
 
@@ -69,8 +69,8 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
     }
 
     override suspend fun addPermission(
-        permissionGroupID: Int,
-        permissionID: Int,
+        permissionGroupId: Int,
+        permissionId: Int,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -80,15 +80,15 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    permissionID,
-                    permissionGroupID
+                    permissionId,
+                    permissionGroupId
                 )
             ).await()
     }
 
     override suspend fun removePermission(
-        permissionGroupID: Int,
-        permissionID: Int,
+        permissionGroupId: Int,
+        permissionId: Int,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -98,14 +98,14 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    permissionGroupID,
-                    permissionID
+                    permissionGroupId,
+                    permissionId
                 )
             ).await()
     }
 
     override suspend fun removePermissionGroup(
-        permissionGroupID: Int,
+        permissionGroupId: Int,
         sqlConnection: SqlConnection,
     ) {
         val query =
@@ -115,7 +115,7 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    permissionGroupID
+                    permissionGroupId
                 )
             ).await()
     }

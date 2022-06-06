@@ -8,6 +8,8 @@ import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.json.schema.SchemaParser
 
 @Endpoint
 class LogoutAPI(setupManager: SetupManager, authProvider: AuthProvider) : LoggedInApi(setupManager, authProvider) {
@@ -15,10 +17,14 @@ class LogoutAPI(setupManager: SetupManager, authProvider: AuthProvider) : Logged
 
     override val routes = arrayListOf("/api/auth/logout")
 
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser).build()
+
     override suspend fun handler(context: RoutingContext): Result {
         return Successful()
 //        authProvider.logout(databaseManager, context, (this::logoutHandler)(handler))
     }
+
 
 //    private fun logoutHandler(handler: (result: Result) -> Unit) = handler@{ isLoggedOut: Result?, _: AsyncResult<*>? ->
 //        if (isLoggedOut == null) {

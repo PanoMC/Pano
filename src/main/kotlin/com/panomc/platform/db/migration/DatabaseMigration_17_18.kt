@@ -22,7 +22,7 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
             createPermissionGroupTable(),
             createPermissionGroupPermsTable(),
             createAdminPermissionGroup(),
-            changePermissionIDFieldName()
+            changePermissionIdFieldName()
         )
 
     private fun deletePermissions(): suspend (sqlConnection: SqlConnection) -> Unit =
@@ -82,7 +82,7 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
                 .await()
         }
 
-    private fun changePermissionIDFieldName(): suspend (sqlConnection: SqlConnection) -> Unit =
+    private fun changePermissionIdFieldName(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}user` RENAME COLUMN `permission_id` TO `permission_group_id`;")

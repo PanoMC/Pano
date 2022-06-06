@@ -2,6 +2,7 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.User
+import com.panomc.platform.util.PlayerStatus
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
@@ -18,17 +19,17 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun getUserIDFromUsername(
+    suspend fun getUserIdFromUsername(
         username: String,
         sqlConnection: SqlConnection
     ): Int?
 
-    suspend fun getPermissionGroupIDFromUserID(
-        userID: Int,
+    suspend fun getPermissionGroupIdFromUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): Int?
 
-    suspend fun getPermissionGroupIDFromUsername(
+    suspend fun getPermissionGroupIdFromUsername(
         username: String,
         sqlConnection: SqlConnection
     ): Int?
@@ -41,13 +42,13 @@ interface UserDao : Dao<User> {
 
     suspend fun count(sqlConnection: SqlConnection): Int
 
-    suspend fun getUsernameFromUserID(
-        userID: Int,
+    suspend fun getUsernameFromUserId(
+        userId: Int,
         sqlConnection: SqlConnection
     ): String?
 
-    suspend fun getByID(
-        userID: Int,
+    suspend fun getById(
+        userId: Int,
         sqlConnection: SqlConnection
     ): User?
 
@@ -56,30 +57,30 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): User?
 
-    suspend fun countByPageType(
-        pageType: Int,
+    suspend fun countByStatus(
+        status: PlayerStatus,
         sqlConnection: SqlConnection
     ): Int
 
-    suspend fun getAllByPageAndPageType(
+    suspend fun getAllByPageAndStatus(
         page: Int,
-        pageType: Int,
+        status: PlayerStatus,
         sqlConnection: SqlConnection
     ): List<Map<String, Any>>
 
     suspend fun getAllByPageAndPermissionGroup(
         page: Int,
-        permissionGroupID: Int,
+        permissionGroupId: Int,
         sqlConnection: SqlConnection
     ): List<Map<String, Any>>
 
-    suspend fun getUserIDFromUsernameOrEmail(
+    suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlConnection: SqlConnection
     ): Int?
 
-    suspend fun getUsernameByListOfID(
-        userIDList: List<Int>,
+    suspend fun getUsernameByListOfId(
+        userIdList: List<Int>,
         sqlConnection: SqlConnection
     ): Map<Int, String>
 
@@ -88,53 +89,53 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isExistsByID(
+    suspend fun isExistsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun getUsernamesByPermissionGroupID(
-        permissionGroupID: Int,
+    suspend fun getUsernamesByPermissionGroupId(
+        permissionGroupId: Int,
         limit: Int,
         sqlConnection: SqlConnection
     ): List<String>
 
-    suspend fun getCountOfUsersByPermissionGroupID(
-        permissionGroupID: Int,
+    suspend fun getCountOfUsersByPermissionGroupId(
+        permissionGroupId: Int,
         sqlConnection: SqlConnection
     ): Int
 
-    suspend fun removePermissionGroupByPermissionGroupID(
-        permissionGroupID: Int,
+    suspend fun removePermissionGroupByPermissionGroupId(
+        permissionGroupId: Int,
         sqlConnection: SqlConnection
     )
 
     suspend fun setPermissionGroupByUsername(
-        permissionGroupID: Int,
+        permissionGroupId: Int,
         username: String,
         sqlConnection: SqlConnection
     )
 
-    suspend fun setUsernameByID(
+    suspend fun setUsernameById(
         id: Int,
         username: String,
         sqlConnection: SqlConnection
     )
 
-    suspend fun setEmailByID(
+    suspend fun setEmailById(
         id: Int,
         email: String,
         sqlConnection: SqlConnection
     )
 
-    suspend fun setPasswordByID(
+    suspend fun setPasswordById(
         id: Int,
         password: String,
         sqlConnection: SqlConnection
     )
 
-    suspend fun isEmailVerifiedByID(
-        userID: Int,
+    suspend fun isEmailVerifiedById(
+        userId: Int,
         sqlConnection: SqlConnection
     ): Boolean
 }

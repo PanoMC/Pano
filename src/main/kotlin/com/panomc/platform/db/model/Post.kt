@@ -4,7 +4,7 @@ data class Post(
     val id: Int,
     val title: String,
     val categoryId: Int,
-    val writerUserID: Int,
+    val writerUserId: Int,
     val text: String,
     val date: Long,
     val moveDate: Long,

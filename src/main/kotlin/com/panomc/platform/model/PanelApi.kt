@@ -9,28 +9,20 @@ import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-abstract class PanelApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) : Api() {
+abstract class PanelApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) :
+    LoggedInApi(setupManager, authProvider) {
 
     override fun getHandler() = Handler<RoutingContext> { context ->
-        if (!setupManager.isSetupDone()) {
-            sendResult(Error(ErrorCode.INSTALLATION_REQUIRED), context)
+        checkSetup()
 
-            return@Handler
-        }
+        checkLoggedIn(context)
 
-        val isLoggedIn = authProvider.isLoggedIn(context)
+        CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
+            if (!authProvider.hasAccessPanel(context)) {
+                throw Error(ErrorCode.NO_PERMISSION)
+            }
 
-        if (!isLoggedIn) {
-            throw Error(ErrorCode.NOT_LOGGED_IN)
-        }
-
-        CoroutineScope(context.vertx().dispatcher()).launch {
-            if (authProvider.hasAccessPanel(context))
-                handler(context) {
-                    sendResult(it, context)
-                }
-            else
-                sendResult(Error(ErrorCode.NO_PERMISSION), context)
+            callHandler(context)
         }
     }
 }

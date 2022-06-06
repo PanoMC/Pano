@@ -1,9 +1,9 @@
 package com.panomc.platform.util
 
 object TextUtil {
-    fun convertStringToURL(string: String) =
+    fun convertStringToUrl(string: String) =
         string
             .replace("\\s+".toRegex(), "-")
-            .replace("[^0-9A-Za-z-]+".toRegex(), "")
+            .replace("[^\\dA-Za-z-]+".toRegex(), "")
             .lowercase()
 }

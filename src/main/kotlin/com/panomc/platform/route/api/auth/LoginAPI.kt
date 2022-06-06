@@ -8,6 +8,10 @@ import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class LoginAPI(
@@ -17,6 +21,19 @@ class LoginAPI(
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/auth/login")
+
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser)
+            .body(
+                Bodies.json(
+                    Schemas.objectSchema()
+                        .property("usernameOrEmail", Schemas.stringSchema())
+                        .property("password", Schemas.stringSchema())
+                        .property("rememberMe", Schemas.booleanSchema())
+                        .property("recaptcha", Schemas.stringSchema())
+                )
+            )
+            .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val data = context.bodyAsJson

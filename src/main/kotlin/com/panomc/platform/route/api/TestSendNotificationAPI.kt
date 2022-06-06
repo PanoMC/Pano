@@ -11,6 +11,8 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.NotificationStatus
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.json.schema.SchemaParser
 
 @Endpoint
 class TestSendNotificationAPI(
@@ -22,19 +24,22 @@ class TestSendNotificationAPI(
 
     override val routes = arrayListOf("/api/testNotification")
 
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser).build()
+
     override suspend fun handler(context: RoutingContext): Result {
-        val userID = authProvider.getUserIDFromRoutingContext(context)
+        val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        databaseManager.panelNotificationDao.add(getNotification(userID), sqlConnection)
+        databaseManager.panelNotificationDao.add(getNotification(userId), sqlConnection)
 
         return Successful()
     }
 
-    private fun getNotification(userID: Int) = PanelNotification(
+    private fun getNotification(userId: Int) = PanelNotification(
         -1,
-        userID,
+        userId,
         "TEST NOTIFICATION",
         System.currentTimeMillis(),
         NotificationStatus.NOT_READ

@@ -39,11 +39,11 @@ class AuthProvider(
         }
 
         val userId =
-            databaseManager.userDao.getUserIDFromUsernameOrEmail(usernameOrEmail, sqlConnection) ?: throw Error(
+            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlConnection) ?: throw Error(
                 ErrorCode.UNKNOWN
             )
 
-        val isVerified = databaseManager.userDao.isEmailVerifiedByID(userId, sqlConnection)
+        val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlConnection)
 
         if (!isVerified) {
             throw Error(ErrorCode.LOGIN_EMAIL_NOT_VERIFIED)
@@ -54,7 +54,7 @@ class AuthProvider(
         usernameOrEmail: String,
         sqlConnection: SqlConnection
     ): String {
-        val userId = databaseManager.userDao.getUserIDFromUsernameOrEmail(
+        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(
             usernameOrEmail,
             sqlConnection
         )
@@ -189,11 +189,11 @@ class AuthProvider(
         routingContext: RoutingContext,
         sqlConnection: SqlConnection
     ): Boolean {
-        val userID = getUserIDFromRoutingContext(routingContext)
+        val userId = getUserIdFromRoutingContext(routingContext)
 
-        val permissionGroupID = databaseManager.userDao.getPermissionGroupIDFromUserID(userID, sqlConnection)
+        val permissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
 
-        if (permissionGroupID == null || permissionGroupID == -1) {
+        if (permissionGroupId == null || permissionGroupId == -1) {
             return false
         }
 
@@ -235,13 +235,13 @@ class AuthProvider(
 //    ) {
 //    }
 
-    fun getUserIDFromRoutingContext(routingContext: RoutingContext): Int {
+    fun getUserIdFromRoutingContext(routingContext: RoutingContext): Int {
         val token = getTokenFromRoutingContext(routingContext)
 
-        return getUserIDFromToken(token!!)
+        return getUserIdFromToken(token!!)
     }
 
-    fun getUserIDFromToken(token: String): Int {
+    fun getUserIdFromToken(token: String): Int {
         val jwt = parseToken(token)
 
         return jwt.body.subject.toInt()

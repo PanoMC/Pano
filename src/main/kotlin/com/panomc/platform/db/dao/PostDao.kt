@@ -2,38 +2,39 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Post
+import com.panomc.platform.util.PostStatus
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PostDao : Dao<Post> {
-    suspend fun removePostCategoriesByCategoryID(
-        categoryID: Int,
+    suspend fun removePostCategoriesByCategoryId(
+        categoryId: Int,
         sqlConnection: SqlConnection
     )
 
-    suspend fun isExistsByID(
+    suspend fun isExistsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun getByID(
+    suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): Post?
 
-    suspend fun moveTrashByID(
+    suspend fun moveTrashById(
         id: Int,
         sqlConnection: SqlConnection
     )
 
-    suspend fun moveDraftByID(
+    suspend fun moveDraftById(
         id: Int,
         sqlConnection: SqlConnection
     )
 
-    suspend fun publishByID(
+    suspend fun publishById(
         id: Int,
-        userID: Int,
+        userId: Int,
         sqlConnection: SqlConnection
     )
 
@@ -43,7 +44,7 @@ interface PostDao : Dao<Post> {
     ): Long
 
     suspend fun updateAndPublish(
-        userID: Int,
+        userId: Int,
         post: Post,
         sqlConnection: SqlConnection
     )
@@ -56,7 +57,13 @@ interface PostDao : Dao<Post> {
     ): Int
 
     suspend fun countByPageType(
-        pageType: Int,
+        postStatus: PostStatus,
+        sqlConnection: SqlConnection
+    ): Int
+
+    suspend fun countByPageTypeAndCategoryId(
+        postStatus: PostStatus,
+        categoryId: Int,
         sqlConnection: SqlConnection
     ): Int
 
@@ -69,7 +76,14 @@ interface PostDao : Dao<Post> {
 
     suspend fun getByPageAndPageType(
         page: Int,
-        pageType: Int,
+        postStatus: PostStatus,
+        sqlConnection: SqlConnection
+    ): List<Post>
+
+    suspend fun getByPagePageTypeAndCategoryId(
+        page: Int,
+        postStatus: PostStatus,
+        categoryId: Int,
         sqlConnection: SqlConnection
     ): List<Post>
 
@@ -77,8 +91,8 @@ interface PostDao : Dao<Post> {
         sqlConnection: SqlConnection
     ): Int
 
-    suspend fun countOfPublishedByCategoryID(
-        categoryID: Int,
+    suspend fun countOfPublishedByCategoryId(
+        categoryId: Int,
         sqlConnection: SqlConnection
     ): Int
 
@@ -87,14 +101,14 @@ interface PostDao : Dao<Post> {
         sqlConnection: SqlConnection
     ): List<Post>
 
-    suspend fun getPublishedListByPageAndCategoryID(
-        categoryID: Int,
+    suspend fun getPublishedListByPageAndCategoryId(
+        categoryId: Int,
         page: Int,
         sqlConnection: SqlConnection
     ): List<Post>
 
-    suspend fun getListByPageAndCategoryID(
-        categoryID: Int,
+    suspend fun getListByPageAndCategoryId(
+        categoryId: Int,
         page: Int,
         sqlConnection: SqlConnection
     ): List<Post>

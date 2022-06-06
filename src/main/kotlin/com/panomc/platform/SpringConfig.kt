@@ -7,10 +7,14 @@ import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
+import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRouter
+import io.vertx.json.schema.SchemaRouterOptions
 import org.slf4j.Logger
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.*
+
 
 @Configuration
 @ComponentScan("com.panomc.platform")
@@ -56,7 +60,8 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun router() = RouterProvider.create(vertx, applicationContext).provide()
+    open fun router(schemaParser: SchemaParser) =
+        RouterProvider.create(vertx, applicationContext, schemaParser).provide()
 
     @Bean
     @Lazy
@@ -83,4 +88,11 @@ open class SpringConfig {
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun provideWebClient(): WebClient = WebClient.create(vertx)
+
+    @Bean
+    @Lazy
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun provideSchemeParser(vertx: Vertx): SchemaParser = SchemaParser.createOpenAPI3SchemaParser(
+        SchemaRouter.create(vertx, SchemaRouterOptions())
+    )
 }

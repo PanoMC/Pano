@@ -19,8 +19,8 @@ class DatabaseMigration_9_10(databaseManager: DatabaseManager) : DatabaseMigrati
             updateTicketTableDateColumn(),
             updatePostTableTitleColumn(),
             updatePostTableMoveDateColumn(),
-            updatePostTableCategoryIDColumn(),
-            updateTicketTableTicketCategoryIDColumn(),
+            updatePostTableCategoryIdColumn(),
+            updateTicketTableTicketCategoryIdColumn(),
             updateTicketTableTitleColumn(),
             updateTicketCategoryTableTitleColumn(),
             updatePostCategoryTableTitleColumn(),
@@ -51,7 +51,7 @@ class DatabaseMigration_9_10(databaseManager: DatabaseManager) : DatabaseMigrati
                 .await()
         }
 
-    private fun updatePostTableCategoryIDColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+    private fun updatePostTableCategoryIdColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}post` MODIFY `category_id` int(11);")
@@ -75,7 +75,7 @@ class DatabaseMigration_9_10(databaseManager: DatabaseManager) : DatabaseMigrati
                 .await()
         }
 
-    private fun updateTicketTableTicketCategoryIDColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
+    private fun updateTicketTableTicketCategoryIdColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
             sqlConnection
                 .query("ALTER TABLE `${getTablePrefix()}ticket` CHANGE `ticket_category_id` `category_id` int(11);")

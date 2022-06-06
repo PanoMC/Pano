@@ -51,7 +51,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         return rows.toList()[0].getInteger(0) != 0
     }
 
-    override suspend fun isThereByID(
+    override suspend fun isThereById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -84,7 +84,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
             ).await()
     }
 
-    override suspend fun getPermissionGroupByID(
+    override suspend fun getPermissionGroupById(
         id: Int,
         sqlConnection: SqlConnection
     ): PermissionGroup? {
@@ -106,7 +106,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         return PermissionGroup(id, rows.toList()[0].getString(0))
     }
 
-    override suspend fun getPermissionGroupID(
+    override suspend fun getPermissionGroupId(
         permissionGroup: PermissionGroup,
         sqlConnection: SqlConnection
     ): Int? {
@@ -146,7 +146,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         return permissionsGroups
     }
 
-    override suspend fun deleteByID(
+    override suspend fun deleteById(
         id: Int,
         sqlConnection: SqlConnection
     ) {

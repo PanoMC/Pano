@@ -1,6 +1,6 @@
 package com.panomc.platform.util
 
-enum class TicketPageType(private val type: String, val value: Int) {
+enum class TicketPageType(val type: String, val value: Int) {
     ALL("all", 2),
     WAITING_REPLY("waitingReply", 1),
     CLOSED("closed", 3);

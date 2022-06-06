@@ -9,6 +9,8 @@ import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.json.schema.SchemaParser
 
 @Endpoint
 class PanelQuickNotificationsAndReadAPI(
@@ -20,16 +22,19 @@ class PanelQuickNotificationsAndReadAPI(
 
     override val routes = arrayListOf("/api/panel/quickNotificationsAndRead")
 
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser).build()
+
     override suspend fun handler(context: RoutingContext): Result {
-        val userID = authProvider.getUserIDFromRoutingContext(context)
+        val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val notifications = databaseManager.panelNotificationDao.getLast5ByUserID(userID, sqlConnection)
+        val notifications = databaseManager.panelNotificationDao.getLast5ByUserId(userId, sqlConnection)
 
-        val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserID(userID, sqlConnection)
+        val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
 
-        databaseManager.panelNotificationDao.markReadLat5ByUserID(userID, sqlConnection)
+        databaseManager.panelNotificationDao.markReadLat5ByUserId(userId, sqlConnection)
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 
@@ -37,10 +42,10 @@ class PanelQuickNotificationsAndReadAPI(
             notificationsDataList.add(
                 mapOf(
                     "id" to notification.id,
-                    "typeId" to notification.typeID,
+                    "typeId" to notification.typeId,
                     "date" to notification.date,
                     "status" to notification.status,
-                    "isPersonal" to (notification.userID == userID)
+                    "isPersonal" to (notification.userId == userId)
                 )
             )
         }

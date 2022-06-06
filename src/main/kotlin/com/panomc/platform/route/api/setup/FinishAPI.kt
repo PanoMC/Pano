@@ -10,6 +10,11 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.RegisterUtil
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class FinishAPI(
@@ -21,12 +26,25 @@ class FinishAPI(
 
     override val routes = arrayListOf("/api/setup/finish")
 
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser)
+            .body(
+                Bodies.json(
+                    objectSchema()
+                        .property("username", stringSchema())
+                        .property("email", stringSchema())
+                        .property("password", stringSchema())
+                )
+            )
+            .build()
+
     override suspend fun handler(context: RoutingContext): Result {
         if (setupManager.getStep() != 3) {
             return Successful(setupManager.getCurrentStepData().map)
         }
 
-        val data = context.bodyAsJson
+        val parameters = getParameters(context)
+        val data = parameters.body().jsonObject
 
         val username = data.getString("username")
         val email = data.getString("email")

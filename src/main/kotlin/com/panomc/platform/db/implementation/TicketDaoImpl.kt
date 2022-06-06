@@ -127,9 +127,9 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return tickets
     }
 
-    override suspend fun getAllByPageAndCategoryID(
+    override suspend fun getAllByPageAndCategoryId(
         page: Int,
-        categoryID: Int,
+        categoryId: Int,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
@@ -137,7 +137,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(categoryID)
+        parameters.addInteger(categoryId)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -163,8 +163,8 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return tickets
     }
 
-    override suspend fun getAllByUserIDAndPage(
-        userID: Int,
+    override suspend fun getAllByUserIdAndPage(
+        userId: Int,
         page: Int,
         sqlConnection: SqlConnection
     ): List<Ticket> {
@@ -173,7 +173,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(userID)
+        parameters.addInteger(userId)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -319,7 +319,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun countByUserID(
+    override suspend fun countByUserId(
         id: Int,
         sqlConnection: SqlConnection
     ): Int {
@@ -334,7 +334,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.toList()[0].getInteger(0)
     }
 
-    override suspend fun getByID(
+    override suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): Ticket? {
@@ -355,8 +355,8 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         val ticket = Ticket(
             id = row.getInteger(0),
             title = row.getString(1),
-            categoryID = row.getInteger(2),
-            userID = row.getInteger(3),
+            categoryId = row.getInteger(2),
+            userId = row.getInteger(3),
             date = row.getLong(4),
             lastUpdate = row.getLong(5),
             status = row.getInteger(6),
@@ -365,7 +365,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return ticket
     }
 
-    override suspend fun isExistsByID(
+    override suspend fun isExistsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -374,6 +374,17 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(Tuple.of(id))
+            .await()
+
+        return rows.toList()[0].getInteger(0) == 1
+    }
+
+    override suspend fun isExistsByIdAndUserId(id: Int, userId: Int, sqlConnection: SqlConnection): Boolean {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ? and `user_id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(id, userId))
             .await()
 
         return rows.toList()[0].getInteger(0) == 1

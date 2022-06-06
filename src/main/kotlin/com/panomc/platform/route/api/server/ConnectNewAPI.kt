@@ -8,6 +8,10 @@ import com.panomc.platform.model.*
 import com.panomc.platform.util.PlatformCodeManager
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class ConnectNewAPI(
@@ -19,6 +23,23 @@ class ConnectNewAPI(
 
     override val routes = arrayListOf("/api/server/connectNew")
 
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser)
+            .body(
+                Bodies.json(
+                    Schemas.objectSchema()
+                        .property("platformCode", Schemas.stringSchema())
+                        .property("serverName", Schemas.stringSchema())
+                        .property("playerCount", Schemas.intSchema())
+                        .property("maxPlayerCount", Schemas.intSchema())
+                        .property("serverType", Schemas.stringSchema())
+                        .property("serverVersion", Schemas.stringSchema())
+                        .property("favicon", Schemas.stringSchema())
+                        .property("status", Schemas.stringSchema())
+                )
+            )
+            .build()
+
     override suspend fun handler(context: RoutingContext): Result? {
         if (!setupManager.isSetupDone()) {
             context.reroute("/")
@@ -26,7 +47,8 @@ class ConnectNewAPI(
             return null
         }
 
-        val data = context.bodyAsJson
+        val parameters = getParameters(context)
+        val data = parameters.body().jsonObject
 
         val sqlConnection = createConnection(databaseManager, context)
 

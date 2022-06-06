@@ -5,6 +5,10 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLConnectOptions
 import io.vertx.mysqlclient.MySQLPool
@@ -12,13 +16,27 @@ import io.vertx.sqlclient.PoolOptions
 import org.slf4j.Logger
 
 @Endpoint
-class DBConnectionTestAPI(private val logger: Logger, private val setupManager: SetupManager) : SetupApi(setupManager) {
+class DBConnectionTestAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/setup/dbConnectionTest")
 
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+        ValidationHandler.builder(schemaParser)
+            .body(
+                Bodies.json(
+                    Schemas.objectSchema()
+                        .property("host", Schemas.stringSchema())
+                        .property("dbName", Schemas.stringSchema())
+                        .property("username", Schemas.stringSchema())
+                        .optionalProperty("password", Schemas.stringSchema())
+                )
+            )
+            .build()
+
     override suspend fun handler(context: RoutingContext): Result {
-        val data = context.bodyAsJson
+        val parameters = getParameters(context)
+        val data = parameters.body().jsonObject
 
         var port = 3306
         var host = data.getString("host")
@@ -51,12 +69,12 @@ class DBConnectionTestAPI(private val logger: Logger, private val setupManager: 
             connection.close().await()
 
             mySQLPool.close().await()
-
-            return Successful()
         } catch (e: java.lang.Exception) {
             logger.error(e.toString())
 
             throw Error(ErrorCode.INVALID_DATA)
         }
+
+        return Successful()
     }
 }

@@ -11,7 +11,7 @@ interface PermissionDao : Dao<Permission> {
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isTherePermissionByID(
+    suspend fun isTherePermissionById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean
@@ -21,12 +21,12 @@ interface PermissionDao : Dao<Permission> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun getPermissionID(
+    suspend fun getPermissionId(
         permission: Permission,
         sqlConnection: SqlConnection
     ): Int
 
-    suspend fun getPermissionByID(
+    suspend fun getPermissionById(
         id: Int,
         sqlConnection: SqlConnection
     ): Permission?

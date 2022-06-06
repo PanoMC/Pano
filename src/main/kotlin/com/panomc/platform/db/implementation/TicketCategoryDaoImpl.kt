@@ -58,7 +58,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return categories
     }
 
-    override suspend fun isExistsByID(
+    override suspend fun isExistsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -72,7 +72,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return rows.toList()[0].getInteger(0) == 1
     }
 
-    override suspend fun isExistsByURL(
+    override suspend fun isExistsByUrl(
         url: String,
         sqlConnection: SqlConnection,
     ): Boolean {
@@ -86,7 +86,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return rows.toList()[0].getInteger(0) == 1
     }
 
-    override suspend fun deleteByID(
+    override suspend fun deleteById(
         id: Int,
         sqlConnection: SqlConnection
     ) {
@@ -111,7 +111,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
                 Tuple.of(
                     ticketCategory.title,
                     ticketCategory.description,
-                    TextUtil.convertStringToURL(ticketCategory.title)
+                    TextUtil.convertStringToUrl(ticketCategory.title)
                 )
             )
             .await()
@@ -130,7 +130,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
                 Tuple.of(
                     ticketCategory.title,
                     ticketCategory.description,
-                    TextUtil.convertStringToURL(ticketCategory.title),
+                    TextUtil.convertStringToUrl(ticketCategory.title),
                     ticketCategory.id
                 )
             )
@@ -178,7 +178,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return categories
     }
 
-    override suspend fun getByID(
+    override suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): TicketCategory? {
@@ -206,7 +206,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return ticket
     }
 
-    override suspend fun getByURL(
+    override suspend fun getByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): TicketCategory? {
@@ -234,7 +234,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return ticket
     }
 
-    override suspend fun getByIDList(
+    override suspend fun getByIdList(
         ticketCategoryIdList: List<Int>,
         sqlConnection: SqlConnection
     ): Map<Int, TicketCategory> {

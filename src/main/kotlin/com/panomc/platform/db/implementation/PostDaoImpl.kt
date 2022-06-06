@@ -5,7 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PostDao
 import com.panomc.platform.db.model.Post
-import com.panomc.platform.model.PostStatus
+import com.panomc.platform.util.PostStatus
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -39,8 +39,8 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun removePostCategoriesByCategoryID(
-        categoryID: Int,
+    override suspend fun removePostCategoriesByCategoryId(
+        categoryId: Int,
         sqlConnection: SqlConnection
     ) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET category_id = ? WHERE category_id = ?"
@@ -50,13 +50,13 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(
                 Tuple.of(
                     -1,
-                    categoryID
+                    categoryId
                 )
             )
             .await()
     }
 
-    override suspend fun isExistsByID(
+    override suspend fun isExistsById(
         id: Int,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -74,7 +74,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getInteger(0) == 1
     }
 
-    override suspend fun getByID(
+    override suspend fun getById(
         id: Int,
         sqlConnection: SqlConnection
     ): Post? {
@@ -112,7 +112,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return post
     }
 
-    override suspend fun moveTrashByID(
+    override suspend fun moveTrashById(
         id: Int,
         sqlConnection: SqlConnection
     ) {
@@ -131,7 +131,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun moveDraftByID(
+    override suspend fun moveDraftById(
         id: Int,
         sqlConnection: SqlConnection
     ) {
@@ -150,9 +150,9 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun publishByID(
+    override suspend fun publishById(
         id: Int,
-        userID: Int,
+        userId: Int,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -162,7 +162,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userID,
+                    userId,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
                     1,
@@ -185,7 +185,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                 Tuple.of(
                     post.title,
                     post.categoryId,
-                    post.writerUserID,
+                    post.writerUserId,
                     post.text,
                     post.date,
                     post.moveDate,
@@ -200,7 +200,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun updateAndPublish(
-        userID: Int,
+        userId: Int,
         post: Post,
         sqlConnection: SqlConnection
     ) {
@@ -213,7 +213,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                 Tuple.of(
                     post.title,
                     post.categoryId,
-                    post.writerUserID,
+                    post.writerUserId,
                     post.text,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
@@ -253,16 +253,34 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun countByPageType(
-        pageType: Int,
+        postStatus: PostStatus,
         sqlConnection: SqlConnection
     ): Int {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE status = ?"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `status` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
-                Tuple.of(pageType)
+                Tuple.of(postStatus.value)
+            )
+            .await()
+
+        return rows.toList()[0].getInteger(0)
+    }
+
+    override suspend fun countByPageTypeAndCategoryId(
+        postStatus: PostStatus,
+        categoryId: Int,
+        sqlConnection: SqlConnection
+    ): Int {
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `category_id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(postStatus.value, categoryId)
             )
             .await()
 
@@ -274,7 +292,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ) {
         val query =
-            "DELETE from `${getTablePrefix() + tableName}` WHERE id = ?"
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `id` = ?"
 
         sqlConnection
             .preparedQuery(query)
@@ -322,16 +340,54 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun getByPageAndPageType(
         page: Int,
-        pageType: Int,
+        postStatus: PostStatus,
         sqlConnection: SqlConnection
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (pageType == 1) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
-                Tuple.of(pageType)
+                Tuple.of(postStatus.value)
+            )
+            .await()
+
+        val posts = mutableListOf<Post>()
+
+        rows.forEach { row ->
+            posts.add(
+                Post(
+                    row.getInteger(0),
+                    row.getString(1),
+                    row.getInteger(2),
+                    row.getInteger(3),
+                    row.getBuffer(4).toString(),
+                    row.getLong(5),
+                    row.getLong(6),
+                    row.getInteger(7),
+                    row.getBuffer(8).toString(),
+                    row.getLong(9)
+                )
+            )
+        }
+
+        return posts
+    }
+
+    override suspend fun getByPagePageTypeAndCategoryId(
+        page: Int,
+        postStatus: PostStatus,
+        categoryId: Int,
+        sqlConnection: SqlConnection
+    ): List<Post> {
+        val query =
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `category_id` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(postStatus.value, categoryId)
             )
             .await()
 
@@ -366,15 +422,15 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
-                Tuple.of(PostStatus.PUBLISHED.code)
+                Tuple.of(PostStatus.PUBLISHED.value)
             )
             .await()
 
         return rows.toList()[0].getInteger(0)
     }
 
-    override suspend fun countOfPublishedByCategoryID(
-        categoryID: Int,
+    override suspend fun countOfPublishedByCategoryId(
+        categoryId: Int,
         sqlConnection: SqlConnection
     ): Int {
         val query =
@@ -384,8 +440,8 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.code,
-                    categoryID
+                    PostStatus.PUBLISHED.value,
+                    categoryId
                 )
             )
             .await()
@@ -403,7 +459,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
-                Tuple.of(PostStatus.PUBLISHED.code)
+                Tuple.of(PostStatus.PUBLISHED.value)
             )
             .await()
 
@@ -429,8 +485,8 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return posts
     }
 
-    override suspend fun getPublishedListByPageAndCategoryID(
-        categoryID: Int,
+    override suspend fun getPublishedListByPageAndCategoryId(
+        categoryId: Int,
         page: Int,
         sqlConnection: SqlConnection
     ): List<Post> {
@@ -441,8 +497,8 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.code,
-                    categoryID
+                    PostStatus.PUBLISHED.value,
+                    categoryId
                 )
             )
             .await()
@@ -469,8 +525,8 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return posts
     }
 
-    override suspend fun getListByPageAndCategoryID(
-        categoryID: Int,
+    override suspend fun getListByPageAndCategoryId(
+        categoryId: Int,
         page: Int,
         sqlConnection: SqlConnection
     ): List<Post> {
@@ -481,7 +537,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    categoryID
+                    categoryId
                 )
             )
             .await()
@@ -536,7 +592,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.code,
+                    PostStatus.PUBLISHED.value,
                     date
                 )
             )
@@ -556,7 +612,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.code,
+                    PostStatus.PUBLISHED.value,
                     date
                 )
             )
@@ -576,7 +632,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.code,
+                    PostStatus.PUBLISHED.value,
                     date
                 )
             )
@@ -615,7 +671,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.code,
+                    PostStatus.PUBLISHED.value,
                     date
                 )
             )

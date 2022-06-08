@@ -40,6 +40,10 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
                 ?: throw Error(ErrorCode.UNKNOWN)
         }
 
+        if (categoryUrl != null && categoryUrl == "-") {
+            ticketCategory = TicketCategory(-1, "-", "", "-")
+        }
+
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val count = if (ticketCategory != null)

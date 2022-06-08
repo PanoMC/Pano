@@ -51,7 +51,6 @@ class RouterProvider private constructor(
         val routeList = beans.map { it.value as Route }
 
         router.route()
-            .handler(BodyHandler.create())
             .handler(SessionHandler.create(LocalSessionStore.create(vertx)))
             .handler(
                 CorsHandler.create(".*.")
@@ -59,6 +58,7 @@ class RouterProvider private constructor(
                     .allowedHeaders(allowedHeaders)
                     .allowedMethods(allowedMethods)
             )
+            .handler(BodyHandler.create())
 
         routeList.forEach { route ->
             route.routes.forEach { url ->

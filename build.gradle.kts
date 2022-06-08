@@ -1,4 +1,4 @@
-val vertxVersion = "4.2.7"
+val vertxVersion = "4.3.1"
 
 plugins {
     java
@@ -56,7 +56,7 @@ dependencies {
     //runtimeOnly("org.bouncycastle:bcprov-jdk15on:1.60")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 
-    implementation("org.springframework:spring-context:5.3.19")
+    implementation("org.springframework:spring-context:5.3.20")
 }
 
 tasks {

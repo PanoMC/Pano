@@ -22,10 +22,30 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
             TicketPageType.valueOf(type = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
                 ?: TicketPageType.ALL
         val page = parameters.queryParameter("page")?.integer ?: 1
+        val categoryUrl = parameters.queryParameter("categoryUrl")?.string
+
+        var ticketCategory: TicketCategory? = null
+
+        if (categoryUrl != null && categoryUrl != "-") {
+            val exists = databaseManager.ticketCategoryDao.isExistsByUrl(
+                categoryUrl,
+                sqlConnection
+            )
+
+            if (!exists) {
+                throw Error(ErrorCode.NOT_EXISTS)
+            }
+
+            ticketCategory = databaseManager.ticketCategoryDao.getByUrl(categoryUrl, sqlConnection)
+                ?: throw Error(ErrorCode.UNKNOWN)
+        }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val count = databaseManager.ticketDao.getCountByPageTypeAndUserId(userId, pageType, sqlConnection)
+        val count = if (ticketCategory != null)
+            databaseManager.ticketDao.countByCategoryAndUserId(ticketCategory.id, userId, sqlConnection)
+        else
+            databaseManager.ticketDao.getCountByPageTypeAndUserId(userId, pageType, sqlConnection)
 
         var totalPage = ceil(count.toDouble() / 10).toInt()
 
@@ -36,27 +56,35 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
             throw Error(ErrorCode.PAGE_NOT_FOUND)
         }
 
-        val tickets = databaseManager.ticketDao.getAllByPagePageTypeAndUserId(userId, page, pageType, sqlConnection)
+        val tickets = if (ticketCategory != null)
+            databaseManager.ticketDao.getAllByPageCategoryIdAndUserId(page, ticketCategory.id, userId, sqlConnection)
+        else
+            databaseManager.ticketDao.getAllByPagePageTypeAndUserId(userId, page, pageType, sqlConnection)
 
         if (tickets.isEmpty()) {
-            return getResults(tickets, mapOf(), null, count, totalPage)
+            return getResults(ticketCategory, tickets, mapOf(), null, count, totalPage)
         }
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
+
+        if (ticketCategory != null) {
+            return getResults(ticketCategory, tickets, mapOf(), username, count, totalPage)
+        }
 
         val categoryIdList =
             tickets.filter { it.categoryId != -1 }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
-            return getResults(tickets, mapOf(), username, count, totalPage)
+            return getResults(null, tickets, mapOf(), username, count, totalPage)
         }
 
         val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
 
-        return getResults(tickets, ticketCategoryList, username, count, totalPage)
+        return getResults(null, tickets, ticketCategoryList, username, count, totalPage)
     }
 
     private fun getResults(
+        ticketCategory: TicketCategory?,
         tickets: List<Ticket>,
         ticketCategoryList: Map<Int, TicketCategory>,
         username: String?,
@@ -70,10 +98,13 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
                 mapOf(
                     "id" to ticket.id,
                     "title" to ticket.title,
-                    "category" to ticketCategoryList.getOrDefault(
-                        ticket.categoryId,
+                    "category" to (ticketCategory ?: if (ticket.categoryId == -1)
                         mapOf("id" to -1, "title" to "-", "url" to "-")
-                    ),
+                    else
+                        ticketCategoryList.getOrDefault(
+                            ticket.categoryId,
+                            mapOf("id" to -1, "title" to "-", "url" to "-")
+                        )),
                     "writer" to mapOf(
                         "username" to username
                     ),
@@ -89,6 +120,10 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
             "ticketCount" to count,
             "totalPage" to totalPage
         )
+
+        if (ticketCategory != null) {
+            result["category"] = ticketCategory
+        }
 
         return Successful(result)
     }

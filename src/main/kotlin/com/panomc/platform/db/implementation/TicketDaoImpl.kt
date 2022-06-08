@@ -203,6 +203,44 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return tickets
     }
 
+    override suspend fun getAllByPageCategoryIdAndUserId(
+        page: Int,
+        categoryId: Int,
+        userId: Int,
+        sqlConnection: SqlConnection
+    ): List<Ticket> {
+        val query =
+            "SELECT `id`, `title`, `category_id`, `user_id`, `date`, `last_update`, `status` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? AND `user_id` = ? ORDER BY `status`, `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+
+        val parameters = Tuple.tuple()
+
+        parameters.addInteger(categoryId)
+        parameters.addInteger(userId)
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(parameters)
+            .await()
+
+        val tickets = mutableListOf<Ticket>()
+
+        rows.forEach { row ->
+            tickets.add(
+                Ticket(
+                    row.getInteger(0),
+                    row.getString(1),
+                    row.getInteger(2),
+                    row.getInteger(3),
+                    row.getLong(4),
+                    row.getLong(5),
+                    row.getInteger(6)
+                )
+            )
+        }
+
+        return tickets
+    }
+
     override suspend fun getAllByUserIdAndPage(
         userId: Int,
         page: Int,
@@ -345,11 +383,22 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         id: Int,
         sqlConnection: SqlConnection
     ): Int {
-        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE category_id = ?"
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(Tuple.of(id))
+            .await()
+
+        return rows.toList()[0].getInteger(0)
+    }
+
+    override suspend fun countByCategoryAndUserId(id: Int, userId: Int, sqlConnection: SqlConnection): Int {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? AND `user_id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(id, userId))
             .await()
 
         return rows.toList()[0].getInteger(0)

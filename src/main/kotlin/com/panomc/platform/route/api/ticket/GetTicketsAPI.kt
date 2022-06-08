@@ -36,6 +36,7 @@ class GetTicketsAPI(
                 )
             )
             .queryParameter(optionalParam("page", Schemas.intSchema()))
+            .queryParameter(optionalParam("categoryUrl", Schemas.stringSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {

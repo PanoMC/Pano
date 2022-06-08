@@ -35,6 +35,13 @@ interface TicketDao : Dao<Ticket> {
         sqlConnection: SqlConnection
     ): List<Ticket>
 
+    suspend fun getAllByPageCategoryIdAndUserId(
+        page: Int,
+        categoryId: Int,
+        userId: Int,
+        sqlConnection: SqlConnection
+    ): List<Ticket>
+
     suspend fun getAllByUserIdAndPage(
         userId: Int,
         page: Int,
@@ -64,6 +71,12 @@ interface TicketDao : Dao<Ticket> {
 
     suspend fun countByCategory(
         id: Int,
+        sqlConnection: SqlConnection
+    ): Int
+
+    suspend fun countByCategoryAndUserId(
+        id: Int,
+        userId: Int,
         sqlConnection: SqlConnection
     ): Int
 

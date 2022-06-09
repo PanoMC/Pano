@@ -43,7 +43,7 @@ class LoginAPI(
         val rememberMe = data.getBoolean("rememberMe")
         val recaptcha = data.getString("recaptcha")
 
-        authProvider.inputValidator(usernameOrEmail, password, recaptcha)
+        authProvider.validateInput(usernameOrEmail, password, recaptcha)
 
         val sqlConnection = createConnection(databaseManager, context)
 

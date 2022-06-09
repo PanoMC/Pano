@@ -200,7 +200,7 @@ class AuthProvider(
         return true
     }
 
-    fun inputValidator(
+    fun validateInput(
         usernameOrEmail: String,
         password: String,
         recaptcha: String

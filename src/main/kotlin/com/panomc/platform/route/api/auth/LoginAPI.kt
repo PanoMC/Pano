@@ -50,6 +50,12 @@ class LoginAPI(
 
         authProvider.authenticate(usernameOrEmail, password, sqlConnection)
 
-        return Successful()
+        val token = authProvider.login(usernameOrEmail, sqlConnection)
+
+        return Successful(
+            mapOf(
+                "jwt" to token
+            )
+        )
     }
 }

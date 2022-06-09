@@ -36,7 +36,8 @@ class LoginAPI(
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
-        val data = context.bodyAsJson
+        val parameters = getParameters(context)
+        val data = parameters.body().jsonObject
 
         val usernameOrEmail = data.getString("usernameOrEmail")
         val password = data.getString("password")

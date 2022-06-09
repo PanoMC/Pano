@@ -69,6 +69,11 @@ interface TicketDao : Dao<Ticket> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun closeTicketById(
+        id: Int,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun countByCategory(
         id: Int,
         sqlConnection: SqlConnection
@@ -97,6 +102,12 @@ interface TicketDao : Dao<Ticket> {
 
     suspend fun isExistsById(
         id: Int,
+        sqlConnection: SqlConnection
+    ): Boolean
+
+    suspend fun isBelongToUserIdsById(
+        id: Int,
+        userId: Int,
         sqlConnection: SqlConnection
     ): Boolean
 

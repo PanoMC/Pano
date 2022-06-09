@@ -379,6 +379,21 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
+    override suspend fun closeTicketById(id: Int, sqlConnection: SqlConnection) {
+        val parameters = Tuple.tuple()
+
+        parameters.addInteger(TicketPageType.CLOSED.value)
+        parameters.addInteger(id)
+
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `status` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(parameters)
+            .await()
+    }
+
     override suspend fun countByCategory(
         id: Int,
         sqlConnection: SqlConnection
@@ -486,6 +501,17 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(Tuple.of(id))
+            .await()
+
+        return rows.toList()[0].getInteger(0) == 1
+    }
+
+    override suspend fun isBelongToUserIdsById(id: Int, userId: Int, sqlConnection: SqlConnection): Boolean {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ? AND `user_id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(id, userId))
             .await()
 
         return rows.toList()[0].getInteger(0) == 1

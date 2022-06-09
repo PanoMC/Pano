@@ -20,7 +20,7 @@ class PanelUpdateTicketCategoryAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.POST
+    override val routeType = RouteType.PUT
 
     override val routes = arrayListOf("/api/panel/ticket/categories/:id")
 

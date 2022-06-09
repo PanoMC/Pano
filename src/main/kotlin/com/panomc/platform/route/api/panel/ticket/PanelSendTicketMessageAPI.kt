@@ -39,7 +39,7 @@ class PanelSendTicketMessageAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val ticketId = parameters.pathParameter("page").integer
+        val ticketId = parameters.pathParameter("id").integer
         val message = data.getString("message")
 
         val userId = authProvider.getUserIdFromRoutingContext(context)

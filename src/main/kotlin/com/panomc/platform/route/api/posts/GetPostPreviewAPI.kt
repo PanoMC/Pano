@@ -69,7 +69,7 @@ class GetPostPreviewAPI(
                 ),
                 "text" to post.text,
                 "date" to post.date,
-                "status" to post.status,
+                "status" to post.status.value,
                 "image" to post.image,
                 "views" to post.views
             )

@@ -140,7 +140,7 @@ class PanelGetPostsAPI(
                     ),
                     "date" to post.date,
                     "views" to post.views,
-                    "status" to post.status
+                    "status" to post.status.value
                 )
             )
         }

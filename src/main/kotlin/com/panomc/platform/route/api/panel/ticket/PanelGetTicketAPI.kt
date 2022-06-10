@@ -106,12 +106,12 @@ class PanelGetTicketAPI(
                             else
                                 mapOf(
                                     "title" to ticketCategory.title
-                                    ),
-                        "messages" to messages,
-                        "status" to ticket.status,
-                        "date" to ticket.date,
-                        "count" to messageCount
-                    )
+                                ),
+                    "messages" to messages,
+                    "status" to ticket.status.value,
+                    "date" to ticket.date,
+                    "count" to messageCount
+                )
                 )
             )
     }

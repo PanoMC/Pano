@@ -116,7 +116,7 @@ class PanelGetDashboardAPI(
                     ),
                     "date" to ticket.date,
                     "lastUpdate" to ticket.lastUpdate,
-                    "status" to ticket.status
+                    "status" to ticket.status.value
                 )
             )
         }

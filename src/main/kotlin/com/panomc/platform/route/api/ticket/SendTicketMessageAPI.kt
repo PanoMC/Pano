@@ -64,8 +64,6 @@ class SendTicketMessageAPI(
 
         val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlConnection)
 
-        databaseManager.ticketDao.makeStatus(ticketMessage.ticketId, 2, sqlConnection)
-
         databaseManager.ticketDao.updateLastUpdateDate(
             ticketMessage.ticketId,
             System.currentTimeMillis(),

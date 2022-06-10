@@ -21,7 +21,7 @@ class PanelGetTicketAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.POST
+    override val routeType = RouteType.GET
 
     override val routes = arrayListOf("/api/panel/tickets/:id")
 

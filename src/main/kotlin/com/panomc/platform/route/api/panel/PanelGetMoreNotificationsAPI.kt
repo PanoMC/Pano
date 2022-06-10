@@ -26,13 +26,13 @@ class PanelGetMoreNotificationsAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("id", Schemas.intSchema()))
+            .pathParameter(Parameters.param("id", Schemas.numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
-        val lastNotificationId = parameters.pathParameter("id").integer
+        val lastNotificationId = parameters.pathParameter("id").long
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 

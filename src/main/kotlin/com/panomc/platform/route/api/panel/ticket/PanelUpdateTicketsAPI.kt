@@ -30,7 +30,7 @@ class PanelUpdateTicketsAPI(
             .body(
                 Bodies.json(
                     objectSchema()
-                        .property("tickets", arraySchema().type(SchemaType.INT))
+                        .property("tickets", arraySchema().type(SchemaType.NUMBER))
                         .optionalProperty("status", stringSchema())
                 )
             )

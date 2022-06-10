@@ -22,11 +22,11 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
                               `username` varchar(16) NOT NULL UNIQUE,
                               `email` varchar(255) NOT NULL UNIQUE,
                               `password` varchar(255) NOT NULL,
-                              `permission_group_id` int(11) NOT NULL,
+                              `permission_group_id` bigint NOT NULL,
                               `registered_ip` varchar(255) NOT NULL,
                               `register_date` BIGINT(20) NOT NULL,
                               `email_verified` int(1) NOT NULL DEFAULT 0,
@@ -83,13 +83,13 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun getUserIdFromUsername(
         username: String,
         sqlConnection: SqlConnection
-    ): Int? {
+    ): Long? {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where username = ?"
 
@@ -106,13 +106,13 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             return null
         }
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getPermissionGroupIdFromUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
-    ): Int? {
+    ): Long? {
         val query =
             "SELECT permission_group_id FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
@@ -129,13 +129,13 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             return null
         }
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getPermissionGroupIdFromUsername(
         username: String,
         sqlConnection: SqlConnection
-    ): Int? {
+    ): Long? {
         val query =
             "SELECT permission_group_id FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
@@ -152,7 +152,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             return null
         }
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun isLoginCorrect(
@@ -174,10 +174,10 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun count(sqlConnection: SqlConnection): Int {
+    override suspend fun count(sqlConnection: SqlConnection): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
         val rows: RowSet<Row> = sqlConnection
@@ -185,11 +185,11 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute()
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getUsernameFromUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): String? {
         val query =
@@ -208,11 +208,11 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun getById(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): User? {
         val query =
-            "SELECT `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `email_verified`, `banned` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `email_verified`, `banned` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -225,17 +225,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         val row = rows.toList()[0]
 
-        return User(
-            userId,
-            row.getString(0),
-            row.getString(1),
-            row.getString(2),
-            row.getString(3),
-            row.getInteger(4),
-            row.getLong(5),
-            row.getInteger(6),
-            row.getInteger(7)
-        )
+        return User.from(row)
     }
 
     override suspend fun getByUsername(
@@ -256,23 +246,13 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         val row = rows.toList()[0]
 
-        return User(
-            row.getInteger(0),
-            row.getString(1),
-            row.getString(2),
-            row.getString(3),
-            row.getString(4),
-            row.getInteger(5),
-            row.getLong(6),
-            row.getInteger(7),
-            row.getInteger(8)
-        )
+        return User.from(row)
     }
 
     override suspend fun countByStatus(
         status: PlayerStatus,
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ?" else if (status == PlayerStatus.BANNED) "WHERE banned = ?" else ""}"
 
@@ -289,16 +269,16 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(parameters)
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getAllByPageAndStatus(
-        page: Int,
+        page: Long,
         status: PlayerStatus,
         sqlConnection: SqlConnection
     ): List<Map<String, Any>> {
         val query =
-            "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ? " else if (status == PlayerStatus.BANNED) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ? " else if (status == PlayerStatus.BANNED) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -323,11 +303,11 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             rows.forEach { row ->
                 players.add(
                     mapOf(
-                        "id" to row.getInteger(0),
+                        "id" to row.getLong(0),
                         "username" to row.getString(1),
                         "email" to row.getString(2),
                         "registerDate" to row.getLong(3),
-                        "permissionGroupId" to row.getInteger(4)
+                        "permissionGroupId" to row.getLong(4)
                     )
                 )
             }
@@ -336,16 +316,16 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun getAllByPageAndPermissionGroup(
-        page: Int,
-        permissionGroupId: Int,
+        page: Long,
+        permissionGroupId: Long,
         sqlConnection: SqlConnection
     ): List<Map<String, Any>> {
         val query =
-            "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(permissionGroupId)
+        parameters.addLong(permissionGroupId)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -358,11 +338,11 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             rows.forEach { row ->
                 players.add(
                     mapOf(
-                        "id" to row.getInteger(0),
+                        "id" to row.getLong(0),
                         "username" to row.getString(1),
                         "email" to row.getString(2),
                         "registerDate" to row.getLong(3),
-                        "permissionGroupId" to row.getInteger(4)
+                        "permissionGroupId" to row.getLong(4)
                     )
                 )
             }
@@ -373,7 +353,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     override suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlConnection: SqlConnection
-    ): Int? {
+    ): Long? {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where username = ? or email = ?"
 
@@ -386,13 +366,13 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             return null
         }
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getUsernameByListOfId(
-        userIdList: List<Int>,
+        userIdList: List<Long>,
         sqlConnection: SqlConnection
-    ): Map<Int, String> {
+    ): Map<Long, String> {
         var listText = ""
 
         userIdList.forEach { id ->
@@ -410,10 +390,10 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute()
             .await()
 
-        val listOfUsers = mutableMapOf<Int, String>()
+        val listOfUsers = mutableMapOf<Long, String>()
 
         rows.forEach { row ->
-            listOfUsers[row.getInteger(0)] = row.getString(1)
+            listOfUsers[row.getLong(0)] = row.getString(1)
         }
 
         return listOfUsers
@@ -430,11 +410,11 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(Tuple.of(username))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
@@ -444,16 +424,16 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(Tuple.of(id))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun getUsernamesByPermissionGroupId(
-        permissionGroupId: Int,
-        limit: Int,
+        permissionGroupId: Long,
+        limit: Long,
         sqlConnection: SqlConnection
     ): List<String> {
         val query =
-            "SELECT username FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? ${if (limit == -1) "" else "LIMIT $limit"}"
+            "SELECT username FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? ${if (limit == -1L) "" else "LIMIT $limit"}"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -470,9 +450,9 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun getCountOfUsersByPermissionGroupId(
-        permissionGroupId: Int,
+        permissionGroupId: Long,
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ?"
 
@@ -481,11 +461,11 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(Tuple.of(permissionGroupId))
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun removePermissionGroupByPermissionGroupId(
-        permissionGroupId: Int,
+        permissionGroupId: Long,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -503,7 +483,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun setPermissionGroupByUsername(
-        permissionGroupId: Int,
+        permissionGroupId: Long,
         username: String,
         sqlConnection: SqlConnection
     ) {
@@ -522,7 +502,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun setUsernameById(
-        id: Int,
+        id: Long,
         username: String,
         sqlConnection: SqlConnection
     ) {
@@ -541,7 +521,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun setEmailById(
-        id: Int,
+        id: Long,
         email: String,
         sqlConnection: SqlConnection
     ) {
@@ -560,7 +540,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun setPasswordById(
-        id: Int,
+        id: Long,
         password: String,
         sqlConnection: SqlConnection
     ) {
@@ -579,7 +559,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun isEmailVerifiedById(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -595,6 +575,6 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 }

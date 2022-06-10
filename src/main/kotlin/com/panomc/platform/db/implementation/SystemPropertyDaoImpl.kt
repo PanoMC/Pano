@@ -20,7 +20,7 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .query(
                 """
                         CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                          `id` int NOT NULL AUTO_INCREMENT,
+                          `id` bigint NOT NULL AUTO_INCREMENT,
                           `option` text NOT NULL,
                           `value` text NOT NULL,
                           PRIMARY KEY (`id`)
@@ -58,13 +58,13 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
         params.addString(systemProperty.value)
 
-        if (systemProperty.id == -1)
+        if (systemProperty.id == -1L)
             params.addString(systemProperty.option)
         else
-            params.addInteger(systemProperty.id)
+            params.addLong(systemProperty.id)
 
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET value = ? ${if (systemProperty.id != -1) ", option = ?" else ""} WHERE `${if (systemProperty.id == -1) "option" else "id"}` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET value = ? ${if (systemProperty.id != -1L) ", option = ?" else ""} WHERE `${if (systemProperty.id == -1L) "option" else "id"}` = ?"
 
         sqlConnection
             .preparedQuery(query)
@@ -88,11 +88,11 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             )
             .await()
 
-        return rows.toList()[0].getInteger(0) != 0
+        return rows.toList()[0].getLong(0) != 0L
     }
 
     override suspend fun isUserInstalledSystemByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -108,14 +108,14 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             )
             .await()
 
-        return rows.toList()[0].getInteger(0) != 0
+        return rows.toList()[0].getLong(0) != 0L
     }
 
     override suspend fun getValue(
         systemProperty: SystemProperty,
         sqlConnection: SqlConnection
     ): SystemProperty? {
-        val query = "SELECT `value` FROM `${getTablePrefix() + tableName}` where `option` = ?"
+        val query = "SELECT `id`, `option`, `value` FROM `${getTablePrefix() + tableName}` where `option` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -130,16 +130,14 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             return null
         }
 
-        return SystemProperty(
-            systemProperty.id,
-            systemProperty.option,
-            rows.toList()[0].getString(0)
-        )
+        val row = rows.toList()[0]
+
+        return SystemProperty.from(row)
     }
 
     private suspend fun addShowGettingStartedOption(
         sqlConnection: SqlConnection
     ) {
-        add(SystemProperty(-1, "show_getting_started", "true"), sqlConnection)
+        add(SystemProperty(option = "show_getting_started", value = "true"), sqlConnection)
     }
 }

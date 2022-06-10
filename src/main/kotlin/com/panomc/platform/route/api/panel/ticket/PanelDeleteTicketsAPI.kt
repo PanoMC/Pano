@@ -30,7 +30,7 @@ class PanelDeleteTicketsAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("tickets", Schemas.arraySchema().type(SchemaType.INT))
+                        .property("tickets", Schemas.arraySchema().type(SchemaType.NUMBER))
                 )
             )
             .build()

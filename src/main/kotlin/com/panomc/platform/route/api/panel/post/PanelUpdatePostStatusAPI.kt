@@ -25,7 +25,7 @@ class PanelUpdatePostStatusAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("id", intSchema()))
+            .pathParameter(Parameters.param("id", numberSchema()))
             .body(
                 json(
                     objectSchema()
@@ -38,7 +38,7 @@ class PanelUpdatePostStatusAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
         val moveTo = data.getString("to")
 
         val userId = authProvider.getUserIdFromRoutingContext(context)

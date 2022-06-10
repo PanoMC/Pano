@@ -18,7 +18,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
                               `name` varchar(128) NOT NULL UNIQUE,
                               `icon_name` varchar(128) NOT NULL DEFAULT '',
                               PRIMARY KEY (`id`)
@@ -29,14 +29,14 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
             .await()
 
         val permissions = listOf(
-            Permission(-1, "access_panel", "fa-cubes"),
-            Permission(-1, "manage_servers", "fa-cubes"),
-            Permission(-1, "manage_posts", "fa-sticky-note"),
-            Permission(-1, "manage_tickets", "fa-ticket-alt"),
-            Permission(-1, "manage_players", "fa-users"),
-            Permission(-1, "manage_view", "fa-palette"),
-            Permission(-1, "manage_addons", "fa-puzzle-piece"),
-            Permission(-1, "manage_platform_settings", "fa-cog")
+            Permission(name = "access_panel", iconName = "fa-cubes"),
+            Permission(name = "manage_servers", iconName = "fa-cubes"),
+            Permission(name = "manage_posts", iconName = "fa-sticky-note"),
+            Permission(name = "manage_tickets", iconName = "fa-ticket-alt"),
+            Permission(name = "manage_players", iconName = "fa-users"),
+            Permission(name = "manage_view", iconName = "fa-palette"),
+            Permission(name = "manage_addons", iconName = "fa-puzzle-piece"),
+            Permission(name = "manage_platform_settings", iconName = "fa-cog")
         )
 
         permissions.forEach { add(it, sqlConnection) }
@@ -57,11 +57,11 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
                 )
             ).await()
 
-        return rows.toList()[0].getInteger(0) != 0
+        return rows.toList()[0].getLong(0) != 0L
     }
 
     override suspend fun isTherePermissionById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -75,7 +75,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
                 )
             ).await()
 
-        return rows.toList()[0].getInteger(0) != 0
+        return rows.toList()[0].getLong(0) != 0L
     }
 
     override suspend fun add(
@@ -97,7 +97,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
     override suspend fun getPermissionId(
         permission: Permission,
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where `name` = ?"
 
@@ -109,15 +109,15 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
                 )
             ).await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getPermissionById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Permission? {
         val query =
-            "SELECT `name`, `icon_name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT `id`, `name`, `icon_name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -131,10 +131,9 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
             return null
         }
 
-        val permissionRow = rows.toList()[0]
-        val permission = Permission(id, permissionRow.getString(0), permissionRow.getString(1))
+        val row = rows.toList()[0]
 
-        return permission
+        return Permission.from(row)
     }
 
     override suspend fun getPermissions(
@@ -148,10 +147,6 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
             .execute()
             .await()
 
-        val permissions = rows.map { row ->
-            Permission(row.getInteger(0), row.getString(1), row.getString(2))
-        }
-
-        return permissions
+        return Permission.from(rows)
     }
 }

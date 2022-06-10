@@ -8,7 +8,7 @@ import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import com.panomc.platform.util.TicketPageType
+import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -30,10 +30,10 @@ class PanelGetTicketsAPI(
         ValidationHandler.builder(schemaParser)
             .queryParameter(
                 optionalParam(
-                    "pageType", arraySchema().items(enumSchema(*TicketPageType.values().map { it.type }.toTypedArray()))
+                    "pageType", arraySchema().items(enumSchema(*TicketStatus.values().map { it.status }.toTypedArray()))
                 )
             )
-            .queryParameter(optionalParam("page", intSchema()))
+            .queryParameter(optionalParam("page", numberSchema()))
             .queryParameter(optionalParam("categoryUrl", stringSchema()))
             .build()
 
@@ -41,9 +41,9 @@ class PanelGetTicketsAPI(
         val parameters = getParameters(context)
 
         val pageType =
-            TicketPageType.valueOf(type = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
-                ?: TicketPageType.ALL
-        val page = parameters.queryParameter("page")?.integer ?: 1
+            TicketStatus.valueOf(status = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
+                ?: TicketStatus.ALL
+        val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
         var ticketCategory: TicketCategory? = null
@@ -65,7 +65,7 @@ class PanelGetTicketsAPI(
         }
 
         if (categoryUrl != null && categoryUrl == "-") {
-            ticketCategory = TicketCategory(-1, "-", "", "-")
+            ticketCategory = TicketCategory()
         }
 
         val count = if (ticketCategory != null)
@@ -73,7 +73,7 @@ class PanelGetTicketsAPI(
         else
             databaseManager.ticketDao.getCountByPageType(pageType, sqlConnection)
 
-        var totalPage = ceil(count.toDouble() / 10).toInt()
+        var totalPage = ceil(count.toDouble() / 10).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -100,7 +100,7 @@ class PanelGetTicketsAPI(
         }
 
         val categoryIdList =
-            tickets.filter { it.categoryId != -1 }.distinctBy { it.categoryId }.map { it.categoryId }
+            tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
             return getResults(null, tickets, mapOf(), usernameList, count, totalPage)
@@ -114,10 +114,10 @@ class PanelGetTicketsAPI(
     private fun getResults(
         ticketCategory: TicketCategory?,
         tickets: List<Ticket>,
-        ticketCategoryList: Map<Int, TicketCategory>,
-        usernameList: Map<Int, String>,
-        count: Int,
-        totalPage: Int
+        ticketCategoryList: Map<Long, TicketCategory>,
+        usernameList: Map<Long, String>,
+        count: Long,
+        totalPage: Long
     ): Result {
         val ticketDataList = mutableListOf<Map<String, Any?>>()
 
@@ -126,7 +126,7 @@ class PanelGetTicketsAPI(
                 mapOf(
                     "id" to ticket.id,
                     "title" to ticket.title,
-                    "category" to (ticketCategory ?: if (ticket.categoryId == -1)
+                    "category" to (ticketCategory ?: if (ticket.categoryId == -1L)
                         mapOf("id" to -1, "title" to "-", "url" to "-")
                     else
                         ticketCategoryList.getOrDefault(

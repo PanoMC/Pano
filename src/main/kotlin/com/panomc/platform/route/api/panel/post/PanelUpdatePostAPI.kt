@@ -26,12 +26,12 @@ class PanelUpdatePostAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("id", intSchema()))
+            .pathParameter(Parameters.param("id", numberSchema()))
             .body(
                 json(
                     objectSchema()
                         .property("title", stringSchema())
-                        .property("category", intSchema())
+                        .property("category", numberSchema())
                         .property("text", stringSchema())
                         .optionalProperty("imageCode", stringSchema())
                 )
@@ -42,9 +42,9 @@ class PanelUpdatePostAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
         val title = data.getString("title")
-        val categoryId = data.getInteger("category")
+        val categoryId = data.getLong("category")
         val text = data.getString("text")
         val imageCode = data.getString("imageCode") ?: ""
 
@@ -59,16 +59,12 @@ class PanelUpdatePostAPI(
         }
 
         val post = Post(
-            id,
-            title,
-            categoryId,
-            userId,
-            text,
-            System.currentTimeMillis(),
-            System.currentTimeMillis(),
-            1,
-            imageCode,
-            0
+            id = id,
+            title = title,
+            categoryId = categoryId,
+            writerUserId = userId,
+            text = text,
+            image = imageCode
         )
 
         databaseManager.postDao.updateAndPublish(userId, post, sqlConnection)

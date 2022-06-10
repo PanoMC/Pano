@@ -19,9 +19,9 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
-                              `permission_id` int NOT NULL,
-                              `permission_group_id` int NOT NULL,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
+                              `permission_id` bigint NOT NULL,
+                              `permission_group_id` bigint NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Permission Table';
                         """
@@ -41,16 +41,12 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
             .execute()
             .await()
 
-        val permissionGroupPerms = rows.map { row ->
-            PermissionGroupPerms(row.getInteger(0), row.getInteger(1), row.getInteger(2))
-        }
-
-        return permissionGroupPerms
+        return PermissionGroupPerms.from(rows)
     }
 
     override suspend fun doesPermissionGroupHavePermission(
-        permissionGroupId: Int,
-        permissionId: Int,
+        permissionGroupId: Long,
+        permissionId: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -65,12 +61,12 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
                 )
             ).await()
 
-        return rows.toList()[0].getInteger(0) != 0
+        return rows.toList()[0].getLong(0) != 0L
     }
 
     override suspend fun addPermission(
-        permissionGroupId: Int,
-        permissionId: Int,
+        permissionGroupId: Long,
+        permissionId: Long,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -87,8 +83,8 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
     }
 
     override suspend fun removePermission(
-        permissionGroupId: Int,
-        permissionId: Int,
+        permissionGroupId: Long,
+        permissionId: Long,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -105,7 +101,7 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
     }
 
     override suspend fun removePermissionGroup(
-        permissionGroupId: Int,
+        permissionGroupId: Long,
         sqlConnection: SqlConnection,
     ) {
         val query =

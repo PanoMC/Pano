@@ -92,6 +92,6 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             return null
         }
 
-        return SchemeVersion(row.getString(0), null)
+        return SchemeVersion(row.getString(0))
     }
 }

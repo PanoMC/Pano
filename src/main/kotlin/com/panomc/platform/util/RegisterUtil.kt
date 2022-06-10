@@ -94,7 +94,7 @@ object RegisterUtil {
             throw Error(ErrorCode.REGISTER_EMAIL_NOT_AVAILABLE)
         }
 
-        val user = User(-1, username, email, password, remoteIP, -1, System.currentTimeMillis())
+        val user = User(username = username, email = email, password = password, registeredIp = remoteIP)
 
         if (!isAdmin) {
             databaseManager.userDao.add(user, sqlConnection, isSetup)
@@ -103,22 +103,20 @@ object RegisterUtil {
         }
 
         val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupId(
-            PermissionGroup(-1, "admin"),
+            PermissionGroup(name = "admin"),
             sqlConnection
         ) ?: throw Error(ErrorCode.UNKNOWN)
 
         val adminUser = User(
-            -1,
-            username,
-            email,
-            password,
-            remoteIP,
-            adminPermissionGroupId,
-            System.currentTimeMillis()
+            username = username,
+            email = email,
+            password = password,
+            registeredIp = remoteIP,
+            permissionGroupId = adminPermissionGroupId
         )
 
         val userId = databaseManager.userDao.add(adminUser, sqlConnection, isSetup)
-        val property = SystemProperty(-1, "who_installed_user_id", userId.toString())
+        val property = SystemProperty(option = "who_installed_user_id", value = userId.toString())
 
         val isPropertyExists = databaseManager.systemPropertyDao.isPropertyExists(
             property,

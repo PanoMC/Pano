@@ -13,7 +13,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import kotlin.math.ceil
 
@@ -30,14 +30,14 @@ class PanelGetPlayerAPI(
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
             .pathParameter(param("username", stringSchema()))
-            .queryParameter(optionalParam("page", intSchema()))
+            .queryParameter(optionalParam("page", numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
         val username = parameters.pathParameter("username").string
-        val page = parameters.queryParameter("page")?.integer ?: 1
+        val page = parameters.queryParameter("page")?.long ?: 1L
 
         val sqlConnection = createConnection(databaseManager, context)
 
@@ -63,7 +63,7 @@ class PanelGetPlayerAPI(
             "isEmailVerified" to user.emailVerified
         )
 
-        if (user.permissionGroupId != -1) {
+        if (user.permissionGroupId != -1L) {
             val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(
                 user.permissionGroupId,
                 sqlConnection
@@ -75,7 +75,7 @@ class PanelGetPlayerAPI(
 
         val count = databaseManager.ticketDao.countByUserId(user.id, sqlConnection)
 
-        var totalPage = ceil(count.toDouble() / 10).toInt()
+        var totalPage = ceil(count.toDouble() / 10).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -87,13 +87,13 @@ class PanelGetPlayerAPI(
         result["ticketCount"] = count
         result["ticketTotalPage"] = totalPage
 
-        if (count == 0) {
+        if (count == 0L) {
             return getTickets(result, listOf(), mapOf(), user.username)
         }
 
         val tickets = databaseManager.ticketDao.getAllByUserIdAndPage(user.id, page, sqlConnection)
 
-        val categoryIdList = tickets.filter { it.categoryId != -1 }.distinctBy { it.categoryId }.map { it.categoryId }
+        val categoryIdList = tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
             return getTickets(result, tickets, mapOf(), username)
@@ -107,7 +107,7 @@ class PanelGetPlayerAPI(
     private fun getTickets(
         result: MutableMap<String, Any?>,
         tickets: List<Ticket>,
-        ticketCategoryList: Map<Int, TicketCategory>,
+        ticketCategoryList: Map<Long, TicketCategory>,
         username: String
     ): Result {
         val ticketDataList = mutableListOf<Map<String, Any?>>()
@@ -118,7 +118,7 @@ class PanelGetPlayerAPI(
                     "id" to ticket.id,
                     "title" to ticket.title,
                     "category" to
-                            if (ticket.categoryId == -1)
+                            if (ticket.categoryId == -1L)
                                 mapOf("id" to -1, "title" to "-")
                             else
                                 ticketCategoryList.getOrDefault(

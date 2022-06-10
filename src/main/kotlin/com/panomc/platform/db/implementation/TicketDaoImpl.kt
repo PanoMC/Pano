@@ -5,9 +5,10 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TicketDao
 import com.panomc.platform.db.model.Ticket
-import com.panomc.platform.util.TicketPageType
+import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonArray
 import io.vertx.kotlin.coroutines.await
+import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
@@ -21,10 +22,10 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
                               `title` MEDIUMTEXT NOT NULL,
-                              `category_id` int(11) NOT NULL,
-                              `user_id` int(11) NOT NULL,
+                              `category_id` bigint NOT NULL,
+                              `user_id` bigint NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `last_update` BIGINT(20) NOT NULL,
                               `status` int(1) NOT NULL,
@@ -36,7 +37,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun count(sqlConnection: SqlConnection): Int {
+    override suspend fun count(sqlConnection: SqlConnection): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
         val rows: RowSet<Row> = sqlConnection
@@ -44,20 +45,20 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute()
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun countOfOpenTickets(
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE status = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(TicketPageType.WAITING_REPLY.value))
+            .execute(Tuple.of(TicketStatus.WAITING_REPLY.value))
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getLast5Tickets(
@@ -71,36 +72,20 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute()
             .await()
 
-        val tickets = mutableListOf<Ticket>()
-
-        rows.forEach { row ->
-            tickets.add(
-                Ticket(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getInteger(2),
-                    row.getInteger(3),
-                    row.getLong(4),
-                    row.getLong(5),
-                    row.getInteger(6)
-                )
-            )
-        }
-
-        return tickets
+        return Ticket.from(rows)
     }
 
     override suspend fun getAllByPageAndPageType(
-        page: Int,
-        pageType: TicketPageType,
+        page: Long,
+        pageType: TicketStatus,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
-            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketPageType.ALL) "WHERE status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketStatus.ALL) "WHERE status = ? " else ""}ORDER BY ${if (pageType == TicketStatus.ALL) "`status` ASC, " else ""}`last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        if (pageType != TicketPageType.ALL)
+        if (pageType != TicketStatus.ALL)
             parameters.addInteger(pageType.value)
 
         val rows: RowSet<Row> = sqlConnection
@@ -108,39 +93,23 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(parameters)
             .await()
 
-        val tickets = mutableListOf<Ticket>()
-
-        rows.forEach { row ->
-            tickets.add(
-                Ticket(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getInteger(2),
-                    row.getInteger(3),
-                    row.getLong(4),
-                    row.getLong(5),
-                    row.getInteger(6)
-                )
-            )
-        }
-
-        return tickets
+        return Ticket.from(rows)
     }
 
     override suspend fun getAllByPagePageTypeAndUserId(
-        userId: Int,
-        page: Int,
-        pageType: TicketPageType,
+        userId: Long,
+        page: Long,
+        pageType: TicketStatus,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
-            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ${if (pageType != TicketStatus.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketStatus.ALL) "`status` ASC, " else ""}`last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(userId)
+        parameters.addLong(userId)
 
-        if (pageType != TicketPageType.ALL)
+        if (pageType != TicketStatus.ALL)
             parameters.addInteger(pageType.value)
 
         val rows: RowSet<Row> = sqlConnection
@@ -148,145 +117,81 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(parameters)
             .await()
 
-        val tickets = mutableListOf<Ticket>()
-
-        rows.forEach { row ->
-            tickets.add(
-                Ticket(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getInteger(2),
-                    row.getInteger(3),
-                    row.getLong(4),
-                    row.getLong(5),
-                    row.getInteger(6)
-                )
-            )
-        }
-
-        return tickets
+        return Ticket.from(rows)
     }
 
     override suspend fun getAllByPageAndCategoryId(
-        page: Int,
-        categoryId: Int,
+        page: Long,
+        categoryId: Long,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `user_id`, `date`, `last_update`, `status` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `status`, `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT `id`, `title`, `category_id`, `user_id`, `date`, `last_update`, `status` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `status`, `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(categoryId)
+        parameters.addLong(categoryId)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(parameters)
             .await()
 
-        val tickets = mutableListOf<Ticket>()
-
-        rows.forEach { row ->
-            tickets.add(
-                Ticket(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getInteger(2),
-                    row.getInteger(3),
-                    row.getLong(4),
-                    row.getLong(5),
-                    row.getInteger(6)
-                )
-            )
-        }
-
-        return tickets
+        return Ticket.from(rows)
     }
 
     override suspend fun getAllByPageCategoryIdAndUserId(
-        page: Int,
-        categoryId: Int,
-        userId: Int,
+        page: Long,
+        categoryId: Long,
+        userId: Long,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `user_id`, `date`, `last_update`, `status` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? AND `user_id` = ? ORDER BY `status`, `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT `id`, `title`, `category_id`, `user_id`, `date`, `last_update`, `status` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? AND `user_id` = ? ORDER BY `status`, `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(categoryId)
-        parameters.addInteger(userId)
+        parameters.addLong(categoryId)
+        parameters.addLong(userId)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(parameters)
             .await()
 
-        val tickets = mutableListOf<Ticket>()
-
-        rows.forEach { row ->
-            tickets.add(
-                Ticket(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getInteger(2),
-                    row.getInteger(3),
-                    row.getLong(4),
-                    row.getLong(5),
-                    row.getInteger(6)
-                )
-            )
-        }
-
-        return tickets
+        return Ticket.from(rows)
     }
 
     override suspend fun getAllByUserIdAndPage(
-        userId: Int,
-        page: Int,
+        userId: Long,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
-            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` WHERE user_id = ? ORDER BY `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` WHERE user_id = ? ORDER BY `last_update` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(userId)
+        parameters.addLong(userId)
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(parameters)
             .await()
 
-        val tickets = mutableListOf<Ticket>()
-
-        rows.forEach { row ->
-            tickets.add(
-                Ticket(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getInteger(2),
-                    row.getInteger(3),
-                    row.getLong(4),
-                    row.getLong(5),
-                    row.getInteger(6)
-                )
-            )
-        }
-
-        return tickets
+        return Ticket.from(rows)
     }
 
     override suspend fun getCountByPageType(
-        pageType: TicketPageType,
+        pageType: TicketStatus,
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketPageType.ALL) "WHERE status = ?" else ""}"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketStatus.ALL) "WHERE status = ?" else ""}"
 
         val parameters = Tuple.tuple()
 
-        if (pageType != TicketPageType.ALL)
+        if (pageType != TicketStatus.ALL)
             parameters.addInteger(pageType.value)
 
         val rows: RowSet<Row> = sqlConnection
@@ -294,22 +199,22 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(parameters)
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getCountByPageTypeAndUserId(
-        userId: Int,
-        pageType: TicketPageType,
+        userId: Long,
+        pageType: TicketStatus,
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ${if (pageType != TicketPageType.ALL) "AND status = ?" else ""}"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ${if (pageType != TicketStatus.ALL) "AND status = ?" else ""}"
 
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(userId)
+        parameters.addLong(userId)
 
-        if (pageType != TicketPageType.ALL)
+        if (pageType != TicketStatus.ALL)
             parameters.addInteger(pageType.value)
 
         val rows: RowSet<Row> = sqlConnection
@@ -317,11 +222,11 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(parameters)
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getByCategory(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): List<Ticket> {
         val query =
@@ -332,23 +237,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(Tuple.of(id))
             .await()
 
-        val posts = mutableListOf<Ticket>()
-
-        rows.forEach { row ->
-            posts.add(
-                Ticket(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getInteger(2),
-                    row.getInteger(3),
-                    row.getLong(4),
-                    row.getLong(5),
-                    row.getInteger(6)
-                )
-            )
-        }
-
-        return posts
+        return Ticket.from(rows)
     }
 
     override suspend fun closeTickets(
@@ -357,7 +246,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     ) {
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(TicketPageType.CLOSED.value)
+        parameters.addInteger(TicketStatus.CLOSED.value)
 
         var selectedTicketsSQLText = ""
 
@@ -379,11 +268,11 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun closeTicketById(id: Int, sqlConnection: SqlConnection) {
+    override suspend fun closeTicketById(id: Long, sqlConnection: SqlConnection) {
         val parameters = Tuple.tuple()
 
-        parameters.addInteger(TicketPageType.CLOSED.value)
-        parameters.addInteger(id)
+        parameters.addInteger(TicketStatus.CLOSED.value)
+        parameters.addLong(id)
 
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `status` = ? WHERE `id` = ?"
@@ -395,9 +284,9 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun countByCategory(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
@@ -405,10 +294,10 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(Tuple.of(id))
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun countByCategoryAndUserId(id: Int, userId: Int, sqlConnection: SqlConnection): Int {
+    override suspend fun countByCategoryAndUserId(id: Long, userId: Long, sqlConnection: SqlConnection): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? AND `user_id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
@@ -416,7 +305,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(Tuple.of(id, userId))
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun delete(
@@ -447,9 +336,9 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun countByUserId(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
-    ): Int {
+    ): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where user_id = ?"
 
@@ -458,11 +347,11 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(Tuple.of(id))
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Ticket? {
         val query =
@@ -479,21 +368,11 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         val row = rows.toList()[0]
 
-        val ticket = Ticket(
-            id = row.getInteger(0),
-            title = row.getString(1),
-            categoryId = row.getInteger(2),
-            userId = row.getInteger(3),
-            date = row.getLong(4),
-            lastUpdate = row.getLong(5),
-            status = row.getInteger(6),
-        )
-
-        return ticket
+        return Ticket.from(row)
     }
 
     override suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
@@ -503,10 +382,10 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(Tuple.of(id))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isBelongToUserIdsById(id: Int, userId: Int, sqlConnection: SqlConnection): Boolean {
+    override suspend fun isBelongToUserIdsById(id: Long, userId: Long, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ? AND `user_id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
@@ -514,10 +393,10 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(Tuple.of(id, userId))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isExistsByIdAndUserId(id: Int, userId: Int, sqlConnection: SqlConnection): Boolean {
+    override suspend fun isExistsByIdAndUserId(id: Long, userId: Long, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ? and `user_id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
@@ -525,11 +404,11 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(Tuple.of(id, userId))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun makeStatus(
-        id: Int,
+        id: Long,
         status: Int,
         sqlConnection: SqlConnection
     ) {
@@ -547,7 +426,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun updateLastUpdateDate(
-        id: Int,
+        id: Long,
         date: Long,
         sqlConnection: SqlConnection
     ) {
@@ -562,5 +441,26 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                 )
             )
             .await()
+    }
+
+    override suspend fun save(ticket: Ticket, sqlConnection: SqlConnection): Long {
+        val query =
+            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `category_id`, `user_id`, `date`, `last_update`, `status`) VALUES (?, ?, ?, ?, ?, ?)"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    ticket.title,
+                    ticket.categoryId,
+                    ticket.userId,
+                    ticket.date,
+                    ticket.lastUpdate,
+                    ticket.status.value
+                )
+            )
+            .await()
+
+        return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 }

@@ -25,8 +25,8 @@ class PanelSetPermissionGroupPermissionAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("permissionGroupId", Schemas.intSchema()))
-            .pathParameter(Parameters.param("permissionId", Schemas.intSchema()))
+            .pathParameter(Parameters.param("permissionGroupId", Schemas.numberSchema()))
+            .pathParameter(Parameters.param("permissionId", Schemas.numberSchema()))
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
@@ -39,8 +39,8 @@ class PanelSetPermissionGroupPermissionAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val permissionGroupId = parameters.pathParameter("permissionGroupId").integer
-        val permissionId = parameters.pathParameter("permissionId").integer
+        val permissionGroupId = parameters.pathParameter("permissionGroupId").long
+        val permissionId = parameters.pathParameter("permissionId").long
         val mode = data.getString("mode")
 
         if (mode != "ADD" && mode != "DELETE") {

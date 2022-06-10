@@ -30,8 +30,8 @@ class ConnectNewAPI(
                     Schemas.objectSchema()
                         .property("platformCode", Schemas.stringSchema())
                         .property("serverName", Schemas.stringSchema())
-                        .property("playerCount", Schemas.intSchema())
-                        .property("maxPlayerCount", Schemas.intSchema())
+                        .property("playerCount", Schemas.numberSchema())
+                        .property("maxPlayerCount", Schemas.numberSchema())
                         .property("serverType", Schemas.stringSchema())
                         .property("serverVersion", Schemas.stringSchema())
                         .property("favicon", Schemas.stringSchema())
@@ -58,14 +58,13 @@ class ConnectNewAPI(
 
         val token = databaseManager.serverDao.add(
             Server(
-                -1,
-                data.getString("serverName"),
-                data.getInteger("playerCount"),
-                data.getInteger("maxPlayerCount"),
-                data.getString("serverType"),
-                data.getString("serverVersion"),
-                data.getString("favicon"),
-                data.getString("status")
+                name = data.getString("serverName"),
+                playerCount = data.getLong("playerCount"),
+                maxPlayerCount = data.getLong("maxPlayerCount"),
+                type = data.getString("serverType"),
+                version = data.getString("serverVersion"),
+                favicon = data.getString("favicon"),
+                status = data.getString("status")
             ),
             sqlConnection
         )

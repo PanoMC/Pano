@@ -32,10 +32,10 @@ class PanelGetPostsAPI(
                 optionalParam(
                     "pageType",
                     arraySchema()
-                        .items(enumSchema(*PostStatus.values().map { it.type }.toTypedArray()))
+                        .items(enumSchema(*PostStatus.values().map { it.status }.toTypedArray()))
                 )
             )
-            .queryParameter(optionalParam("page", intSchema()))
+            .queryParameter(optionalParam("page", numberSchema()))
             .queryParameter(optionalParam("categoryUrl", stringSchema()))
             .build()
 
@@ -44,10 +44,10 @@ class PanelGetPostsAPI(
 
         val pageType =
             PostStatus.valueOf(
-                type = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "published"
+                status = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "published"
             )
                 ?: PostStatus.PUBLISHED
-        val page = parameters.queryParameter("page")?.integer ?: 1
+        val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
         var postCategory: PostCategory? = null
@@ -74,7 +74,7 @@ class PanelGetPostsAPI(
         else
             databaseManager.postDao.countByPageType(pageType, sqlConnection)
 
-        var totalPage = ceil(count.toDouble() / 10).toInt()
+        var totalPage = ceil(count.toDouble() / 10).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -100,7 +100,7 @@ class PanelGetPostsAPI(
             return getResults(postCategory, posts, usernameList, mapOf(), count, totalPage)
         }
 
-        val categoryIdList = posts.filter { it.categoryId != -1 }.distinctBy { it.categoryId }.map { it.categoryId }
+        val categoryIdList = posts.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
             return getResults(null, posts, usernameList, mapOf(), count, totalPage)
@@ -114,10 +114,10 @@ class PanelGetPostsAPI(
     private fun getResults(
         postCategory: PostCategory?,
         posts: List<Post>,
-        usernameList: Map<Int, String>,
-        categories: Map<Int, PostCategory>,
-        count: Int,
-        totalPage: Int
+        usernameList: Map<Long, String>,
+        categories: Map<Long, PostCategory>,
+        count: Long,
+        totalPage: Long
     ): Result {
         val postsDataList = mutableListOf<Map<String, Any?>>()
 
@@ -128,7 +128,7 @@ class PanelGetPostsAPI(
                     "title" to post.title,
                     "category" to
                             (postCategory
-                                ?: if (post.categoryId == -1)
+                                ?: if (post.categoryId == -1L)
                                     mapOf("id" to -1, "title" to "-", "url" to "-")
                                 else
                                     categories.getOrDefault(

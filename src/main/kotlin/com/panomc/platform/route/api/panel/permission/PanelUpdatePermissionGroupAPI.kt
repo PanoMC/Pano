@@ -26,7 +26,7 @@ class PanelUpdatePermissionGroupAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("id", Schemas.intSchema()))
+            .pathParameter(Parameters.param("id", Schemas.numberSchema()))
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
@@ -39,7 +39,7 @@ class PanelUpdatePermissionGroupAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
         var name = data.getString("name")
 
         validateForm(name)

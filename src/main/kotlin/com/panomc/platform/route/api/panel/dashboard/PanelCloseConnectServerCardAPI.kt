@@ -38,9 +38,8 @@ class PanelCloseConnectServerCardAPI(
 
         databaseManager.systemPropertyDao.update(
             SystemProperty(
-                -1,
-                "false",
-                "show_connect_server_info"
+                option = "false",
+                value = "show_connect_server_info"
             ),
             sqlConnection
         )

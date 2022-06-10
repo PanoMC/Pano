@@ -14,8 +14,8 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
-                              `user_id` int(11) NOT NULL,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
+                              `user_id` bigint NOT NULL,
                               `option` varchar(255) NOT NULL,
                               `value` varchar(255) NOT NULL,
                               PRIMARY KEY (`id`)

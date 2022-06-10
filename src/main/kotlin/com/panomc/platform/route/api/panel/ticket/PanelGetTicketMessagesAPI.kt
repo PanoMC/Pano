@@ -10,7 +10,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
 class PanelGetTicketMessagesAPI(
@@ -24,14 +24,14 @@ class PanelGetTicketMessagesAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(param("id", intSchema()))
-            .queryParameter(param("lastMessageId", intSchema()))
+            .pathParameter(param("id", numberSchema()))
+            .queryParameter(param("lastMessageId", numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val id = parameters.pathParameter("id").integer
-        val lastMessageId = parameters.queryParameter("lastMessageId").integer
+        val id = parameters.pathParameter("id").long
+        val lastMessageId = parameters.queryParameter("lastMessageId").long
 
         val sqlConnection = createConnection(databaseManager, context)
 
@@ -50,7 +50,7 @@ class PanelGetTicketMessagesAPI(
         val ticketMessages =
             databaseManager.ticketMessageDao.getByTicketIdPageAndStartFromId(lastMessageId, id, sqlConnection)
 
-        val userIdList = mutableListOf<Int>()
+        val userIdList = mutableListOf<Long>()
 
         ticketMessages.forEach { message ->
             if (userIdList.indexOf(message.userId) == -1)

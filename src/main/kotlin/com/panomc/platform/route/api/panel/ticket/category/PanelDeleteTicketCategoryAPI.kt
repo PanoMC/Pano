@@ -10,7 +10,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
 class PanelDeleteTicketCategoryAPI(
@@ -24,12 +24,12 @@ class PanelDeleteTicketCategoryAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(param("id", intSchema()))
+            .pathParameter(param("id", numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
 
         val sqlConnection = createConnection(databaseManager, context)
 

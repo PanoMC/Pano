@@ -13,7 +13,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
 class PanelGetTicketAPI(
@@ -27,12 +27,12 @@ class PanelGetTicketAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(param("id", intSchema()))
+            .pathParameter(param("id", numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
 
         val sqlConnection = createConnection(databaseManager, context)
 
@@ -50,7 +50,7 @@ class PanelGetTicketAPI(
 
         val messages = databaseManager.ticketMessageDao.getByTicketIdAndPage(id, sqlConnection)
 
-        val userIdList = mutableListOf<Int>()
+        val userIdList = mutableListOf<Long>()
 
         messages.forEach { message ->
             if (userIdList.indexOf(message.userId) == -1)
@@ -61,7 +61,7 @@ class PanelGetTicketAPI(
 
         val count = databaseManager.ticketMessageDao.getCountByTicketId(ticket.id, sqlConnection)
 
-        if (ticket.categoryId == -1) {
+        if (ticket.categoryId == -1L) {
             return getResult(ticket, usernameList, null, username, messages, count)
         }
 
@@ -72,11 +72,11 @@ class PanelGetTicketAPI(
 
     private fun getResult(
         ticket: Ticket,
-        usernameList: Map<Int, String>,
+        usernameList: Map<Long, String>,
         ticketCategory: TicketCategory?,
         username: String,
         ticketMessages: List<TicketMessage>,
-        messageCount: Int
+        messageCount: Long
     ): Result {
         val messages = mutableListOf<Map<String, Any?>>()
 

@@ -21,7 +21,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
                               `title` MEDIUMTEXT NOT NULL,
                               `description` text,
                               `url` mediumtext NOT NULL,
@@ -37,29 +37,17 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         sqlConnection: SqlConnection
     ): List<TicketCategory> {
         val query = "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}`"
-        val categories = mutableListOf<TicketCategory>()
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute()
             .await()
 
-        rows.forEach { row ->
-            categories.add(
-                TicketCategory(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getString(2),
-                    row.getString(3)
-                )
-            )
-        }
-
-        return categories
+        return TicketCategory.from(rows)
     }
 
     override suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
@@ -69,7 +57,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute(Tuple.of(id))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun isExistsByUrl(
@@ -83,11 +71,11 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute(Tuple.of(url))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun deleteById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ) {
         val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
@@ -137,7 +125,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .await()
     }
 
-    override suspend fun count(sqlConnection: SqlConnection): Int {
+    override suspend fun count(sqlConnection: SqlConnection): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
@@ -146,11 +134,11 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute()
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getByPage(
-        page: Int,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<TicketCategory> {
         val query =
@@ -161,25 +149,11 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute()
             .await()
 
-        val categories = mutableListOf<TicketCategory>()
-
-        if (rows.size() > 0)
-            rows.forEach { row ->
-                categories.add(
-                    TicketCategory(
-                        row.getInteger(0),
-                        row.getString(1),
-                        row.getString(2),
-                        row.getString(3)
-                    )
-                )
-            }
-
-        return categories
+        return TicketCategory.from(rows)
     }
 
     override suspend fun getById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): TicketCategory? {
         val query =
@@ -196,14 +170,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
         val row = rows.toList()[0]
 
-        val ticket = TicketCategory(
-            id = row.getInteger(0),
-            title = row.getString(1),
-            description = row.getString(2),
-            url = row.getString(3)
-        )
-
-        return ticket
+        return TicketCategory.from(row)
     }
 
     override suspend fun getByUrl(
@@ -224,20 +191,13 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
         val row = rows.toList()[0]
 
-        val ticket = TicketCategory(
-            id = row.getInteger(0),
-            title = row.getString(1),
-            description = row.getString(2),
-            url = row.getString(3)
-        )
-
-        return ticket
+        return TicketCategory.from(row)
     }
 
     override suspend fun getByIdList(
-        ticketCategoryIdList: List<Int>,
+        ticketCategoryIdList: List<Long>,
         sqlConnection: SqlConnection
-    ): Map<Int, TicketCategory> {
+    ): Map<Long, TicketCategory> {
         var listText = ""
 
         ticketCategoryIdList.forEach { id ->
@@ -255,17 +215,6 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute()
             .await()
 
-        val ticketList = mutableMapOf<Int, TicketCategory>()
-
-        rows.forEach { row ->
-            ticketList[row.getInteger(0)] = TicketCategory(
-                id = row.getInteger(0),
-                title = row.getString(1),
-                description = row.getString(2),
-                url = row.getString(3)
-            )
-        }
-
-        return ticketList
+        return TicketCategory.from(rows).associateBy { it.id }
     }
 }

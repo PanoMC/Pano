@@ -12,64 +12,64 @@ interface PanelNotificationDao : Dao<PanelNotification> {
     )
 
     suspend fun getCountOfNotReadByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun getCountByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun getLast10ByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): List<PanelNotification>
 
     suspend fun get10ByUserIdAndStartFromId(
-        userId: Int,
-        notificationId: Int,
+        userId: Long,
+        notificationId: Long,
         sqlConnection: SqlConnection
     ): List<PanelNotification>
 
     suspend fun markReadLast10(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun markReadLast10StartFromId(
-        userId: Int,
-        notificationId: Int,
+        userId: Long,
+        notificationId: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun getLast5ByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): List<PanelNotification>
 
     suspend fun markReadLat5ByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun existsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
     suspend fun getById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): PanelNotification?
 
     suspend fun deleteById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun deleteAllByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     )
 }

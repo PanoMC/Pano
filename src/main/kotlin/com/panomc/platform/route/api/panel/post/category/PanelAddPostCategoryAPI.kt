@@ -61,7 +61,7 @@ class PanelAddPostCategoryAPI(
         }
 
         val id = databaseManager.postCategoryDao.add(
-            PostCategory(-1, title, description, url, color),
+            PostCategory(title = title, description = description, url = url, color = color),
             sqlConnection
         )
 

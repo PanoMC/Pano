@@ -21,7 +21,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
                               `name` varchar(32) NOT NULL UNIQUE,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Table';
@@ -48,11 +48,11 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
                 )
             ).await()
 
-        return rows.toList()[0].getInteger(0) != 0
+        return rows.toList()[0].getLong(0) != 0L
     }
 
     override suspend fun isThereById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -66,7 +66,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
                 )
             ).await()
 
-        return rows.toList()[0].getInteger(0) != 0
+        return rows.toList()[0].getLong(0) != 0L
     }
 
     override suspend fun add(
@@ -85,11 +85,11 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
     }
 
     override suspend fun getPermissionGroupById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): PermissionGroup? {
         val query =
-            "SELECT `name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -103,13 +103,15 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
             return null
         }
 
-        return PermissionGroup(id, rows.toList()[0].getString(0))
+        val row = rows.toList()[0]
+
+        return PermissionGroup.from(row)
     }
 
     override suspend fun getPermissionGroupId(
         permissionGroup: PermissionGroup,
         sqlConnection: SqlConnection
-    ): Int? {
+    ): Long? {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where `name` = ?"
 
@@ -125,7 +127,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
             return null
         }
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getPermissionGroups(
@@ -139,15 +141,11 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
             .execute()
             .await()
 
-        val permissionsGroups = rows.map { row ->
-            PermissionGroup(row.getInteger(0), row.getString(1))
-        }
-
-        return permissionsGroups
+        return PermissionGroup.from(rows)
     }
 
     override suspend fun deleteById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ) {
         val query =
@@ -184,12 +182,12 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
     private suspend fun createAdminPermission(
         sqlConnection: SqlConnection
     ) {
-        val isThere = isThere(PermissionGroup(-1, adminPermissionName), sqlConnection)
+        val isThere = isThere(PermissionGroup(name = adminPermissionName), sqlConnection)
 
         if (isThere) {
             return
         }
 
-        add(PermissionGroup(-1, adminPermissionName), sqlConnection)
+        add(PermissionGroup(name = adminPermissionName), sqlConnection)
     }
 }

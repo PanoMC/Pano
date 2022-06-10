@@ -21,7 +21,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
                               `title` MEDIUMTEXT NOT NULL,
                               `description` text NOT NULL,
                               `url` varchar(255) NOT NULL,
@@ -35,7 +35,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
     }
 
     override suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -49,11 +49,11 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                 )
             ).await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun deleteById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection,
     ) {
         val query =
@@ -68,7 +68,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             ).await()
     }
 
-    override suspend fun getCount(sqlConnection: SqlConnection): Int {
+    override suspend fun getCount(sqlConnection: SqlConnection): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
@@ -77,13 +77,13 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute()
             .await()
 
-        return rows.toList()[0].getInteger(0)
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun getByIdList(
-        idList: List<Int>,
+        idList: List<Long>,
         sqlConnection: SqlConnection
-    ): Map<Int, PostCategory> {
+    ): Map<Long, PostCategory> {
         var listText = ""
 
         idList.forEach { id ->
@@ -101,19 +101,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute()
             .await()
 
-        val categories = mutableMapOf<Int, PostCategory>()
-
-        rows.forEach { row ->
-            categories[row.getInteger(0)] = PostCategory(
-                row.getInteger(0),
-                row.getString(1),
-                row.getString(2),
-                row.getString(3),
-                row.getString(4)
-            )
-        }
-
-        return categories
+        return PostCategory.from(rows).associateBy { it.id }
     }
 
     override suspend fun getAll(
@@ -127,25 +115,11 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute()
             .await()
 
-        val categories = mutableListOf<PostCategory>()
-
-        rows.forEach { row ->
-            categories.add(
-                PostCategory(
-                    row.getInteger(0),
-                    row.getString(1),
-                    row.getString(2),
-                    row.getString(3),
-                    row.getString(4)
-                )
-            )
-        }
-
-        return categories
+        return PostCategory.from(rows)
     }
 
     override suspend fun getCategories(
-        page: Int,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<PostCategory> {
         val query =
@@ -156,22 +130,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute()
             .await()
 
-        val categories = mutableListOf<PostCategory>()
-
-        if (rows.size() > 0)
-            rows.forEach { row ->
-                categories.add(
-                    PostCategory(
-                        row.getInteger(0),
-                        row.getString(1),
-                        row.getString(2),
-                        row.getString(3),
-                        row.getString(4)
-                    )
-                )
-            }
-
-        return categories
+        return PostCategory.from(rows)
     }
 
     override suspend fun isExistsByUrl(
@@ -186,12 +145,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute(Tuple.of(url))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun isExistsByUrlNotById(
         url: String,
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -202,7 +161,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute(Tuple.of(url, id))
             .await()
 
-        return rows.toList()[0].getInteger(0) == 1
+        return rows.toList()[0].getLong(0) == 1L
     }
 
     override suspend fun add(
@@ -248,7 +207,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
     }
 
     override suspend fun getById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): PostCategory? {
         val query =
@@ -267,15 +226,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
         val row = rows.toList()[0]
 
-        val category = PostCategory(
-            row.getInteger(0),
-            row.getString(1),
-            row.getString(2),
-            row.getString(3),
-            row.getString(4)
-        )
-
-        return category
+        return PostCategory.from(row)
     }
 
     override suspend fun getByUrl(
@@ -298,14 +249,6 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
         val row = rows.toList()[0]
 
-        val category = PostCategory(
-            row.getInteger(0),
-            row.getString(1),
-            row.getString(2),
-            row.getString(3),
-            row.getString(4)
-        )
-
-        return category
+        return PostCategory.from(row)
     }
 }

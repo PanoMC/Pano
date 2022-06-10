@@ -22,13 +22,13 @@ class GetPostDetailAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("id", Schemas.intSchema()))
+            .pathParameter(Parameters.param("id", Schemas.numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
 
         val sqlConnection = createConnection(databaseManager, context)
 
@@ -43,7 +43,7 @@ class GetPostDetailAPI(
         val post = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
         var postCategory: PostCategory? = null
 
-        if (post.categoryId != -1) {
+        if (post.categoryId != -1L) {
             postCategory = databaseManager.postCategoryDao.getById(post.categoryId, sqlConnection)
         }
 

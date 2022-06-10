@@ -68,7 +68,7 @@ class DatabaseMigration_17_18(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createAdminPermissionGroup(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permissionGroup = PermissionGroup(-1, "admin")
+            val permissionGroup = PermissionGroup(name = "admin")
 
             val query = "INSERT INTO `${getTablePrefix()}permission_group` (name) VALUES (?)"
 

@@ -8,33 +8,33 @@ import io.vertx.sqlclient.SqlConnection
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PostDao : Dao<Post> {
     suspend fun removePostCategoriesByCategoryId(
-        categoryId: Int,
+        categoryId: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
     suspend fun getById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Post?
 
     suspend fun moveTrashById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun moveDraftById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun publishById(
-        id: Int,
-        userId: Int,
+        id: Long,
+        userId: Long,
         sqlConnection: SqlConnection
     )
 
@@ -44,77 +44,77 @@ interface PostDao : Dao<Post> {
     ): Long
 
     suspend fun updateAndPublish(
-        userId: Int,
+        userId: Long,
         post: Post,
         sqlConnection: SqlConnection
     )
 
-    suspend fun count(sqlConnection: SqlConnection): Int
+    suspend fun count(sqlConnection: SqlConnection): Long
 
     suspend fun countByCategory(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun countByPageType(
         postStatus: PostStatus,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun countByPageTypeAndCategoryId(
         postStatus: PostStatus,
-        categoryId: Int,
+        categoryId: Long,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
-    suspend fun delete(id: Int, sqlConnection: SqlConnection)
+    suspend fun delete(id: Long, sqlConnection: SqlConnection)
 
     suspend fun getByCategory(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): List<Post>
 
     suspend fun getByPageAndPageType(
-        page: Int,
+        page: Long,
         postStatus: PostStatus,
         sqlConnection: SqlConnection
     ): List<Post>
 
     suspend fun getByPagePageTypeAndCategoryId(
-        page: Int,
+        page: Long,
         postStatus: PostStatus,
-        categoryId: Int,
+        categoryId: Long,
         sqlConnection: SqlConnection
     ): List<Post>
 
     suspend fun countOfPublished(
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun countOfPublishedByCategoryId(
-        categoryId: Int,
+        categoryId: Long,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun getPublishedListByPage(
-        page: Int,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<Post>
 
     suspend fun getPublishedListByPageAndCategoryId(
-        categoryId: Int,
-        page: Int,
+        categoryId: Long,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<Post>
 
     suspend fun getListByPageAndCategoryId(
-        categoryId: Int,
-        page: Int,
+        categoryId: Long,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<Post>
 
     suspend fun increaseViewByOne(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     )
 

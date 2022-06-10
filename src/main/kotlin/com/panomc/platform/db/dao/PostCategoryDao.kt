@@ -7,28 +7,28 @@ import io.vertx.sqlclient.SqlConnection
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PostCategoryDao : Dao<PostCategory> {
     suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
     suspend fun deleteById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     )
 
-    suspend fun getCount(sqlConnection: SqlConnection): Int
+    suspend fun getCount(sqlConnection: SqlConnection): Long
 
     suspend fun getByIdList(
-        idList: List<Int>,
+        idList: List<Long>,
         sqlConnection: SqlConnection
-    ): Map<Int, PostCategory>
+    ): Map<Long, PostCategory>
 
     suspend fun getAll(
         sqlConnection: SqlConnection
     ): List<PostCategory>
 
     suspend fun getCategories(
-        page: Int,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<PostCategory>
 
@@ -39,7 +39,7 @@ interface PostCategoryDao : Dao<PostCategory> {
 
     suspend fun isExistsByUrlNotById(
         url: String,
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
@@ -54,7 +54,7 @@ interface PostCategoryDao : Dao<PostCategory> {
     )
 
     suspend fun getById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): PostCategory?
 

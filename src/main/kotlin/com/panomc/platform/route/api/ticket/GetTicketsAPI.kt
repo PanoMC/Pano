@@ -7,7 +7,7 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
-import com.panomc.platform.util.TicketPageType
+import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -31,11 +31,11 @@ class GetTicketsAPI(
         ValidationHandlerBuilder.create(schemaParser)
             .queryParameter(
                 optionalParam(
-                    "pageType", arraySchema().items(Schemas.enumSchema(*TicketPageType.values().map { it.type }
+                    "pageType", arraySchema().items(Schemas.enumSchema(*TicketStatus.values().map { it.status }
                         .toTypedArray()))
                 )
             )
-            .queryParameter(optionalParam("page", Schemas.intSchema()))
+            .queryParameter(optionalParam("page", Schemas.numberSchema()))
             .queryParameter(optionalParam("categoryUrl", Schemas.stringSchema()))
             .build()
 

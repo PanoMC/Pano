@@ -15,7 +15,7 @@ import util.StringUtil
 @Service
 class GetPostsService(private val databaseManager: DatabaseManager) {
     suspend fun handle(parameters: RequestParameters, sqlConnection: SqlConnection): Result {
-        val page = parameters.queryParameter("page")?.integer ?: 1
+        val page = parameters.queryParameter("page")?.long ?: 1
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
         var postCategory: PostCategory? = null
@@ -40,7 +40,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
         else
             databaseManager.postDao.countOfPublished(sqlConnection)
 
-        var totalPage = kotlin.math.ceil(count.toDouble() / 5).toInt()
+        var totalPage = kotlin.math.ceil(count.toDouble() / 5).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -67,7 +67,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
         }
 
         val categoryIdList =
-            posts.filter { it.categoryId != -1 }.distinctBy { it.categoryId }.map { it.categoryId }
+            posts.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
             return prepareResult(null, posts, usernameList, mapOf(), count, totalPage)
@@ -81,10 +81,10 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
     private val prepareResult: (
         PostCategory?,
         List<Post>,
-        Map<Int, String>,
-        Map<Int, PostCategory>,
-        Int,
-        Int
+        Map<Long, String>,
+        Map<Long, PostCategory>,
+        Long,
+        Long
     ) -> Successful = { postCategory, posts, usernameList, categories, count, totalPage ->
         val postsDataList = mutableListOf<Map<String, Any?>>()
 
@@ -94,7 +94,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
                     "id" to post.id,
                     "title" to post.title,
                     "category" to
-                            if (post.categoryId == -1)
+                            if (post.categoryId == -1L)
                                 mapOf("id" to -1, "title" to "-")
                             else
                                 categories.getOrDefault(

@@ -8,7 +8,6 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.NotificationStatus
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -37,11 +36,8 @@ class TestSendNotificationAPI(
         return Successful()
     }
 
-    private fun getNotification(userId: Int) = PanelNotification(
-        -1,
-        userId,
-        "TEST NOTIFICATION",
-        System.currentTimeMillis(),
-        NotificationStatus.NOT_READ
+    private fun getNotification(userId: Long) = PanelNotification(
+        userId = userId,
+        typeId = "TEST NOTIFICATION"
     )
 }

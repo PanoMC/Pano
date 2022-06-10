@@ -22,7 +22,7 @@ class GetPostsAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .queryParameter(Parameters.optionalParam("page", Schemas.intSchema()))
+            .queryParameter(Parameters.optionalParam("page", Schemas.numberSchema()))
             .queryParameter(Parameters.optionalParam("categoryUrl", Schemas.stringSchema()))
             .build()
 

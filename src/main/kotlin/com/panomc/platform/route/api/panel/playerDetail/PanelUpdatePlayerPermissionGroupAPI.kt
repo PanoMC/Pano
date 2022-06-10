@@ -51,11 +51,11 @@ class PanelUpdatePlayerPermissionGroupAPI(
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        var permissionGroupId = 0
+        var permissionGroupId = 0L
 
         if (permissionGroup != "-") {
             val isTherePermissionGroup = databaseManager.permissionGroupDao.isThere(
-                PermissionGroup(-1, permissionGroup),
+                PermissionGroup(name = permissionGroup),
                 sqlConnection
             )
 
@@ -64,7 +64,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
             }
 
             permissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupId(
-                PermissionGroup(-1, permissionGroup),
+                PermissionGroup(name = permissionGroup),
                 sqlConnection
             ) ?: throw Error(ErrorCode.UNKNOWN)
         }
@@ -74,7 +74,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
                 ErrorCode.UNKNOWN
             )
 
-        if (userPermissionGroupId == -1) {
+        if (userPermissionGroupId == -1L) {
             databaseManager.userDao.setPermissionGroupByUsername(
                 permissionGroupId,
                 username,
@@ -94,7 +94,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
                 sqlConnection
             )
 
-            if (count == 1) {
+            if (count == 1L) {
                 throw Errors(mapOf("LAST_ADMIN" to true))
             }
         }

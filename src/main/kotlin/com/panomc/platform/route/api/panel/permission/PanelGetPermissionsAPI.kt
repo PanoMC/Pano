@@ -65,7 +65,7 @@ class PanelGetPermissionsAPI(
 
         val permissionGroupPermIdListMap = permissionGroupPerms
             .distinctBy { it.permissionGroupId }
-            .associateBy({ it.permissionGroupId }, { mutableListOf<Int>() })
+            .associateBy({ it.permissionGroupId }, { mutableListOf<Long>() })
 
         permissionGroupPerms.forEach { perm ->
             permissionGroupPermIdListMap[perm.permissionGroupId]!!.add(perm.permissionId)

@@ -22,17 +22,17 @@ interface UserDao : Dao<User> {
     suspend fun getUserIdFromUsername(
         username: String,
         sqlConnection: SqlConnection
-    ): Int?
+    ): Long?
 
     suspend fun getPermissionGroupIdFromUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
-    ): Int?
+    ): Long?
 
     suspend fun getPermissionGroupIdFromUsername(
         username: String,
         sqlConnection: SqlConnection
-    ): Int?
+    ): Long?
 
     suspend fun isLoginCorrect(
         usernameOrEmail: String,
@@ -40,15 +40,15 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun count(sqlConnection: SqlConnection): Int
+    suspend fun count(sqlConnection: SqlConnection): Long
 
     suspend fun getUsernameFromUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): String?
 
     suspend fun getById(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): User?
 
@@ -60,29 +60,29 @@ interface UserDao : Dao<User> {
     suspend fun countByStatus(
         status: PlayerStatus,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun getAllByPageAndStatus(
-        page: Int,
+        page: Long,
         status: PlayerStatus,
         sqlConnection: SqlConnection
     ): List<Map<String, Any>>
 
     suspend fun getAllByPageAndPermissionGroup(
-        page: Int,
-        permissionGroupId: Int,
+        page: Long,
+        permissionGroupId: Long,
         sqlConnection: SqlConnection
     ): List<Map<String, Any>>
 
     suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlConnection: SqlConnection
-    ): Int?
+    ): Long?
 
     suspend fun getUsernameByListOfId(
-        userIdList: List<Int>,
+        userIdList: List<Long>,
         sqlConnection: SqlConnection
-    ): Map<Int, String>
+    ): Map<Long, String>
 
     suspend fun isExistsByUsername(
         username: String,
@@ -90,52 +90,52 @@ interface UserDao : Dao<User> {
     ): Boolean
 
     suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
     suspend fun getUsernamesByPermissionGroupId(
-        permissionGroupId: Int,
-        limit: Int,
+        permissionGroupId: Long,
+        limit: Long,
         sqlConnection: SqlConnection
     ): List<String>
 
     suspend fun getCountOfUsersByPermissionGroupId(
-        permissionGroupId: Int,
+        permissionGroupId: Long,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun removePermissionGroupByPermissionGroupId(
-        permissionGroupId: Int,
+        permissionGroupId: Long,
         sqlConnection: SqlConnection
     )
 
     suspend fun setPermissionGroupByUsername(
-        permissionGroupId: Int,
+        permissionGroupId: Long,
         username: String,
         sqlConnection: SqlConnection
     )
 
     suspend fun setUsernameById(
-        id: Int,
+        id: Long,
         username: String,
         sqlConnection: SqlConnection
     )
 
     suspend fun setEmailById(
-        id: Int,
+        id: Long,
         email: String,
         sqlConnection: SqlConnection
     )
 
     suspend fun setPasswordById(
-        id: Int,
+        id: Long,
         password: String,
         sqlConnection: SqlConnection
     )
 
     suspend fun isEmailVerifiedById(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): Boolean
 }

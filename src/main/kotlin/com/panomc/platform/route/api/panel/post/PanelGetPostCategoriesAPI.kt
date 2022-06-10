@@ -12,7 +12,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import kotlin.math.ceil
 
 @Endpoint
@@ -27,19 +27,19 @@ class PanelGetPostCategoriesAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .queryParameter(optionalParam("page", intSchema()))
+            .queryParameter(optionalParam("page", numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
-        val page = parameters.queryParameter("page")?.integer ?: 1
+        val page = parameters.queryParameter("page")?.long ?: 1L
 
         val sqlConnection = createConnection(databaseManager, context)
 
         val count = databaseManager.postCategoryDao.getCount(sqlConnection)
 
-        var totalPage = ceil(count.toDouble() / 10).toInt()
+        var totalPage = ceil(count.toDouble() / 10).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -57,7 +57,7 @@ class PanelGetPostCategoriesAPI(
         }
 
         val addCategoryToList =
-            { category: PostCategory, count: Int, categoryDataList: MutableList<Map<String, Any?>>, posts: List<Post> ->
+            { category: PostCategory, count: Long, categoryDataList: MutableList<Map<String, Any?>>, posts: List<Post> ->
                 val postsDataList = mutableListOf<Map<String, Any?>>()
 
                 posts.forEach { post ->
@@ -98,8 +98,8 @@ class PanelGetPostCategoriesAPI(
 
     private fun getResult(
         categoryDataList: MutableList<Map<String, Any?>>,
-        count: Int,
-        totalPage: Int
+        count: Long,
+        totalPage: Long
     ) = Successful(
         mutableMapOf<String, Any?>(
             "categories" to categoryDataList,

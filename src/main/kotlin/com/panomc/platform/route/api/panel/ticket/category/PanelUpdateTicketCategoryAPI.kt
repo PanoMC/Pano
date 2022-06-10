@@ -26,7 +26,7 @@ class PanelUpdateTicketCategoryAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(param("id", intSchema()))
+            .pathParameter(param("id", numberSchema()))
             .body(
                 json(
                     objectSchema()
@@ -40,7 +40,7 @@ class PanelUpdateTicketCategoryAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
         val title = data.getString("title")
         val description = data.getString("description")
 

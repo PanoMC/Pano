@@ -8,20 +8,20 @@ import io.vertx.sqlclient.SqlConnection
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface TicketMessageDao : Dao<TicketMessage> {
     suspend fun getByTicketIdAndPage(
-        ticketId: Int,
+        ticketId: Long,
         sqlConnection: SqlConnection
     ): List<TicketMessage>
 
     suspend fun getByTicketIdPageAndStartFromId(
-        lastMessageId: Int,
-        ticketId: Int,
+        lastMessageId: Long,
+        ticketId: Long,
         sqlConnection: SqlConnection
     ): List<TicketMessage>
 
     suspend fun getCountByTicketId(
-        ticketId: Int,
+        ticketId: Long,
         sqlConnection: SqlConnection
-    ): Int
+    ): Long
 
     suspend fun addMessage(
         ticketMessage: TicketMessage,
@@ -34,12 +34,12 @@ interface TicketMessageDao : Dao<TicketMessage> {
     )
 
     suspend fun getLastMessageByTicketId(
-        ticketId: Int,
+        ticketId: Long,
         sqlConnection: SqlConnection
     ): TicketMessage?
 
     suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 }

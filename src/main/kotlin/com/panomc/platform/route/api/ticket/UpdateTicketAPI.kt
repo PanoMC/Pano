@@ -26,7 +26,7 @@ class UpdateTicketAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
-            .pathParameter(Parameters.param("id", intSchema()))
+            .pathParameter(Parameters.param("id", numberSchema()))
             .body(
                 Bodies.json(
                     objectSchema()
@@ -39,7 +39,7 @@ class UpdateTicketAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
         val ticketStatus = data.getString("status")
         val userId = authProvider.getUserIdFromRoutingContext(context)
 

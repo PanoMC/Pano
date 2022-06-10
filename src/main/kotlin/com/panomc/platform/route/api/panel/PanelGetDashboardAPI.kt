@@ -47,9 +47,7 @@ class PanelGetDashboardAPI(
         if (isUserInstalled) {
             val systemProperty = databaseManager.systemPropertyDao.getValue(
                 SystemProperty(
-                    -1,
-                    "show_getting_started",
-                    ""
+                    option = "show_getting_started"
                 ),
                 sqlConnection
             ) ?: throw Error(ErrorCode.UNKNOWN)
@@ -77,7 +75,7 @@ class PanelGetDashboardAPI(
 
         result["ticketCount"] = ticketCount
 
-        if (ticketCount == 0) {
+        if (ticketCount == 0L) {
             return Successful(result)
         }
 
@@ -91,8 +89,8 @@ class PanelGetDashboardAPI(
 
         val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
 
-        val categoryIdList = tickets.filter { it.categoryId != -1 }.distinctBy { it.categoryId }.map { it.categoryId }
-        var ticketCategoryList: Map<Int, TicketCategory> = mapOf()
+        val categoryIdList = tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
+        var ticketCategoryList: Map<Long, TicketCategory> = mapOf()
 
         if (categoryIdList.isNotEmpty()) {
             ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
@@ -106,7 +104,7 @@ class PanelGetDashboardAPI(
                     "id" to ticket.id,
                     "title" to ticket.title,
                     "category" to
-                            if (ticket.categoryId == -1)
+                            if (ticket.categoryId == -1L)
                                 mapOf("id" to -1, "title" to "-")
                             else
                                 ticketCategoryList.getOrDefault(

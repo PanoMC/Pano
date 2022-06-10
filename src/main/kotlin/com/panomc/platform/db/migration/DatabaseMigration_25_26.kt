@@ -32,7 +32,7 @@ class DatabaseMigration_25_26(databaseManager: DatabaseManager) : DatabaseMigrat
                 .await()
 
             rows.forEach {
-                val id = it.getInteger(0)
+                val id = it.getLong(0)
                 val query = "UPDATE `${getTablePrefix()}permission` SET id = ? WHERE id = ?"
 
                 sqlConnection
@@ -49,7 +49,7 @@ class DatabaseMigration_25_26(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun addAccessPanelPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "access_panel", "fa-sign-in-alt")
+            val permission = Permission(name = "access_panel", iconName = "fa-sign-in-alt")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`id`, `name`, `icon_name`) VALUES (?, ?, ?)"
 

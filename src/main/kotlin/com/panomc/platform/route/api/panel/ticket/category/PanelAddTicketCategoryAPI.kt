@@ -45,7 +45,7 @@ class PanelAddTicketCategoryAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        databaseManager.ticketCategoryDao.add(TicketCategory(-1, title, description), sqlConnection)
+        databaseManager.ticketCategoryDao.add(TicketCategory(title = title, description = description), sqlConnection)
 
         return Successful()
     }

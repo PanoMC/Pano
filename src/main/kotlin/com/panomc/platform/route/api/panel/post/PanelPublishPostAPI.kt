@@ -31,7 +31,7 @@ class PanelPublishPostAPI(
                 json(
                     objectSchema()
                         .property("title", stringSchema())
-                        .property("category", intSchema())
+                        .property("category", numberSchema())
                         .property("text", stringSchema())
                         .optionalProperty("imageCode", stringSchema())
                 )
@@ -43,7 +43,7 @@ class PanelPublishPostAPI(
         val data = parameters.body().jsonObject
 
         val title = data.getString("title")
-        val categoryId = data.getInteger("category")
+        val categoryId = data.getLong("category")
         val text = data.getString("text")
         val imageCode = data.getString("imageCode") ?: ""
 
@@ -52,16 +52,11 @@ class PanelPublishPostAPI(
         val sqlConnection = createConnection(databaseManager, context)
 
         val post = Post(
-            -1,
-            title,
-            categoryId,
-            userId,
-            text,
-            System.currentTimeMillis(),
-            System.currentTimeMillis(),
-            1,
-            imageCode,
-            0
+            title = title,
+            categoryId = categoryId,
+            writerUserId = userId,
+            text = text,
+            image = imageCode
         )
 
         val postId = databaseManager.postDao.insertAndPublish(post, sqlConnection)

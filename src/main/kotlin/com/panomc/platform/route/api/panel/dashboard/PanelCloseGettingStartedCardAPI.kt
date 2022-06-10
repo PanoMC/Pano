@@ -38,9 +38,8 @@ class PanelCloseGettingStartedCardAPI(
 
         databaseManager.systemPropertyDao.update(
             SystemProperty(
-                -1,
-                "show_getting_started",
-                "false"
+                option = "show_getting_started",
+                value = "false"
             ),
             sqlConnection
         )

@@ -47,7 +47,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createManageServersPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "manage_servers", "fa-cubes")
+            val permission = Permission(name = "manage_servers", iconName = "fa-cubes")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 
@@ -64,7 +64,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createManagePostsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "manage_posts", "fa-sticky-note")
+            val permission = Permission(name = "manage_posts", iconName = "fa-sticky-note")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 
@@ -81,7 +81,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createManageTicketsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "manage_tickets", "fa-ticket-alt")
+            val permission = Permission(name = "manage_tickets", iconName = "fa-ticket-alt")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 
@@ -98,7 +98,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createManagePlayersPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "manage_players", "fa-users")
+            val permission = Permission(name = "manage_players", iconName = "fa-users")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 
@@ -115,7 +115,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createManageViewPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "manage_view", "fa-palette")
+            val permission = Permission(name = "manage_view", iconName = "fa-palette")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 
@@ -132,7 +132,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createManageAddonsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "manage_addons", "fa-puzzle-piece")
+            val permission = Permission(name = "manage_addons", iconName = "fa-puzzle-piece")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 
@@ -149,7 +149,7 @@ class DatabaseMigration_18_19(databaseManager: DatabaseManager) : DatabaseMigrat
 
     private fun createManagePlatformSettingsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
-            val permission = Permission(-1, "manage_platform_settings", "fa-cog")
+            val permission = Permission(name = "manage_platform_settings", iconName = "fa-cog")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 

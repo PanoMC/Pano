@@ -12,7 +12,7 @@ interface PermissionGroupDao : Dao<PermissionGroup> {
     ): Boolean
 
     suspend fun isThereById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
@@ -22,21 +22,21 @@ interface PermissionGroupDao : Dao<PermissionGroup> {
     )
 
     suspend fun getPermissionGroupById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): PermissionGroup?
 
     suspend fun getPermissionGroupId(
         permissionGroup: PermissionGroup,
         sqlConnection: SqlConnection
-    ): Int?
+    ): Long?
 
     suspend fun getPermissionGroups(
         sqlConnection: SqlConnection
     ): List<PermissionGroup>
 
     suspend fun deleteById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     )
 

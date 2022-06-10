@@ -22,7 +22,7 @@ interface SystemPropertyDao : Dao<SystemProperty> {
     ): Boolean
 
     suspend fun isUserInstalledSystemByUserId(
-        userId: Int,
+        userId: Long,
         sqlConnection: SqlConnection
     ): Boolean
 

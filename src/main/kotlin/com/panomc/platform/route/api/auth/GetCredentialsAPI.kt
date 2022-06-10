@@ -34,7 +34,7 @@ class GetCredentialsAPI(
             mapOf(
                 "username" to user.username,
                 "email" to user.email,
-                "panelAccess" to (user.permissionGroupId != -1)
+                "panelAccess" to (user.permissionGroupId != -1L)
             )
         )
     }

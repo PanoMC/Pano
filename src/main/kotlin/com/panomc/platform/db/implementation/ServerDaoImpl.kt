@@ -21,10 +21,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
-                              `id` int NOT NULL AUTO_INCREMENT,
+                              `id` bigint NOT NULL AUTO_INCREMENT,
                               `name` varchar(255) NOT NULL,
-                              `player_count` int(11) NOT NULL,
-                              `max_player_count` int(11) NOT NULL,
+                              `player_count` bigint NOT NULL,
+                              `max_player_count` bigint NOT NULL,
                               `server_type` varchar(255) NOT NULL,
                               `server_version` varchar(255) NOT NULL,
                               `favicon` text NOT NULL,

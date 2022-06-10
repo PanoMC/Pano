@@ -193,7 +193,7 @@ class AuthProvider(
 
         val permissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
 
-        if (permissionGroupId == null || permissionGroupId == -1) {
+        if (permissionGroupId == null || permissionGroupId == -1L) {
             return false
         }
 
@@ -235,16 +235,16 @@ class AuthProvider(
 //    ) {
 //    }
 
-    fun getUserIdFromRoutingContext(routingContext: RoutingContext): Int {
+    fun getUserIdFromRoutingContext(routingContext: RoutingContext): Long {
         val token = getTokenFromRoutingContext(routingContext)
 
         return getUserIdFromToken(token!!)
     }
 
-    fun getUserIdFromToken(token: String): Int {
+    fun getUserIdFromToken(token: String): Long {
         val jwt = parseToken(token)
 
-        return jwt.body.subject.toInt()
+        return jwt.body.subject.toLong()
     }
 
     fun getTokenFromRoutingContext(routingContext: RoutingContext): String? {

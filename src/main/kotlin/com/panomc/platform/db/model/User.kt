@@ -1,13 +1,32 @@
 package com.panomc.platform.db.model
 
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
+
 data class User(
-    val id: Int,
+    val id: Long = -1,
     val username: String,
     val email: String,
     val password: String,
     val registeredIp: String,
-    val permissionGroupId: Int = 0,
-    val registerDate: Long,
+    val permissionGroupId: Long = -1,
+    val registerDate: Long = System.currentTimeMillis(),
     val emailVerified: Int = 0,
     val banned: Int = 0
-)
+) {
+    companion object {
+        fun from(row: Row) = User(
+            row.getLong(0),
+            row.getString(1),
+            row.getString(2),
+            row.getString(3),
+            row.getString(4),
+            row.getLong(5),
+            row.getLong(6),
+            row.getInteger(7),
+            row.getInteger(8)
+        )
+
+        fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }
+    }
+}

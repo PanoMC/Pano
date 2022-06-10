@@ -45,7 +45,7 @@ class DatabaseMigration_21_22(databaseManager: DatabaseManager) : DatabaseMigrat
             rows.forEach { row ->
                 categories.add(
                     TicketCategory(
-                        row.getInteger(0),
+                        row.getLong(0),
                         row.getString(1)
                     )
                 )

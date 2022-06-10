@@ -8,7 +8,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.PlayerStatus
 import com.panomc.platform.util.SetupManager
-import com.panomc.platform.util.TicketPageType
+import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -32,11 +32,11 @@ class PanelGetPlayersAPI(
                 optionalParam(
                     "status",
                     arraySchema()
-                        .items(enumSchema(*TicketPageType.values().map { it.type }.toTypedArray()))
+                        .items(enumSchema(*TicketStatus.values().map { it.status }.toTypedArray()))
                 )
             )
             .queryParameter(optionalParam("permissionGroup", stringSchema()))
-            .queryParameter(optionalParam("page", intSchema()))
+            .queryParameter(optionalParam("page", numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
@@ -45,7 +45,7 @@ class PanelGetPlayersAPI(
         val playerStatus =
             PlayerStatus.valueOf(type = parameters.queryParameter("status")?.jsonArray?.first() as String? ?: "all")
                 ?: PlayerStatus.ALL
-        val page = parameters.queryParameter("page")?.integer ?: 1
+        val page = parameters.queryParameter("page")?.long ?: 1L
         val permissionGroupName = parameters.queryParameter("permissionGroup")?.string
 
         val sqlConnection = createConnection(databaseManager, context)
@@ -70,7 +70,7 @@ class PanelGetPlayersAPI(
         }
 
         if (permissionGroupName != null && permissionGroupName == "-") {
-            permissionGroup = PermissionGroup(-1, "-")
+            permissionGroup = PermissionGroup(name = "-")
         }
 
         val count =
@@ -79,7 +79,7 @@ class PanelGetPlayersAPI(
             else
                 databaseManager.userDao.countByStatus(playerStatus, sqlConnection)
 
-        var totalPage = ceil(count.toDouble() / 10).toInt()
+        var totalPage = ceil(count.toDouble() / 10).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -111,13 +111,13 @@ class PanelGetPlayersAPI(
         }
 
         val addPlayerToList =
-            { user: Map<String, Any?>, mutablePlayerList: MutableList<Map<String, Any>>, ticketCount: Int, permissionGroup: PermissionGroup? ->
+            { user: Map<String, Any?>, mutablePlayerList: MutableList<Map<String, Any>>, ticketCount: Long, permissionGroup: PermissionGroup? ->
                 mutablePlayerList.add(
                     mapOf(
-                        "id" to user["id"] as Int,
+                        "id" to user["id"] as Long,
                         "username" to user["username"] as String,
                         "email" to user["email"] as String,
-                        "permissionGroupId" to user["permissionGroupId"] as Int,
+                        "permissionGroupId" to user["permissionGroupId"] as Long,
                         "permissionGroup" to (permissionGroup?.name ?: "-"),
                         "ticketCount" to ticketCount,
                         "registerDate" to user["registerDate"] as Long
@@ -127,18 +127,18 @@ class PanelGetPlayersAPI(
 
         val getPlayerData: suspend (Map<String, Any>) -> Unit = getPlayerData@{ user ->
             val count = databaseManager.ticketDao.countByUserId(
-                user["id"] as Int,
+                user["id"] as Long,
                 sqlConnection
             )
 
-            if (user["permissionGroupId"] as Int == -1) {
+            if (user["permissionGroupId"] as Long == -1L) {
                 addPlayerToList(user, playerList, count, null)
 
                 return@getPlayerData
             }
 
             val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(
-                user["permissionGroupId"] as Int,
+                user["permissionGroupId"] as Long,
                 sqlConnection
             )
 

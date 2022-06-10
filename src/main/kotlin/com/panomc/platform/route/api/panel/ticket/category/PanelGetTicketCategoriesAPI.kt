@@ -27,18 +27,18 @@ class PanelGetTicketCategoriesAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .queryParameter(Parameters.optionalParam("page", Schemas.intSchema()))
+            .queryParameter(Parameters.optionalParam("page", Schemas.numberSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val page = parameters.queryParameter("page")?.integer ?: 1
+        val page = parameters.queryParameter("page")?.long ?: 1
 
         val sqlConnection = createConnection(databaseManager, context)
 
         val count = databaseManager.ticketCategoryDao.count(sqlConnection)
 
-        var totalPage = ceil(count.toDouble() / 10).toInt()
+        var totalPage = ceil(count.toDouble() / 10).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -56,7 +56,7 @@ class PanelGetTicketCategoriesAPI(
         }
 
         val addCategoryToList =
-            { category: TicketCategory, count: Int, categoryDataList: MutableList<Map<String, Any?>>, tickets: List<Ticket> ->
+            { category: TicketCategory, count: Long, categoryDataList: MutableList<Map<String, Any?>>, tickets: List<Ticket> ->
                 val ticketDataList = mutableListOf<Map<String, Any?>>()
 
                 tickets.forEach { ticket ->
@@ -96,8 +96,8 @@ class PanelGetTicketCategoriesAPI(
 
     private fun getResult(
         categoryDataList: MutableList<Map<String, Any?>>,
-        count: Int,
-        totalPage: Int
+        count: Long,
+        totalPage: Long
     ): Result {
         return Successful(
             mutableMapOf<String, Any?>(

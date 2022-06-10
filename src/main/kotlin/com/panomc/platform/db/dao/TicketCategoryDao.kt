@@ -11,7 +11,7 @@ interface TicketCategoryDao : Dao<TicketCategory> {
     ): List<TicketCategory>
 
     suspend fun isExistsById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
@@ -21,7 +21,7 @@ interface TicketCategoryDao : Dao<TicketCategory> {
     ): Boolean
 
     suspend fun deleteById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     )
 
@@ -35,15 +35,15 @@ interface TicketCategoryDao : Dao<TicketCategory> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun count(sqlConnection: SqlConnection): Int
+    suspend fun count(sqlConnection: SqlConnection): Long
 
     suspend fun getByPage(
-        page: Int,
+        page: Long,
         sqlConnection: SqlConnection
     ): List<TicketCategory>
 
     suspend fun getById(
-        id: Int,
+        id: Long,
         sqlConnection: SqlConnection
     ): TicketCategory?
 
@@ -53,7 +53,7 @@ interface TicketCategoryDao : Dao<TicketCategory> {
     ): TicketCategory?
 
     suspend fun getByIdList(
-        ticketCategoryIdList: List<Int>,
+        ticketCategoryIdList: List<Long>,
         sqlConnection: SqlConnection
-    ): Map<Int, TicketCategory>
+    ): Map<Long, TicketCategory>
 }

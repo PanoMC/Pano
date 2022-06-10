@@ -26,7 +26,7 @@ class PanelSendTicketMessageAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(param("id", intSchema()))
+            .pathParameter(param("id", numberSchema()))
             .body(
                 json(
                     objectSchema()
@@ -39,7 +39,7 @@ class PanelSendTicketMessageAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val ticketId = parameters.pathParameter("id").integer
+        val ticketId = parameters.pathParameter("id").long
         val message = data.getString("message")
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
@@ -54,7 +54,7 @@ class PanelSendTicketMessageAPI(
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
 
-        val ticketMessage = TicketMessage(-1, userId, ticketId, message, System.currentTimeMillis(), 1)
+        val ticketMessage = TicketMessage(userId = userId, ticketId = ticketId, message = message, panel = 1)
 
         val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlConnection)
 

@@ -8,7 +8,7 @@ import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.TicketPageType
+import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestParameters
 import io.vertx.sqlclient.SqlConnection
@@ -19,9 +19,9 @@ import kotlin.math.ceil
 class GetTicketsService(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
     suspend fun handle(context: RoutingContext, sqlConnection: SqlConnection, parameters: RequestParameters): Result {
         val pageType =
-            TicketPageType.valueOf(type = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
-                ?: TicketPageType.ALL
-        val page = parameters.queryParameter("page")?.integer ?: 1
+            TicketStatus.valueOf(status = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
+                ?: TicketStatus.ALL
+        val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
         var ticketCategory: TicketCategory? = null
@@ -41,7 +41,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         }
 
         if (categoryUrl != null && categoryUrl == "-") {
-            ticketCategory = TicketCategory(-1, "-", "", "-")
+            ticketCategory = TicketCategory()
         }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
@@ -51,7 +51,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         else
             databaseManager.ticketDao.getCountByPageTypeAndUserId(userId, pageType, sqlConnection)
 
-        var totalPage = ceil(count.toDouble() / 10).toInt()
+        var totalPage = ceil(count.toDouble() / 10).toLong()
 
         if (totalPage < 1)
             totalPage = 1
@@ -76,7 +76,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         }
 
         val categoryIdList =
-            tickets.filter { it.categoryId != -1 }.distinctBy { it.categoryId }.map { it.categoryId }
+            tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
             return getResults(null, tickets, mapOf(), username, count, totalPage)
@@ -90,10 +90,10 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
     private fun getResults(
         ticketCategory: TicketCategory?,
         tickets: List<Ticket>,
-        ticketCategoryList: Map<Int, TicketCategory>,
+        ticketCategoryList: Map<Long, TicketCategory>,
         username: String?,
-        count: Int,
-        totalPage: Int
+        count: Long,
+        totalPage: Long
     ): Result {
         val ticketDataList = mutableListOf<Map<String, Any?>>()
 
@@ -102,7 +102,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
                 mapOf(
                     "id" to ticket.id,
                     "title" to ticket.title,
-                    "category" to (ticketCategory ?: if (ticket.categoryId == -1)
+                    "category" to (ticketCategory ?: if (ticket.categoryId == -1L)
                         mapOf("id" to -1, "title" to "-", "url" to "-")
                     else
                         ticketCategoryList.getOrDefault(

@@ -25,7 +25,7 @@ class PanelUpdatePlayerAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(param("id", intSchema()))
+            .pathParameter(param("id", numberSchema()))
             .body(
                 json(
                     objectSchema()
@@ -41,7 +41,7 @@ class PanelUpdatePlayerAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val id = parameters.pathParameter("id").integer
+        val id = parameters.pathParameter("id").long
         val username = data.getString("username")
         val email = data.getString("email")
         val newPassword = data.getString("newPassword")

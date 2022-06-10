@@ -142,7 +142,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         sqlConnection: SqlConnection
     ): List<TicketCategory> {
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC ${if (page != 0L) "LIMIT 10 OFFSET " + (page - 1) * 10 else ""}"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

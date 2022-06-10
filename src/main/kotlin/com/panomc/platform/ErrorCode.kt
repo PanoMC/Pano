@@ -46,5 +46,8 @@ enum class ErrorCode {
 
     CANT_UPDATE_ADMIN_PERMISSION,
 
+    TITLE_CANT_BE_EMPTY,
+    DESCRIPTION_CANT_BE_EMPTY,
+
     UNKNOWN,
 }

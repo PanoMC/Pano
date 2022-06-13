@@ -16,7 +16,7 @@ import java.io.File
 class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
 
     companion object {
-        private const val CONFIG_VERSION = 3
+        private const val CONFIG_VERSION = 5
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKeys()
@@ -127,20 +127,24 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
     private fun migrate() {
         logger.info("Checking available config migrations...")
 
+        var migrateCount = 0
+
         if (getConfigVersion() != CONFIG_VERSION) {
-            val listOfPossibleMigrations =
-                migrations.filter { configMigration -> configMigration.isMigratable(getConfigVersion()) }
+            var migration = migrations.find { configMigration -> configMigration.isMigratable(getConfigVersion()) }
 
-            listOfPossibleMigrations
-                .forEach {
-                    logger.info("Migration Found! Migrating config from version ${it.FROM_VERSION} to ${it.VERSION}: ${it.VERSION_INFO}")
+            while (migration != null) {
+                logger.info("Migration Found! Migrating config from version ${migration.FROM_VERSION} to ${migration.VERSION}: ${migration.VERSION_INFO}")
 
-                    config.put("config-version", it.VERSION)
+                migrateCount++
 
-                    it.migrate(this)
-                }
+                config.put("config-version", migration.VERSION)
 
-            if (listOfPossibleMigrations.isNotEmpty()) {
+                migration.migrate(this)
+
+                migration = migrations.find { configMigration -> configMigration.isMigratable(getConfigVersion()) }
+            }
+
+            if (migrateCount != 0) {
                 saveConfig()
             }
         }

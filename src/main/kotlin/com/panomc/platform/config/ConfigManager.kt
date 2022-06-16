@@ -2,6 +2,7 @@ package com.panomc.platform.config
 
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.util.KeyGeneratorUtil
+import com.panomc.platform.util.UpdatePeriod
 import io.jsonwebtoken.io.Encoders
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
@@ -61,7 +62,9 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
                     "jwt-keys" to mapOf(
                         "private" to Encoders.BASE64.encode(key.private.encoded),
                         "public" to Encoders.BASE64.encode(key.public.encoded)
-                    )
+                    ),
+
+                    "update-period" to UpdatePeriod.ONCE_PER_DAY.period
                 )
             )
         }

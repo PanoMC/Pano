@@ -46,6 +46,11 @@ class PanelGetSettingsAPI(
             result["updatePeriod"] = configManager.getConfig().getString("update-period")
         }
 
+        if (settingType == SettingType.WEBSITE) {
+            result["websiteName"] = configManager.getConfig().getString("website-name")
+            result["websiteDescription"] = configManager.getConfig().getString("website-description")
+        }
+
         return Successful(result)
     }
 }

@@ -14,8 +14,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.enumSchema
-import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class PanelUpdateSettingAPI(
@@ -36,6 +35,8 @@ class PanelUpdateSettingAPI(
                             "updatePeriod",
                             enumSchema(*UpdatePeriod.values().map { it.period }.toTypedArray())
                         )
+                        .optionalProperty("websiteName", stringSchema())
+                        .optionalProperty("websiteDescription", stringSchema())
                 )
             )
             .build()
@@ -45,10 +46,22 @@ class PanelUpdateSettingAPI(
         val data = parameters.body().jsonObject
 
         val updatePeriod = UpdatePeriod.valueOf(period = data.getString("updatePeriod"))
+        val websiteName = data.getString("websiteName")
+        val websiteDescription = data.getString("websiteDescription")
 
         if (updatePeriod != null) {
             configManager.getConfig().put("update-period", updatePeriod.period)
+        }
 
+        if (websiteName != null) {
+            configManager.getConfig().put("website-name", websiteName)
+        }
+
+        if (websiteDescription != null) {
+            configManager.getConfig().put("website-description", websiteDescription)
+        }
+
+        if (updatePeriod != null || websiteName != null || websiteDescription != null) {
             configManager.saveConfig()
         }
 

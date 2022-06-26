@@ -23,7 +23,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `user_id` bigint NOT NULL,
-                              `ticket_id` bigintNOT NULL,
+                              `ticket_id` bigint NOT NULL,
                               `message` text NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `panel` int NOT NULL,

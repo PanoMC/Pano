@@ -49,6 +49,7 @@ class PanelGetSettingsAPI(
         if (settingType == SettingType.WEBSITE) {
             result["websiteName"] = configManager.getConfig().getString("website-name")
             result["websiteDescription"] = configManager.getConfig().getString("website-description")
+            result["keywords"] = configManager.getConfig().getJsonArray("keywords")
         }
 
         return Successful(result)

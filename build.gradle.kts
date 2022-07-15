@@ -1,9 +1,9 @@
-val vertxVersion = "4.3.1"
+val vertxVersion = "4.3.2"
 
 plugins {
     java
-    kotlin("jvm") version "1.6.21"
-    kotlin("kapt") version "1.6.21"
+    kotlin("jvm") version "1.7.10"
+    kotlin("kapt") version "1.7.10"
     id("io.vertx.vertx-plugin") version "1.3.0"
 }
 
@@ -40,9 +40,9 @@ dependencies {
     implementation("io.vertx:vertx-web-validation:$vertxVersion")
     implementation("io.vertx:vertx-json-schema:$vertxVersion")
 
-    implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = "2.17.2")
-    implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = "2.17.2")
-    implementation(group = "org.apache.logging.log4j", name = "log4j-slf4j-impl", version = "2.17.2")
+    implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = "2.18.0")
+    implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = "2.18.0")
+    implementation(group = "org.apache.logging.log4j", name = "log4j-slf4j-impl", version = "2.18.0")
 
     // recaptcha v2 1.0.4
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
@@ -56,7 +56,7 @@ dependencies {
     //runtimeOnly("org.bouncycastle:bcprov-jdk15on:1.60")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 
-    implementation("org.springframework:spring-context:5.3.20")
+    implementation("org.springframework:spring-context:5.3.21")
 }
 
 tasks {

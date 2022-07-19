@@ -8,7 +8,6 @@ import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.PlayerStatus
 import com.panomc.platform.util.SetupManager
-import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -32,7 +31,7 @@ class PanelGetPlayersAPI(
                 optionalParam(
                     "status",
                     arraySchema()
-                        .items(enumSchema(*TicketStatus.values().map { it.status }.toTypedArray()))
+                        .items(enumSchema(*PlayerStatus.values().map { it.type }.toTypedArray()))
                 )
             )
             .queryParameter(optionalParam("permissionGroup", stringSchema()))

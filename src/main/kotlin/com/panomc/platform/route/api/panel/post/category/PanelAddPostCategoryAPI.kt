@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.panel.post.category
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PostCategory
@@ -32,7 +31,7 @@ class PanelAddPostCategoryAPI(
                         .property("title", stringSchema())
                         .property("description", stringSchema())
                         .property("url", stringSchema())
-                        .property("color", stringSchema())
+                        .optionalProperty("color", stringSchema())
                 )
             )
             .build()
@@ -44,7 +43,7 @@ class PanelAddPostCategoryAPI(
         val title = data.getString("title")
         val description = data.getString("description")
         val url = data.getString("url")
-        val color = data.getString("color")
+        val color = data.getString("color") ?: "#1976d2"
 
         validateForm(title, url, color)
 
@@ -78,9 +77,9 @@ class PanelAddPostCategoryAPI(
         url: String,
         color: String
     ) {
-        if (color.length != 7) {
-            throw Error(ErrorCode.UNKNOWN)
-        }
+//        if (color.length != 7) {
+//            throw Error(ErrorCode.UNKNOWN)
+//        }
 
         val errors = mutableMapOf<String, Boolean>()
 

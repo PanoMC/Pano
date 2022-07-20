@@ -10,9 +10,10 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
+import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.*
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
+import io.vertx.json.schema.common.dsl.Schemas.intSchema
 
 @Endpoint
 class PanelDeleteTicketsAPI(
@@ -26,18 +27,14 @@ class PanelDeleteTicketsAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .body(
-                json(
-                    objectSchema()
-                        .property("tickets", arraySchema().items(intSchema()))
-                )
+            .queryParameter(
+                optionalParam("ids", arraySchema().items(intSchema()))
             )
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val data = parameters.body().jsonObject
-        val selectedTickets = data.getJsonArray("tickets")
+        val selectedTickets = parameters.queryParameter("ids").jsonArray
 
         if (selectedTickets.isEmpty) {
             return Successful()

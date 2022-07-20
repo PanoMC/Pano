@@ -101,18 +101,13 @@ class PanelGetTicketAPI(
                     "username" to username,
                     "title" to ticket.title,
                     "category" to
-                            if (ticketCategory == null)
-                                "-"
-                            else
-                                mapOf(
-                                    "title" to ticketCategory.title
-                                ),
+                            (ticketCategory ?: TicketCategory()),
                     "messages" to messages,
                     "status" to ticket.status.value,
                     "date" to ticket.date,
                     "count" to messageCount
                 )
-                )
             )
+        )
     }
 }

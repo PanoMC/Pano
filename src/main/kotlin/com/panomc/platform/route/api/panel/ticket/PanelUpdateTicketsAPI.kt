@@ -10,9 +10,8 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.SchemaType
 import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
@@ -28,9 +27,9 @@ class PanelUpdateTicketsAPI(
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
             .body(
-                Bodies.json(
+                json(
                     objectSchema()
-                        .property("tickets", arraySchema().type(SchemaType.NUMBER))
+                        .property("tickets", arraySchema().items(intSchema()))
                         .optionalProperty("status", stringSchema())
                 )
             )

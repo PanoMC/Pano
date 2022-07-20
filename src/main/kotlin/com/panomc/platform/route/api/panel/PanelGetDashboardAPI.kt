@@ -105,11 +105,11 @@ class PanelGetDashboardAPI(
                     "title" to ticket.title,
                     "category" to
                             if (ticket.categoryId == -1L)
-                                mapOf("id" to -1, "title" to "-")
+                                TicketCategory()
                             else
                                 ticketCategoryList.getOrDefault(
                                     ticket.categoryId,
-                                    mapOf("id" to -1, "title" to "-")
+                                    TicketCategory()
                                 ),
                     "writer" to mapOf(
                         "username" to usernameList[ticket.userId]

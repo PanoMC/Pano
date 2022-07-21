@@ -40,7 +40,8 @@ class PanelGetDashboardAPI(
             "ticketCount" to 0,
             "openTicketCount" to 0,
             "tickets" to mutableListOf<Map<String, Any?>>(),
-            "adminCount" to 0
+            "adminCount" to 0,
+            "connectedServerCount" to 0
         )
 
         val sqlConnection = createConnection(databaseManager, context)
@@ -114,6 +115,8 @@ class PanelGetDashboardAPI(
         }
 
         result["adminCount"] = adminCount
+
+        databaseManager.serverDao
 
         val tickets = databaseManager.ticketDao.getLast5Tickets(sqlConnection)
 

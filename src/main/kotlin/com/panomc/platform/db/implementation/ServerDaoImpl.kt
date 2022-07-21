@@ -9,6 +9,8 @@ import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.security.Keys
 import io.vertx.kotlin.coroutines.await
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import java.util.*
@@ -76,5 +78,16 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             ).await()
 
         return token
+    }
+
+    override suspend fun count(sqlConnection: SqlConnection): Long {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute()
+            .await()
+
+        return rows.toList()[0].getLong(0)
     }
 }

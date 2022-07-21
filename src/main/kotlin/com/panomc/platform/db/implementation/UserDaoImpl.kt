@@ -259,7 +259,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         val parameters = Tuple.tuple()
 
         if (status == PlayerStatus.HAS_PERM)
-            parameters.addInteger(0)
+            parameters.addInteger(-1)
 
         if (status == PlayerStatus.BANNED)
             parameters.addInteger(1)
@@ -283,7 +283,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         val parameters = Tuple.tuple()
 
         if (status == PlayerStatus.HAS_PERM)
-            parameters.addInteger(0)
+            parameters.addInteger(-1)
 
         if (status == PlayerStatus.BANNED)
             parameters.addInteger(1)

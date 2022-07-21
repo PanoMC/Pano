@@ -51,7 +51,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        var permissionGroupId = 0L
+        var permissionGroupId = -1L
 
         if (permissionGroup != "-") {
             val isTherePermissionGroup = databaseManager.permissionGroupDao.isThere(

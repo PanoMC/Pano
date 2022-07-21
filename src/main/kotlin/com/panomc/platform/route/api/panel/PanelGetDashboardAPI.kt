@@ -3,10 +3,13 @@ package com.panomc.platform.route.api.panel
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Permission
+import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.Permission.ACCESS_PANEL
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -36,7 +39,8 @@ class PanelGetDashboardAPI(
             "postCount" to 0,
             "ticketCount" to 0,
             "openTicketCount" to 0,
-            "tickets" to mutableListOf<Map<String, Any?>>()
+            "tickets" to mutableListOf<Map<String, Any?>>(),
+            "adminCount" to 0
         )
 
         val sqlConnection = createConnection(databaseManager, context)
@@ -82,6 +86,34 @@ class PanelGetDashboardAPI(
         val openTicketCount = databaseManager.ticketDao.countOfOpenTickets(sqlConnection)
 
         result["openTicketCount"] = openTicketCount
+
+        val permissionId = databaseManager.permissionDao.getPermissionId(
+            Permission(name = ACCESS_PANEL.value, iconName = ""),
+            sqlConnection
+        )
+        val permissionGroupsByPermissionId =
+            databaseManager.permissionGroupPermsDao.getPermissionGroupPermsByPermissionId(permissionId, sqlConnection)
+
+        var adminCount = 0L
+
+        val permissionGroupList = permissionGroupsByPermissionId.toMutableList()
+
+        val adminPermissionGroupId =
+            databaseManager.permissionGroupDao.getPermissionGroupId(PermissionGroup(name = "admin"), sqlConnection)
+
+        val userCountOfAdminPermission =
+            databaseManager.userDao.getCountOfUsersByPermissionGroupId(adminPermissionGroupId!!, sqlConnection)
+
+        adminCount += userCountOfAdminPermission
+
+        permissionGroupList.forEach { permissionGroupPerm ->
+            adminCount += databaseManager.userDao.getCountOfUsersByPermissionGroupId(
+                permissionGroupPerm.permissionGroupId,
+                sqlConnection
+            )
+        }
+
+        result["adminCount"] = adminCount
 
         val tickets = databaseManager.ticketDao.getLast5Tickets(sqlConnection)
 

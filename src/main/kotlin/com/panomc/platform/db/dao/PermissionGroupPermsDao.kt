@@ -10,6 +10,11 @@ interface PermissionGroupPermsDao : Dao<PermissionGroupPerms> {
         sqlConnection: SqlConnection
     ): List<PermissionGroupPerms>
 
+    suspend fun getPermissionGroupPermsByPermissionId(
+        permissionId: Long,
+        sqlConnection: SqlConnection
+    ): List<PermissionGroupPerms>
+
     suspend fun doesPermissionGroupHavePermission(
         permissionGroupId: Long,
         permissionId: Long,

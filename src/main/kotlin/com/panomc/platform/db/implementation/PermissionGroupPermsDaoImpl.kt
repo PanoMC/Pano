@@ -44,6 +44,21 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         return PermissionGroupPerms.from(rows)
     }
 
+    override suspend fun getPermissionGroupPermsByPermissionId(
+        permissionId: Long,
+        sqlConnection: SqlConnection
+    ): List<PermissionGroupPerms> {
+        val query =
+            "SELECT `id`, `permission_id`, `permission_group_id` FROM `${getTablePrefix() + tableName}` WHERE `permission_id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(permissionId))
+            .await()
+
+        return PermissionGroupPerms.from(rows)
+    }
+
     override suspend fun doesPermissionGroupHavePermission(
         permissionGroupId: Long,
         permissionId: Long,

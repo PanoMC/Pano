@@ -81,6 +81,8 @@ class NextStepAPI(
                 )
 
                 passStep = true
+            } else if (clientStep == 3) {
+                passStep = true
             }
 
             if (passStep)

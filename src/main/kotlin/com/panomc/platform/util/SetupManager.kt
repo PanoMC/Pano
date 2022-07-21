@@ -6,7 +6,7 @@ import java.net.InetAddress
 
 class SetupManager(private val mConfigManager: ConfigManager) {
 
-    fun isSetupDone() = getStep() == 4
+    fun isSetupDone() = getStep() == 5
 
     fun getCurrentStepData(): JsonObject {
         val data = JsonObject()
@@ -14,7 +14,7 @@ class SetupManager(private val mConfigManager: ConfigManager) {
 
         data.put("step", step)
 
-        if (step == 1 || step == 3) {
+        if (step == 1 || step == 4) {
             data.put("websiteName", mConfigManager.getConfig().getString("website-name"))
             data.put("websiteDescription", mConfigManager.getConfig().getString("website-description"))
         } else if (step == 2) {
@@ -31,7 +31,7 @@ class SetupManager(private val mConfigManager: ConfigManager) {
             )
         }
 
-        if (step == 3) {
+        if (step == 4) {
             val localHost = InetAddress.getLocalHost()
             val panoAccountConfig = mConfigManager.getConfig().getJsonObject("pano-account")
 
@@ -62,14 +62,14 @@ class SetupManager(private val mConfigManager: ConfigManager) {
     fun nextStep() {
         val currentStep = getStep()
 
-        if (currentStep + 1 > 3)
-            setStep(3)
+        if (currentStep + 1 > 4)
+            setStep(4)
         else
             setStep(currentStep + 1)
     }
 
     fun finishSetup() {
-        setStep(4)
+        setStep(5)
     }
 
     fun getStep() = mConfigManager.getConfig().getJsonObject("setup").getInteger("step")

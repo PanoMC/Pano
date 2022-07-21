@@ -60,7 +60,8 @@ class PanelGetPlayerAPI(
             "email" to user.email,
             "registerDate" to user.registerDate,
             "isBanned" to user.banned,
-            "isEmailVerified" to user.emailVerified
+            "isEmailVerified" to user.emailVerified,
+            "permissionGroup" to "-"
         )
 
         if (user.permissionGroupId != -1L) {

@@ -37,6 +37,7 @@ class PanelUpdateSettingAPI(
                         )
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
+                        .optionalProperty("serverIpAddress", stringSchema())
                         .optionalProperty("keywords", arraySchema().items(stringSchema()))
                 )
             )
@@ -49,6 +50,7 @@ class PanelUpdateSettingAPI(
         val updatePeriod = UpdatePeriod.valueOf(period = data.getString("updatePeriod"))
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
+        val serverIpAddress = data.getString("serverIpAddress")
         val keywords = data.getJsonArray("keywords")
 
         if (updatePeriod != null) {
@@ -61,6 +63,10 @@ class PanelUpdateSettingAPI(
 
         if (websiteDescription != null) {
             configManager.getConfig().put("website-description", websiteDescription)
+        }
+
+        if (serverIpAddress != null) {
+            configManager.getConfig().put("server-ip-address", serverIpAddress)
         }
 
         if (keywords != null) {

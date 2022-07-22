@@ -48,7 +48,7 @@ interface PanelNotificationDao : Dao<PanelNotification> {
         sqlConnection: SqlConnection
     ): List<PanelNotification>
 
-    suspend fun markReadLat5ByUserId(
+    suspend fun markReadLast5ByUserId(
         userId: Long,
         sqlConnection: SqlConnection
     )

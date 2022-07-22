@@ -183,7 +183,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         return PanelNotification.from(rows)
     }
 
-    override suspend fun markReadLat5ByUserId(
+    override suspend fun markReadLast5ByUserId(
         userId: Long,
         sqlConnection: SqlConnection
     ) {

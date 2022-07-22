@@ -18,9 +18,9 @@ class PanelQuickNotificationsAndReadAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
+    override val routeType = RouteType.POST
 
-    override val routes = arrayListOf("/api/panel/quickNotificationsAndRead")
+    override val routes = arrayListOf("/api/panel/markQuickNotificationsAsRead")
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser).build()
@@ -30,29 +30,12 @@ class PanelQuickNotificationsAndReadAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val notifications = databaseManager.panelNotificationDao.getLast5ByUserId(userId, sqlConnection)
-
         val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
 
         databaseManager.panelNotificationDao.markReadLast5ByUserId(userId, sqlConnection)
 
-        val notificationsDataList = mutableListOf<Map<String, Any?>>()
-
-        notifications.forEach { notification ->
-            notificationsDataList.add(
-                mapOf(
-                    "id" to notification.id,
-                    "typeId" to notification.typeId,
-                    "date" to notification.date,
-                    "status" to notification.status,
-                    "isPersonal" to (notification.userId == userId)
-                )
-            )
-        }
-
         return Successful(
             mutableMapOf(
-                "notifications" to notificationsDataList,
                 "notificationCount" to count
             )
         )

@@ -63,8 +63,9 @@ class NextStepAPI(
 
             if (clientStep == 0)
                 passStep = true
-            else if (clientStep == 1 && !websiteName
-                    .isNullOrEmpty() && !websiteDescription.isNullOrEmpty()
+            else if (clientStep == 1 &&
+                !websiteName.isNullOrEmpty() &&
+                !websiteDescription.isNullOrEmpty()
             ) {
                 configManager.getConfig().put("website-name", websiteName)
                 configManager.getConfig().put("website-description", websiteDescription)

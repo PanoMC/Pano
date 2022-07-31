@@ -17,7 +17,9 @@ class SetupManager(private val mConfigManager: ConfigManager) {
         if (step == 1 || step == 4) {
             data.put("websiteName", mConfigManager.getConfig().getString("website-name"))
             data.put("websiteDescription", mConfigManager.getConfig().getString("website-description"))
-        } else if (step == 2) {
+        }
+
+        if (step == 2) {
             val databaseConfig = mConfigManager.getConfig().getJsonObject("database")
 
             data.put(
@@ -29,6 +31,17 @@ class SetupManager(private val mConfigManager: ConfigManager) {
                     "prefix" to databaseConfig.getString("prefix")
                 )
             )
+        }
+
+        if (step == 3) {
+            val mailConfig = mConfigManager.getConfig().getJsonObject("email")
+
+            data.put("address", mailConfig.getString("address"))
+            data.put("host", mailConfig.getString("host"))
+            data.put("port", mailConfig.getInteger("port"))
+            data.put("username", mailConfig.getString("username"))
+            data.put("password", mailConfig.getString("password"))
+            data.put("useSSL", mailConfig.getBoolean("SSL"))
         }
 
         if (step == 4) {

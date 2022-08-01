@@ -108,6 +108,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
                     "date" to post.date,
                     "image" to post.image,
                     "views" to post.views,
+                    "url" to post.url
                 )
             )
         }

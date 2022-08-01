@@ -10,7 +10,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class GetPostDetailAPI(
@@ -18,29 +18,29 @@ class GetPostDetailAPI(
 ) : Api() {
     override val routeType = RouteType.POST
 
-    override val routes = arrayListOf("/api/posts/:id")
+    override val routes = arrayListOf("/api/posts/:url")
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("id", Schemas.numberSchema()))
+            .pathParameter(Parameters.param("url", stringSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
-        val id = parameters.pathParameter("id").long
+        val url = parameters.pathParameter("url").string
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val isPostExists = databaseManager.postDao.isExistsById(id, sqlConnection)
+        val isPostExists = databaseManager.postDao.isExistsByUrl(url, sqlConnection)
 
         if (!isPostExists) {
             throw Error(ErrorCode.POST_NOT_FOUND)
         }
 
-        databaseManager.postDao.increaseViewByOne(id, sqlConnection)
+        databaseManager.postDao.increaseViewByOne(url, sqlConnection)
 
-        val post = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+        val post = databaseManager.postDao.getByUrl(url, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
         var postCategory: PostCategory? = null
 
         if (post.categoryId != -1L) {
@@ -84,7 +84,8 @@ class GetPostDetailAPI(
                     "date" to post.date,
                     "status" to post.status.value,
                     "image" to post.image,
-                    "views" to post.views
+                    "views" to post.views,
+                    "url" to post.url
                 ),
                 "previousPost" to
                         if (previousPost == null)
@@ -92,7 +93,8 @@ class GetPostDetailAPI(
                         else
                             mapOf<String, Any?>(
                                 "id" to previousPost.id,
-                                "title" to previousPost.title
+                                "title" to previousPost.title,
+                                "url" to previousPost.url
                             ),
                 "nextPost" to
                         if (nextPost == null)
@@ -100,7 +102,8 @@ class GetPostDetailAPI(
                         else
                             mapOf<String, Any?>(
                                 "id" to nextPost.id,
-                                "title" to nextPost.title
+                                "title" to nextPost.title,
+                                "url" to nextPost.url
                             )
             )
         )

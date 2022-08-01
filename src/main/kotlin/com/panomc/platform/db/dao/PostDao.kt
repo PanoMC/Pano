@@ -17,8 +17,18 @@ interface PostDao : Dao<Post> {
         sqlConnection: SqlConnection
     ): Boolean
 
+    suspend fun isExistsByUrl(
+        url: String,
+        sqlConnection: SqlConnection
+    ): Boolean
+
     suspend fun getById(
         id: Long,
+        sqlConnection: SqlConnection
+    ): Post?
+
+    suspend fun getByUrl(
+        url: String,
         sqlConnection: SqlConnection
     ): Post?
 
@@ -115,6 +125,11 @@ interface PostDao : Dao<Post> {
 
     suspend fun increaseViewByOne(
         id: Long,
+        sqlConnection: SqlConnection
+    )
+
+    suspend fun increaseViewByOne(
+        url: String,
         sqlConnection: SqlConnection
     )
 

@@ -76,6 +76,21 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0) == 1L
     }
 
+    override suspend fun isExistsByUrl(url: String, sqlConnection: SqlConnection): Boolean {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    url
+                )
+            )
+            .await()
+
+        return rows.toList()[0].getLong(0) == 1L
+    }
+
     override suspend fun getById(
         id: Long,
         sqlConnection: SqlConnection
@@ -88,6 +103,28 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(
                 Tuple.of(
                     id
+                )
+            )
+            .await()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val row = rows.toList()[0]
+
+        return Post.from(row)
+    }
+
+    override suspend fun getByUrl(url: String, sqlConnection: SqlConnection): Post? {
+        val query =
+            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `image`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    url
                 )
             )
             .await()
@@ -461,6 +498,20 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(
                 Tuple.of(
                     id
+                )
+            )
+            .await()
+    }
+
+    override suspend fun increaseViewByOne(url: String, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `views` = `views` + 1 WHERE `url` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    url
                 )
             )
             .await()

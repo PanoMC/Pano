@@ -59,7 +59,8 @@ class PanelGetDashboardAPI(
             "tickets" to mutableListOf<Map<String, Any?>>(),
             "adminCount" to 0,
             "connectedServerCount" to 0,
-            "newRegisterCount" to 0
+            "newRegisterCount" to 0,
+            "period" to period.period
         )
 
         val sqlConnection = createConnection(databaseManager, context)

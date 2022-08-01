@@ -14,7 +14,8 @@ data class Post(
     val moveDate: Long = System.currentTimeMillis(),
     val status: PostStatus = PostStatus.PUBLISHED,
     val image: String,
-    val views: Long = 0
+    val views: Long = 0,
+    val url: String = ""
 ) {
     companion object {
         fun from(row: Row) = Post(
@@ -27,7 +28,8 @@ data class Post(
             row.getLong(6),
             PostStatus.valueOf(row.getInteger(7))!!,
             row.getBuffer(8).toString(),
-            row.getLong(9)
+            row.getLong(9),
+            row.getString(10)
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

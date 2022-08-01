@@ -9,11 +9,15 @@ import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
+import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.Permission.ACCESS_PANEL
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
+import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 
 @Endpoint
 class PanelGetDashboardAPI(
@@ -26,10 +30,23 @@ class PanelGetDashboardAPI(
     override val routes = arrayListOf("/api/panel/dashboard")
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser).build()
+        ValidationHandler.builder(schemaParser)
+            .queryParameter(
+                param(
+                    "period",
+                    arraySchema()
+                        .items(enumSchema(*DashboardPeriodType.values().map { it.period }.toTypedArray()))
+                )
+            )
+            .build()
 
     override suspend fun handler(context: RoutingContext): Result {
+        val parameters = getParameters(context)
         val userId = authProvider.getUserIdFromRoutingContext(context)
+
+        val period = DashboardPeriodType.valueOf(
+            period = parameters.queryParameter("period")?.jsonArray?.first() as String? ?: "weekly"
+        ) ?: DashboardPeriodType.WEEKLY
 
         val result = mutableMapOf<String, Any?>(
             "gettingStartedBlocks" to mapOf(
@@ -41,7 +58,8 @@ class PanelGetDashboardAPI(
             "openTicketCount" to 0,
             "tickets" to mutableListOf<Map<String, Any?>>(),
             "adminCount" to 0,
-            "connectedServerCount" to 0
+            "connectedServerCount" to 0,
+            "newRegisterCount" to 0
         )
 
         val sqlConnection = createConnection(databaseManager, context)
@@ -157,6 +175,8 @@ class PanelGetDashboardAPI(
         }
 
         result["tickets"] = ticketDataList
+
+        result["newRegisterCount"] = databaseManager.userDao.countOfRegisterByPeriod(period, sqlConnection)
 
         return Successful(result)
     }

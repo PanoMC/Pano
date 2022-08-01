@@ -2,6 +2,7 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.User
+import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.sqlclient.SqlConnection
 
@@ -41,6 +42,8 @@ interface UserDao : Dao<User> {
     ): Boolean
 
     suspend fun count(sqlConnection: SqlConnection): Long
+
+    suspend fun countOfRegisterByPeriod(dashboardPeriodType: DashboardPeriodType, sqlConnection: SqlConnection): Long
 
     suspend fun getUsernameFromUserId(
         userId: Long,

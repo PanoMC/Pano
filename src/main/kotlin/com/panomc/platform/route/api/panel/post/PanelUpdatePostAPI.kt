@@ -7,6 +7,7 @@ import com.panomc.platform.db.model.Post
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
+import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -47,6 +48,7 @@ class PanelUpdatePostAPI(
         val categoryId = data.getLong("category")
         val text = data.getString("text")
         val imageCode = data.getString("imageCode") ?: ""
+        val url = TextUtil.convertStringToUrl(title, 32)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -64,7 +66,8 @@ class PanelUpdatePostAPI(
             categoryId = categoryId,
             writerUserId = userId,
             text = text,
-            image = imageCode
+            image = imageCode,
+            url = "$url-$id"
         )
 
         databaseManager.postDao.updateAndPublish(userId, post, sqlConnection)

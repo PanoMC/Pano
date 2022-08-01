@@ -6,7 +6,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PostDao
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.util.PostStatus
-import com.panomc.platform.util.TextUtil
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -218,7 +217,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     post.status.value,
                     post.image,
                     post.views,
-                    TextUtil.convertStringToUrl(post.title)
+                    post.url
                 )
             )
             .await()
@@ -246,8 +245,23 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     System.currentTimeMillis(),
                     1,
                     post.image,
-                    TextUtil.convertStringToUrl(post.title),
+                    post.url,
                     post.id
+                )
+            )
+            .await()
+    }
+
+    override suspend fun updatePostUrlByUrl(url: String, newUrl: String, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `url` = ? WHERE `url` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    newUrl,
+                    url
                 )
             )
             .await()

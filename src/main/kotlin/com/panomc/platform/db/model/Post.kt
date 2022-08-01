@@ -15,7 +15,7 @@ data class Post(
     val status: PostStatus = PostStatus.PUBLISHED,
     val image: String,
     val views: Long = 0,
-    val url: String = ""
+    val url: String
 ) {
     companion object {
         fun from(row: Row) = Post(

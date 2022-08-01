@@ -9,6 +9,7 @@ import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
+import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -46,6 +47,7 @@ class PanelPublishPostAPI(
         val categoryId = data.getLong("category")
         val text = data.getString("text")
         val imageCode = data.getString("imageCode") ?: ""
+        val url = TextUtil.convertStringToUrl(title, 32)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -56,10 +58,13 @@ class PanelPublishPostAPI(
             categoryId = categoryId,
             writerUserId = userId,
             text = text,
-            image = imageCode
+            image = imageCode,
+            url = url
         )
 
         val postId = databaseManager.postDao.insertAndPublish(post, sqlConnection)
+
+        databaseManager.postDao.updatePostUrlByUrl(url, "$url-$postId", sqlConnection)
 
         return Successful(
             mapOf(

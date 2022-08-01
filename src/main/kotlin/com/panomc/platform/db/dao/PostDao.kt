@@ -59,6 +59,12 @@ interface PostDao : Dao<Post> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun updatePostUrlByUrl(
+        url: String,
+        newUrl: String,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun count(sqlConnection: SqlConnection): Long
 
     suspend fun countByCategory(

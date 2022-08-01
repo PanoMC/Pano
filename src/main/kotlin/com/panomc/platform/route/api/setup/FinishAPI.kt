@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.setup
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
@@ -20,7 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 class FinishAPI(
     private val setupManager: SetupManager,
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val configManager: ConfigManager
 ) : SetupApi(setupManager) {
     override val routeType = RouteType.POST
 
@@ -34,6 +36,7 @@ class FinishAPI(
                         .property("username", stringSchema())
                         .property("email", stringSchema())
                         .property("password", stringSchema())
+                        .property("setupLanguage", stringSchema())
                 )
             )
             .build()
@@ -49,6 +52,7 @@ class FinishAPI(
         val username = data.getString("username")
         val email = data.getString("email")
         val password = data.getString("password")
+        val setupLanguage = data.getString("setupLanguage")
 
         val remoteIP = context.request().remoteAddress().host()
 
@@ -78,6 +82,10 @@ class FinishAPI(
         )
 
         val token = authProvider.login(username, sqlConnection)
+
+        configManager.getConfig().put("language", setupLanguage)
+
+        configManager.saveConfig()
 
         setupManager.finishSetup()
 

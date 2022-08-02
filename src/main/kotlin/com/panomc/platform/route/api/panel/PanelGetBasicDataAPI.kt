@@ -54,7 +54,8 @@ class PanelGetBasicDataAPI(
                 "platformServerMatchKeyTimeStarted" to platformCodeManager.getTimeStarted(),
                 "platformHostAddress" to context.request().host(),
                 "servers" to listOf<Map<String, Any?>>(),
-                "notificationCount" to count
+                "notificationCount" to count,
+                "locale" to configManager.getConfig().getString("locale")
             )
         )
     }

@@ -59,6 +59,8 @@ dependencies {
     implementation("org.springframework:spring-context:5.3.21")
 }
 
+val timeStamp: String by project
+
 tasks {
     register("copyJar") {
         doLast {
@@ -91,6 +93,12 @@ tasks {
         manifest {
             if (project.gradle.startParameter.taskNames.contains("buildDev"))
                 attributes(mapOf("MODE" to "DEVELOPMENT"))
+        }
+
+        if (project.hasProperty("timeStamp")) {
+            archiveFileName.set("Pano-${timeStamp}.jar")
+        } else {
+            archiveFileName.set("Pano.jar")
         }
     }
 }

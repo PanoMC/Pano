@@ -35,6 +35,7 @@ class PanelUpdateSettingAPI(
                             "updatePeriod",
                             enumSchema(*UpdatePeriod.values().map { it.period }.toTypedArray())
                         )
+                        .optionalProperty("locale", stringSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("serverIpAddress", stringSchema())
@@ -48,6 +49,7 @@ class PanelUpdateSettingAPI(
         val data = parameters.body().jsonObject
 
         val updatePeriod = UpdatePeriod.valueOf(period = data.getString("updatePeriod"))
+        val locale = data.getString("locale")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
         val serverIpAddress = data.getString("serverIpAddress")
@@ -55,6 +57,10 @@ class PanelUpdateSettingAPI(
 
         if (updatePeriod != null) {
             configManager.getConfig().put("update-period", updatePeriod.period)
+        }
+
+        if (locale != null) {
+            configManager.getConfig().put("locale", locale)
         }
 
         if (websiteName != null) {

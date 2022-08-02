@@ -17,7 +17,7 @@ import java.io.File
 class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
 
     companion object {
-        private const val CONFIG_VERSION = 8
+        private const val CONFIG_VERSION = 9
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKeys()
@@ -26,7 +26,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
                 mapOf(
                     "config-version" to CONFIG_VERSION,
                     "development-mode" to true,
-                    "language" to "en-US",
+                    "locale" to "en-US",
 
                     "website-name" to "",
                     "website-description" to "",

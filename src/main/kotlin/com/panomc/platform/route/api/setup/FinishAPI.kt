@@ -83,7 +83,7 @@ class FinishAPI(
 
         val token = authProvider.login(username, sqlConnection)
 
-        configManager.getConfig().put("language", setupLanguage)
+        configManager.getConfig().put("locale", setupLanguage)
 
         configManager.saveConfig()
 

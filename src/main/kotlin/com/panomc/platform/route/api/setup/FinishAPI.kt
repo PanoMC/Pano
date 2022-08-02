@@ -36,7 +36,7 @@ class FinishAPI(
                         .property("username", stringSchema())
                         .property("email", stringSchema())
                         .property("password", stringSchema())
-                        .property("setupLanguage", stringSchema())
+                        .property("setupLocale", stringSchema())
                 )
             )
             .build()
@@ -52,7 +52,7 @@ class FinishAPI(
         val username = data.getString("username")
         val email = data.getString("email")
         val password = data.getString("password")
-        val setupLanguage = data.getString("setupLanguage")
+        val setupLocale = data.getString("setupLocale")
 
         val remoteIP = context.request().remoteAddress().host()
 
@@ -83,7 +83,7 @@ class FinishAPI(
 
         val token = authProvider.login(username, sqlConnection)
 
-        configManager.getConfig().put("locale", setupLanguage)
+        configManager.getConfig().put("locale", setupLocale)
 
         configManager.saveConfig()
 

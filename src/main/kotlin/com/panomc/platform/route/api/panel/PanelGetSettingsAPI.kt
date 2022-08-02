@@ -44,6 +44,7 @@ class PanelGetSettingsAPI(
 
         if (settingType == SettingType.GENERAL) {
             result["updatePeriod"] = configManager.getConfig().getString("update-period")
+            result["locale"] = configManager.getConfig().getString("locale")
         }
 
         if (settingType == SettingType.WEBSITE) {

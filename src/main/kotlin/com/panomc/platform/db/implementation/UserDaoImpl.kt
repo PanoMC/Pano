@@ -7,6 +7,7 @@ import com.panomc.platform.db.dao.UserDao
 import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
+import com.panomc.platform.util.TimeUtil
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -14,9 +15,6 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 import org.apache.commons.codec.digest.DigestUtils
-import java.util.*
-import java.util.concurrent.TimeUnit
-
 
 @Dao
 class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "user"), UserDao {
@@ -198,19 +196,9 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     ): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `register_date` > ?"
 
-        val timeToCompare = if (dashboardPeriodType == DashboardPeriodType.WEEKLY) {
-            System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
-        } else {
-            val calendar = Calendar.getInstance()
-
-            calendar.add(Calendar.MONTH, -1)
-
-            calendar.timeInMillis
-        }
-
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
-            .execute(Tuple.of(timeToCompare))
+            .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
             .await()
 
         return rows.toList()[0].getLong(0)

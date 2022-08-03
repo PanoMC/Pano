@@ -23,7 +23,7 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
                         CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                           `id` bigint NOT NULL AUTO_INCREMENT,
                           `times` bigint NOT NULL,
-                          `date` varchar(255) NOT NULL,
+                          `date` BIGINT(20) NOT NULL,
                           `ip_address` varchar(255) NOT NULL,
                           PRIMARY KEY (`id`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Website visitor view table.';

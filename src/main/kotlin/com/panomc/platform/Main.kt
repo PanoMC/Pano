@@ -44,6 +44,18 @@ class Main : CoroutineVerticle() {
             else
                 EnvironmentType.DEVELOPMENT
 
+        val VERSION by lazy {
+            try {
+                val urlClassLoader = ClassLoader.getSystemClassLoader()
+                val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
+                val manifest = Manifest(manifestUrl)
+
+                manifest.mainAttributes.getValue("VERSION").toString()
+            } catch (e: Exception) {
+                System.getenv("PanoVersion").toString()
+            }
+        }
+
         @JvmStatic
         fun main(args: Array<String>) {
             vertx.deployVerticle(Main())
@@ -68,7 +80,7 @@ class Main : CoroutineVerticle() {
                     "/\\  == \\ /\\  __ \\   /\\ \"-.\\ \\   /\\  __ \\   \n" +
                     "\\ \\  _-/ \\ \\  __ \\  \\ \\ \\-.  \\  \\ \\ \\/\\ \\  \n" +
                     " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n" +
-                    "  \\/_/     \\/_/\\/_/   \\/_/ \\/_/   \\/_____/ \n" +
+                    "  \\/_/     \\/_/\\/_/   \\/_/ \\/_/   \\/_____/  v${VERSION}\n" +
                     "                                           "
         )
         logger.info("Hello World!")

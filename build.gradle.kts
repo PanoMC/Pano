@@ -8,7 +8,10 @@ plugins {
 }
 
 group = "com.panomc.platform"
-version = "1.0"
+version = "1.0.0"
+val stage = "alpha"
+val timeStamp: String by project
+val fullVersion = if (project.hasProperty("timeStamp")) "$version-$stage-$timeStamp" else "$version-$stage"
 
 repositories {
     mavenCentral()
@@ -59,8 +62,6 @@ dependencies {
     implementation("org.springframework:spring-context:5.3.21")
 }
 
-val timeStamp: String by project
-
 tasks {
     register("copyJar") {
         doLast {
@@ -75,10 +76,12 @@ tasks {
 
     vertxDebug {
         environment("EnvironmentType", "DEVELOPMENT")
+        environment("PanoVersion", fullVersion)
     }
 
     vertxRun {
         environment("EnvironmentType", "DEVELOPMENT")
+        environment("PanoVersion", fullVersion)
     }
 
     build {
@@ -91,8 +94,14 @@ tasks {
 
     shadowJar {
         manifest {
+            val attrMap = mutableMapOf<String, String>()
+
             if (project.gradle.startParameter.taskNames.contains("buildDev"))
-                attributes(mapOf("MODE" to "DEVELOPMENT"))
+                attrMap["MODE"] = "DEVELOPMENT"
+
+            attrMap["VERSION"] = fullVersion
+
+            attributes(attrMap)
         }
 
         if (project.hasProperty("timeStamp")) {

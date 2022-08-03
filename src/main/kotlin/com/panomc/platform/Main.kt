@@ -56,6 +56,21 @@ class Main : CoroutineVerticle() {
             }
         }
 
+        val STAGE by lazy {
+            ReleaseStage.valueOf(
+                stage =
+                try {
+                    val urlClassLoader = ClassLoader.getSystemClassLoader()
+                    val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
+                    val manifest = Manifest(manifestUrl)
+
+                    manifest.mainAttributes.getValue("STAGE").toString()
+                } catch (e: Exception) {
+                    System.getenv("PanoReleaseStage").toString()
+                }
+            )
+        }
+
         @JvmStatic
         fun main(args: Array<String>) {
             vertx.deployVerticle(Main())

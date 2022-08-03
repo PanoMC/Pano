@@ -77,11 +77,13 @@ tasks {
     vertxDebug {
         environment("EnvironmentType", "DEVELOPMENT")
         environment("PanoVersion", fullVersion)
+        environment("PanoReleaseStage", stage)
     }
 
     vertxRun {
         environment("EnvironmentType", "DEVELOPMENT")
         environment("PanoVersion", fullVersion)
+        environment("PanoReleaseStage", stage)
     }
 
     build {
@@ -100,6 +102,7 @@ tasks {
                 attrMap["MODE"] = "DEVELOPMENT"
 
             attrMap["VERSION"] = fullVersion
+            attrMap["STAGE"] = stage
 
             attributes(attrMap)
         }

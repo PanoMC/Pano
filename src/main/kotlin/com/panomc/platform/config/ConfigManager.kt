@@ -131,7 +131,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
     private val configRetriever = ConfigRetriever.create(vertx, options)
 
     private fun migrate() {
-        logger.info("Checking available config migrations...")
+        logger.info("Checking available config migrations")
 
         var migrateCount = 0
 

@@ -91,7 +91,7 @@ class Main : CoroutineVerticle() {
     }
 
     private suspend fun init() {
-        logger.info("Initializing dependency injection...")
+        logger.info("Initializing dependency injection")
 
         SpringConfig.setDefaults(vertx, logger)
 
@@ -102,32 +102,32 @@ class Main : CoroutineVerticle() {
         val databaseManager = applicationContext.getBean(DatabaseManager::class.java)
         val setupManager = applicationContext.getBean(SetupManager::class.java)
 
-        logger.info("Initializing config manager...")
+        logger.info("Initializing config manager")
 
         configManager.init()
 
         if (!setupManager.isSetupDone()) {
-            logger.info("Platform is not installed! Skipping database manager initializing...")
+            logger.info("Platform is not installed! Skipping database manager initializing")
 
             return
         }
 
         logger.info("Platform is installed.")
 
-        logger.info("Initializing database manager...")
+        logger.info("Initializing database manager")
 
         databaseManager.init()
     }
 
     private fun startWebServer() {
-        logger.info("Creating HTTP server...")
+        logger.info("Creating HTTP server")
 
         vertx
             .createHttpServer()
             .requestHandler(router)
             .listen(PORT) { result ->
                 if (result.succeeded()) {
-                    logger.info("Started listening on port $PORT, and ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+                    logger.info("Started listening on port $PORT, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
                 } else {
                     logger.error("Failed to listen on port $PORT, reason: " + result.cause().toString())
                 }

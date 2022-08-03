@@ -116,7 +116,7 @@ class DatabaseManager(
     internal fun getLatestMigration() = mMigrations.maxByOrNull { it.SCHEME_VERSION }!!
 
     private suspend fun checkMigration() {
-        logger.info("Checking available database migrations...")
+        logger.info("Checking available database migrations")
 
         val sqlConnection: SqlConnection
 

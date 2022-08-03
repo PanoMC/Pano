@@ -50,4 +50,6 @@ enum class ErrorCode {
     DESCRIPTION_CANT_BE_EMPTY,
 
     UNKNOWN,
+
+    INVALID_IP_ADDRESS
 }

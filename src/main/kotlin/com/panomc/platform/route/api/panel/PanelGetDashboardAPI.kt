@@ -101,13 +101,52 @@ class PanelGetDashboardAPI(
 
         result["ticketCount"] = ticketCount
 
-        if (ticketCount == 0L) {
-            return Successful(result)
+        if (ticketCount != 0L) {
+            val openTicketCount = databaseManager.ticketDao.countOfOpenTickets(sqlConnection)
+
+            result["openTicketCount"] = openTicketCount
+
+            val tickets = databaseManager.ticketDao.getLast5Tickets(sqlConnection)
+
+            val userIdList = tickets.distinctBy { it.userId }.map { it.userId }
+
+            val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+
+            val categoryIdList =
+                tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
+            var ticketCategoryList: Map<Long, TicketCategory> = mapOf()
+
+            if (categoryIdList.isNotEmpty()) {
+                ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
+            }
+
+            val ticketDataList = mutableListOf<Map<String, Any?>>()
+
+            tickets.forEach { ticket ->
+                ticketDataList.add(
+                    mapOf(
+                        "id" to ticket.id,
+                        "title" to ticket.title,
+                        "category" to
+                                if (ticket.categoryId == -1L)
+                                    TicketCategory()
+                                else
+                                    ticketCategoryList.getOrDefault(
+                                        ticket.categoryId,
+                                        TicketCategory()
+                                    ),
+                        "writer" to mapOf(
+                            "username" to usernameList[ticket.userId]
+                        ),
+                        "date" to ticket.date,
+                        "lastUpdate" to ticket.lastUpdate,
+                        "status" to ticket.status.value
+                    )
+                )
+            }
+
+            result["tickets"] = ticketDataList
         }
-
-        val openTicketCount = databaseManager.ticketDao.countOfOpenTickets(sqlConnection)
-
-        result["openTicketCount"] = openTicketCount
 
         val permissionId = databaseManager.permissionDao.getPermissionId(
             Permission(name = ACCESS_PANEL.value, iconName = ""),
@@ -136,48 +175,6 @@ class PanelGetDashboardAPI(
         }
 
         result["adminCount"] = adminCount
-
-        databaseManager.serverDao
-
-        val tickets = databaseManager.ticketDao.getLast5Tickets(sqlConnection)
-
-        val userIdList = tickets.distinctBy { it.userId }.map { it.userId }
-
-        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
-
-        val categoryIdList = tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
-        var ticketCategoryList: Map<Long, TicketCategory> = mapOf()
-
-        if (categoryIdList.isNotEmpty()) {
-            ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
-        }
-
-        val ticketDataList = mutableListOf<Map<String, Any?>>()
-
-        tickets.forEach { ticket ->
-            ticketDataList.add(
-                mapOf(
-                    "id" to ticket.id,
-                    "title" to ticket.title,
-                    "category" to
-                            if (ticket.categoryId == -1L)
-                                TicketCategory()
-                            else
-                                ticketCategoryList.getOrDefault(
-                                    ticket.categoryId,
-                                    TicketCategory()
-                                ),
-                    "writer" to mapOf(
-                        "username" to usernameList[ticket.userId]
-                    ),
-                    "date" to ticket.date,
-                    "lastUpdate" to ticket.lastUpdate,
-                    "status" to ticket.status.value
-                )
-            )
-        }
-
-        result["tickets"] = ticketDataList
 
         result["newRegisterCount"] = databaseManager.userDao.countOfRegisterByPeriod(period, sqlConnection)
 

@@ -12,6 +12,7 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.Permission.ACCESS_PANEL
 import com.panomc.platform.util.SetupManager
+import com.panomc.platform.util.TimeUtil.toGroupGetCountAndDates
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -60,7 +61,8 @@ class PanelGetDashboardAPI(
             "adminCount" to 0,
             "connectedServerCount" to 0,
             "newRegisterCount" to 0,
-            "period" to period.period
+            "period" to period.period,
+            "websiteActivityDataList" to mutableMapOf<String, Any?>()
         )
 
         val sqlConnection = createConnection(databaseManager, context)
@@ -178,6 +180,28 @@ class PanelGetDashboardAPI(
         result["tickets"] = ticketDataList
 
         result["newRegisterCount"] = databaseManager.userDao.countOfRegisterByPeriod(period, sqlConnection)
+
+        val websiteActivityDataList = result["websiteActivityDataList"] as MutableMap<String, Any?>
+
+        val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlConnection)
+        val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlConnection)
+        val visitorsDateList = databaseManager.websiteViewDao.getVisitorDatesByPeriod(period, sqlConnection)
+        val viewsDateList = databaseManager.websiteViewDao.getViewDatesAndTimesByPeriod(period, sqlConnection)
+
+        val viewsDateMap = mutableMapOf<Long, Long>()
+
+        viewsDateList.forEach { viewData ->
+            if (viewsDateMap.containsKey(viewData.key)) {
+                viewsDateMap[viewData.key] = viewsDateMap[viewData.key]!!.plus(viewData.value)
+            } else {
+                viewsDateMap[viewData.key] = viewData.value
+            }
+        }
+
+        websiteActivityDataList["newRegisterData"] = registerDateList.toGroupGetCountAndDates()
+        websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
+        websiteActivityDataList["visitorData"] = visitorsDateList.toGroupGetCountAndDates()
+        websiteActivityDataList["viewData"] = viewsDateMap
 
         return Successful(result)
     }

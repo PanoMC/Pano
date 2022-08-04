@@ -5,7 +5,9 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TicketDao
 import com.panomc.platform.db.model.Ticket
+import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.TicketStatus
+import com.panomc.platform.util.TimeUtil
 import io.vertx.core.json.JsonArray
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
@@ -462,5 +464,19 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
+    }
+
+    override suspend fun getDatesByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlConnection: SqlConnection
+    ): List<Long> {
+        val query = "SELECT `date` FROM `${getTablePrefix() + tableName}` WHERE `date` > ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
+            .await()
+
+        return rows.toList().map { it.getLong(0) }
     }
 }

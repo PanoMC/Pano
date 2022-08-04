@@ -22,4 +22,17 @@ object TimeUtil {
 
             calendar.timeInMillis
         }
+
+    fun List<Long>.toGroupGetCountAndDates() = this.map { time ->
+        val calendar = Calendar.getInstance()
+
+        calendar.timeInMillis = time
+
+        calendar[Calendar.HOUR_OF_DAY] = 0
+        calendar[Calendar.MINUTE] = 0
+        calendar[Calendar.SECOND] = 0
+        calendar[Calendar.MILLISECOND] = 0
+
+        calendar.timeInMillis
+    }.groupingBy { it }.eachCount()
 }

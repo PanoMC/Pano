@@ -2,6 +2,7 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Ticket
+import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlConnection
@@ -133,4 +134,9 @@ interface TicketDao : Dao<Ticket> {
         ticket: Ticket,
         sqlConnection: SqlConnection
     ): Long
+
+    suspend fun getDatesByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlConnection: SqlConnection
+    ): List<Long>
 }

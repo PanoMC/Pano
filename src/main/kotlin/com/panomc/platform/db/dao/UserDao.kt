@@ -45,6 +45,11 @@ interface UserDao : Dao<User> {
 
     suspend fun countOfRegisterByPeriod(dashboardPeriodType: DashboardPeriodType, sqlConnection: SqlConnection): Long
 
+    suspend fun getRegisterDatesByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlConnection: SqlConnection
+    ): List<Long>
+
     suspend fun getUsernameFromUserId(
         userId: Long,
         sqlConnection: SqlConnection

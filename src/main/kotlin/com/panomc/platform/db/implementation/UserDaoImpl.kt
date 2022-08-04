@@ -204,6 +204,20 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0)
     }
 
+    override suspend fun getRegisterDatesByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlConnection: SqlConnection
+    ): List<Long> {
+        val query = "SELECT `register_date` FROM `${getTablePrefix() + tableName}` WHERE `register_date` > ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
+            .await()
+
+        return rows.toList().map { it.getLong(0) }
+    }
+
     override suspend fun getUsernameFromUserId(
         userId: Long,
         sqlConnection: SqlConnection

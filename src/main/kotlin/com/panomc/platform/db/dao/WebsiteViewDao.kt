@@ -2,6 +2,7 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.WebsiteView
+import com.panomc.platform.util.DashboardPeriodType
 import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
@@ -20,4 +21,14 @@ interface WebsiteViewDao : Dao<WebsiteView> {
         ipAddress: String,
         sqlConnection: SqlConnection
     )
+
+    suspend fun getVisitorDatesByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlConnection: SqlConnection
+    ): List<Long>
+
+    suspend fun getViewDatesAndTimesByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlConnection: SqlConnection
+    ): Map<Long, Long>
 }

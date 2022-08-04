@@ -182,22 +182,28 @@ class PanelGetDashboardAPI(
 
         val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlConnection)
         val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlConnection)
-        val visitorsDateList = databaseManager.websiteViewDao.getVisitorDatesByPeriod(period, sqlConnection)
-        val viewsDateList = databaseManager.websiteViewDao.getViewDatesAndTimesByPeriod(period, sqlConnection)
+        val websiteViewData = databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlConnection)
 
         val viewsDateMap = mutableMapOf<Long, Long>()
+        val visitorDateMap = mutableMapOf<Long, Long>()
 
-        viewsDateList.forEach { viewData ->
-            if (viewsDateMap.containsKey(viewData.key)) {
-                viewsDateMap[viewData.key] = viewsDateMap[viewData.key]!!.plus(viewData.value)
+        websiteViewData.forEach { viewData ->
+            if (viewsDateMap.containsKey(viewData.date)) {
+                viewsDateMap[viewData.date] = viewsDateMap[viewData.date]!!.plus(viewData.times)
             } else {
-                viewsDateMap[viewData.key] = viewData.value
+                viewsDateMap[viewData.date] = viewData.times
+            }
+
+            if (visitorDateMap.containsKey(viewData.date)) {
+                visitorDateMap[viewData.date] = visitorDateMap[viewData.date]!!.plus(1)
+            } else {
+                visitorDateMap[viewData.date] = 1
             }
         }
 
         websiteActivityDataList["newRegisterData"] = registerDateList.toGroupGetCountAndDates()
         websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
-        websiteActivityDataList["visitorData"] = visitorsDateList.toGroupGetCountAndDates()
+        websiteActivityDataList["visitorData"] = visitorDateMap
         websiteActivityDataList["viewData"] = viewsDateMap
 
         return Successful(result)

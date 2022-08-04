@@ -82,33 +82,18 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
             .await()
     }
 
-    override suspend fun getVisitorDatesByPeriod(
+    override suspend fun getWebsiteViewListByPeriod(
         dashboardPeriodType: DashboardPeriodType,
         sqlConnection: SqlConnection
-    ): List<Long> {
+    ): List<WebsiteView> {
         val query =
-            "SELECT ANY_VALUE(`date`) as `date` FROM `${getTablePrefix() + tableName}` WHERE `date` > ? GROUP BY `ip_address`"
+            "SELECT `id`, `times`, `date`, `ip_address` FROM `${getTablePrefix() + tableName}` WHERE `date` > ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
             .await()
 
-        return rows.toList().map { it.getLong(0) }
-    }
-
-    override suspend fun getViewDatesAndTimesByPeriod(
-        dashboardPeriodType: DashboardPeriodType,
-        sqlConnection: SqlConnection
-    ): Map<Long, Long> {
-        val query =
-            "SELECT ANY_VALUE(`date`) as `date`, ANY_VALUE(`times`) as `times` FROM `${getTablePrefix() + tableName}` WHERE `date` > ? GROUP BY `ip_address`"
-
-        val rows: RowSet<Row> = sqlConnection
-            .preparedQuery(query)
-            .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
-            .await()
-
-        return rows.toList().associate { it.getLong(0) to it.getLong(1) }
+        return WebsiteView.from(rows)
     }
 }

@@ -22,13 +22,8 @@ interface WebsiteViewDao : Dao<WebsiteView> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun getVisitorDatesByPeriod(
+    suspend fun getWebsiteViewListByPeriod(
         dashboardPeriodType: DashboardPeriodType,
         sqlConnection: SqlConnection
-    ): List<Long>
-
-    suspend fun getViewDatesAndTimesByPeriod(
-        dashboardPeriodType: DashboardPeriodType,
-        sqlConnection: SqlConnection
-    ): Map<Long, Long>
+    ): List<WebsiteView>
 }

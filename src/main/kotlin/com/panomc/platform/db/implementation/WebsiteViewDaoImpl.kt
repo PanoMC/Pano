@@ -86,7 +86,8 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
         dashboardPeriodType: DashboardPeriodType,
         sqlConnection: SqlConnection
     ): List<Long> {
-        val query = "SELECT `date` FROM `${getTablePrefix() + tableName}` WHERE `date` > ? GROUP BY `ip_address`"
+        val query =
+            "SELECT ANY_VALUE(`date`) as `date` FROM `${getTablePrefix() + tableName}` WHERE `date` > ? GROUP BY `ip_address`"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -101,7 +102,7 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
         sqlConnection: SqlConnection
     ): Map<Long, Long> {
         val query =
-            "SELECT `date`, `times` FROM `${getTablePrefix() + tableName}` WHERE `date` > ? GROUP BY `ip_address`"
+            "SELECT ANY_VALUE(`date`) as `date`, ANY_VALUE(`times`) as `times` FROM `${getTablePrefix() + tableName}` WHERE `date` > ? GROUP BY `ip_address`"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

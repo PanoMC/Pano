@@ -70,13 +70,13 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
 
     override suspend fun increaseTimesByOne(ipAddress: String, sqlConnection: SqlConnection) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `times` = `times` + 1 WHERE `ip_address` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `times` = `times` + 1 WHERE `ip_address` = ? AND `date` = ?"
 
         sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    ipAddress
+                    ipAddress, DateUtil.getTodayInMillis()
                 )
             )
             .await()

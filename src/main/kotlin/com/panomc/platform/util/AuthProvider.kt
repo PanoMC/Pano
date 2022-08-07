@@ -4,20 +4,13 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Error
-import io.jsonwebtoken.Claims
-import io.jsonwebtoken.Jws
-import io.jsonwebtoken.JwtException
-import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.io.Decoders
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
-import java.security.KeyFactory
-import java.security.spec.PKCS8EncodedKeySpec
-import java.security.spec.X509EncodedKeySpec
 
 class AuthProvider(
     private val databaseManager: DatabaseManager,
-    private val mConfigManager: ConfigManager
+    private val mConfigManager: ConfigManager,
+    private val tokenProvider: TokenProvider
 ) {
     companion object {
         const val HEADER_PREFIX = "Bearer "
@@ -59,27 +52,25 @@ class AuthProvider(
             sqlConnection
         ) ?: throw Error(ErrorCode.UNKNOWN)
 
-        val privateKeySpec = PKCS8EncodedKeySpec(
-            Decoders.BASE64.decode(
-                mConfigManager.getConfig().getJsonObject("jwt-keys").getString("private")
-            )
-        )
-        val keyFactory = KeyFactory.getInstance("RSA")
+        val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.AUTHENTICATION)
 
-        return Jwts.builder()
-            .setSubject(userId.toString())
-            .signWith(
-                keyFactory.generatePrivate(privateKeySpec)
-            )
-            .compact()
+        tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlConnection)
+
+        return token
     }
 
-    fun isLoggedIn(
+    suspend fun isLoggedIn(
         routingContext: RoutingContext
     ): Boolean {
         val token = getTokenFromRoutingContext(routingContext) ?: return false
 
-        return isTokenValid(token)
+        val sqlConnection = databaseManager.createConnection()
+
+        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.AUTHENTICATION, sqlConnection)
+
+        databaseManager.closeConnection(sqlConnection)
+
+        return isTokenValid
     }
 
 //    fun isAdmin(
@@ -232,7 +223,7 @@ class AuthProvider(
     }
 
     fun getUserIdFromToken(token: String): Long {
-        val jwt = parseToken(token)
+        val jwt = tokenProvider.parseToken(token)
 
         return jwt.body.subject.toLong()
     }
@@ -257,31 +248,5 @@ class AuthProvider(
         } catch (exception: Exception) {
             null
         }
-    }
-
-    fun isTokenValid(token: String) = try {
-        parseToken(token)
-
-        true
-    } catch (exception: Exception) {
-
-        false
-    }
-
-    @Throws(JwtException::class)
-    fun parseToken(token: String): Jws<Claims> {
-        val publicKeySpec = X509EncodedKeySpec(
-            Decoders.BASE64.decode(
-                mConfigManager.getConfig().getJsonObject("jwt-keys").getString("public")
-            )
-        )
-        val keyFactory = KeyFactory.getInstance("RSA")
-
-        return Jwts.parserBuilder()
-            .setSigningKey(
-                keyFactory.generatePublic(publicKeySpec)
-            )
-            .build()
-            .parseClaimsJws(token)
     }
 }

@@ -5,6 +5,9 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
+import io.vertx.kotlin.coroutines.dispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 abstract class LoggedInApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) : Api() {
     fun checkSetup() {
@@ -13,7 +16,7 @@ abstract class LoggedInApi(private val setupManager: SetupManager, private val a
         }
     }
 
-    fun checkLoggedIn(context: RoutingContext) {
+    suspend fun checkLoggedIn(context: RoutingContext) {
         val isLoggedIn = authProvider.isLoggedIn(context)
 
         if (!isLoggedIn) {
@@ -24,8 +27,10 @@ abstract class LoggedInApi(private val setupManager: SetupManager, private val a
     override fun getHandler() = Handler<RoutingContext> { context ->
         checkSetup()
 
-        checkLoggedIn(context)
+        CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
+            checkLoggedIn(context)
 
-        callHandler(context)
+            callHandler(context)
+        }
     }
 }

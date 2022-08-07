@@ -15,9 +15,9 @@ abstract class PanelApi(private val setupManager: SetupManager, private val auth
     override fun getHandler() = Handler<RoutingContext> { context ->
         checkSetup()
 
-        checkLoggedIn(context)
-
         CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
+            checkLoggedIn(context)
+
             if (!authProvider.hasAccessPanel(context)) {
                 throw Error(ErrorCode.NO_PERMISSION)
             }

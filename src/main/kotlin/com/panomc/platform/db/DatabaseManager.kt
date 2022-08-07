@@ -35,7 +35,8 @@ class DatabaseManager(
     @Lazy val ticketMessageDao: TicketMessageDao,
     @Lazy val permissionGroupDao: PermissionGroupDao,
     @Lazy val permissionGroupPermsDao: PermissionGroupPermsDao,
-    @Lazy val websiteViewDao: WebsiteViewDao
+    @Lazy val websiteViewDao: WebsiteViewDao,
+    @Lazy val tokenDao: TokenDao
 ) {
 
     @Autowired

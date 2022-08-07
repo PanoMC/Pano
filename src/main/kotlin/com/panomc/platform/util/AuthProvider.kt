@@ -57,11 +57,7 @@ class AuthProvider(
         val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(
             usernameOrEmail,
             sqlConnection
-        )
-
-        if (userId == null) {
-            throw Error(ErrorCode.UNKNOWN)
-        }
+        ) ?: throw Error(ErrorCode.UNKNOWN)
 
         val privateKeySpec = PKCS8EncodedKeySpec(
             Decoders.BASE64.decode(
@@ -70,24 +66,18 @@ class AuthProvider(
         )
         val keyFactory = KeyFactory.getInstance("RSA")
 
-        val token = Jwts.builder()
+        return Jwts.builder()
             .setSubject(userId.toString())
             .signWith(
                 keyFactory.generatePrivate(privateKeySpec)
             )
             .compact()
-
-        return token
     }
 
     fun isLoggedIn(
         routingContext: RoutingContext
     ): Boolean {
-        val token = getTokenFromRoutingContext(routingContext)
-
-        if (token == null) {
-            return false
-        }
+        val token = getTokenFromRoutingContext(routingContext) ?: return false
 
         return isTokenValid(token)
     }

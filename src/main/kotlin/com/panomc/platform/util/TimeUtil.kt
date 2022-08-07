@@ -2,7 +2,6 @@ package com.panomc.platform.util
 
 import java.lang.management.ManagementFactory
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 
 object TimeUtil {
@@ -12,15 +11,42 @@ object TimeUtil {
 
     fun getStartupTime() = secondsWithPrecision(calculateStartTime())
 
+    fun getCalendarOfToday(): Calendar {
+        val calendar = Calendar.getInstance()
+
+        calendar[Calendar.HOUR_OF_DAY] = 0 // ! clear would not reset the hour of day !
+
+        calendar.firstDayOfWeek = Calendar.MONDAY
+
+        calendar.clear(Calendar.MINUTE)
+        calendar.clear(Calendar.SECOND)
+        calendar.clear(Calendar.MILLISECOND)
+
+        return calendar
+    }
+
+    fun getStartOfWeekInMillis(): Long {
+        val calendar = getCalendarOfToday()
+
+        calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
+
+        return calendar.timeInMillis
+    }
+
+    fun getStartOfMonthInMillis(): Long {
+        val calendar = getCalendarOfToday()
+
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+
+        return calendar.timeInMillis
+    }
+
+
     fun getTimeToCompareByDashboardPeriodType(dashboardPeriodType: DashboardPeriodType) =
         if (dashboardPeriodType == DashboardPeriodType.WEEKLY) {
-            System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
+            getStartOfWeekInMillis()
         } else {
-            val calendar = Calendar.getInstance()
-
-            calendar.add(Calendar.MONTH, -1)
-
-            calendar.timeInMillis
+            getStartOfMonthInMillis()
         }
 
     fun List<Long>.toGroupGetCountAndDates() = this.map { time ->

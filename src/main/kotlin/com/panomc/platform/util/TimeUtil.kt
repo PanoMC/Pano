@@ -43,7 +43,7 @@ object TimeUtil {
 
 
     fun getTimeToCompareByDashboardPeriodType(dashboardPeriodType: DashboardPeriodType) =
-        if (dashboardPeriodType == DashboardPeriodType.WEEKLY) {
+        if (dashboardPeriodType == DashboardPeriodType.WEEK) {
             getStartOfWeekInMillis()
         } else {
             getStartOfMonthInMillis()

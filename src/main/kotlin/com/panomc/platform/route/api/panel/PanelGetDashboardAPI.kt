@@ -46,8 +46,8 @@ class PanelGetDashboardAPI(
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val period = DashboardPeriodType.valueOf(
-            period = parameters.queryParameter("period")?.jsonArray?.first() as String? ?: "weekly"
-        ) ?: DashboardPeriodType.WEEKLY
+            period = parameters.queryParameter("period")?.jsonArray?.first() as String? ?: "week"
+        ) ?: DashboardPeriodType.WEEK
 
         val result = mutableMapOf<String, Any?>(
             "gettingStartedBlocks" to mapOf(

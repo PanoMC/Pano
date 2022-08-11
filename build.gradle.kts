@@ -1,4 +1,4 @@
-val vertxVersion = "4.3.2"
+val vertxVersion = "4.3.3"
 
 plugins {
     java

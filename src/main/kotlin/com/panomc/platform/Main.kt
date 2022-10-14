@@ -66,7 +66,7 @@ class Main : CoroutineVerticle() {
 
                     manifest.mainAttributes.getValue("STAGE").toString()
                 } catch (e: Exception) {
-                    System.getenv("PanoReleaseStage").toString()
+                    System.getenv("PanoBuildType").toString()
                 }
             )
         }

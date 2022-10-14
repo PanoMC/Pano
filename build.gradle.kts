@@ -1,17 +1,20 @@
-val vertxVersion = "4.3.3"
+val vertxVersion = "4.3.4"
+val log4jVersion = "2.19.0"
 
 plugins {
     java
-    kotlin("jvm") version "1.7.10"
-    kotlin("kapt") version "1.7.10"
-    id("io.vertx.vertx-plugin") version "1.3.0"
+    kotlin("jvm") version "1.7.20"
+    kotlin("kapt") version "1.7.20"
+    id("com.github.johnrengelman.shadow") version "7.1.2"
+    application
 }
 
 group = "com.panomc.platform"
 version = "1.0.0"
-val stage = "alpha"
+
+val buildType = "alpha"
 val timeStamp: String by project
-val fullVersion = if (project.hasProperty("timeStamp")) "$version-$stage-$timeStamp" else "$version-$stage"
+val fullVersion = if (project.hasProperty("timeStamp")) "$version-$buildType-$timeStamp" else "$version-$buildType"
 
 repositories {
     mavenCentral()
@@ -19,16 +22,11 @@ repositories {
     maven("https://jitpack.io")
 }
 
-vertx {
-    mainVerticle = "com.panomc.platform.Main"
-    vertxVersion = this@Build_gradle.vertxVersion
-}
-
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.0")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -43,9 +41,9 @@ dependencies {
     implementation("io.vertx:vertx-web-validation:$vertxVersion")
     implementation("io.vertx:vertx-json-schema:$vertxVersion")
 
-    implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = "2.18.0")
-    implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = "2.18.0")
-    implementation(group = "org.apache.logging.log4j", name = "log4j-slf4j-impl", version = "2.18.0")
+    implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = log4jVersion)
+    implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = log4jVersion)
+    implementation(group = "org.apache.logging.log4j", name = "log4j-slf4j-impl", version = log4jVersion)
 
     // recaptcha v2 1.0.4
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
@@ -59,7 +57,7 @@ dependencies {
     //runtimeOnly("org.bouncycastle:bcprov-jdk15on:1.60")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 
-    implementation("org.springframework:spring-context:5.3.21")
+    implementation("org.springframework:spring-context:5.3.23")
 }
 
 tasks {
@@ -72,18 +70,6 @@ tasks {
         }
 
         dependsOn(shadowJar)
-    }
-
-    vertxDebug {
-        environment("EnvironmentType", "DEVELOPMENT")
-        environment("PanoVersion", fullVersion)
-        environment("PanoReleaseStage", stage)
-    }
-
-    vertxRun {
-        environment("EnvironmentType", "DEVELOPMENT")
-        environment("PanoVersion", fullVersion)
-        environment("PanoReleaseStage", stage)
     }
 
     build {
@@ -102,7 +88,7 @@ tasks {
                 attrMap["MODE"] = "DEVELOPMENT"
 
             attrMap["VERSION"] = fullVersion
-            attrMap["STAGE"] = stage
+            attrMap["STAGE"] = buildType
 
             attributes(attrMap)
         }
@@ -113,4 +99,18 @@ tasks {
             archiveFileName.set("Pano.jar")
         }
     }
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+tasks.named<JavaExec>("run") {
+    environment("EnvironmentType", "DEVELOPMENT")
+    environment("PanoVersion", fullVersion)
+    environment("PanoBuildType", buildType)
+}
+
+application {
+    mainClass.set("com.panomc.platform.Main")
 }

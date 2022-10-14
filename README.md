@@ -27,17 +27,12 @@ git clone --recursive https://gitlab.com/defio-workshop/pano/pano-web-platform.g
 cd pano-web-platform
 ```
 
-##### Compile & Run
+##### Compile & Run & Debug
 
 ```bash
-./gradlew vertxRun
+./gradlew run
 ```
 
-##### Running Debug with Gradle
-
-```bash
-./gradlew vertxDebug
-```
 
 ### Using Docker (recommended)
 

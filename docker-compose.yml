@@ -10,4 +10,4 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - .docker/datababase:/var/lib/mysql
+      - .docker/database:/var/lib/mysql

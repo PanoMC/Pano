@@ -190,7 +190,7 @@ class AuthProvider(
             throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 
-        if (!usernameOrEmail.matches(Regex("^[a-zA-Z0-9_]+\$")) && !usernameOrEmail.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$"))) {
+        if (!usernameOrEmail.matches(Regex(Regexes.USERNAME)) && !usernameOrEmail.matches(Regex(Regexes.EMAIL))) {
             throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 

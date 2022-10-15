@@ -78,7 +78,7 @@ object RegisterUtil {
         remoteIP: String,
         isAdmin: Boolean = false,
         isSetup: Boolean = false,
-    ) {
+    ): Long {
         val isUsernameExists = databaseManager.userDao.isExistsByUsername(
             username,
             sqlConnection
@@ -95,11 +95,12 @@ object RegisterUtil {
         }
 
         val user = User(username = username, email = email, password = password, registeredIp = remoteIP)
+        val userId: Long
 
         if (!isAdmin) {
-            databaseManager.userDao.add(user, sqlConnection, isSetup)
+            userId = databaseManager.userDao.add(user, sqlConnection, isSetup)
 
-            return
+            return userId
         }
 
         val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupId(
@@ -115,7 +116,7 @@ object RegisterUtil {
             permissionGroupId = adminPermissionGroupId
         )
 
-        val userId = databaseManager.userDao.add(adminUser, sqlConnection, isSetup)
+        userId = databaseManager.userDao.add(adminUser, sqlConnection, isSetup)
         val property = SystemProperty(option = "who_installed_user_id", value = userId.toString())
 
         val isPropertyExists = databaseManager.systemPropertyDao.isPropertyExists(
@@ -129,12 +130,14 @@ object RegisterUtil {
                 sqlConnection
             )
 
-            return
+            return userId
         }
 
         databaseManager.systemPropertyDao.add(
             property,
             sqlConnection
         )
+
+        return userId
     }
 }

@@ -31,4 +31,21 @@ enum class MailType(
             parameters
         }
     ),
+    RESET_PASSWORD(
+        templatePath = "mail/reset-password.hbs",
+        subject = "Pano - Reset your password",
+        parameterGenerator = { _: String,
+                               userId: Long,
+                               uiAddress: String,
+                               _: DatabaseManager,
+                               tokenProvider: TokenProvider ->
+            val parameters = JsonObject()
+
+            val (token) = tokenProvider.generateToken(userId, TokenType.RESET_PASSWORD)
+
+            parameters.put("link", "$uiAddress/renew-password?token=$token")
+
+            parameters
+        }
+    ),
 }

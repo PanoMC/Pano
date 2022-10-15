@@ -53,7 +53,7 @@ object RegisterUtil {
         }
 
         if (!email.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$"))) {
-            throw Error(ErrorCode.REGISTER_INVALID_USERNAME)
+            throw Error(ErrorCode.REGISTER_INVALID_EMAIL)
         }
 
         if (password != passwordRepeat) {

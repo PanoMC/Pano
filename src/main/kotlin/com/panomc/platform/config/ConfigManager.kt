@@ -17,7 +17,7 @@ import java.io.File
 class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
 
     companion object {
-        private const val CONFIG_VERSION = 9
+        private const val CONFIG_VERSION = 10
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKeys()
@@ -67,7 +67,9 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
                         "public" to Encoders.BASE64.encode(key.public.encoded)
                     ),
 
-                    "update-period" to UpdatePeriod.ONCE_PER_DAY.period
+                    "update-period" to UpdatePeriod.ONCE_PER_DAY.period,
+
+                    "url-address" to "http://localhost:3000"
                 )
             )
         }

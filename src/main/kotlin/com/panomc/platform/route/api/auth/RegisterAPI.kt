@@ -6,6 +6,8 @@ import com.panomc.platform.model.Api
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
+import com.panomc.platform.util.MailType
+import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.RegisterUtil
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.ext.web.RoutingContext
@@ -17,7 +19,8 @@ import io.vertx.json.schema.common.dsl.Schemas
 @Endpoint
 class RegisterAPI(
     private val reCaptcha: ReCaptcha,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val mailUtil: MailUtil
 ) : Api() {
     override val routeType = RouteType.POST
 
@@ -55,7 +58,7 @@ class RegisterAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        RegisterUtil.register(
+        val userId = RegisterUtil.register(
             databaseManager,
             sqlConnection,
             username,
@@ -65,6 +68,8 @@ class RegisterAPI(
             isAdmin = false,
             isSetup = false
         )
+
+        mailUtil.sendMail(sqlConnection, userId, MailType.ACTIVATION)
 
         return Successful()
     }

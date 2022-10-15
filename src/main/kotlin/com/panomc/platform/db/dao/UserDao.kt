@@ -87,6 +87,11 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Long?
 
+    suspend fun getEmailFromUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): String?
+
     suspend fun getUsernameByListOfId(
         userIdList: List<Long>,
         sqlConnection: SqlConnection

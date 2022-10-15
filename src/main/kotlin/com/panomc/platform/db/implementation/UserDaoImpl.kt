@@ -399,6 +399,22 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0)
     }
 
+    override suspend fun getEmailFromUserId(userId: Long, sqlConnection: SqlConnection): String? {
+        val query =
+            "SELECT `email` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(userId))
+            .await()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getString(0)
+    }
+
     override suspend fun getUsernameByListOfId(
         userIdList: List<Long>,
         sqlConnection: SqlConnection

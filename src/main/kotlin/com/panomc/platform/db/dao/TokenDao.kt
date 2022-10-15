@@ -20,3 +20,6 @@ interface TokenDao : Dao<Token> {
     ): Boolean
 
     suspend fun deleteByToken(token: String, sqlConnection: SqlConnection)
+
+    suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlConnection: SqlConnection)
+}

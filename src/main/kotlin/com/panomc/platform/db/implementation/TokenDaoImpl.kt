@@ -80,4 +80,16 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
             )
             .await()
     }
+
+    override suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlConnection: SqlConnection) {
+        val query =
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(subject, type.name)
+            )
+            .await()
+    }
 }

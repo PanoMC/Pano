@@ -57,6 +57,17 @@ open class SpringConfig {
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun mailClientProvider(configManager: ConfigManager) = MailClientProvider.create(vertx, configManager)
 
+    @Bean
+    @DependsOn
+    @Lazy
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun mailUtil(
+        configManager: ConfigManager,
+        templateEngine: HandlebarsTemplateEngine,
+        mailClientProvider: MailClientProvider,
+        databaseManager: DatabaseManager,
+        tokenProvider: TokenProvider
+    ) = MailUtil(configManager, templateEngine, mailClientProvider, databaseManager, tokenProvider)
 
     @Bean
     @Lazy

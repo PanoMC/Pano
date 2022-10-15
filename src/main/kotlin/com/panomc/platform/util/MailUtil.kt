@@ -37,6 +37,7 @@ class MailUtil(
                 userId,
                 configManager.getConfig().getString("ui-address"),
                 databaseManager,
+                sqlConnection,
                 tokenProvider
             ),
             mailType.templatePath

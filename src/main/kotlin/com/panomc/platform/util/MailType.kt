@@ -2,6 +2,7 @@ package com.panomc.platform.util
 
 import com.panomc.platform.db.DatabaseManager
 import io.vertx.core.json.JsonObject
+import io.vertx.sqlclient.SqlConnection
 
 enum class MailType(
     val templatePath: String,
@@ -11,6 +12,7 @@ enum class MailType(
         userId: Long,
         uiAddress: String,
         databaseManager: DatabaseManager,
+        sqlConnection: SqlConnection,
         tokenProvider: TokenProvider
     ) -> JsonObject
 ) {
@@ -21,10 +23,13 @@ enum class MailType(
                                userId: Long,
                                uiAddress: String,
                                _: DatabaseManager,
+                               sqlConnection: SqlConnection,
                                tokenProvider: TokenProvider ->
             val parameters = JsonObject()
 
-            val (token) = tokenProvider.generateToken(userId, TokenType.ACTIVATION)
+            val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.ACTIVATION)
+
+            tokenProvider.saveToken(token, userId.toString(), TokenType.ACTIVATION, expireDate, sqlConnection)
 
             parameters.put("link", "$uiAddress/activate?token=$token")
 
@@ -38,10 +43,19 @@ enum class MailType(
                                userId: Long,
                                uiAddress: String,
                                _: DatabaseManager,
+                               sqlConnection: SqlConnection,
                                tokenProvider: TokenProvider ->
             val parameters = JsonObject()
 
-            val (token) = tokenProvider.generateToken(userId, TokenType.RESET_PASSWORD)
+            val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.RESET_PASSWORD)
+
+            tokenProvider.saveToken(
+                token,
+                userId.toString(),
+                com.panomc.platform.util.TokenType.RESET_PASSWORD,
+                expireDate,
+                sqlConnection
+            )
 
             parameters.put("link", "$uiAddress/renew-password?token=$token")
 

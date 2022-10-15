@@ -52,5 +52,6 @@ enum class ErrorCode {
 
     UNKNOWN,
 
-    INVALID_IP_ADDRESS
+    INVALID_IP_ADDRESS,
+    INVALID_LINK
 }

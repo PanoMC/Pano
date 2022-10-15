@@ -64,7 +64,7 @@ class Main : CoroutineVerticle() {
                     val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
                     val manifest = Manifest(manifestUrl)
 
-                    manifest.mainAttributes.getValue("STAGE").toString()
+                    manifest.mainAttributes.getValue("BUILD_TYPE").toString()
                 } catch (e: Exception) {
                     System.getenv("PanoBuildType").toString()
                 }

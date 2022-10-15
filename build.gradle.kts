@@ -87,7 +87,7 @@ tasks {
                 attrMap["MODE"] = "DEVELOPMENT"
 
             attrMap["VERSION"] = fullVersion
-            attrMap["STAGE"] = buildType
+            attrMap["BUILD_TYPE"] = buildType
 
             attributes(attrMap)
         }

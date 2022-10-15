@@ -92,4 +92,31 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
             )
             .await()
     }
+
+    override suspend fun getLastBySubjectAndType(
+        subject: String,
+        type: TokenType,
+        sqlConnection: SqlConnection
+    ): Token? {
+        val query =
+            "SELECT `id`, `subject`, `token`, `type`, `expireDate` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC limit 1"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    subject,
+                    type.name
+                )
+            )
+            .await()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val row = rows.toList()[0]
+
+        return Token.from(row)
+    }
 }

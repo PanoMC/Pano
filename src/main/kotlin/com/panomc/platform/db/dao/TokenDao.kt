@@ -22,4 +22,10 @@ interface TokenDao : Dao<Token> {
     suspend fun deleteByToken(token: String, sqlConnection: SqlConnection)
 
     suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlConnection: SqlConnection)
+
+    suspend fun getLastBySubjectAndType(
+        subject: String,
+        type: TokenType,
+        sqlConnection: SqlConnection
+    ): Token?
 }

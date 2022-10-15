@@ -13,7 +13,7 @@ enum class TokenType(val expireDate: (() -> Long)) {
     ACTIVATION({
         val calendar = Calendar.getInstance()
 
-        calendar.add(Calendar.MINUTE, 30)
+        calendar.add(Calendar.MINUTE, 15)
 
         calendar.timeInMillis
     }),

@@ -65,6 +65,14 @@ class TokenProvider(
         return databaseManager.tokenDao.isExistsByTokenAndType(token, tokenType, sqlConnection)
     }
 
+    suspend fun invalidateToken(token: String, sqlConnection: SqlConnection) {
+        databaseManager.tokenDao.deleteByToken(token, sqlConnection)
+    }
+
+    suspend fun invalidateTokensBySubjectAndType(subject: String, type: TokenType, sqlConnection: SqlConnection) {
+        databaseManager.tokenDao.deleteBySubjectAndType(subject, type, sqlConnection)
+    }
+
     @Throws(JwtException::class)
     fun parseToken(token: String): Jws<Claims> {
         val publicKeySpec = X509EncodedKeySpec(

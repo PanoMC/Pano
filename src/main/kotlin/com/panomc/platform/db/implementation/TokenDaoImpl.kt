@@ -68,4 +68,16 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
 
         return rows.toList()[0].getLong(0) == 1L
     }
+
+    override suspend fun deleteByToken(token: String, sqlConnection: SqlConnection) {
+        val query =
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `token` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(token)
+            )
+            .await()
+    }
 }

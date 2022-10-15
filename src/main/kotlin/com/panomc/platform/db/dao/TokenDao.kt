@@ -18,4 +18,5 @@ interface TokenDao : Dao<Token> {
         tokenType: TokenType,
         sqlConnection: SqlConnection
     ): Boolean
-}
+
+    suspend fun deleteByToken(token: String, sqlConnection: SqlConnection)

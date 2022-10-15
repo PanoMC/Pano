@@ -46,16 +46,17 @@ open class SpringConfig {
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun recaptcha() = ReCaptcha(SECRET_KEY)
 
-    @Bean("configManager")
+    @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun configManager() = ConfigManager(vertx, logger, applicationContext)
 
     @Bean
-    @DependsOn("configManager")
+    @DependsOn
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun mailClient(configManager: ConfigManager) = MailClientProvider.create(vertx, configManager).provide()
+    open fun mailClientProvider(configManager: ConfigManager) = MailClientProvider.create(vertx, configManager)
+
 
     @Bean
     @Lazy

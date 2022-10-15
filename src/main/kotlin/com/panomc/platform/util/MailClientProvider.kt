@@ -11,14 +11,10 @@ class MailClientProvider private constructor(vertx: Vertx, configManager: Config
         fun create(vertx: Vertx, configManager: ConfigManager) = MailClientProvider(vertx, configManager)
     }
 
-    private val mailClientConfig = MailConfig()
-    private val emailConfig = configManager.getConfig().getJsonObject("email")
-
     private val mailClient by lazy {
-        MailClient.createShared(vertx, mailClientConfig, "mailClient")
-    }
+        val mailClientConfig = MailConfig()
+        val emailConfig = configManager.getConfig().getJsonObject("email")
 
-    init {
         mailClientConfig.hostname = emailConfig.getString("host")
         mailClientConfig.port = emailConfig.getInteger("port")
 
@@ -31,6 +27,8 @@ class MailClientProvider private constructor(vertx: Vertx, configManager: Config
         mailClientConfig.password = emailConfig.getString("password")
 
         mailClientConfig.authMethods = "PLAIN"
+
+        MailClient.createShared(vertx, mailClientConfig, "mailClient")
     }
 
     fun provide(): MailClient = mailClient

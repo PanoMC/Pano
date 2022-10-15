@@ -44,7 +44,7 @@ class ValidateEmailAPI(
 
         val sqlConnection = databaseManager.createConnection()
 
-        val isValid = tokenProvider.isTokenValid(token, TokenType.RESET_PASSWORD, sqlConnection)
+        val isValid = tokenProvider.isTokenValid(token, TokenType.ACTIVATION, sqlConnection)
 
         if (!isValid) {
             throw Error(ErrorCode.INVALID_LINK)

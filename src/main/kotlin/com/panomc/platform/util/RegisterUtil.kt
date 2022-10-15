@@ -48,11 +48,11 @@ object RegisterUtil {
             throw Error(ErrorCode.REGISTER_PASSWORD_TOO_LONG)
         }
 
-        if (!username.matches(Regex("^[a-zA-Z0-9_]+\$"))) {
+        if (!username.matches(Regex(Regexes.USERNAME))) {
             throw Error(ErrorCode.REGISTER_INVALID_USERNAME)
         }
 
-        if (!email.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$"))) {
+        if (!email.matches(Regex(Regexes.EMAIL))) {
             throw Error(ErrorCode.REGISTER_INVALID_EMAIL)
         }
 

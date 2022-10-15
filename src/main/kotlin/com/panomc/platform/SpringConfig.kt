@@ -100,11 +100,10 @@ open class SpringConfig {
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun authProvider(
-        configManager: ConfigManager,
         databaseManager: DatabaseManager,
         tokenProvider: TokenProvider
     ) =
-        AuthProvider(databaseManager, configManager, tokenProvider)
+        AuthProvider(databaseManager, tokenProvider)
 
     @Bean
     @Lazy

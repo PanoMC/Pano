@@ -1,7 +1,6 @@
 package com.panomc.platform.util
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Error
 import io.vertx.ext.web.RoutingContext
@@ -9,8 +8,7 @@ import io.vertx.sqlclient.SqlConnection
 
 class AuthProvider(
     private val databaseManager: DatabaseManager,
-    private val mConfigManager: ConfigManager,
-    private val tokenProvider: TokenProvider
+    private val tokenProvider: TokenProvider,
 ) {
     companion object {
         const val HEADER_PREFIX = "Bearer "

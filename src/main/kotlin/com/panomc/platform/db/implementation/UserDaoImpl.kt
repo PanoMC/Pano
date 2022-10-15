@@ -634,4 +634,19 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         return rows.toList()[0].getLong(0) == 1L
     }
+
+    override suspend fun makeEmailVerifiedById(userId: Long, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `email_verified` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    1,
+                    userId
+                )
+            )
+            .await()
+    }
 }

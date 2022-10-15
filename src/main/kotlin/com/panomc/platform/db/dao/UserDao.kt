@@ -156,4 +156,9 @@ interface UserDao : Dao<User> {
         userId: Long,
         sqlConnection: SqlConnection
     ): Boolean
+
+    suspend fun makeEmailVerifiedById(
+        userId: Long,
+        sqlConnection: SqlConnection
+    )
 }

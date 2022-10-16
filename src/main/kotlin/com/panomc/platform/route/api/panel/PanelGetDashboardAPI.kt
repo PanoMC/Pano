@@ -4,7 +4,6 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
-import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
@@ -160,7 +159,7 @@ class PanelGetDashboardAPI(
         val permissionGroupList = permissionGroupsByPermissionId.toMutableList()
 
         val adminPermissionGroupId =
-            databaseManager.permissionGroupDao.getPermissionGroupId(PermissionGroup(name = "admin"), sqlConnection)
+            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)
 
         val userCountOfAdminPermission =
             databaseManager.userDao.getCountOfUsersByPermissionGroupId(adminPermissionGroupId!!, sqlConnection)

@@ -52,17 +52,15 @@ class PanelGetPlayersAPI(
         var permissionGroup: PermissionGroup? = null
 
         if (permissionGroupName != null && permissionGroupName != "-") {
-            val temporaryPermissionGroup = PermissionGroup(name = permissionGroupName)
-
             val isTherePermission =
-                databaseManager.permissionGroupDao.isThereByName(temporaryPermissionGroup.name, sqlConnection)
+                databaseManager.permissionGroupDao.isThereByName(permissionGroupName, sqlConnection)
 
             if (!isTherePermission) {
                 throw Error(ErrorCode.NOT_EXISTS)
             }
 
             val permissionGroupId =
-                databaseManager.permissionGroupDao.getPermissionGroupId(temporaryPermissionGroup, sqlConnection)
+                databaseManager.permissionGroupDao.getPermissionGroupIdByName(permissionGroupName, sqlConnection)
                     ?: throw Error(ErrorCode.UNKNOWN)
 
             permissionGroup = PermissionGroup(permissionGroupId, permissionGroupName)

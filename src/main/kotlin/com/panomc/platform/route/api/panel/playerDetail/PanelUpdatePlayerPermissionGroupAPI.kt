@@ -3,7 +3,6 @@ package com.panomc.platform.route.api.panel.playerDetail
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
@@ -63,8 +62,8 @@ class PanelUpdatePlayerPermissionGroupAPI(
                 throw Error(ErrorCode.NOT_EXISTS)
             }
 
-            permissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupId(
-                PermissionGroup(name = permissionGroup),
+            permissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupIdByName(
+                permissionGroup,
                 sqlConnection
             ) ?: throw Error(ErrorCode.UNKNOWN)
         }

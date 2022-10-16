@@ -2,7 +2,6 @@ package com.panomc.platform.util
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.Error
@@ -103,8 +102,8 @@ object RegisterUtil {
             return userId
         }
 
-        val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupId(
-            PermissionGroup(name = "admin"),
+        val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupIdByName(
+            "admin",
             sqlConnection
         ) ?: throw Error(ErrorCode.UNKNOWN)
 

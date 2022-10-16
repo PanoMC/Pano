@@ -127,8 +127,8 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         return PermissionGroup.from(row)
     }
 
-    override suspend fun getPermissionGroupId(
-        permissionGroup: PermissionGroup,
+    override suspend fun getPermissionGroupIdByName(
+        name: String,
         sqlConnection: SqlConnection
     ): Long? {
         val query =
@@ -138,7 +138,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    permissionGroup.name
+                    name
                 )
             ).await()
 

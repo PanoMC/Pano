@@ -247,4 +247,16 @@ class AuthProvider(
             null
         }
     }
+
+    suspend fun logout(routingContext: RoutingContext, sqlConnection: SqlConnection) {
+        val isLoggedIn = isLoggedIn(routingContext)
+
+        if (!isLoggedIn) {
+            return
+        }
+
+        val token = getTokenFromRoutingContext(routingContext)!!
+
+        tokenProvider.invalidateToken(token, sqlConnection)
+    }
 }

@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.LoggedInApi
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
@@ -12,7 +13,11 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
-class LogoutAPI(setupManager: SetupManager, authProvider: AuthProvider) : LoggedInApi(setupManager, authProvider) {
+class LogoutAPI(
+    setupManager: SetupManager,
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager
+) : LoggedInApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/auth/logout")
@@ -21,18 +26,10 @@ class LogoutAPI(setupManager: SetupManager, authProvider: AuthProvider) : Logged
         ValidationHandler.builder(schemaParser).build()
 
     override suspend fun handler(context: RoutingContext): Result {
+        val sqlConnection = createConnection(databaseManager, context)
+
+        authProvider.logout(context, sqlConnection)
+
         return Successful()
-//        authProvider.logout(databaseManager, context, (this::logoutHandler)(handler))
     }
-
-
-//    private fun logoutHandler(handler: (result: Result) -> Unit) = handler@{ isLoggedOut: Result?, _: AsyncResult<*>? ->
-//        if (isLoggedOut == null) {
-//            handler.invoke(Error(ErrorCode.UNKNOWN))
-//
-//            return@handler
-//        }
-//
-//        handler.invoke(isLoggedOut)
-//    }
 }

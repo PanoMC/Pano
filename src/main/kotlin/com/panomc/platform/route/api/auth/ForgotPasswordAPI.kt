@@ -4,7 +4,10 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.util.*
+import com.panomc.platform.util.MailType
+import com.panomc.platform.util.MailUtil
+import com.panomc.platform.util.Regexes
+import com.panomc.platform.util.TokenProvider
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
@@ -52,8 +55,6 @@ class ForgotPasswordAPI(
             databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlConnection) ?: throw Error(
                 ErrorCode.NOT_EXISTS
             )
-
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlConnection)
 
         mailUtil.sendMail(sqlConnection, userId, MailType.RESET_PASSWORD)
 

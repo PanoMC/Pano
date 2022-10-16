@@ -49,6 +49,8 @@ enum class MailType(
                                tokenProvider: TokenProvider ->
             val parameters = JsonObject()
 
+            tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlConnection)
+
             val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.RESET_PASSWORD)
 
             tokenProvider.saveToken(

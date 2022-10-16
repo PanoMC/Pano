@@ -134,6 +134,12 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun setPermissionGroupByUsernames(
+        permissionGroupId: Long,
+        usernames: List<String>,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun setUsernameById(
         id: Long,
         username: String,

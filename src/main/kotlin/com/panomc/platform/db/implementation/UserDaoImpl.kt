@@ -560,6 +560,33 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
+    override suspend fun setPermissionGroupByUsernames(
+        permissionGroupId: Long,
+        usernames: List<String>,
+        sqlConnection: SqlConnection
+    ) {
+        var listText = ""
+
+        usernames.forEach { username ->
+            if (listText == "")
+                listText = "'$username'"
+            else
+                listText += ", '$username'"
+        }
+
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `permission_group_id` = ? WHERE `username` IN ($listText)"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    permissionGroupId
+                )
+            )
+            .await()
+    }
+
     override suspend fun setUsernameById(
         id: Long,
         username: String,

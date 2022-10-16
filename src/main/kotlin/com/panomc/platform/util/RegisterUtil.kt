@@ -29,7 +29,7 @@ object RegisterUtil {
         }
 
         if (password.isEmpty()) {
-            throw Error(ErrorCode.REGISTER_PASSWORD_EMPTY)
+            throw Error(ErrorCode.PASSWORD_EMPTY)
         }
 
         if (username.length < 3) {
@@ -41,11 +41,11 @@ object RegisterUtil {
         }
 
         if (password.length < 6) {
-            throw Error(ErrorCode.REGISTER_PASSWORD_TOO_SHORT)
+            throw Error(ErrorCode.PASSWORD_TOO_SHORT)
         }
 
         if (password.length > 128) {
-            throw Error(ErrorCode.REGISTER_PASSWORD_TOO_LONG)
+            throw Error(ErrorCode.PASSWORD_TOO_LONG)
         }
 
         if (!username.matches(Regex(Regexes.USERNAME))) {

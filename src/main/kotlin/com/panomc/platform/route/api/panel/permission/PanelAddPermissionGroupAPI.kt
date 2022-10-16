@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.permission
 
+import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
@@ -39,7 +40,7 @@ class PanelAddPermissionGroupAPI(
 
         var name = data.getString("name")
 
-        val addedUsers = data.getJsonArray("addedUsers")
+        val addedUsers = data.getJsonArray("addedUsers").map { it.toString() }
 
         validateForm(name)
 
@@ -56,8 +57,26 @@ class PanelAddPermissionGroupAPI(
 
         val id = databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
 
-        if (!addedUsers.isEmpty) {
-            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers.map { it.toString() }, sqlConnection)
+        val adminPermissionGroupId =
+            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
+            .map { it.lowercase() }
+
+        var addUserAdminMatchCount = 0
+
+        admins.forEach { admin ->
+            if (addedUsers.find { it.lowercase() == admin } != null) {
+                addUserAdminMatchCount++
+            }
+        }
+
+        if (addUserAdminMatchCount == admins.size) {
+            throw Error(ErrorCode.LAST_ADMIN)
+        }
+
+        if (addedUsers.isNotEmpty()) {
+            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlConnection)
         }
 
         return Successful()

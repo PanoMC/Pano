@@ -157,6 +157,11 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Boolean
 
+    suspend fun isBanned(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): Boolean
+
     suspend fun makeEmailVerifiedById(
         userId: Long,
         sqlConnection: SqlConnection

@@ -635,6 +635,23 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0) == 1L
     }
 
+    override suspend fun isBanned(userId: Long, sqlConnection: SqlConnection): Boolean {
+        val query =
+            "SELECT COUNT(email) FROM `${getTablePrefix() + tableName}` WHERE `id` = ? and `banned` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId,
+                    1
+                )
+            )
+            .await()
+
+        return rows.toList()[0].getLong(0) == 1L
+    }
+
     override suspend fun makeEmailVerifiedById(userId: Long, sqlConnection: SqlConnection) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `email_verified` = ? WHERE `id` = ?"

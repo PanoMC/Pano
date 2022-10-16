@@ -10,10 +10,9 @@ import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
+import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
@@ -25,23 +24,17 @@ class PanelSendValidationEmailAPI(
 ) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
-    override val routes = arrayListOf("/api/panel/sendValidationEmail")
+    override val routes = arrayListOf("/api/panel/players/:username/verificationMail")
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
-            .body(
-                json(
-                    objectSchema()
-                        .property("username", stringSchema())
-                )
-            )
+            .pathParameter(Parameters.param("username", stringSchema()))
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val data = parameters.body().jsonObject
 
-        val username = data.getString("username")
+        val username = parameters.pathParameter("username").string
 
         val sqlConnection = databaseManager.createConnection()
 

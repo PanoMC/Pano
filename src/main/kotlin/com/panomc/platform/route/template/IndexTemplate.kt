@@ -6,7 +6,7 @@ import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 
 @Endpoint
-class IndexTemplate() : Template() {
+class IndexTemplate : Template() {
     private val mHotLinks = mapOf<String, String>()
 
     override val routes = arrayListOf("/*")
@@ -17,11 +17,15 @@ class IndexTemplate() : Template() {
         val response = context.response()
         val normalisedPath = context.normalizedPath()
 
-        if (!mHotLinks[normalisedPath.lowercase()].isNullOrEmpty())
+        if (!mHotLinks[normalisedPath.lowercase()].isNullOrEmpty()) {
             response.putHeader(
                 "location",
                 mHotLinks[normalisedPath.lowercase()]
             ).setStatusCode(302).end()
-        else response.end("Hello to Pano web platform!")
+
+            return@Handler
+        }
+
+        response.end("Hello to Pano web platform!")
     }
 }

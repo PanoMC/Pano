@@ -5,9 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.notification.BannedMail
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.MailUtil
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.util.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -21,7 +19,8 @@ class PanelBanPlayerAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val mailUtil: MailUtil
+    private val mailUtil: MailUtil,
+    private val tokenProvider: TokenProvider
 ) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
@@ -84,6 +83,8 @@ class PanelBanPlayerAPI(
         }
 
         databaseManager.userDao.banPlayer(userId, sqlConnection)
+
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlConnection)
 
         if (sendNotification) {
             mailUtil.sendMail(sqlConnection, userId, BannedMail())

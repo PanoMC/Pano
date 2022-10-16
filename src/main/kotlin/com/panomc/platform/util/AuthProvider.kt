@@ -42,7 +42,7 @@ class AuthProvider(
 
         val isBanned = databaseManager.userDao.isBanned(userId, sqlConnection)
 
-        if (!isBanned) {
+        if (isBanned) {
             throw Error(ErrorCode.LOGIN_USER_IS_BANNED)
         }
     }

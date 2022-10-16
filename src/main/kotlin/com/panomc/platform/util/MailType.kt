@@ -27,6 +27,8 @@ enum class MailType(
                                tokenProvider: TokenProvider ->
             val parameters = JsonObject()
 
+            tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlConnection)
+
             val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.ACTIVATION)
 
             tokenProvider.saveToken(token, userId.toString(), TokenType.ACTIVATION, expireDate, sqlConnection)

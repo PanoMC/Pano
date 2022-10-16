@@ -54,8 +54,8 @@ class PanelUpdatePlayerPermissionGroupAPI(
         var permissionGroupId = -1L
 
         if (permissionGroup != "-") {
-            val isTherePermissionGroup = databaseManager.permissionGroupDao.isThere(
-                PermissionGroup(name = permissionGroup),
+            val isTherePermissionGroup = databaseManager.permissionGroupDao.isThereByName(
+                permissionGroup,
                 sqlConnection
             )
 

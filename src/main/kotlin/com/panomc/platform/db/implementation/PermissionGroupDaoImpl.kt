@@ -33,8 +33,8 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         createAdminPermission(sqlConnection)
     }
 
-    override suspend fun isThere(
-        permissionGroup: PermissionGroup,
+    override suspend fun isThereByName(
+        name: String,
         sqlConnection: SqlConnection
     ): Boolean {
         val query =
@@ -44,7 +44,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    permissionGroup.name
+                    name
                 )
             ).await()
 
@@ -182,7 +182,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
     private suspend fun createAdminPermission(
         sqlConnection: SqlConnection
     ) {
-        val isThere = isThere(PermissionGroup(name = adminPermissionName), sqlConnection)
+        val isThere = isThereByName(adminPermissionName, sqlConnection)
 
         if (isThere) {
             return

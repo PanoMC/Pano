@@ -6,8 +6,8 @@ import io.vertx.sqlclient.SqlConnection
 
 @Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PermissionGroupDao : Dao<PermissionGroup> {
-    suspend fun isThere(
-        permissionGroup: PermissionGroup,
+    suspend fun isThereByName(
+        name: String,
         sqlConnection: SqlConnection
     ): Boolean
 

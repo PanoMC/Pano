@@ -55,7 +55,7 @@ class PanelGetPlayersAPI(
             val temporaryPermissionGroup = PermissionGroup(name = permissionGroupName)
 
             val isTherePermission =
-                databaseManager.permissionGroupDao.isThere(temporaryPermissionGroup, sqlConnection)
+                databaseManager.permissionGroupDao.isThereByName(temporaryPermissionGroup.name, sqlConnection)
 
             if (!isTherePermission) {
                 throw Error(ErrorCode.NOT_EXISTS)

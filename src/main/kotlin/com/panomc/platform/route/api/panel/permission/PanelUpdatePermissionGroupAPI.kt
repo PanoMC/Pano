@@ -55,7 +55,7 @@ class PanelUpdatePermissionGroupAPI(
         }
 
         val isTherePermissionGroupByName =
-            databaseManager.permissionGroupDao.isThere(PermissionGroup(id, name), sqlConnection)
+            databaseManager.permissionGroupDao.isThereByName(name, sqlConnection)
 
         if (isTherePermissionGroupByName) {
             throw Errors(mapOf("name" to true))

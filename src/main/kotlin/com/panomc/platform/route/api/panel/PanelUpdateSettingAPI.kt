@@ -38,6 +38,7 @@ class PanelUpdateSettingAPI(
                         .optionalProperty("locale", stringSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
+                        .optionalProperty("supportEmail", stringSchema())
                         .optionalProperty("serverIpAddress", stringSchema())
                         .optionalProperty("keywords", arraySchema().items(stringSchema()))
                 )
@@ -52,6 +53,7 @@ class PanelUpdateSettingAPI(
         val locale = data.getString("locale")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
+        val supportEmail = data.getString("supportEmail")
         val serverIpAddress = data.getString("serverIpAddress")
         val keywords = data.getJsonArray("keywords")
 
@@ -69,6 +71,10 @@ class PanelUpdateSettingAPI(
 
         if (websiteDescription != null) {
             configManager.getConfig().put("website-description", websiteDescription)
+        }
+
+        if (supportEmail != null) {
+            configManager.getConfig().put("support-email", supportEmail)
         }
 
         if (serverIpAddress != null) {

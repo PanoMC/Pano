@@ -17,7 +17,7 @@ import java.io.File
 class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
 
     companion object {
-        private const val CONFIG_VERSION = 10
+        private const val CONFIG_VERSION = 11
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKeys()
@@ -30,6 +30,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
 
                     "website-name" to "",
                     "website-description" to "",
+                    "support-email" to "",
                     "server-ip-address" to "play.ipadress.com",
                     "keywords" to listOf<String>(),
 

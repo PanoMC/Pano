@@ -7,7 +7,6 @@ import com.panomc.platform.model.*
 import com.panomc.platform.util.MailType
 import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.Regexes
-import com.panomc.platform.util.TokenProvider
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
@@ -15,14 +14,13 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
-class ForgotPasswordAPI(
+class ResetPasswordAPI(
     private val mailUtil: MailUtil,
-    private val databaseManager: DatabaseManager,
-    private val tokenProvider: TokenProvider
+    private val databaseManager: DatabaseManager
 ) : Api() {
     override val routeType = RouteType.POST
 
-    override val routes = arrayListOf("/api/auth/forgotPassword")
+    override val routes = arrayListOf("/api/auth/resetPassword")
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

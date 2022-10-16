@@ -716,6 +716,21 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
+    override suspend fun unbanPlayer(userId: Long, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `banned` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    0,
+                    userId
+                )
+            )
+            .await()
+    }
+
     override suspend fun makeEmailVerifiedById(userId: Long, sqlConnection: SqlConnection) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `email_verified` = ? WHERE `id` = ?"

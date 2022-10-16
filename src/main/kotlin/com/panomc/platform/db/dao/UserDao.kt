@@ -178,6 +178,11 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun unbanPlayer(
+        userId: Long,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun makeEmailVerifiedById(
         userId: Long,
         sqlConnection: SqlConnection

@@ -308,7 +308,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): List<Map<String, Any>> {
         val query =
-            "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ? " else if (status == PlayerStatus.BANNED) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, username, email, register_date, permission_group_id, `banned` FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ? " else if (status == PlayerStatus.BANNED) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -337,7 +337,8 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                         "username" to row.getString(1),
                         "email" to row.getString(2),
                         "registerDate" to row.getLong(3),
-                        "permissionGroupId" to row.getLong(4)
+                        "permissionGroupId" to row.getLong(4),
+                        "banned" to row.getBoolean(5)
                     )
                 )
             }
@@ -351,7 +352,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): List<Map<String, Any>> {
         val query =
-            "SELECT id, username, email, register_date, permission_group_id FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, username, email, register_date, permission_group_id, `banned` FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -372,7 +373,8 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                         "username" to row.getString(1),
                         "email" to row.getString(2),
                         "registerDate" to row.getLong(3),
-                        "permissionGroupId" to row.getLong(4)
+                        "permissionGroupId" to row.getLong(4),
+                        "banned" to row.getBoolean(5)
                     )
                 )
             }

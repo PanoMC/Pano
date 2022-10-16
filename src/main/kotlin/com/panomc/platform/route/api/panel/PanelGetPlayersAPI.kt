@@ -119,7 +119,8 @@ class PanelGetPlayersAPI(
                         "permissionGroupId" to user["permissionGroupId"] as Long,
                         "permissionGroup" to (permissionGroup?.name ?: "-"),
                         "ticketCount" to ticketCount,
-                        "registerDate" to user["registerDate"] as Long
+                        "registerDate" to user["registerDate"] as Long,
+                        "isBanned" to user["banned"] as Boolean
                     )
                 )
             }

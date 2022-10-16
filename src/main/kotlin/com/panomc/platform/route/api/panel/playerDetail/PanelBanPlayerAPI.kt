@@ -3,9 +3,9 @@ package com.panomc.platform.route.api.panel.playerDetail
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.mail.notification.BannedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.MailType
 import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
@@ -86,7 +86,7 @@ class PanelBanPlayerAPI(
         databaseManager.userDao.banPlayer(userId, sqlConnection)
 
         if (sendNotification) {
-            mailUtil.sendMail(sqlConnection, userId, MailType.NOTIFICATION_BANNED)
+            mailUtil.sendMail(sqlConnection, userId, BannedMail())
         }
 
         return Successful()

@@ -3,8 +3,8 @@ package com.panomc.platform.route.api.auth
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.mail.ResetPasswordMail
 import com.panomc.platform.model.*
-import com.panomc.platform.util.MailType
 import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
@@ -54,7 +54,7 @@ class ResetPasswordAPI(
                 ErrorCode.NOT_EXISTS
             )
 
-        mailUtil.sendMail(sqlConnection, userId, MailType.RESET_PASSWORD)
+        mailUtil.sendMail(sqlConnection, userId, ResetPasswordMail())
 
         return Successful()
     }

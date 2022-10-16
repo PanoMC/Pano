@@ -3,9 +3,9 @@ package com.panomc.platform.route.api.panel.playerDetail
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.mail.ActivationMail
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.MailType
 import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
@@ -60,7 +60,7 @@ class PanelSendValidationEmailAPI(
             throw Error(ErrorCode.EMAIL_ALREADY_VERIFIED)
         }
 
-        mailUtil.sendMail(sqlConnection, userId, MailType.ACTIVATION)
+        mailUtil.sendMail(sqlConnection, userId, ActivationMail())
 
         return Successful()
     }

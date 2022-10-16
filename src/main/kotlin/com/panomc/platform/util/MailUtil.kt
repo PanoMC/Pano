@@ -3,6 +3,7 @@ package com.panomc.platform.util
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.mail.Mail
 import com.panomc.platform.model.Error
 import io.vertx.ext.mail.MailMessage
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
@@ -20,7 +21,7 @@ class MailUtil(
         mailClientProvider.provide()
     }
 
-    suspend fun sendMail(sqlConnection: SqlConnection, userId: Long, mailType: MailType) {
+    suspend fun sendMail(sqlConnection: SqlConnection, userId: Long, mail: Mail) {
         val email =
             databaseManager.userDao.getEmailFromUserId(userId, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
@@ -28,11 +29,11 @@ class MailUtil(
         val message = MailMessage()
 
         message.from = emailConfig.getString("address")
-        message.subject = mailType.subject
+        message.subject = mail.subject
         message.setTo(email)
 
         message.html = templateEngine.render(
-            mailType.parameterGenerator.invoke(
+            mail.parameterGenerator(
                 email,
                 userId,
                 configManager.getConfig().getString("ui-address"),
@@ -40,7 +41,7 @@ class MailUtil(
                 sqlConnection,
                 tokenProvider
             ),
-            mailType.templatePath
+            mail.templatePath
         ).await().toString()
 
         mailClient.sendMail(message).await()

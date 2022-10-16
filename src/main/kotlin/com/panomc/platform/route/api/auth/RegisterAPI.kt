@@ -2,11 +2,11 @@ package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.mail.ActivationMail
 import com.panomc.platform.model.Api
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
-import com.panomc.platform.util.MailType
 import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.RegisterUtil
 import de.triology.recaptchav2java.ReCaptcha
@@ -69,7 +69,7 @@ class RegisterAPI(
             isSetup = false
         )
 
-        mailUtil.sendMail(sqlConnection, userId, MailType.ACTIVATION)
+        mailUtil.sendMail(sqlConnection, userId, ActivationMail())
 
         return Successful()
     }

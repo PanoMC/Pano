@@ -64,5 +64,6 @@ enum class ErrorCode {
     ALREADY_BANNED,
 
     LAST_ADMIN,
-    LOGIN_USER_IS_BANNED
+    LOGIN_USER_IS_BANNED,
+    CANT_BAN_YOURSELF
 }

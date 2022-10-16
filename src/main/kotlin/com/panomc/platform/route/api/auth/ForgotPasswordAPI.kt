@@ -4,9 +4,7 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.util.MailType
-import com.panomc.platform.util.MailUtil
-import com.panomc.platform.util.Regexes
+import com.panomc.platform.util.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
@@ -14,7 +12,11 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
-class ForgotPasswordAPI(private val mailUtil: MailUtil, private val databaseManager: DatabaseManager) : Api() {
+class ForgotPasswordAPI(
+    private val mailUtil: MailUtil,
+    private val databaseManager: DatabaseManager,
+    private val tokenProvider: TokenProvider
+) : Api() {
     override val routeType = RouteType.POST
 
     override val routes = arrayListOf("/api/auth/forgotPassword")
@@ -50,6 +52,8 @@ class ForgotPasswordAPI(private val mailUtil: MailUtil, private val databaseMana
             databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlConnection) ?: throw Error(
                 ErrorCode.NOT_EXISTS
             )
+
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlConnection)
 
         mailUtil.sendMail(sqlConnection, userId, MailType.RESET_PASSWORD)
 

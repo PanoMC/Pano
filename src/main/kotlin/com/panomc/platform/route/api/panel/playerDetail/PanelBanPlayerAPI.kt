@@ -17,7 +17,7 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 @Endpoint
 class PanelBanPlayerAPI(
     setupManager: SetupManager,
-    authProvider: AuthProvider,
+    private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val mailUtil: MailUtil,
     private val tokenProvider: TokenProvider
@@ -55,6 +55,10 @@ class PanelBanPlayerAPI(
 
         val userId =
             databaseManager.userDao.getUserIdFromUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+
+        if (userId == authProvider.getUserIdFromRoutingContext(context)) {
+            throw Error(ErrorCode.CANT_BAN_YOURSELF)
+        }
 
         val isBanned = databaseManager.userDao.isBanned(userId, sqlConnection)
 

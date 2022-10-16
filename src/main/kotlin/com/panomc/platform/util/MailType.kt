@@ -82,6 +82,24 @@ enum class MailType(
             parameters.put("username", username)
 
             parameters
+        },
+    ),
+    NOTIFICATION_BANNED(
+        templatePath = "mail/notification/banned.hbs",
+        subject = "Pano - Your have been banned!",
+        parameterGenerator = { _: String,
+                               userId: Long,
+                               _: String,
+                               databaseManager: DatabaseManager,
+                               sqlConnection: SqlConnection,
+                               _: TokenProvider ->
+            val parameters = JsonObject()
+
+            val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
+
+            parameters.put("username", username)
+
+            parameters
         }
     )
 }

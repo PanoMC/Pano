@@ -46,8 +46,8 @@ class PanelUpdatePermissionGroupAPI(
         val id = parameters.pathParameter("id").long
         var name = data.getString("name")
 
-        val addedUsers = data.getJsonArray("addedUsers")
-        val removedUsers = data.getJsonArray("removedUsers")
+        val addedUsers = data.getJsonArray("addedUsers").map { it.toString() }
+        val removedUsers = data.getJsonArray("removedUsers").map { it.toString() }
 
         validateForm(name)
 
@@ -62,6 +62,29 @@ class PanelUpdatePermissionGroupAPI(
         }
 
         val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
+
+        val adminPermissionGroupId =
+            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
+            .map { it.lowercase() }
+
+        var addUserAdminMatchCount = 0
+        var removeUserAdminMatchCount = 0
+
+        admins.forEach { admin ->
+            if (addedUsers.find { it.lowercase() == admin } != null) {
+                addUserAdminMatchCount++
+            }
+
+            if (removedUsers.find { it.lowercase() == admin } != null) {
+                removeUserAdminMatchCount++
+            }
+        }
+
+        if (addUserAdminMatchCount == admins.size || removeUserAdminMatchCount == admins.size) {
+            throw Error(ErrorCode.LAST_ADMIN)
+        }
 
         if (permissionGroup.name != name) {
             val isTherePermissionGroupByName =
@@ -81,12 +104,12 @@ class PanelUpdatePermissionGroupAPI(
             )
         }
 
-        if (!addedUsers.isEmpty) {
-            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers.map { it.toString() }, sqlConnection)
+        if (addedUsers.isNotEmpty()) {
+            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlConnection)
         }
 
-        if (!removedUsers.isEmpty) {
-            databaseManager.userDao.setPermissionGroupByUsernames(-1, removedUsers.map { it.toString() }, sqlConnection)
+        if (removedUsers.isNotEmpty()) {
+            databaseManager.userDao.setPermissionGroupByUsernames(-1, removedUsers, sqlConnection)
         }
 
         return Successful()

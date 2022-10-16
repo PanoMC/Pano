@@ -86,6 +86,22 @@ class PanelUpdatePermissionGroupAPI(
             throw Error(ErrorCode.LAST_ADMIN)
         }
 
+        if (addedUsers.isNotEmpty()) {
+            val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlConnection)
+
+            if (!areAddedUsersExists) {
+                throw Error(ErrorCode.INVALID_DATA)
+            }
+        }
+
+        if (removedUsers.isNotEmpty()) {
+            val areRemovedUsersExists = databaseManager.userDao.areUsernamesExists(removedUsers, sqlConnection)
+
+            if (!areRemovedUsersExists) {
+                throw Error(ErrorCode.INVALID_DATA)
+            }
+        }
+
         if (permissionGroup.name != name) {
             val isTherePermissionGroupByName =
                 databaseManager.permissionGroupDao.isThereByName(name, sqlConnection)

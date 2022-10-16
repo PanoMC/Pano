@@ -73,6 +73,14 @@ class PanelAddPermissionGroupAPI(
             throw Error(ErrorCode.LAST_ADMIN)
         }
 
+        if (addedUsers.isNotEmpty()) {
+            val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlConnection)
+
+            if (!areAddedUsersExists) {
+                throw Error(ErrorCode.INVALID_DATA)
+            }
+        }
+
         val id = databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
 
         if (addedUsers.isNotEmpty()) {

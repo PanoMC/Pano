@@ -28,6 +28,7 @@ class PanelAddPermissionGroupAPI(
                 Bodies.json(
                     Schemas.objectSchema()
                         .property("name", Schemas.stringSchema())
+                        .property("addedUsers", Schemas.arraySchema().items(Schemas.stringSchema()))
                 )
             )
             .build()
@@ -37,6 +38,8 @@ class PanelAddPermissionGroupAPI(
         val data = parameters.body().jsonObject
 
         var name = data.getString("name")
+
+        val addedUsers = data.getJsonArray("addedUsers")
 
         validateForm(name)
 
@@ -51,7 +54,11 @@ class PanelAddPermissionGroupAPI(
             throw Errors(mapOf("name" to true))
         }
 
-        databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
+        val id = databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
+
+        if (!addedUsers.isEmpty) {
+            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers.map { it.toString() }, sqlConnection)
+        }
 
         return Successful()
     }

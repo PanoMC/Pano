@@ -11,6 +11,11 @@ interface PermissionGroupDao : Dao<PermissionGroup> {
         sqlConnection: SqlConnection
     ): Boolean
 
+    suspend fun isThere(
+        permissionGroup: PermissionGroup,
+        sqlConnection: SqlConnection
+    ): Boolean
+
     suspend fun isThereById(
         id: Long,
         sqlConnection: SqlConnection

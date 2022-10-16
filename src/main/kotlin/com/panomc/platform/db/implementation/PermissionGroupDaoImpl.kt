@@ -51,6 +51,22 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         return rows.toList()[0].getLong(0) != 0L
     }
 
+    override suspend fun isThere(permissionGroup: PermissionGroup, sqlConnection: SqlConnection): Boolean {
+        val query =
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where `id` = ? and `name` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    permissionGroup.id,
+                    permissionGroup.name
+                )
+            ).await()
+
+        return rows.toList()[0].getLong(0) != 0L
+    }
+
     override suspend fun isThereById(
         id: Long,
         sqlConnection: SqlConnection

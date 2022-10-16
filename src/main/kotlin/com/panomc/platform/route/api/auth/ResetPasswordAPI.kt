@@ -41,7 +41,7 @@ class ResetPasswordAPI(
 
         validateInput(usernameOrEmail)
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlConnection = createConnection(databaseManager, context)
 
         val exists = databaseManager.userDao.isExistsByUsernameOrEmail(usernameOrEmail, sqlConnection)
 

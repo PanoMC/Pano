@@ -49,7 +49,7 @@ class RenewPasswordAPI(
 
         validateInput(token, newPassword, newPasswordRepeat)
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlConnection = createConnection(databaseManager, context)
 
         val isTokenValid = tokenProvider.isTokenValid(token, TokenType.RESET_PASSWORD, sqlConnection)
 

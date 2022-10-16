@@ -36,7 +36,7 @@ class PanelSendValidationEmailAPI(
 
         val username = parameters.pathParameter("username").string
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlConnection = createConnection(databaseManager, context)
 
         val isExists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
 

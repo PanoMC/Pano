@@ -42,7 +42,7 @@ class ValidateEmailAPI(
 
         validateInput(token)
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlConnection = createConnection(databaseManager, context)
 
         val isValid = tokenProvider.isTokenValid(token, TokenType.ACTIVATION, sqlConnection)
 

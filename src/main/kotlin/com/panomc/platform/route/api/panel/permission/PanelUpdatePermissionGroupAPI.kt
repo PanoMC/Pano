@@ -13,6 +13,8 @@ import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class PanelUpdatePermissionGroupAPI(
@@ -30,7 +32,9 @@ class PanelUpdatePermissionGroupAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("name", Schemas.stringSchema())
+                        .property("name", stringSchema())
+                        .property("addedUsers", arraySchema().items(stringSchema()))
+                        .property("removedUsers", arraySchema().items(stringSchema()))
                 )
             )
             .build()
@@ -41,6 +45,9 @@ class PanelUpdatePermissionGroupAPI(
 
         val id = parameters.pathParameter("id").long
         var name = data.getString("name")
+
+        val addedUsers = data.getJsonArray("addedUsers")
+        val removedUsers = data.getJsonArray("removedUsers")
 
         validateForm(name)
 
@@ -54,26 +61,33 @@ class PanelUpdatePermissionGroupAPI(
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val isTherePermissionGroupByName =
-            databaseManager.permissionGroupDao.isThereByName(name, sqlConnection)
+        val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
 
-        if (isTherePermissionGroupByName) {
-            throw Errors(mapOf("name" to true))
-        }
+        if (permissionGroup.name != name) {
+            val isTherePermissionGroupByName =
+                databaseManager.permissionGroupDao.isThereByName(name, sqlConnection)
 
-        val permissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection) ?: throw Error(
-                ErrorCode.UNKNOWN
+            if (isTherePermissionGroupByName) {
+                throw Errors(mapOf("name" to true))
+            }
+
+            if (permissionGroup.name == "admin") {
+                throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
+            }
+
+            databaseManager.permissionGroupDao.update(
+                PermissionGroup(id, name),
+                sqlConnection
             )
-
-        if (permissionGroup.name == "admin") {
-            throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
         }
 
-        databaseManager.permissionGroupDao.update(
-            PermissionGroup(id, name),
-            sqlConnection
-        )
+        if (!addedUsers.isEmpty) {
+            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers.map { it.toString() }, sqlConnection)
+        }
+
+        if (!removedUsers.isEmpty) {
+            databaseManager.userDao.setPermissionGroupByUsernames(-1, removedUsers.map { it.toString() }, sqlConnection)
+        }
 
         return Successful()
     }

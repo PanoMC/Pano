@@ -55,8 +55,6 @@ class PanelAddPermissionGroupAPI(
             throw Errors(mapOf("name" to true))
         }
 
-        val id = databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
-
         val adminPermissionGroupId =
             databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
 
@@ -74,6 +72,8 @@ class PanelAddPermissionGroupAPI(
         if (addUserAdminMatchCount == admins.size) {
             throw Error(ErrorCode.LAST_ADMIN)
         }
+
+        val id = databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
 
         if (addedUsers.isNotEmpty()) {
             databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlConnection)

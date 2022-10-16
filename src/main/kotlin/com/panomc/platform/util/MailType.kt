@@ -67,14 +67,14 @@ enum class MailType(
         }
     ),
     PASSWORD_UPDATED(
-        templatePath = "mail/password-updated.hbs",
+        templatePath = "mail/notification/password-updated.hbs",
         subject = "Pano - Your password has been updated",
         parameterGenerator = { _: String,
                                userId: Long,
-                               uiAddress: String,
+                               _: String,
                                databaseManager: DatabaseManager,
                                sqlConnection: SqlConnection,
-                               tokenProvider: TokenProvider ->
+                               _: TokenProvider ->
             val parameters = JsonObject()
 
             val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)

@@ -745,4 +745,22 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
     }
+
+    override suspend fun getLastUsernames(limit: Long, sqlConnection: SqlConnection): List<String> {
+        val query =
+            "SELECT username FROM `${getTablePrefix() + tableName}` ORDER BY `id` DESC ${if (limit == -1L) "" else "LIMIT $limit"}"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute()
+            .await()
+
+        val usernames = mutableListOf<String>()
+
+        rows.forEach { row ->
+            usernames.add(row.getString(0))
+        }
+
+        return usernames
+    }
 }

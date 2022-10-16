@@ -187,4 +187,9 @@ interface UserDao : Dao<User> {
         userId: Long,
         sqlConnection: SqlConnection
     )
+
+    suspend fun getLastUsernames(
+        limit: Long,
+        sqlConnection: SqlConnection
+    ): List<String>
 }

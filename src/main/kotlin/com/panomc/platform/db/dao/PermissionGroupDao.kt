@@ -24,7 +24,7 @@ interface PermissionGroupDao : Dao<PermissionGroup> {
     suspend fun add(
         permissionGroup: PermissionGroup,
         sqlConnection: SqlConnection
-    )
+    ): Long
 
     suspend fun getPermissionGroupById(
         id: Long,

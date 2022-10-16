@@ -6,6 +6,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PermissionGroupDao
 import com.panomc.platform.db.model.PermissionGroup
 import io.vertx.kotlin.coroutines.await
+import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
@@ -88,16 +89,18 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
     override suspend fun add(
         permissionGroup: PermissionGroup,
         sqlConnection: SqlConnection
-    ) {
+    ): Long {
         val query = "INSERT INTO `${getTablePrefix() + tableName}` (name) VALUES (?)"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     permissionGroup.name
                 )
             ).await()
+
+        return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
     override suspend fun getPermissionGroupById(

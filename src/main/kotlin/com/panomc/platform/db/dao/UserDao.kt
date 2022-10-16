@@ -102,6 +102,11 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Boolean
 
+    suspend fun areUsernamesExists(
+        usernames: List<String>,
+        sqlConnection: SqlConnection
+    ): Boolean
+
     suspend fun isExistsByUsernameOrEmail(
         usernameOrEmail: String,
         sqlConnection: SqlConnection

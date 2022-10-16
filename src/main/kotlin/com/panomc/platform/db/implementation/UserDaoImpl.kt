@@ -461,6 +461,26 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0) == 1L
     }
 
+    override suspend fun areUsernamesExists(usernames: List<String>, sqlConnection: SqlConnection): Boolean {
+        var listText = ""
+
+        usernames.forEach { username ->
+            if (listText == "")
+                listText = "'$username'"
+            else
+                listText += ", '$username'"
+        }
+
+        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` IN ($listText)"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute()
+            .await()
+
+        return rows.toList()[0].getLong(0) == usernames.size.toLong()
+    }
+
     override suspend fun isExistsByUsernameOrEmail(usernameOrEmail: String, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` = ? or `email` = ?"
 

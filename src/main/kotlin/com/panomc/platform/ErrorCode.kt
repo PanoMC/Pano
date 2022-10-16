@@ -63,5 +63,6 @@ enum class ErrorCode {
     EMAIL_ALREADY_VERIFIED,
     ALREADY_BANNED,
 
-    LAST_ADMIN
+    LAST_ADMIN,
+    LOGIN_USER_IS_BANNED
 }

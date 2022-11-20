@@ -17,7 +17,7 @@ import java.io.File
 class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
 
     companion object {
-        private const val CONFIG_VERSION = 11
+        private const val CONFIG_VERSION = 12
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKeys()
@@ -70,7 +70,9 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
 
                     "update-period" to UpdatePeriod.ONCE_PER_DAY.period,
 
-                    "url-address" to "http://localhost:3000"
+                    "url-address" to "http://localhost:3000",
+                    "file-uploads-folder" to "file-uploads",
+                    "file-paths" to mapOf<String, String>()
                 )
             )
         }

@@ -9,3 +9,5 @@ config.json
 /*.jar
 
 .docker
+
+file-uploads

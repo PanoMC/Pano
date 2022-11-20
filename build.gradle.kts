@@ -1,10 +1,10 @@
-val vertxVersion = "4.3.4"
+val vertxVersion = "4.3.5"
 val log4jVersion = "2.19.0"
 
 plugins {
     java
-    kotlin("jvm") version "1.7.20"
-    kotlin("kapt") version "1.7.20"
+    kotlin("jvm") version "1.7.21"
+    kotlin("kapt") version "1.7.21"
     id("com.github.johnrengelman.shadow") version "7.1.2"
     application
 }
@@ -25,8 +25,8 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.1")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -56,7 +56,7 @@ dependencies {
     //runtimeOnly("org.bouncycastle:bcprov-jdk15on:1.60")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 
-    implementation("org.springframework:spring-context:5.3.23")
+    implementation("org.springframework:spring-context:5.3.24")
 }
 
 tasks {

@@ -52,13 +52,11 @@ open class SpringConfig {
     open fun configManager() = ConfigManager(vertx, logger, applicationContext)
 
     @Bean
-    @DependsOn
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun mailClientProvider(configManager: ConfigManager) = MailClientProvider.create(vertx, configManager)
 
     @Bean
-    @DependsOn
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun mailUtil(

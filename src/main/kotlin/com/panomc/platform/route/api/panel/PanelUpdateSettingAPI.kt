@@ -17,6 +17,7 @@ import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
+import java.io.File
 
 @Endpoint
 class PanelUpdateSettingAPI(
@@ -105,6 +106,18 @@ class PanelUpdateSettingAPI(
 
             savedFiles.forEach { savedFile ->
                 val filePathsInConfig = configManager.getConfig().getJsonObject("file-paths")
+
+                if (filePathsInConfig.getString(savedFile.field.name) != savedFile.path) {
+                    val oldFile = File(
+                        configManager.getConfig().getString("file-uploads-folder") + "/" + filePathsInConfig.getString(
+                            savedFile.field.name
+                        )
+                    )
+
+                    if (oldFile.exists()) {
+                        oldFile.delete()
+                    }
+                }
 
                 filePathsInConfig.put(savedFile.field.name, savedFile.path)
             }

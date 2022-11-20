@@ -70,8 +70,8 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun router(schemaParser: SchemaParser) =
-        RouterProvider.create(vertx, applicationContext, schemaParser).provide()
+    open fun router(schemaParser: SchemaParser, configManager: ConfigManager) =
+        RouterProvider.create(vertx, applicationContext, schemaParser, configManager).provide()
 
     @Bean
     @Lazy

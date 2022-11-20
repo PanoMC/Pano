@@ -1,6 +1,7 @@
 package com.panomc.platform.util
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Route
 import com.panomc.platform.model.RouteType
 import io.vertx.core.Vertx
@@ -16,11 +17,17 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 class RouterProvider private constructor(
     vertx: Vertx,
     applicationContext: AnnotationConfigApplicationContext,
-    schemaParser: SchemaParser
+    schemaParser: SchemaParser,
+    configManager: ConfigManager
 ) {
     companion object {
-        fun create(vertx: Vertx, applicationContext: AnnotationConfigApplicationContext, schemaParser: SchemaParser) =
-            RouterProvider(vertx, applicationContext, schemaParser)
+        fun create(
+            vertx: Vertx,
+            applicationContext: AnnotationConfigApplicationContext,
+            schemaParser: SchemaParser,
+            configManager: ConfigManager
+        ) =
+            RouterProvider(vertx, applicationContext, schemaParser, configManager)
     }
 
     private val router by lazy {
@@ -58,7 +65,10 @@ class RouterProvider private constructor(
                     .allowedHeaders(allowedHeaders)
                     .allowedMethods(allowedMethods)
             )
-            .handler(BodyHandler.create())
+            .handler(
+                BodyHandler.create().setDeleteUploadedFilesOnEnd(true)
+                    .setUploadsDirectory(configManager.getConfig().getString("file-uploads-folder") + "/temp")
+            )
 
         routeList.forEach { route ->
             route.routes.forEach { url ->

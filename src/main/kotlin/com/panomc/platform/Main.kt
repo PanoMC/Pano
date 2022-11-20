@@ -11,7 +11,9 @@ import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import java.io.File
 import java.util.jar.Manifest
+
 
 @Boot
 class Main : CoroutineVerticle() {
@@ -87,6 +89,7 @@ class Main : CoroutineVerticle() {
 
     private lateinit var router: Router
     private lateinit var applicationContext: AnnotationConfigApplicationContext
+    private lateinit var configManager: ConfigManager
 
     override suspend fun start() {
         println(
@@ -106,20 +109,63 @@ class Main : CoroutineVerticle() {
     }
 
     private suspend fun init() {
+        initDependencyInjection()
+
+        initConfigManager()
+
+        clearTempFiles()
+
+        initSetupManager()
+
+        initDatabaseManager()
+
+        initRoutes()
+    }
+
+    private fun clearTempFiles() {
+        val tempFolder = File(configManager.getConfig().getString("file-uploads-folder") + "/temp")
+
+        if (tempFolder.exists()) {
+            deleteDirectory(tempFolder)
+        }
+    }
+
+    private fun deleteDirectory(directoryToBeDeleted: File) {
+        val allContents = directoryToBeDeleted.listFiles()
+
+        if (allContents != null) {
+            for (file in allContents) {
+                deleteDirectory(file)
+            }
+        }
+
+        directoryToBeDeleted.delete()
+    }
+
+    private fun initDependencyInjection() {
         logger.info("Initializing dependency injection")
 
         SpringConfig.setDefaults(vertx, logger)
 
         applicationContext = AnnotationConfigApplicationContext(SpringConfig::class.java)
+    }
 
-        router = applicationContext.getBean(Router::class.java)
-        val configManager = applicationContext.getBean(ConfigManager::class.java)
-        val databaseManager = applicationContext.getBean(DatabaseManager::class.java)
-        val setupManager = applicationContext.getBean(SetupManager::class.java)
-
+    private suspend fun initConfigManager() {
         logger.info("Initializing config manager")
 
-        configManager.init()
+        configManager = applicationContext.getBean(ConfigManager::class.java)
+
+        try {
+            configManager.init()
+        } catch (e: Exception) {
+            println(e)
+        }
+    }
+
+    private fun initSetupManager() {
+        logger.info("Checking is platform installed")
+
+        val setupManager = applicationContext.getBean(SetupManager::class.java)
 
         if (!setupManager.isSetupDone()) {
             logger.info("Platform is not installed! Skipping database manager initializing")
@@ -127,11 +173,21 @@ class Main : CoroutineVerticle() {
             return
         }
 
-        logger.info("Platform is installed.")
+        logger.info("Platform is installed")
+    }
 
+    private suspend fun initDatabaseManager() {
         logger.info("Initializing database manager")
 
+        val databaseManager = applicationContext.getBean(DatabaseManager::class.java)
+
         databaseManager.init()
+    }
+
+    private fun initRoutes() {
+        logger.info("Initializing routes")
+
+        router = applicationContext.getBean(Router::class.java)
     }
 
     private fun startWebServer() {

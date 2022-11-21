@@ -55,9 +55,6 @@ class PanelUpdateSettingAPI(
             fieldConfig = FileUploadUtil.FieldConfig(
                 path = "$defaultWebsiteUploadPath/website-logo",
                 acceptedContentTypes = listOf(
-                    "image/x-icon",
-                    "image/vnd.microsoft.icon",
-                    "image/svg+xml",
                     "image/png",
                     "image/jpeg"
                 ),

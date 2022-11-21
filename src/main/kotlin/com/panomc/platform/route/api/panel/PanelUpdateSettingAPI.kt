@@ -41,7 +41,8 @@ class PanelUpdateSettingAPI(
                     "image/vnd.microsoft.icon",
                     "image/svg+xml",
                     "image/png",
-                    "image/gif"
+                    "image/gif",
+                    "image/jpeg"
                 ),
                 contentTypeError = ErrorCode.FAVICON_WRONG_CONTENT_TYPE,
                 fileSizeError = ErrorCode.FAVICON_EXCEEDS_SIZE,

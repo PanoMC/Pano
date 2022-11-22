@@ -56,7 +56,9 @@ class PanelUpdateSettingAPI(
                 path = "$defaultWebsiteUploadPath/website-logo",
                 acceptedContentTypes = listOf(
                     "image/png",
-                    "image/jpeg"
+                    "image/jpeg",
+                    "image/gif",
+                    "image/svg+xml",
                 ),
                 contentTypeError = ErrorCode.WEBSITE_LOGO_WRONG_CONTENT_TYPE,
                 fileSizeError = ErrorCode.WEBSITE_LOGO_EXCEEDS_SIZE,

@@ -34,7 +34,7 @@ object FileUploadUtil {
                 val newPath = configManager.getConfig().getString("file-uploads-folder") + "/" +
                         fieldConfig.path +
                         (if (fieldConfig.withTempName)
-                            fileUpload.uploadedFileName().split("/").last()
+                            "/" + fileUpload.uploadedFileName().split("/").last()
                         else "") +
                         "." + fileUpload.fileName().split(".").last()
 

@@ -1,5 +1,8 @@
 package com.panomc.platform.db.model
 
+import com.panomc.platform.ErrorCode
+import com.panomc.platform.util.AppConstants
+import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.PostStatus
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -13,7 +16,7 @@ data class Post(
     val date: Long = System.currentTimeMillis(),
     val moveDate: Long = System.currentTimeMillis(),
     val status: PostStatus = PostStatus.PUBLISHED,
-    val image: String,
+    val thumbnailUrl: String,
     val views: Long = 0,
     val url: String
 ) {
@@ -27,11 +30,31 @@ data class Post(
             row.getLong(5),
             row.getLong(6),
             PostStatus.valueOf(row.getInteger(7))!!,
-            row.getBuffer(8).toString(),
+            row.getString(8),
             row.getLong(9),
             row.getString(10)
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }
+
+        val acceptedFileFields = listOf(
+            FileUploadUtil.Field(
+                name = "thumbnail",
+                fieldConfig = FileUploadUtil.FieldConfig(
+                    path = AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH,
+                    acceptedContentTypes = listOf(
+                        "image/x-icon",
+                        "image/vnd.microsoft.icon",
+                        "image/svg+xml",
+                        "image/png",
+                        "image/gif",
+                        "image/jpeg"
+                    ),
+                    contentTypeError = ErrorCode.POST_THUMBNAIL_WRONG_CONTENT_TYPE,
+                    fileSizeError = ErrorCode.POST_THUMBNAIL_EXCEEDS_SIZE,
+                    size = 5 * 1024 * 1024 // 5 MB
+                )
+            )
+        )
     }
 }

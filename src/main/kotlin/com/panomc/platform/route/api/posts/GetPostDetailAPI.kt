@@ -83,7 +83,7 @@ class GetPostDetailAPI(
                     "text" to post.text,
                     "date" to post.date,
                     "status" to post.status.value,
-                    "image" to post.image,
+                    "thumbnailUrl" to post.thumbnailUrl,
                     "views" to post.views,
                     "url" to post.url
                 ),

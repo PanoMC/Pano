@@ -2,24 +2,25 @@ package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.SetupManager
-import com.panomc.platform.util.TextUtil
+import com.panomc.platform.util.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
+import io.vertx.ext.web.validation.builder.Bodies.multipartFormData
 import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
+import java.io.File
 
 @Endpoint
 class PanelUpdatePostAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val configManager: ConfigManager
 ) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.PUT
 
@@ -29,12 +30,12 @@ class PanelUpdatePostAPI(
         ValidationHandler.builder(schemaParser)
             .pathParameter(Parameters.param("id", numberSchema()))
             .body(
-                json(
+                multipartFormData(
                     objectSchema()
                         .property("title", stringSchema())
                         .property("category", numberSchema())
                         .property("text", stringSchema())
-                        .optionalProperty("imageCode", stringSchema())
+                        .optionalProperty("removeThumbnail", booleanSchema())
                 )
             )
             .build()
@@ -43,21 +44,44 @@ class PanelUpdatePostAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
+        val fileUploads = context.fileUploads()
+
         val id = parameters.pathParameter("id").long
         val title = data.getString("title")
         val categoryId = data.getLong("category")
         val text = data.getString("text")
-        val imageCode = data.getString("imageCode") ?: ""
+        val removeThumbnail = data.getBoolean("removeThumbnail")
         val url = TextUtil.convertStringToUrl(title, 32)
+
+        var thumbnailUrl = ""
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val exists = databaseManager.postDao.isExistsById(id, sqlConnection)
+        val postInDb = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+        if (removeThumbnail == null || !removeThumbnail) {
+            thumbnailUrl = postInDb.thumbnailUrl
+
+            if (fileUploads.size > 0) {
+                val savedFiles = FileUploadUtil.saveFiles(fileUploads, Post.acceptedFileFields, configManager)
+
+                if (savedFiles.isNotEmpty()) {
+                    val oldThumbnailFile = File(
+                        configManager.getConfig()
+                            .getString("file-uploads-folder") + "/" + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + "/" + thumbnailUrl.split(
+                            "/"
+                        ).last()
+                    )
+
+                    if (oldThumbnailFile.exists()) {
+                        oldThumbnailFile.delete()
+                    }
+
+                    thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split("/").last()
+                }
+            }
         }
 
         val post = Post(
@@ -66,7 +90,7 @@ class PanelUpdatePostAPI(
             categoryId = categoryId,
             writerUserId = userId,
             text = text,
-            image = imageCode,
+            thumbnailUrl = thumbnailUrl,
             url = "$url-$id"
         )
 

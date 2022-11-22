@@ -1,18 +1,17 @@
 package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.SetupManager
-import com.panomc.platform.util.TextUtil
+import com.panomc.platform.util.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
+import io.vertx.ext.web.validation.builder.Bodies.multipartFormData
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
 
@@ -20,7 +19,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 class PanelPublishPostAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    setupManager: SetupManager
+    setupManager: SetupManager,
+    private val configManager: ConfigManager
 ) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.POST
 
@@ -29,12 +29,11 @@ class PanelPublishPostAPI(
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
             .body(
-                json(
+                multipartFormData(
                     objectSchema()
                         .property("title", stringSchema())
                         .property("category", numberSchema())
                         .property("text", stringSchema())
-                        .optionalProperty("imageCode", stringSchema())
                 )
             )
             .build()
@@ -43,22 +42,33 @@ class PanelPublishPostAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
+        val fileUploads = context.fileUploads()
+
         val title = data.getString("title")
         val categoryId = data.getLong("category")
         val text = data.getString("text")
-        val imageCode = data.getString("imageCode") ?: ""
         val url = TextUtil.convertStringToUrl(title, 32)
+
+        var thumbnailUrl = ""
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(databaseManager, context)
+
+        if (fileUploads.size > 0) {
+            val savedFiles = FileUploadUtil.saveFiles(fileUploads, Post.acceptedFileFields, configManager)
+
+            if (savedFiles.isNotEmpty()) {
+                thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split("/").last()
+            }
+        }
 
         val post = Post(
             title = title,
             categoryId = categoryId,
             writerUserId = userId,
             text = text,
-            image = imageCode,
+            thumbnailUrl = thumbnailUrl,
             url = url
         )
 

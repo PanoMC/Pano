@@ -106,7 +106,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
                         "username" to usernameList[post.writerUserId]
                     ),
                     "date" to post.date,
-                    "image" to post.image,
+                    "thumbnailUrl" to post.thumbnailUrl,
                     "views" to post.views,
                     "url" to post.url
                 )

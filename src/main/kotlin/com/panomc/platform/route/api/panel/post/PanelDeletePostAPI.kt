@@ -2,8 +2,10 @@ package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AppConstants
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
@@ -11,12 +13,14 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import java.io.File
 
 @Endpoint
 class PanelDeletePostAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
-    authProvider: AuthProvider
+    authProvider: AuthProvider,
+    private val configManager: ConfigManager
 ) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.DELETE
 
@@ -37,6 +41,19 @@ class PanelDeletePostAPI(
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
+        }
+
+        val post = databaseManager.postDao.getById(id, sqlConnection)!!
+
+        val thumbnailFile = File(
+            configManager.getConfig()
+                .getString("file-uploads-folder") + "/" + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + "/" + post.thumbnailUrl.split(
+                "/"
+            ).last()
+        )
+
+        if (thumbnailFile.exists()) {
+            thumbnailFile.delete()
         }
 
         databaseManager.postDao.delete(id, sqlConnection)

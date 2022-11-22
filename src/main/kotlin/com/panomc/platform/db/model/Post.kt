@@ -1,11 +1,13 @@
 package com.panomc.platform.db.model
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.util.AppConstants
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.PostStatus
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
+import java.io.File
 
 data class Post(
     val id: Long = -1,
@@ -56,5 +58,18 @@ data class Post(
                 )
             )
         )
+
+        fun Post.deleteThumbnailFile(configManager: ConfigManager) {
+            val oldThumbnailFile = File(
+                configManager.getConfig()
+                    .getString("file-uploads-folder") + "/" + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + "/" + thumbnailUrl.split(
+                    "/"
+                ).last()
+            )
+
+            if (oldThumbnailFile.exists()) {
+                oldThumbnailFile.delete()
+            }
+        }
     }
 }

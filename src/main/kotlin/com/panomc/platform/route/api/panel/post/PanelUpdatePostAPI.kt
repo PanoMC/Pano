@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
+import com.panomc.platform.db.model.Post.Companion.deleteThumbnailFile
 import com.panomc.platform.model.*
 import com.panomc.platform.util.*
 import io.vertx.ext.web.RoutingContext
@@ -13,7 +14,6 @@ import io.vertx.ext.web.validation.builder.Bodies.multipartFormData
 import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
-import java.io.File
 
 @Endpoint
 class PanelUpdatePostAPI(
@@ -50,7 +50,7 @@ class PanelUpdatePostAPI(
         val title = data.getString("title")
         val categoryId = data.getLong("category")
         val text = data.getString("text")
-        val removeThumbnail = data.getBoolean("removeThumbnail")
+        val removeThumbnail = data.getBoolean("removeThumbnail") ?: false
         val url = TextUtil.convertStringToUrl(title, 32)
 
         var thumbnailUrl = ""
@@ -61,27 +61,20 @@ class PanelUpdatePostAPI(
 
         val postInDb = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        if (removeThumbnail == null || !removeThumbnail) {
+        if (!removeThumbnail) {
             thumbnailUrl = postInDb.thumbnailUrl
 
             if (fileUploads.size > 0) {
                 val savedFiles = FileUploadUtil.saveFiles(fileUploads, Post.acceptedFileFields, configManager)
 
                 if (savedFiles.isNotEmpty()) {
-                    val oldThumbnailFile = File(
-                        configManager.getConfig()
-                            .getString("file-uploads-folder") + "/" + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + "/" + thumbnailUrl.split(
-                            "/"
-                        ).last()
-                    )
-
-                    if (oldThumbnailFile.exists()) {
-                        oldThumbnailFile.delete()
-                    }
+                    postInDb.deleteThumbnailFile(configManager)
 
                     thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split("/").last()
                 }
             }
+        } else {
+            postInDb.deleteThumbnailFile(configManager)
         }
 
         val post = Post(

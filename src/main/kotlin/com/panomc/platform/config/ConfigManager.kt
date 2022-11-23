@@ -3,6 +3,8 @@ package com.panomc.platform.config
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
+import com.typesafe.config.ConfigFactory
+import com.typesafe.config.ConfigRenderOptions
 import io.jsonwebtoken.io.Encoders
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
@@ -84,15 +86,48 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
         }
     }
 
-    fun saveConfig() {
-        configFile.writeText(config.encodePrettily())
+    fun saveConfig(config: JsonObject = this.config) {
+        val renderOptions = ConfigRenderOptions
+            .defaults()
+            .setJson(false)           // false: HOCON, true: JSON
+            .setOriginComments(false) // true: add comment showing the origin of a value
+            .setComments(true)        // true: keep original comment
+            .setFormatted(true)
+
+        val parsedConfig = ConfigFactory.parseMap(config.map)
+
+        configFile.writeText(parsedConfig.root().render(renderOptions))
+    }
+
+    private fun migrateJsonToHocon() {
+        logger.info("Migrating old Json config file to new Hocon style config file: config.conf")
+
+        val renderOptions = ConfigRenderOptions
+            .defaults()
+            .setJson(true)           // false: HOCON, true: JSON
+            .setOriginComments(false) // true: add comment showing the origin of a value
+            .setComments(true)        // true: keep original comment
+            .setFormatted(true)
+
+        val parsedConfig = ConfigFactory.parseFile(oldJsonConfigFile)
+
+        val parsedJsonObject = JsonObject(parsedConfig.root().render(renderOptions))
+
+        saveConfig(parsedJsonObject)
+
+        oldJsonConfigFile.delete()
+        logger.info("Deleted old Json config file")
     }
 
     fun getConfig() = config
 
     internal suspend fun init() {
         if (!configFile.exists()) {
-            configFile.writeText(DEFAULT_CONFIG.encodePrettily())
+            if (oldJsonConfigFile.exists()) {
+                migrateJsonToHocon()
+            } else {
+                saveConfig(DEFAULT_CONFIG)
+            }
         }
 
         val configValues: Map<String, Any>
@@ -125,11 +160,13 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
         beans.filter { it.value is ConfigMigration }.map { it.value as ConfigMigration }.sortedBy { it.FROM_VERSION }
     }
 
-    private val configFile = File("config.json")
+    private val configFile = File("config.conf")
+    private val oldJsonConfigFile = File("config.json")
 
     private val fileStore = ConfigStoreOptions()
         .setType("file")
-        .setConfig(JsonObject().put("path", "config.json"))
+        .setFormat("hocon")
+        .setConfig(JsonObject().put("path", "config.conf"))
 
     private val options = ConfigRetrieverOptions().addStore(fileStore)
 

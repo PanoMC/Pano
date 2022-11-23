@@ -36,6 +36,7 @@ dependencies {
     implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
     implementation("io.vertx:vertx-web-templ-handlebars:$vertxVersion")
     implementation("io.vertx:vertx-config:$vertxVersion")
+    implementation("io.vertx:vertx-config-hocon:$vertxVersion")
     implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
     implementation("io.vertx:vertx-web-validation:$vertxVersion")
     implementation("io.vertx:vertx-json-schema:$vertxVersion")

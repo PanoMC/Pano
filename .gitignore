@@ -5,6 +5,7 @@ build
 .directory
 
 config.json
+config.conf
 
 /*.jar
 

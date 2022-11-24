@@ -214,7 +214,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     post.text,
                     post.date,
                     post.moveDate,
-                    post.status.value,
+                    PostStatus.PUBLISHED.value,
                     post.thumbnailUrl,
                     post.views,
                     post.url
@@ -243,7 +243,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     post.text,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
-                    1,
+                    PostStatus.PUBLISHED.value,
                     post.thumbnailUrl,
                     post.url,
                     post.id

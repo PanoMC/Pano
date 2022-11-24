@@ -17,9 +17,7 @@ class PanelCloseGettingStartedCardAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/panel/dashboard/closeGettingStartedCard")
+    override val paths = listOf(Path("/api/panel/dashboard/closeGettingStartedCard", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser).build()

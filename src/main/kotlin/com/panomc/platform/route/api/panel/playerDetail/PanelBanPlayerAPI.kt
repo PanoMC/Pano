@@ -22,9 +22,7 @@ class PanelBanPlayerAPI(
     private val mailUtil: MailUtil,
     private val tokenProvider: TokenProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/panel/players/:username/ban")
+    override val paths = listOf(Path("/api/panel/players/:username/ban", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

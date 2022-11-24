@@ -3,10 +3,7 @@ package com.panomc.platform.route.api.auth
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.ActivationMail
-import com.panomc.platform.model.Api
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
-import com.panomc.platform.model.Successful
+import com.panomc.platform.model.*
 import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.RegisterUtil
 import de.triology.recaptchav2java.ReCaptcha
@@ -22,9 +19,7 @@ class RegisterAPI(
     private val databaseManager: DatabaseManager,
     private val mailUtil: MailUtil
 ) : Api() {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/auth/register")
+    override val paths = listOf(Path("/api/auth/register", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

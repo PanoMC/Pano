@@ -21,9 +21,7 @@ class PanelDeletePostAPI(
     authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.DELETE
-
-    override val routes = arrayListOf("/api/panel/posts/:id")
+    override val paths = listOf(Path("/api/panel/posts/:id", RouteType.DELETE))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

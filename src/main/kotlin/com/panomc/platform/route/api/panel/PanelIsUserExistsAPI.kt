@@ -19,9 +19,7 @@ class PanelIsUserExistsAPI(
     private val databaseManager: DatabaseManager
 ) :
     PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/panel/players/:username/exists")
+    override val paths = listOf(Path("/api/panel/players/:username/exists", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

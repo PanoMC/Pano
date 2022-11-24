@@ -20,9 +20,7 @@ class UpdateTicketAPI(
     setupManager: SetupManager,
     private val authProvider: AuthProvider
 ) : LoggedInApi(setupManager, authProvider) {
-    override val routeType = RouteType.PUT
-
-    override val routes = arrayListOf("/api/tickets/:id")
+    override val paths = listOf(Path("/api/tickets/:id", RouteType.PUT))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

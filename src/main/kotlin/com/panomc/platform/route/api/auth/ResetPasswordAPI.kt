@@ -18,9 +18,7 @@ class ResetPasswordAPI(
     private val mailUtil: MailUtil,
     private val databaseManager: DatabaseManager
 ) : Api() {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/auth/resetPassword")
+    override val paths = listOf(Path("/api/auth/resetPassword", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

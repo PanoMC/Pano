@@ -22,9 +22,7 @@ class PanelGetPostsAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/panel/posts")
+    override val paths = listOf(Path("/api/panel/posts", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

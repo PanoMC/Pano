@@ -19,9 +19,7 @@ class PanelUnbanPlayerAPI(
     authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/panel/players/:username/unban")
+    override val paths = listOf(Path("/api/panel/players/:username/unban", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

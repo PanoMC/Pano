@@ -18,9 +18,7 @@ class PanelDeletePostCategoryAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.DELETE
-
-    override val routes = arrayListOf("/api/panel/post/categories/:id")
+    override val paths = listOf(Path("/api/panel/post/categories/:id", RouteType.DELETE))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

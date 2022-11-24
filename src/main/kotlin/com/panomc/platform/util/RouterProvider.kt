@@ -71,13 +71,13 @@ class RouterProvider private constructor(
             )
 
         routeList.forEach { route ->
-            route.routes.forEach { url ->
-                when (route.routeType) {
-                    RouteType.ROUTE -> router.route(url)
-                    RouteType.GET -> router.get(url)
-                    RouteType.POST -> router.post(url)
-                    RouteType.DELETE -> router.delete(url)
-                    RouteType.PUT -> router.put(url)
+            route.paths.forEach { path ->
+                when (path.routeType) {
+                    RouteType.ROUTE -> router.route(path.url)
+                    RouteType.GET -> router.get(path.url)
+                    RouteType.POST -> router.post(path.url)
+                    RouteType.DELETE -> router.delete(path.url)
+                    RouteType.PUT -> router.put(path.url)
                 }
                     .order(route.order)
                     .handler(route.getValidationHandler(schemaParser))

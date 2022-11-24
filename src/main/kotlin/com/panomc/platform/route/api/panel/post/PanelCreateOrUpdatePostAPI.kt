@@ -23,9 +23,10 @@ class PanelCreateOrUpdatePostAPI(
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.PUT
-
-    override val routes = arrayListOf("/api/panel/posts/:id", "/api/panel/post")
+    override val paths = listOf(
+        Path("/api/panel/posts/:id", RouteType.PUT),
+        Path("/api/panel/post", RouteType.POST)
+    )
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

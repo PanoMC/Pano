@@ -21,9 +21,7 @@ class GetTicketAPI(
     setupManager: SetupManager,
     private val authProvider: AuthProvider
 ) : LoggedInApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/tickets/:id")
+    override val paths = listOf(Path("/api/tickets/:id", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

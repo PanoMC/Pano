@@ -3,10 +3,7 @@ package com.panomc.platform.route.api.setup
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
-import com.panomc.platform.model.SetupApi
-import com.panomc.platform.model.Successful
+import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.RegisterUtil
 import com.panomc.platform.util.SetupManager
@@ -24,9 +21,7 @@ class FinishAPI(
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : SetupApi(setupManager) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/setup/finish")
+    override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

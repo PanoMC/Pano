@@ -3,19 +3,14 @@ package com.panomc.platform.route.api
 import com.panomc.platform.Main.Companion.VERSION
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.model.Api
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
-import com.panomc.platform.model.Successful
+import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
 class GetSiteInfoAPI(private val configManager: ConfigManager) : Api() {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/siteInfo")
+    override val paths = listOf(Path("/api/siteInfo", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

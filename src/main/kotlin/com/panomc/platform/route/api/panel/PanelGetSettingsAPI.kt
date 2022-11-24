@@ -2,10 +2,7 @@ package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.model.PanelApi
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
-import com.panomc.platform.model.Successful
+import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SettingType
 import com.panomc.platform.util.SetupManager
@@ -23,9 +20,7 @@ class PanelGetSettingsAPI(
     authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/panel/settings")
+    override val paths = listOf(Path("/api/panel/settings", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

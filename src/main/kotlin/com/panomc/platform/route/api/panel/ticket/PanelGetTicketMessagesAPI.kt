@@ -18,9 +18,7 @@ class PanelGetTicketMessagesAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/panel/tickets/:id/messages")
+    override val paths = listOf(Path("/api/panel/tickets/:id/messages", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

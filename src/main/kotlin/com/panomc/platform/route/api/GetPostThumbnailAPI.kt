@@ -3,6 +3,7 @@ package com.panomc.platform.route.api
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Api
+import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.AppConstants
@@ -15,9 +16,7 @@ import java.io.File
 
 @Endpoint
 class GetPostThumbnailAPI(private val configManager: ConfigManager) : Api() {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/post/thumbnail/:filename")
+    override val paths = listOf(Path("/api/post/thumbnail/:filename", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

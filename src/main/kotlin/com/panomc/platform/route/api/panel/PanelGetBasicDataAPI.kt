@@ -20,9 +20,7 @@ class PanelGetBasicDataAPI(
     private val configManager: ConfigManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/panel/basicData")
+    override val paths = listOf(Path("/api/panel/basicData", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser).build()

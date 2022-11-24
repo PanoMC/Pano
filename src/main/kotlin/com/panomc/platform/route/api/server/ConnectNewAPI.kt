@@ -19,9 +19,7 @@ class ConnectNewAPI(
     private val databaseManager: DatabaseManager,
     private val setupManager: SetupManager
 ) : Api() {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/server/connectNew")
+    override val paths = listOf(Path("/api/server/connectNew", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

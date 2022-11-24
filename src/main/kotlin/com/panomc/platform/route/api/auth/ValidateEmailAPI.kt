@@ -19,9 +19,7 @@ class ValidateEmailAPI(
     private val tokenProvider: TokenProvider,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/auth/validateEmail")
+    override val paths = listOf(Path("/api/auth/validateEmail", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

@@ -18,9 +18,7 @@ class PanelDeletePermissionGroupAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.DELETE
-
-    override val routes = arrayListOf("/api/panel/permissions/:id")
+    override val paths = listOf(Path("/api/panel/permissions/:id", RouteType.DELETE))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

@@ -22,9 +22,7 @@ class RenewPasswordAPI(
     private val tokenProvider: TokenProvider,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/auth/renewPassword")
+    override val paths = listOf(Path("/api/auth/renewPassword", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

@@ -3,10 +3,7 @@ package com.panomc.platform.route.api.panel
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.model.PanelApi
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
-import com.panomc.platform.model.Successful
+import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.SetupManager
@@ -25,9 +22,7 @@ class PanelUpdateSettingAPI(
     authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.PUT
-
-    override val routes = arrayListOf("/api/panel/settings")
+    override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
     private val defaultWebsiteUploadPath = "website"
 

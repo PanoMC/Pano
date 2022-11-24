@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.ticket
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.LoggedInApi
+import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.AuthProvider
@@ -23,9 +24,7 @@ class GetTicketsAPI(
     val databaseManager: DatabaseManager,
     private val getTicketsService: GetTicketsService
 ) : LoggedInApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/tickets")
+    override val paths = listOf(Path("/api/tickets", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

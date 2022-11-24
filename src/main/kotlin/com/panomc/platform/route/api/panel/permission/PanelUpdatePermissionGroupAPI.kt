@@ -22,9 +22,7 @@ class PanelUpdatePermissionGroupAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.PUT
-
-    override val routes = arrayListOf("/api/panel/permissionGroups/:id")
+    override val paths = listOf(Path("/api/panel/permissionGroups/:id", RouteType.PUT))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

@@ -6,11 +6,9 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaParser
 
 abstract class Route {
-    open val routeType = RouteType.ROUTE
-
     open val order = 1
 
-    abstract val routes: ArrayList<String>
+    abstract val paths: List<Path>
 
     abstract fun getHandler(): Handler<RoutingContext>
 

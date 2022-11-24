@@ -18,9 +18,7 @@ import org.slf4j.Logger
 
 @Endpoint
 class MailConfigurationTestAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/setup/mailConfigurationTest")
+    override val paths = listOf(Path("/api/setup/mailConfigurationTest", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

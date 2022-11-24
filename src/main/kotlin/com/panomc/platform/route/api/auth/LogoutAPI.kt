@@ -2,10 +2,7 @@ package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.model.LoggedInApi
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
-import com.panomc.platform.model.Successful
+import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
@@ -18,9 +15,7 @@ class LogoutAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : LoggedInApi(setupManager, authProvider) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/auth/logout")
+    override val paths = listOf(Path("/api/auth/logout", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser).build()

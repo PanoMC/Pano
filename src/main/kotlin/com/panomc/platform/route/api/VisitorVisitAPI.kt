@@ -14,10 +14,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class VisitorVisitAPI(private val databaseManager: DatabaseManager) : Api() {
-
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/visitorVisit")
+    override val paths = listOf(Path("/api/visitorVisit", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

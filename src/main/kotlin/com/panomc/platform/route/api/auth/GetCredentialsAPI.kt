@@ -16,9 +16,7 @@ class GetCredentialsAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : LoggedInApi(setupManager, authProvider) {
-    override val routeType = RouteType.GET
-
-    override val routes = arrayListOf("/api/auth/credentials")
+    override val paths = listOf(Path("/api/auth/credentials", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser).build()

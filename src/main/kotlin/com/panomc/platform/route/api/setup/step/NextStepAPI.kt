@@ -2,10 +2,7 @@ package com.panomc.platform.route.api.setup.step
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
-import com.panomc.platform.model.SetupApi
-import com.panomc.platform.model.Successful
+import com.panomc.platform.model.*
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -18,9 +15,7 @@ class NextStepAPI(
     private val configManager: ConfigManager,
     private val setupManager: SetupManager
 ) : SetupApi(setupManager) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/setup/step/nextStep")
+    override val paths = listOf(Path("/api/setup/step/nextStep", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

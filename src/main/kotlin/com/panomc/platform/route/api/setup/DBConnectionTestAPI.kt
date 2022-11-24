@@ -17,9 +17,7 @@ import org.slf4j.Logger
 
 @Endpoint
 class DBConnectionTestAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/setup/dbConnectionTest")
+    override val paths = listOf(Path("/api/setup/dbConnectionTest", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)

@@ -22,9 +22,7 @@ class PanelSendValidationEmailAPI(
     private val databaseManager: DatabaseManager,
     private val mailUtil: MailUtil
 ) : PanelApi(setupManager, authProvider) {
-    override val routeType = RouteType.POST
-
-    override val routes = arrayListOf("/api/panel/players/:username/verificationMail")
+    override val paths = listOf(Path("/api/panel/players/:username/verificationMail", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

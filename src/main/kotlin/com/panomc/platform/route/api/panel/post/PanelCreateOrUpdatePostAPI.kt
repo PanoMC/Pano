@@ -8,15 +8,16 @@ import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.Post.Companion.deleteThumbnailFile
 import com.panomc.platform.model.*
 import com.panomc.platform.util.*
+import io.vertx.ext.web.FileUpload
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.multipartFormData
-import io.vertx.ext.web.validation.builder.Parameters
+import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
-class PanelUpdatePostAPI(
+class PanelCreateOrUpdatePostAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
     private val authProvider: AuthProvider,
@@ -24,11 +25,11 @@ class PanelUpdatePostAPI(
 ) : PanelApi(setupManager, authProvider) {
     override val routeType = RouteType.PUT
 
-    override val routes = arrayListOf("/api/panel/posts/:id")
+    override val routes = arrayListOf("/api/panel/posts/:id", "/api/panel/post")
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandler.builder(schemaParser)
-            .pathParameter(Parameters.param("id", numberSchema()))
+            .pathParameter(optionalParam("id", numberSchema()))
             .body(
                 multipartFormData(
                     objectSchema()
@@ -46,7 +47,7 @@ class PanelUpdatePostAPI(
 
         val fileUploads = context.fileUploads()
 
-        val id = parameters.pathParameter("id").long
+        val id = parameters.pathParameter("id")?.long
         val title = data.getString("title")
         val categoryId = data.getLong("category")
         val text = data.getString("text")
@@ -54,41 +55,57 @@ class PanelUpdatePostAPI(
         val url = TextUtil.convertStringToUrl(title, 32)
 
         var thumbnailUrl = ""
+        val body = mutableMapOf<String, Any?>()
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val postInDb = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
-
-        if (!removeThumbnail) {
-            thumbnailUrl = postInDb.thumbnailUrl
-
-            if (fileUploads.size > 0) {
-                val savedFiles = FileUploadUtil.saveFiles(fileUploads, Post.acceptedFileFields, configManager)
-
-                if (savedFiles.isNotEmpty()) {
-                    postInDb.deleteThumbnailFile(configManager)
-
-                    thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split("/").last()
-                }
-            }
+        if (id == null) {
+            thumbnailUrl = saveUploadedFileAndGetThumbnailUrl(fileUploads, null)
         } else {
-            postInDb.deleteThumbnailFile(configManager)
+            val postInDb = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+
+            if (removeThumbnail) {
+                postInDb.deleteThumbnailFile(configManager)
+            } else {
+                thumbnailUrl = saveUploadedFileAndGetThumbnailUrl(fileUploads, postInDb)
+            }
         }
 
         val post = Post(
-            id = id,
+            id = id ?: -1,
             title = title,
             categoryId = categoryId,
             writerUserId = userId,
             text = text,
             thumbnailUrl = thumbnailUrl,
-            url = "$url-$id"
+            url = if (id == null) url else "$url-$id"
         )
 
-        databaseManager.postDao.updateAndPublish(userId, post, sqlConnection)
+        if (id == null) {
+            val postId = databaseManager.postDao.insertAndPublish(post, sqlConnection)
 
-        return Successful()
+            databaseManager.postDao.updatePostUrlByUrl(url, "$url-$postId", sqlConnection)
+
+            body["id"] = postId
+        } else {
+            databaseManager.postDao.updateAndPublish(userId, post, sqlConnection)
+        }
+
+        return Successful(body)
+    }
+
+    private fun saveUploadedFileAndGetThumbnailUrl(fileUploads: List<FileUpload>, postInDb: Post?): String {
+        var thumbnailUrl = postInDb?.thumbnailUrl ?: ""
+        val savedFiles = FileUploadUtil.saveFiles(fileUploads, Post.acceptedFileFields, configManager)
+
+        if (savedFiles.isNotEmpty()) {
+            postInDb?.deleteThumbnailFile(configManager)
+
+            thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split("/").last()
+        }
+
+        return thumbnailUrl
     }
 }

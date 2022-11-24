@@ -37,6 +37,7 @@ class PanelCreateOrUpdatePostAPI(
                         .property("title", stringSchema())
                         .property("category", numberSchema())
                         .property("text", stringSchema())
+                        .optionalProperty("publish", booleanSchema())
                         .optionalProperty("removeThumbnail", booleanSchema())
                 )
             )
@@ -53,6 +54,7 @@ class PanelCreateOrUpdatePostAPI(
         val categoryId = data.getLong("category")
         val text = data.getString("text")
         val removeThumbnail = data.getBoolean("removeThumbnail") ?: false
+        val publish = data.getBoolean("publish") ?: true
         val url = TextUtil.convertStringToUrl(title, 32)
 
         var thumbnailUrl = ""
@@ -62,10 +64,12 @@ class PanelCreateOrUpdatePostAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
+        var postInDb: Post? = null
+
         if (id == null) {
             thumbnailUrl = saveUploadedFileAndGetThumbnailUrl(fileUploads, null)
         } else {
-            val postInDb = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+            postInDb = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
             if (removeThumbnail) {
                 postInDb.deleteThumbnailFile(configManager)
@@ -81,17 +85,27 @@ class PanelCreateOrUpdatePostAPI(
             writerUserId = userId,
             text = text,
             thumbnailUrl = thumbnailUrl,
+            status = if (postInDb == null) // when creating post first time
+                if (publish)
+                    PostStatus.PUBLISHED
+                else // for save button
+                    PostStatus.DRAFT
+            else // when the post is already exists
+                if (publish)
+                    PostStatus.PUBLISHED
+                else // for save button
+                    postInDb.status,
             url = if (id == null) url else "$url-$id"
         )
 
         if (id == null) {
-            val postId = databaseManager.postDao.insertAndPublish(post, sqlConnection)
+            val postId = databaseManager.postDao.insert(post, sqlConnection)
 
             databaseManager.postDao.updatePostUrlByUrl(url, "$url-$postId", sqlConnection)
 
             body["id"] = postId
         } else {
-            databaseManager.postDao.updateAndPublish(userId, post, sqlConnection)
+            databaseManager.postDao.update(userId, post, sqlConnection)
         }
 
         return Successful(body)

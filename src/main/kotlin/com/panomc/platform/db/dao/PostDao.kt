@@ -48,12 +48,12 @@ interface PostDao : Dao<Post> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun insertAndPublish(
+    suspend fun insert(
         post: Post,
         sqlConnection: SqlConnection
     ): Long
 
-    suspend fun updateAndPublish(
+    suspend fun update(
         userId: Long,
         post: Post,
         sqlConnection: SqlConnection

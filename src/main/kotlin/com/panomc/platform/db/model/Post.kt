@@ -17,7 +17,7 @@ data class Post(
     val text: String,
     val date: Long = System.currentTimeMillis(),
     val moveDate: Long = System.currentTimeMillis(),
-    val status: PostStatus = PostStatus.PUBLISHED,
+    var status: PostStatus = PostStatus.PUBLISHED,
     val thumbnailUrl: String,
     val views: Long = 0,
     val url: String

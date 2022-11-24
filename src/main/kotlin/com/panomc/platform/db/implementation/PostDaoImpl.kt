@@ -197,10 +197,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun insertAndPublish(
-        post: Post,
-        sqlConnection: SqlConnection
-    ): Long {
+    override suspend fun insert(post: Post, sqlConnection: SqlConnection): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
@@ -214,7 +211,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     post.text,
                     post.date,
                     post.moveDate,
-                    PostStatus.PUBLISHED.value,
+                    post.status.value,
                     post.thumbnailUrl,
                     post.views,
                     post.url
@@ -225,11 +222,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun updateAndPublish(
-        userId: Long,
-        post: Post,
-        sqlConnection: SqlConnection
-    ) {
+    override suspend fun update(userId: Long, post: Post, sqlConnection: SqlConnection) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET title = ?, category_id = ?, writer_user_id = ?, text = ?, `date` = ?, move_date = ?, status = ?, thumbnail_url = ?, `url` = ? WHERE `id` = ?"
 
@@ -243,7 +236,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     post.text,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
-                    PostStatus.PUBLISHED.value,
+                    post.status.value,
                     post.thumbnailUrl,
                     post.url,
                     post.id

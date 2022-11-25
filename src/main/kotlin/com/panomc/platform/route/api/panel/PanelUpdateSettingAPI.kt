@@ -104,7 +104,8 @@ class PanelUpdateSettingAPI(
 
                 if (filePathsInConfig.getString(savedFile.field.name) != savedFile.path) {
                     val oldFile = File(
-                        configManager.getConfig().getString("file-uploads-folder") + "/" + filePathsInConfig.getString(
+                        configManager.getConfig()
+                            .getString("file-uploads-folder") + File.separator + filePathsInConfig.getString(
                             savedFile.field.name
                         )
                     )

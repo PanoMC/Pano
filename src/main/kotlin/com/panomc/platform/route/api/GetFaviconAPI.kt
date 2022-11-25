@@ -27,7 +27,7 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
             return null
         }
 
-        val path = configManager.getConfig().getString("file-uploads-folder") + "/" +
+        val path = configManager.getConfig().getString("file-uploads-folder") + File.separator +
                 faviconPath
 
         val file = File(path)

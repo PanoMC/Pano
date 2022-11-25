@@ -15,6 +15,7 @@ import io.vertx.ext.web.validation.builder.Bodies.multipartFormData
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
+import java.io.File
 
 @Endpoint
 class PanelCreateOrUpdatePostAPI(
@@ -118,7 +119,7 @@ class PanelCreateOrUpdatePostAPI(
         if (savedFiles.isNotEmpty()) {
             postInDb?.deleteThumbnailFile(configManager)
 
-            thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split("/").last()
+            thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split(File.separator).last()
         }
 
         return thumbnailUrl

@@ -17,7 +17,7 @@ class TestSendPanelNotificationAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/testNotification", RouteType.GET))
+    override val paths = listOf(Path("/api/panel/testNotification", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser).build()

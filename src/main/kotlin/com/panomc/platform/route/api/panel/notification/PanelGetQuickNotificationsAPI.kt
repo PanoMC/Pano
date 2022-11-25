@@ -16,7 +16,7 @@ class PanelGetQuickNotificationsAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/panel/quickNotifications", RouteType.GET))
+    override val paths = listOf(Path("/api/panel/notifications/quick", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser).build()

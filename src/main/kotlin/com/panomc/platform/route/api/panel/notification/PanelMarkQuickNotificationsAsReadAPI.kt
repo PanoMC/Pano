@@ -16,7 +16,7 @@ class PanelMarkQuickNotificationsAsReadAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/panel/markQuickNotificationsAsRead", RouteType.POST))
+    override val paths = listOf(Path("/api/panel/notifications/quick/markAsRead", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser).build()

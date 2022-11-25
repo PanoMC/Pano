@@ -5,7 +5,6 @@ import com.panomc.platform.db.model.TicketMessage
 import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlConnection
 
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface TicketMessageDao : Dao<TicketMessage> {
     suspend fun getByTicketIdAndPage(
         ticketId: Long,

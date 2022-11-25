@@ -4,7 +4,6 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Permission
 import io.vertx.sqlclient.SqlConnection
 
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PermissionDao : Dao<Permission> {
     suspend fun isTherePermission(
         permission: Permission,

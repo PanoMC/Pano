@@ -6,7 +6,6 @@ import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.sqlclient.SqlConnection
 
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface UserDao : Dao<User> {
 
     suspend fun add(

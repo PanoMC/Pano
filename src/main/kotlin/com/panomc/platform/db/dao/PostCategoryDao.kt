@@ -4,7 +4,6 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PostCategory
 import io.vertx.sqlclient.SqlConnection
 
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PostCategoryDao : Dao<PostCategory> {
     suspend fun isExistsById(
         id: Long,

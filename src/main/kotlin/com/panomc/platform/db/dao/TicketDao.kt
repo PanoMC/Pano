@@ -7,7 +7,6 @@ import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlConnection
 
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface TicketDao : Dao<Ticket> {
     suspend fun count(sqlConnection: SqlConnection): Long
 

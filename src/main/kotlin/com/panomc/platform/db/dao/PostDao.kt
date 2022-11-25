@@ -5,7 +5,6 @@ import com.panomc.platform.db.model.Post
 import com.panomc.platform.util.PostStatus
 import io.vertx.sqlclient.SqlConnection
 
-@Suppress("PARAMETER_NAME_CHANGED_ON_OVERRIDE")
 interface PostDao : Dao<Post> {
     suspend fun removePostCategoriesByCategoryId(
         categoryId: Long,

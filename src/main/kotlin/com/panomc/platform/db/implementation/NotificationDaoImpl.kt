@@ -34,6 +34,23 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .await()
     }
 
+    override suspend fun add(notification: Notification, sqlConnection: SqlConnection) {
+        val query =
+            "INSERT INTO `${getTablePrefix() + tableName}` (user_id, type_id, date, status) " +
+                    "VALUES (?, ?, ?, ?)"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    notification.userId,
+                    notification.typeId,
+                    notification.date,
+                    notification.status
+                )
+            ).await()
+    }
+
     override suspend fun getLast5ByUserId(userId: Long, sqlConnection: SqlConnection): List<Notification> {
         val query =
             "SELECT `id`, `user_id`, `type_id`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"

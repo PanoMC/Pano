@@ -14,4 +14,9 @@ interface NotificationDao : Dao<Notification> {
         userId: Long,
         sqlConnection: SqlConnection
     ): Long
+
+    suspend fun markReadLast5ByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    )
 }

@@ -64,4 +64,18 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
         return rows.toList()[0].getLong(0)
     }
+
+    override suspend fun markReadLast5ByUserId(userId: Long, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    NotificationStatus.READ,
+                    userId
+                )
+            ).await()
+    }
 }

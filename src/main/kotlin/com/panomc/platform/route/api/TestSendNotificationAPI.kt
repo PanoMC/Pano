@@ -2,7 +2,7 @@ package com.panomc.platform.route.api
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.PanelNotification
+import com.panomc.platform.db.model.Notification
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
@@ -32,7 +32,7 @@ class TestSendNotificationAPI(
         return Successful()
     }
 
-    private fun getNotification(userId: Long) = PanelNotification(
+    private fun getNotification(userId: Long) = Notification(
         userId = userId,
         typeId = "TEST NOTIFICATION"
     )

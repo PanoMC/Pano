@@ -5,12 +5,11 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.ConfigManager.Companion.putAll
 import com.panomc.platform.config.ConfigMigration
 
-@Suppress("ClassName")
 @Migration
-class ConfigMigration_11_12(
-    override val FROM_VERSION: Int = 11,
-    override val VERSION: Int = 12,
-    override val VERSION_INFO: String = "Add file uploads folder and file paths fields"
+class ConfigMigration7To8(
+    override val FROM_VERSION: Int = 7,
+    override val VERSION: Int = 8,
+    override val VERSION_INFO: String = "Add language field"
 ) : ConfigMigration() {
     override fun migrate(configManager: ConfigManager) {
         val oldConfig = configManager.getConfig().copy()
@@ -21,9 +20,8 @@ class ConfigMigration_11_12(
         oldConfig.forEach { field ->
             newConfig[field.key] = field.value
 
-            if (field.key == "ui-address") {
-                newConfig["file-uploads-folder"] = "file-uploads"
-                newConfig["file-paths"] = mapOf<String, String>()
+            if (field.key == "development-mode") {
+                newConfig["language"] = "en-US"
             }
         }
 

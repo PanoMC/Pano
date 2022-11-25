@@ -7,9 +7,8 @@ import com.panomc.platform.config.ConfigMigration
 import com.panomc.platform.util.KeyGeneratorUtil
 import io.jsonwebtoken.io.Encoders
 
-@Suppress("ClassName")
 @Migration
-class ConfigMigration_3_4(
+class ConfigMigration3To4(
     override val FROM_VERSION: Int = 3,
     override val VERSION: Int = 4,
     override val VERSION_INFO: String = "Convert access_token to access-token"

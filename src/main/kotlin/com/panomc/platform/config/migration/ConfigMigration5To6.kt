@@ -5,12 +5,11 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.ConfigManager.Companion.putAll
 import com.panomc.platform.config.ConfigMigration
 
-@Suppress("ClassName")
 @Migration
-class ConfigMigration_6_7(
-    override val FROM_VERSION: Int = 6,
-    override val VERSION: Int = 7,
-    override val VERSION_INFO: String = "Add server ip-address field"
+class ConfigMigration5To6(
+    override val FROM_VERSION: Int = 5,
+    override val VERSION: Int = 6,
+    override val VERSION_INFO: String = "Add key-words field"
 ) : ConfigMigration() {
     override fun migrate(configManager: ConfigManager) {
         val oldConfig = configManager.getConfig().copy()
@@ -22,7 +21,7 @@ class ConfigMigration_6_7(
             newConfig[field.key] = field.value
 
             if (field.key == "website-description") {
-                newConfig["server-ip-address"] = "play.ipaddress.com"
+                newConfig["keywords"] = listOf<String>()
             }
         }
 

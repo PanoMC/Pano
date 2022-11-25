@@ -5,12 +5,11 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.ConfigManager.Companion.putAll
 import com.panomc.platform.config.ConfigMigration
 
-@Suppress("ClassName")
 @Migration
-class ConfigMigration_9_10(
-    override val FROM_VERSION: Int = 9,
-    override val VERSION: Int = 10,
-    override val VERSION_INFO: String = "Add ui-address field"
+class ConfigMigration10To11(
+    override val FROM_VERSION: Int = 10,
+    override val VERSION: Int = 11,
+    override val VERSION_INFO: String = "Add support e-mail field"
 ) : ConfigMigration() {
     override fun migrate(configManager: ConfigManager) {
         val oldConfig = configManager.getConfig().copy()
@@ -21,8 +20,8 @@ class ConfigMigration_9_10(
         oldConfig.forEach { field ->
             newConfig[field.key] = field.value
 
-            if (field.key == "update-period") {
-                newConfig["ui-address"] = "http://localhost:3000"
+            if (field.key == "website-description") {
+                newConfig["support-email"] = ""
             }
         }
 

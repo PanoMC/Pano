@@ -5,12 +5,11 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.ConfigManager.Companion.putAll
 import com.panomc.platform.config.ConfigMigration
 
-@Suppress("ClassName")
 @Migration
-class ConfigMigration_10_11(
-    override val FROM_VERSION: Int = 10,
-    override val VERSION: Int = 11,
-    override val VERSION_INFO: String = "Add support e-mail field"
+class ConfigMigration11To12(
+    override val FROM_VERSION: Int = 11,
+    override val VERSION: Int = 12,
+    override val VERSION_INFO: String = "Add file uploads folder and file paths fields"
 ) : ConfigMigration() {
     override fun migrate(configManager: ConfigManager) {
         val oldConfig = configManager.getConfig().copy()
@@ -21,8 +20,9 @@ class ConfigMigration_10_11(
         oldConfig.forEach { field ->
             newConfig[field.key] = field.value
 
-            if (field.key == "website-description") {
-                newConfig["support-email"] = ""
+            if (field.key == "ui-address") {
+                newConfig["file-uploads-folder"] = "file-uploads"
+                newConfig["file-paths"] = mapOf<String, String>()
             }
         }
 

@@ -5,12 +5,11 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.ConfigManager.Companion.putAll
 import com.panomc.platform.config.ConfigMigration
 
-@Suppress("ClassName")
 @Migration
-class ConfigMigration_8_9(
-    override val FROM_VERSION: Int = 8,
-    override val VERSION: Int = 9,
-    override val VERSION_INFO: String = "Update language field to locale"
+class ConfigMigration9To10(
+    override val FROM_VERSION: Int = 9,
+    override val VERSION: Int = 10,
+    override val VERSION_INFO: String = "Add ui-address field"
 ) : ConfigMigration() {
     override fun migrate(configManager: ConfigManager) {
         val oldConfig = configManager.getConfig().copy()
@@ -19,10 +18,10 @@ class ConfigMigration_8_9(
         configManager.getConfig().clear()
 
         oldConfig.forEach { field ->
-            if (field.key == "language") {
-                newConfig["locale"] = field.value
-            } else {
-                newConfig[field.key] = field.value
+            newConfig[field.key] = field.value
+
+            if (field.key == "update-period") {
+                newConfig["ui-address"] = "http://localhost:3000"
             }
         }
 

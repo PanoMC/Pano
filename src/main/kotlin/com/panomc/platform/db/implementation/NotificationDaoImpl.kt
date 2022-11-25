@@ -13,7 +13,7 @@ import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "panel_notification"),
+class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "notification"),
     NotificationDao {
 
     override suspend fun init(sqlConnection: SqlConnection) {

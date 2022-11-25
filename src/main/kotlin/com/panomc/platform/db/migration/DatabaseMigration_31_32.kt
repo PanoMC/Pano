@@ -31,7 +31,7 @@ class DatabaseMigration_31_32(databaseManager: DatabaseManager) : DatabaseMigrat
     private fun addThumbnailUrlToPostTable(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
             sqlConnection
-                .query("ALTER TABLE `${getTablePrefix()}post` ADD `thumbnail_url` mediumtext DEFAULT '';")
+                .query("ALTER TABLE `${getTablePrefix()}post` ADD `thumbnail_url` mediumtext not null;")
                 .execute()
                 .await()
         }

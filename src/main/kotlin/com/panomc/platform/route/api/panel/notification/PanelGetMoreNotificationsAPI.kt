@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.panel
+package com.panomc.platform.route.api.panel.notification
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
@@ -7,30 +7,37 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
-class PanelGetNotificationsAPI(
+class PanelGetMoreNotificationsAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/panel/notifications", RouteType.GET))
+    override val paths = listOf(Path("/api/panel/notifications/:id/more", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser).build()
+        ValidationHandlerBuilder.create(schemaParser)
+            .pathParameter(Parameters.param("id", Schemas.numberSchema()))
+            .build()
 
     override suspend fun handler(context: RoutingContext): Result {
+        val parameters = getParameters(context)
+
+        val lastNotificationId = parameters.pathParameter("id").long
+
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val count = databaseManager.panelNotificationDao.getCountByUserId(userId, sqlConnection)
+        val notifications =
+            databaseManager.panelNotificationDao.get10ByUserIdAndStartFromId(userId, lastNotificationId, sqlConnection)
 
-        val notifications = databaseManager.panelNotificationDao.getLast10ByUserId(userId, sqlConnection)
-
-        databaseManager.panelNotificationDao.markReadLast10(userId, sqlConnection)
+        databaseManager.panelNotificationDao.markReadLast10StartFromId(userId, lastNotificationId, sqlConnection)
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 
@@ -49,7 +56,6 @@ class PanelGetNotificationsAPI(
         return Successful(
             mutableMapOf(
                 "notifications" to notificationsDataList,
-                "notificationCount" to count
             )
         )
     }

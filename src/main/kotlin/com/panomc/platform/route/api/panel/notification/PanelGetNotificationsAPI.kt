@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.panel
+package com.panomc.platform.route.api.panel.notification
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
@@ -11,12 +11,12 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
-class PanelGetQuickNotificationsAPI(
+class PanelGetNotificationsAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/panel/quickNotifications", RouteType.GET))
+    override val paths = listOf(Path("/api/panel/notifications", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser).build()
@@ -26,9 +26,11 @@ class PanelGetQuickNotificationsAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val notifications = databaseManager.panelNotificationDao.getLast5ByUserId(userId, sqlConnection)
+        val count = databaseManager.panelNotificationDao.getCountByUserId(userId, sqlConnection)
 
-        val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
+        val notifications = databaseManager.panelNotificationDao.getLast10ByUserId(userId, sqlConnection)
+
+        databaseManager.panelNotificationDao.markReadLast10(userId, sqlConnection)
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 
@@ -45,7 +47,7 @@ class PanelGetQuickNotificationsAPI(
         }
 
         return Successful(
-            mutableMapOf<String, Any?>(
+            mutableMapOf(
                 "notifications" to notificationsDataList,
                 "notificationCount" to count
             )

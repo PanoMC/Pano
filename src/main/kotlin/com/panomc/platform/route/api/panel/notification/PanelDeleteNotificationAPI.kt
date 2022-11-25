@@ -1,5 +1,6 @@
-package com.panomc.platform.route.api.panel
+package com.panomc.platform.route.api.panel.notification
 
+import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
@@ -13,12 +14,12 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
-class PanelGetMoreNotificationsAPI(
+class PanelDeleteNotificationAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/panel/notifications/:id/more", RouteType.GET))
+    override val paths = listOf(Path("/api/panel/notifications/:id", RouteType.DELETE))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
@@ -28,35 +29,27 @@ class PanelGetMoreNotificationsAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
-        val lastNotificationId = parameters.pathParameter("id").long
+        val id = parameters.pathParameter("id").long
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val notifications =
-            databaseManager.panelNotificationDao.get10ByUserIdAndStartFromId(userId, lastNotificationId, sqlConnection)
+        val exists = databaseManager.panelNotificationDao.existsById(id, sqlConnection)
 
-        databaseManager.panelNotificationDao.markReadLast10StartFromId(userId, lastNotificationId, sqlConnection)
-
-        val notificationsDataList = mutableListOf<Map<String, Any?>>()
-
-        notifications.forEach { notification ->
-            notificationsDataList.add(
-                mapOf(
-                    "id" to notification.id,
-                    "typeId" to notification.typeId,
-                    "date" to notification.date,
-                    "status" to notification.status,
-                    "isPersonal" to (notification.userId == userId)
-                )
-            )
+        if (!exists) {
+            return Successful()
         }
 
-        return Successful(
-            mutableMapOf(
-                "notifications" to notificationsDataList,
-            )
-        )
+        val notification =
+            databaseManager.panelNotificationDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+
+        if (notification.userId != userId) {
+            return Successful()
+        }
+
+        databaseManager.panelNotificationDao.deleteById(notification.id, sqlConnection)
+
+        return Successful()
     }
 }

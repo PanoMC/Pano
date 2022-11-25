@@ -8,6 +8,7 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import java.io.File
 
@@ -16,7 +17,7 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
     override val paths = listOf(Path("/api/favicon", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser).build()
+        ValidationHandlerBuilder.create(schemaParser).build()
 
     override suspend fun handler(context: RoutingContext): Result? {
         val faviconPath = configManager.getConfig().getJsonObject("file-paths").getString("favicon")

@@ -13,6 +13,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.multipartFormData
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
 import java.io.File
@@ -30,7 +31,7 @@ class PanelCreateOrUpdatePostAPI(
     )
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .pathParameter(optionalParam("id", numberSchema()))
             .body(
                 multipartFormData(

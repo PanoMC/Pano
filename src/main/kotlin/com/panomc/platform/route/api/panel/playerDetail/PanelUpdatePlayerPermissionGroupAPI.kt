@@ -10,6 +10,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters.param
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
@@ -23,7 +24,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
     override val paths = listOf(Path("/api/panel/players/:username/permissionGroup", RouteType.PUT))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .pathParameter(param("username", stringSchema()))
             .body(
                 json(

@@ -6,6 +6,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
@@ -13,7 +14,7 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
     override val paths = listOf(Path("/api/sidebar/home", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .build()
 
 

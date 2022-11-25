@@ -12,6 +12,7 @@ import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
 import kotlin.math.ceil
@@ -25,7 +26,7 @@ class PanelGetTicketsAPI(
     override val paths = listOf(Path("/api/panel/tickets", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .queryParameter(
                 optionalParam(
                     "pageType", arraySchema().items(enumSchema(*TicketStatus.values().map { it.status }.toTypedArray()))

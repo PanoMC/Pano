@@ -9,6 +9,7 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
@@ -19,7 +20,7 @@ class GetPostDetailAPI(
     override val paths = listOf(Path("/api/posts/:url", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .pathParameter(Parameters.param("url", stringSchema()))
             .build()
 

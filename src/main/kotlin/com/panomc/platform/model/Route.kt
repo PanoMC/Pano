@@ -3,6 +3,7 @@ package com.panomc.platform.model
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 
 abstract class Route {
@@ -13,7 +14,7 @@ abstract class Route {
     abstract fun getHandler(): Handler<RoutingContext>
 
     open fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser).build()
+        ValidationHandlerBuilder.create(schemaParser).build()
 
     open fun getFailureHandler(): Handler<RoutingContext> = Handler { request ->
         val response = request.response()

@@ -8,6 +8,7 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
@@ -19,7 +20,7 @@ class GetCredentialsAPI(
     override val paths = listOf(Path("/api/auth/credentials", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser).build()
+        ValidationHandlerBuilder.create(schemaParser).build()
 
     override suspend fun handler(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)

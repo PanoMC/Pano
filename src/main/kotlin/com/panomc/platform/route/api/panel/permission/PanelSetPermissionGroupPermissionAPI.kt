@@ -10,6 +10,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Parameters
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
 
@@ -23,7 +24,7 @@ class PanelSetPermissionGroupPermissionAPI(
         listOf(Path("/api/panel/permissionGroups/:permissionGroupId/permissions/:permissionId", RouteType.PUT))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .pathParameter(Parameters.param("permissionGroupId", Schemas.numberSchema()))
             .pathParameter(Parameters.param("permissionId", Schemas.numberSchema()))
             .body(

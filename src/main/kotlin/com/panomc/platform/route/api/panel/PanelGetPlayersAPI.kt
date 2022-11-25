@@ -11,6 +11,7 @@ import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
 import kotlin.math.ceil
@@ -24,7 +25,7 @@ class PanelGetPlayersAPI(
     override val paths = listOf(Path("/api/panel/players", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .queryParameter(
                 optionalParam(
                     "status",

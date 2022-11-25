@@ -10,6 +10,7 @@ import com.panomc.platform.util.AppConstants
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.File
@@ -19,7 +20,7 @@ class GetPostThumbnailAPI(private val configManager: ConfigManager) : Api() {
     override val paths = listOf(Path("/api/post/thumbnail/:filename", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .pathParameter(param("filename", stringSchema()))
             .build()
 

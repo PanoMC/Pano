@@ -10,6 +10,7 @@ import com.panomc.platform.util.PlatformCodeManager
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
@@ -21,7 +22,7 @@ class PanelGetRefreshKeyAPI(
     override val paths = listOf(Path("/api/panel/platformAuth/refreshKey", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser).build()
+        ValidationHandlerBuilder.create(schemaParser).build()
 
     override suspend fun handler(context: RoutingContext) = Successful(
         mapOf(

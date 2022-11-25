@@ -9,6 +9,7 @@ import com.panomc.platform.model.RouteType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
 
@@ -20,7 +21,7 @@ class GetPostsAPI(
     override val paths = listOf(Path("/api/posts", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandler.builder(schemaParser)
+        ValidationHandlerBuilder.create(schemaParser)
             .queryParameter(Parameters.optionalParam("page", Schemas.numberSchema()))
             .queryParameter(Parameters.optionalParam("categoryUrl", Schemas.stringSchema()))
             .build()

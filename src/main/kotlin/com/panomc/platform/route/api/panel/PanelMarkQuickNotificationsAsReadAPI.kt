@@ -10,7 +10,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
-class PanelQuickNotificationsAndReadAPI(
+class PanelMarkQuickNotificationsAsReadAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager

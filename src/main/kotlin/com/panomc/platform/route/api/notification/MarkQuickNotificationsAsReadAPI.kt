@@ -16,7 +16,7 @@ class MarkQuickNotificationsAsReadAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager
 ) : LoggedInApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/markQuickNotificationsAsRead", RouteType.POST))
+    override val paths = listOf(Path("/api/notifications/quick/markAsRead", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser).build()

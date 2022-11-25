@@ -26,9 +26,9 @@ class PanelMarkQuickNotificationsAsReadAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
-
         databaseManager.panelNotificationDao.markReadLast5ByUserId(userId, sqlConnection)
+
+        val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
 
         return Successful(
             mutableMapOf(

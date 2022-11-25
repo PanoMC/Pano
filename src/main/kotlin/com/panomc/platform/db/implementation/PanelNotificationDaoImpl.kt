@@ -23,7 +23,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `user_id` bigint NOT NULL,
-                              `type_ID` varchar(255) NOT NULL,
+                              `type_id` varchar(255) NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `status` varchar(255) NOT NULL,
                               PRIMARY KEY (`id`)
@@ -39,7 +39,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (user_id, type_ID, date, status) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (user_id, type_id, date, status) " +
                     "VALUES (?, ?, ?, ?)"
 
         sqlConnection
@@ -96,7 +96,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type_ID`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `user_id`, `type_id`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -115,7 +115,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type_ID`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `user_id`, `type_id`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -170,7 +170,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type_ID`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `user_id`, `type_id`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -219,7 +219,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): PanelNotification? {
         val query =
-            "SELECT `id`, `user_id`, `type_ID`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `user_id`, `type_id`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

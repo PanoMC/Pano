@@ -34,6 +34,7 @@ class TestSendNotificationAPI(
 
     private fun getNotification(userId: Long) = Notification(
         userId = userId,
-        typeId = "TEST NOTIFICATION"
+        typeId = "TEST NOTIFICATION",
+        action = ""
     )
 }

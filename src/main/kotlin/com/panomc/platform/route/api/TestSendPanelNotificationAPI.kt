@@ -34,6 +34,7 @@ class TestSendPanelNotificationAPI(
 
     private fun getNotification(userId: Long) = PanelNotification(
         userId = userId,
-        typeId = "TEST NOTIFICATION"
+        typeId = "TEST NOTIFICATION",
+        action = ""
     )
 }

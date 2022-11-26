@@ -24,6 +24,8 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `user_id` bigint NOT NULL,
                               `type_id` varchar(255) NOT NULL,
+                              `action` varchar(255) NOT NULL,
+                              `properties` mediumtext NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `status` varchar(255) NOT NULL,
                               PRIMARY KEY (`id`)
@@ -36,8 +38,8 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun add(notification: Notification, sqlConnection: SqlConnection) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (user_id, type_id, date, status) " +
-                    "VALUES (?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type_id`, `action`, `properties`, `date`, `status`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)"
 
         sqlConnection
             .preparedQuery(query)
@@ -45,6 +47,8 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                 Tuple.of(
                     notification.userId,
                     notification.typeId,
+                    notification.action,
+                    notification.properties.toString(),
                     notification.date,
                     notification.status
                 )
@@ -53,7 +57,7 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun getLast5ByUserId(userId: Long, sqlConnection: SqlConnection): List<Notification> {
         val query =
-            "SELECT `id`, `user_id`, `type_id`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

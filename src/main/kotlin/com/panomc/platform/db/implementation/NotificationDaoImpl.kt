@@ -36,7 +36,10 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .await()
     }
 
-    override suspend fun add(notification: Notification, sqlConnection: SqlConnection) {
+    override suspend fun add(
+        notification: Notification,
+        sqlConnection: SqlConnection
+    ) {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type_id`, `action`, `properties`, `date`, `status`) " +
                     "VALUES (?, ?, ?, ?, ?, ?)"
@@ -55,22 +58,10 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             ).await()
     }
 
-    override suspend fun getLast5ByUserId(userId: Long, sqlConnection: SqlConnection): List<Notification> {
-        val query =
-            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
-
-        val rows: RowSet<Row> = sqlConnection
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    userId
-                )
-            ).await()
-
-        return Notification.from(rows)
-    }
-
-    override suspend fun getCountOfNotReadByUserId(userId: Long, sqlConnection: SqlConnection): Long {
+    override suspend fun getCountOfNotReadByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): Long {
         val query =
             "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND `status` = ? ORDER BY `date` DESC, `id` DESC"
 
@@ -86,7 +77,120 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun markReadLast5ByUserId(userId: Long, sqlConnection: SqlConnection) {
+    override suspend fun getCountByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): Long {
+        val query =
+            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            ).await()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getLast10ByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): List<Notification> {
+        val query =
+            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            ).await()
+
+        return Notification.from(rows)
+    }
+
+    override suspend fun get10ByUserIdAndStartFromId(
+        userId: Long,
+        notificationId: Long,
+        sqlConnection: SqlConnection
+    ): List<Notification> {
+        val query =
+            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId,
+                    notificationId
+                )
+            ).await()
+
+        return Notification.from(rows)
+    }
+
+    override suspend fun markReadLast10(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    NotificationStatus.READ,
+                    userId
+                )
+            ).await()
+    }
+
+    override suspend fun markReadLast10StartFromId(
+        userId: Long,
+        notificationId: Long,
+        sqlConnection: SqlConnection
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `user_id` = ? AND id < ?  ORDER BY `date` DESC, `id` DESC LIMIT 10"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    NotificationStatus.READ,
+                    userId,
+                    notificationId
+                )
+            ).await()
+    }
+
+    override suspend fun getLast5ByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): List<Notification> {
+        val query =
+            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            ).await()
+
+        return Notification.from(rows)
+    }
+
+    override suspend fun markReadLast5ByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
@@ -98,5 +202,76 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                     userId
                 )
             ).await()
+    }
+
+    override suspend fun existsById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ): Boolean {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(id))
+            .await()
+
+        return rows.toList()[0].getLong(0) == 1L
+    }
+
+    override suspend fun getById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ): Notification? {
+        val query =
+            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    id
+                )
+            ).await()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val row = rows.toList()[0]
+
+        return Notification.from(row)
+    }
+
+    override suspend fun deleteById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ) {
+        val query =
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    id
+                )
+            ).await()
+    }
+
+    override suspend fun deleteAllByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ) {
+        val query =
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            )
+            .await()
     }
 }

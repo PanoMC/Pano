@@ -35,20 +35,20 @@ class DeleteNotificationAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val exists = databaseManager.panelNotificationDao.existsById(id, sqlConnection)
+        val exists = databaseManager.notificationDao.existsById(id, sqlConnection)
 
         if (!exists) {
             return Successful()
         }
 
         val notification =
-            databaseManager.panelNotificationDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.notificationDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
 
         if (notification.userId != userId) {
             return Successful()
         }
 
-        databaseManager.panelNotificationDao.deleteById(notification.id, sqlConnection)
+        databaseManager.notificationDao.deleteById(notification.id, sqlConnection)
 
         return Successful()
     }

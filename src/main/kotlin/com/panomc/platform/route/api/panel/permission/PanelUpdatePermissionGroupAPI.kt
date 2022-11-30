@@ -65,7 +65,7 @@ class PanelUpdatePermissionGroupAPI(
         val isTherePermissionGroupById = databaseManager.permissionGroupDao.isThereById(id, sqlConnection)
 
         if (!isTherePermissionGroupById) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw Error(ErrorCode.PERM_GROUP_NOT_EXISTS)
         }
 
         val adminPermissionGroupId =

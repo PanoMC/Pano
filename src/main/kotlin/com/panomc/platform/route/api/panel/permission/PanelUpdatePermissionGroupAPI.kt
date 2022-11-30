@@ -21,7 +21,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 class PanelUpdatePermissionGroupAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
-    authProvider: AuthProvider
+    private val authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
     override val paths = listOf(Path("/api/panel/permissionGroups/:id", RouteType.PUT))
 
@@ -48,11 +48,19 @@ class PanelUpdatePermissionGroupAPI(
         val addedUsers = data.getJsonArray("addedUsers").map { it.toString() }
         val removedUsers = data.getJsonArray("removedUsers").map { it.toString() }
 
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+
         validateForm(name)
 
         name = getSystematicName(name)
 
         val sqlConnection = createConnection(databaseManager, context)
+
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)!!.lowercase()
+
+        if (addedUsers.any { it.lowercase() == username } || removedUsers.any { it.lowercase() == username }) {
+            throw Error(ErrorCode.CANT_UPDATE_PERM_GROUP_YOURSELF)
+        }
 
         val isTherePermissionGroupById = databaseManager.permissionGroupDao.isThereById(id, sqlConnection)
 
@@ -60,36 +68,28 @@ class PanelUpdatePermissionGroupAPI(
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
-
         val adminPermissionGroupId =
             databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
 
-        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
-            .map { it.lowercase() }
+        if (id == adminPermissionGroupId) {
+            val user = databaseManager.userDao.getById(userId, sqlConnection)
 
-        var addUserAdminMatchCount = 0
-        var removeUserAdminMatchCount = 0
-
-        admins.forEach { admin ->
-            if (addedUsers.find { it.lowercase() == admin } != null) {
-                addUserAdminMatchCount++
-            }
-
-            if (removedUsers.find { it.lowercase() == admin } != null) {
-                removeUserAdminMatchCount++
+            if (user!!.permissionGroupId != adminPermissionGroupId) {
+                throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_PERM_GROUP)
             }
         }
 
-        if (addUserAdminMatchCount == admins.size || removeUserAdminMatchCount == admins.size) {
-            throw Error(ErrorCode.LAST_ADMIN)
+        val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
+
+        if (permissionGroup.name != name && permissionGroup.id == adminPermissionGroupId) {
+            throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
         }
 
         if (addedUsers.isNotEmpty()) {
             val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlConnection)
 
             if (!areAddedUsersExists) {
-                throw Error(ErrorCode.INVALID_DATA)
+                throw Error(ErrorCode.SOME_USERS_ARENT_EXISTS)
             }
         }
 
@@ -97,7 +97,7 @@ class PanelUpdatePermissionGroupAPI(
             val areRemovedUsersExists = databaseManager.userDao.areUsernamesExists(removedUsers, sqlConnection)
 
             if (!areRemovedUsersExists) {
-                throw Error(ErrorCode.INVALID_DATA)
+                throw Error(ErrorCode.SOME_USERS_ARENT_EXISTS)
             }
         }
 
@@ -107,10 +107,6 @@ class PanelUpdatePermissionGroupAPI(
 
             if (isTherePermissionGroupByName) {
                 throw Errors(mapOf("name" to true))
-            }
-
-            if (permissionGroup.name == "admin") {
-                throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
             }
 
             databaseManager.permissionGroupDao.update(

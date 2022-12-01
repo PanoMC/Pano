@@ -149,4 +149,25 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
 
         return Permission.from(rows)
     }
+
+    override suspend fun arePermissionsExist(idList: List<Long>, sqlConnection: SqlConnection): Boolean {
+        var listText = ""
+
+        idList.forEach { permissionId ->
+            if (listText == "")
+                listText = "'$permissionId'"
+            else
+                listText += ", '$permissionId'"
+        }
+
+        val query =
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where `id` IN ($listText)"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute()
+            .await()
+
+        return rows.toList()[0].getLong(0) == idList.size.toLong()
+    }
 }

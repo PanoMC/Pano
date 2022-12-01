@@ -33,4 +33,9 @@ interface PermissionDao : Dao<Permission> {
     suspend fun getPermissions(
         sqlConnection: SqlConnection
     ): List<Permission>
+
+    suspend fun arePermissionsExist(
+        idList: List<Long>,
+        sqlConnection: SqlConnection
+    ): Boolean
 }

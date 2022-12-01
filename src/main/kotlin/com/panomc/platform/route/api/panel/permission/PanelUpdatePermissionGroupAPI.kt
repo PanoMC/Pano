@@ -9,13 +9,11 @@ import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.Parameters
+import io.vertx.ext.web.validation.builder.Bodies.json
+import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas
-import io.vertx.json.schema.common.dsl.Schemas.arraySchema
-import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class PanelUpdatePermissionGroupAPI(
@@ -27,10 +25,10 @@ class PanelUpdatePermissionGroupAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
-            .pathParameter(Parameters.param("id", Schemas.numberSchema()))
+            .pathParameter(param("id", numberSchema()))
             .body(
-                Bodies.json(
-                    Schemas.objectSchema()
+                json(
+                    objectSchema()
                         .property("name", stringSchema())
                         .property("addedUsers", arraySchema().items(stringSchema()))
                         .property("removedUsers", arraySchema().items(stringSchema()))

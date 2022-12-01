@@ -44,17 +44,19 @@ class PanelGetPermissionGroupAPI(
 
         val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
 
-        result["id"] = id
-        result["name"] = permissionGroup.name
-
-        val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(id, sqlConnection)
-
-        result["countOfUsers"] = count
+        val userCount = databaseManager.userDao.getCountOfUsersByPermissionGroupId(id, sqlConnection)
 
         val usernameList =
             databaseManager.userDao.getUsernamesByPermissionGroupId(id, -1, sqlConnection)
 
+        val permissionGroupPerms =
+            databaseManager.permissionGroupPermsDao.getByPermissionGroupId(id, sqlConnection).map { it.permissionId }
+
+        result["id"] = id
+        result["name"] = permissionGroup.name
         result["users"] = usernameList
+        result["userCount"] = userCount
+        result["permissionGroupPerms"] = permissionGroupPerms
 
         return Successful(result)
     }

@@ -163,6 +163,30 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         return PermissionGroup.from(rows)
     }
 
+    override suspend fun getPermissionGroupsByPage(page: Long, sqlConnection: SqlConnection): List<PermissionGroup> {
+        val query =
+            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `ID` ASC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute()
+            .await()
+
+        return PermissionGroup.from(rows)
+    }
+
+    override suspend fun countPermissionGroups(sqlConnection: SqlConnection): Long {
+        val query =
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}`"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute()
+            .await()
+
+        return rows.toList()[0].getLong(0)
+    }
+
     override suspend fun deleteById(
         id: Long,
         sqlConnection: SqlConnection

@@ -39,6 +39,15 @@ interface PermissionGroupDao : Dao<PermissionGroup> {
         sqlConnection: SqlConnection
     ): List<PermissionGroup>
 
+    suspend fun getPermissionGroupsByPage(
+        page: Long,
+        sqlConnection: SqlConnection
+    ): List<PermissionGroup>
+
+    suspend fun countPermissionGroups(
+        sqlConnection: SqlConnection
+    ): Long
+
     suspend fun deleteById(
         id: Long,
         sqlConnection: SqlConnection

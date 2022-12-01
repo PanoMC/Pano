@@ -49,12 +49,6 @@ class PanelSetPermissionGroupPermissionAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val isTherePermission = databaseManager.permissionDao.isTherePermissionById(permissionId, sqlConnection)
-
-        if (!isTherePermission) {
-            throw Error(ErrorCode.NOT_EXISTS)
-        }
-
         val isTherePermissionGroup =
             databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlConnection)
 
@@ -70,6 +64,12 @@ class PanelSetPermissionGroupPermissionAPI(
             throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
         }
 
+        val isTherePermission = databaseManager.permissionDao.isTherePermissionById(permissionId, sqlConnection)
+
+        if (!isTherePermission) {
+            throw Error(ErrorCode.NOT_EXISTS)
+        }
+
         val doesPermissionGroupHavePermission =
             databaseManager.permissionGroupPermsDao.doesPermissionGroupHavePermission(
                 permissionGroupId,
@@ -77,13 +77,15 @@ class PanelSetPermissionGroupPermissionAPI(
                 sqlConnection
             )
 
-
         if (mode == "ADD" && !doesPermissionGroupHavePermission)
             databaseManager.permissionGroupPermsDao.addPermission(permissionGroupId, permissionId, sqlConnection)
         else if (doesPermissionGroupHavePermission)
             databaseManager.permissionGroupPermsDao.removePermission(permissionGroupId, permissionId, sqlConnection)
 
+        val body = mutableMapOf<String, Any?>()
 
-        return Successful()
+        body["mode"] = if (mode == "ADD" && !doesPermissionGroupHavePermission) "ADD" else "DELETE"
+
+        return Successful(body)
     }
 }

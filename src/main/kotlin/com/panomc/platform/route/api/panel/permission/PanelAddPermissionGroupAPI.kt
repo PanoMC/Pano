@@ -3,32 +3,44 @@ package com.panomc.platform.route.api.panel.permission
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas
+import io.vertx.json.schema.common.dsl.Schemas.*
+import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class PanelAddPermissionGroupAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
-    authProvider: AuthProvider
+    private val authProvider: AuthProvider
 ) : PanelApi(setupManager, authProvider) {
     override val paths = listOf(Path("/api/panel/permissionGroups", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
             .body(
-                Bodies.json(
-                    Schemas.objectSchema()
-                        .property("name", Schemas.stringSchema())
-                        .property("addedUsers", Schemas.arraySchema().items(Schemas.stringSchema()))
+                json(
+                    objectSchema()
+                        .property("name", stringSchema())
+                        .property("addedUsers", arraySchema().items(stringSchema()))
+                        .property(
+                            "permissions",
+                            arraySchema()
+                                .items(
+                                    objectSchema()
+                                        .requiredProperty("id", numberSchema())
+                                        .requiredProperty("selected", booleanSchema())
+                                )
+                        )
                 )
             )
             .build()
@@ -40,6 +52,9 @@ class PanelAddPermissionGroupAPI(
         var name = data.getString("name")
 
         val addedUsers = data.getJsonArray("addedUsers").map { it.toString() }
+        val permissions = data.getJsonArray("permissions").map { it as JsonObject }
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
 
         validateForm(name)
 
@@ -47,46 +62,95 @@ class PanelAddPermissionGroupAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
+        validateSelfUpdating(addedUsers, userId, sqlConnection)
+
+        validateIsPermissionGroupNameExists(name, sqlConnection)
+
+        val permissionsInDb = databaseManager.permissionDao.getPermissions(sqlConnection)
+
+        validatePermissions(permissions, permissionsInDb)
+
+        val adminPermissionGroupId =
+            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+
+        validateAddedUsersContainAdmin(adminPermissionGroupId, addedUsers, sqlConnection)
+
+        validateAreAddedUsersExist(addedUsers, sqlConnection)
+
+        val id = databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
+
+        permissions.filter { it.getBoolean("selected") }.forEach { permission ->
+            val permissionId = permission.getLong("id")
+
+            databaseManager.permissionGroupPermsDao.addPermission(id, permissionId, sqlConnection)
+        }
+
+        if (addedUsers.isNotEmpty()) {
+            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlConnection)
+        }
+
+        return Successful(mapOf("id" to id))
+    }
+
+    private suspend fun validateAreAddedUsersExist(addedUsers: List<String>, sqlConnection: SqlConnection) {
+        if (addedUsers.isNotEmpty()) {
+            val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlConnection)
+
+            if (!areAddedUsersExists) {
+                throw Error(ErrorCode.SOME_USERS_ARENT_EXISTS)
+            }
+        }
+    }
+
+    private suspend fun validateAddedUsersContainAdmin(
+        adminPermissionGroupId: Long,
+        addedUsers: List<String>,
+        sqlConnection: SqlConnection
+    ) {
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
+            .map { it.lowercase() }
+
+        admins.forEach { admin ->
+            if (addedUsers.find { it.lowercase() == admin } != null) {
+                throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_USER_PERM_GROUP)
+            }
+        }
+    }
+
+    private fun validatePermissions(
+        permissions: List<JsonObject>,
+        permissionsInDb: List<Permission>
+    ) {
+        val notExistingPermissions =
+            permissionsInDb.filter { permissionInDb -> permissions.find { it.getLong("id") == permissionInDb.id } == null }
+
+        if (notExistingPermissions.isNotEmpty()) {
+            throw Error(ErrorCode.SOME_PERMISSIONS_ARENT_EXIST)
+        }
+    }
+
+    private suspend fun validateIsPermissionGroupNameExists(
+        name: String,
+        sqlConnection: SqlConnection
+    ) {
         val isTherePermissionGroup =
             databaseManager.permissionGroupDao.isThereByName(name, sqlConnection)
 
         if (isTherePermissionGroup) {
             throw Errors(mapOf("name" to true))
         }
+    }
 
-        val adminPermissionGroupId =
-            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+    private suspend fun validateSelfUpdating(
+        addedUsers: List<String>,
+        userId: Long,
+        sqlConnection: SqlConnection
+    ) {
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)!!.lowercase()
 
-        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
-            .map { it.lowercase() }
-
-        var addUserAdminMatchCount = 0
-
-        admins.forEach { admin ->
-            if (addedUsers.find { it.lowercase() == admin } != null) {
-                addUserAdminMatchCount++
-            }
+        if (addedUsers.any { it.lowercase() == username }) {
+            throw Error(ErrorCode.CANT_UPDATE_PERM_GROUP_YOURSELF)
         }
-
-        if (addUserAdminMatchCount == admins.size) {
-            throw Error(ErrorCode.LAST_ADMIN)
-        }
-
-        if (addedUsers.isNotEmpty()) {
-            val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlConnection)
-
-            if (!areAddedUsersExists) {
-                throw Error(ErrorCode.INVALID_DATA)
-            }
-        }
-
-        val id = databaseManager.permissionGroupDao.add(PermissionGroup(name = name), sqlConnection)
-
-        if (addedUsers.isNotEmpty()) {
-            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlConnection)
-        }
-
-        return Successful()
     }
 
     private fun validateForm(

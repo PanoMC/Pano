@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.Notifications
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
@@ -79,8 +80,8 @@ class CreateTicketAPI(
 
             PanelNotification(
                 userId = adminId,
-                typeId = "NEW_TICKET",
-                action = "NEW_TICKET",
+                typeId = Notifications.PanelNotification.NEW_TICKET.typeId,
+                action = Notifications.PanelNotification.NEW_TICKET.action,
                 properties = JsonObject().put("id", id)
             )
         }

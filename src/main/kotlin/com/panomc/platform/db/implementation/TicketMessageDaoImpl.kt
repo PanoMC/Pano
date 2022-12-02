@@ -135,7 +135,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         sqlConnection: SqlConnection
     ): TicketMessage? {
         val query =
-            "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? DESC LIMIT 1"
+            "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? ORDER BY `date` DESC LIMIT 1"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

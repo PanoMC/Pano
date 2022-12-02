@@ -265,4 +265,12 @@ class AuthProvider(
 
         tokenProvider.invalidateToken(token, sqlConnection)
     }
+
+    suspend fun getAdminList(sqlConnection: SqlConnection): List<String> {
+        val adminPermissionId = databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionId, -1, sqlConnection)
+
+        return admins
+    }
 }

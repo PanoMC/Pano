@@ -17,7 +17,6 @@ import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
-import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class CreateTicketAPI(
@@ -73,7 +72,7 @@ class CreateTicketAPI(
             sqlConnection
         )
 
-        val adminList = getAdminList(sqlConnection)
+        val adminList = authProvider.getAdminList(sqlConnection)
 
         val notifications = adminList.map { admin ->
             val adminId = databaseManager.userDao.getUserIdFromUsername(admin, sqlConnection)!!
@@ -85,6 +84,7 @@ class CreateTicketAPI(
                 properties = JsonObject().put("id", id)
             )
         }
+
         databaseManager.panelNotificationDao.addAll(notifications, sqlConnection)
 
         return Successful(
@@ -102,13 +102,5 @@ class CreateTicketAPI(
         if (message.isEmpty()) {
             throw Error(ErrorCode.DESCRIPTION_CANT_BE_EMPTY)
         }
-    }
-
-    private suspend fun getAdminList(sqlConnection: SqlConnection): List<String> {
-        val adminPermissionId = databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
-
-        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionId, -1, sqlConnection)
-
-        return admins
     }
 }

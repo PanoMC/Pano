@@ -39,6 +39,8 @@ class PanelGetNotificationsAPI(
                 mapOf(
                     "id" to notification.id,
                     "typeId" to notification.typeId,
+                    "action" to notification.action,
+                    "properties" to notification.properties,
                     "date" to notification.date,
                     "status" to notification.status,
                     "isPersonal" to (notification.userId == userId)

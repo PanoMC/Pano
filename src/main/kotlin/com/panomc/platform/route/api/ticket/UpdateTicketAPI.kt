@@ -1,11 +1,14 @@
 package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.Notifications
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
@@ -58,6 +61,21 @@ class UpdateTicketAPI(
         if (ticketStatus != null && ticketStatus == "close") {
             databaseManager.ticketDao.closeTicketById(id, sqlConnection)
         }
+
+        val adminList = authProvider.getAdminList(sqlConnection)
+
+        val notifications = adminList.map { admin ->
+            val adminId = databaseManager.userDao.getUserIdFromUsername(admin, sqlConnection)!!
+
+            PanelNotification(
+                userId = adminId,
+                typeId = Notifications.PanelNotification.TICKET_CLOSED_BY_USER.typeId,
+                action = Notifications.PanelNotification.TICKET_CLOSED_BY_USER.action,
+                properties = JsonObject().put("id", id)
+            )
+        }
+
+        databaseManager.panelNotificationDao.addAll(notifications, sqlConnection)
 
         return Successful()
     }

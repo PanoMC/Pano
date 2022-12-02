@@ -10,6 +10,11 @@ interface PanelNotificationDao : Dao<PanelNotification> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun addAll(
+        panelNotifications: List<PanelNotification>,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun getCountOfNotReadByUserId(
         userId: Long,
         sqlConnection: SqlConnection

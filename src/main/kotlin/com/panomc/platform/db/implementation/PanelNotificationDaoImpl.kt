@@ -58,6 +58,34 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             ).await()
     }
 
+    override suspend fun addAll(panelNotifications: List<PanelNotification>, sqlConnection: SqlConnection) {
+        val tuple = Tuple.tuple()
+        var listText = ""
+
+        panelNotifications.forEach { panelNotification ->
+            tuple.addValue(panelNotification.userId)
+            tuple.addValue(panelNotification.typeId)
+            tuple.addValue(panelNotification.action)
+            tuple.addValue(panelNotification.properties.toString())
+            tuple.addValue(panelNotification.date)
+            tuple.addValue(panelNotification.status)
+
+            if (listText == "")
+                listText = "(?, ?, ?, ?, ?, ?)"
+            else
+                listText += ", (?, ?, ?, ?, ?, ?)"
+        }
+
+        val query =
+            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type_id`, `action`, `properties`, `date`, `status`) " +
+                    "VALUES $listText"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(tuple)
+            .await()
+    }
+
     override suspend fun getCountOfNotReadByUserId(
         userId: Long,
         sqlConnection: SqlConnection

@@ -479,4 +479,24 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         return rows.toList().map { it.getLong(0) }
     }
+
+    override suspend fun areIdListExist(ids: List<Long>, sqlConnection: SqlConnection): Boolean {
+        var listText = ""
+
+        ids.forEach { id ->
+            if (listText == "")
+                listText = "'$id'"
+            else
+                listText += ", '$id'"
+        }
+
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` IN ($listText)"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute()
+            .await()
+
+        return rows.toList()[0].getLong(0) == ids.size.toLong()
+    }
 }

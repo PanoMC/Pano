@@ -138,4 +138,9 @@ interface TicketDao : Dao<Ticket> {
         dashboardPeriodType: DashboardPeriodType,
         sqlConnection: SqlConnection
     ): List<Long>
+
+    suspend fun areIdListExist(
+        ids: List<Long>,
+        sqlConnection: SqlConnection
+    ): Boolean
 }

@@ -8,6 +8,7 @@ enum class Notifications {
     }
 
     enum class PanelNotification(val typeId: String, val action: String) {
-        NEW_TICKET("NEW_TICKET", "NEW_TICKET")
+        NEW_TICKET("NEW_TICKET", "NEW_TICKET"),
+        NEW_TICKET_MESSAGE("NEW_TICKET_MESSAGE", "NEW_TICKET_MESSAGE");
     }
 }

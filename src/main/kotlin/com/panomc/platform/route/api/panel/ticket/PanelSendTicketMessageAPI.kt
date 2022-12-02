@@ -1,12 +1,15 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.Notifications
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Notification
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -45,11 +48,7 @@ class PanelSendTicketMessageAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val exists = databaseManager.ticketDao.isExistsById(ticketId, sqlConnection)
-
-        if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
-        }
+        val ticket = databaseManager.ticketDao.getById(ticketId, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
 
@@ -57,7 +56,17 @@ class PanelSendTicketMessageAPI(
 
         val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlConnection)
 
-        databaseManager.ticketDao.makeStatus(ticketMessage.ticketId, 2, sqlConnection)
+        databaseManager.ticketDao.makeStatus(ticketId, 2, sqlConnection)
+
+        databaseManager.notificationDao.add(
+            Notification(
+                userId = ticket.userId,
+                typeId = Notifications.UserNotification.AN_ADMIN_REPLIED_TICKET.typeId,
+                action = Notifications.UserNotification.AN_ADMIN_REPLIED_TICKET.action,
+                properties = JsonObject().put("id", ticketId).put("whoReplied", username)
+            ),
+            sqlConnection
+        )
 
         databaseManager.ticketDao.updateLastUpdateDate(
             ticketMessage.ticketId,

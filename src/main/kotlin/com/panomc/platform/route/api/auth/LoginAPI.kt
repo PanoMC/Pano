@@ -48,6 +48,10 @@ class LoginAPI(
 
         val token = authProvider.login(usernameOrEmail, sqlConnection)
 
+        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlConnection)!!
+
+        databaseManager.userDao.updateLastLoginDate(userId, sqlConnection)
+
         return Successful(
             mapOf(
                 "jwt" to token

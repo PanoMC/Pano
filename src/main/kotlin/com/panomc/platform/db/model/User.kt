@@ -11,6 +11,7 @@ data class User(
     val registeredIp: String,
     val permissionGroupId: Long = -1,
     val registerDate: Long = System.currentTimeMillis(),
+    val lastLoginDate: Long = System.currentTimeMillis(),
     val emailVerified: Int = 0,
     val banned: Int = 0
 ) {
@@ -23,8 +24,9 @@ data class User(
             row.getString(4),
             row.getLong(5),
             row.getLong(6),
-            row.getInteger(7),
-            row.getInteger(8)
+            row.getLong(7),
+            row.getInteger(8),
+            row.getInteger(9)
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

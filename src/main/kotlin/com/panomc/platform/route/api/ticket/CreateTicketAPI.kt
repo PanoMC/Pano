@@ -3,17 +3,20 @@ package com.panomc.platform.route.api.ticket
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
+import io.vertx.sqlclient.SqlConnection
 
 @Endpoint
 class CreateTicketAPI(
@@ -69,6 +72,20 @@ class CreateTicketAPI(
             sqlConnection
         )
 
+        val adminList = getAdminList(sqlConnection)
+
+        val notifications = adminList.map { admin ->
+            val adminId = databaseManager.userDao.getUserIdFromUsername(admin, sqlConnection)!!
+
+            PanelNotification(
+                userId = adminId,
+                typeId = "NEW_TICKET",
+                action = "NEW_TICKET",
+                properties = JsonObject().put("id", id)
+            )
+        }
+        databaseManager.panelNotificationDao.addAll(notifications, sqlConnection)
+
         return Successful(
             mapOf(
                 "id" to id
@@ -84,5 +101,13 @@ class CreateTicketAPI(
         if (message.isEmpty()) {
             throw Error(ErrorCode.DESCRIPTION_CANT_BE_EMPTY)
         }
+    }
+
+    private suspend fun getAdminList(sqlConnection: SqlConnection): List<String> {
+        val adminPermissionId = databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionId, -1, sqlConnection)
+
+        return admins
     }
 }

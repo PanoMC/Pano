@@ -151,25 +151,30 @@ class DatabaseManager(
         migrate(sqlConnection, databaseVersion)
     }
 
-    private suspend fun migrate(sqlConnection: SqlConnection, databaseVersion: Int) {
-        mMigrations.filter { it.isMigratable(databaseVersion) }.forEach {
+    private suspend fun migrate(sqlConnection: SqlConnection, databaseVersion: Int, closeConnection: Boolean = true) {
+        mMigrations
+            .find { it.isMigratable(databaseVersion) }
+            ?.let {
+                logger.info("Migration Found! Migrating database from version ${it.FROM_SCHEME_VERSION} to ${it.SCHEME_VERSION}: ${it.SCHEME_VERSION_INFO}")
 
-            logger.info("Migration Found! Migrating database from version ${it.FROM_SCHEME_VERSION} to ${it.SCHEME_VERSION}: ${it.SCHEME_VERSION_INFO}")
+                try {
+                    it.migrate(sqlConnection)
 
-            try {
-                it.migrate(sqlConnection)
+                    it.updateSchemeVersion(sqlConnection)
+                } catch (e: Exception) {
+                    closeConnection(sqlConnection)
 
-                it.updateSchemeVersion(sqlConnection)
-            } catch (e: Exception) {
-                closeConnection(sqlConnection)
+                    logger.error("Database Error: Migration failed from version ${it.FROM_SCHEME_VERSION} to ${it.SCHEME_VERSION}, error: " + e)
 
-                logger.error("Database Error: Migration failed from version ${it.FROM_SCHEME_VERSION} to ${it.SCHEME_VERSION}, error: " + e)
+                    return
+                }
 
-                return
+                migrate(sqlConnection, it.SCHEME_VERSION, false)
             }
-        }
 
-        closeConnection(sqlConnection)
+        if (closeConnection) {
+            closeConnection(sqlConnection)
+        }
     }
 
     private fun getDatabaseInitList(): List<com.panomc.platform.db.Dao<*>> {

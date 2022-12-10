@@ -18,7 +18,7 @@ class TokenProvider(
     private val databaseManager: DatabaseManager,
     private val configManager: ConfigManager
 ) {
-    fun generateToken(userId: Long, tokenType: TokenType): Pair<String, Long> {
+    fun generateToken(subject: String, tokenType: TokenType): Pair<String, Long> {
         val privateKeySpec = PKCS8EncodedKeySpec(
             Decoders.BASE64.decode(
                 configManager.getConfig().getJsonObject("jwt-keys").getString("private")
@@ -33,7 +33,7 @@ class TokenProvider(
         val expireDate = tokenType.expireDate.invoke()
 
         val token = Jwts.builder()
-            .setSubject(userId.toString())
+            .setSubject(subject)
             .setId(UUID.randomUUID().toString())
             .addClaims(claims)
             .setExpiration(Date(expireDate))

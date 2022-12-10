@@ -22,7 +22,7 @@ class ActivationMail : Mail {
 
         tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlConnection)
 
-        val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.ACTIVATION)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.ACTIVATION)
 
         tokenProvider.saveToken(token, userId.toString(), TokenType.ACTIVATION, expireDate, sqlConnection)
 

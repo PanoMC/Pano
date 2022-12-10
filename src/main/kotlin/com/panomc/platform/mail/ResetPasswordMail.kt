@@ -22,7 +22,7 @@ class ResetPasswordMail : Mail {
 
         tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlConnection)
 
-        val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.RESET_PASSWORD)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.RESET_PASSWORD)
 
         tokenProvider.saveToken(
             token,

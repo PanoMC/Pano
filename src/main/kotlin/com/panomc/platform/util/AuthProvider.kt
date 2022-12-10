@@ -56,7 +56,7 @@ class AuthProvider(
             sqlConnection
         ) ?: throw Error(ErrorCode.UNKNOWN)
 
-        val (token, expireDate) = tokenProvider.generateToken(userId, TokenType.AUTHENTICATION)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.AUTHENTICATION)
 
         tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlConnection)
 

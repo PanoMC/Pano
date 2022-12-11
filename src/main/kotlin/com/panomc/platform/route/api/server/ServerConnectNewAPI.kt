@@ -18,8 +18,8 @@ class ServerConnectNewAPI(
     private val platformCodeManager: PlatformCodeManager,
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
-    setupManager: SetupManager
-) : ServerApi(setupManager) {
+    private val setupManager: SetupManager
+) : Api() {
     override val paths = listOf(Path("/api/server/connect", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
@@ -39,6 +39,10 @@ class ServerConnectNewAPI(
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
+        if (!setupManager.isSetupDone()) {
+            throw Error(ErrorCode.INSTALLATION_REQUIRED)
+        }
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 

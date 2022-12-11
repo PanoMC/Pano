@@ -50,8 +50,6 @@ class ServerConnectNewAPI(
             throw Error(ErrorCode.INVALID_PLATFORM_CODE)
         }
 
-        val sqlConnection = createConnection(databaseManager, context)
-
         val server = Server(
             name = data.getString("serverName"),
             playerCount = data.getLong("playerCount"),
@@ -61,6 +59,8 @@ class ServerConnectNewAPI(
             favicon = data.getString("favicon"),
             status = ServerStatus.ONLINE
         )
+
+        val sqlConnection = createConnection(databaseManager, context)
 
         val serverId = databaseManager.serverDao.add(server, sqlConnection)
 

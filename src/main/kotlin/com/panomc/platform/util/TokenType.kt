@@ -23,5 +23,12 @@ enum class TokenType(val expireDate: (() -> Long)) {
         calendar.add(Calendar.MINUTE, 30)
 
         calendar.timeInMillis
+    }),
+    SERVER_AUTHENTICATION({
+        val calendar = Calendar.getInstance()
+
+        calendar.add(Calendar.YEAR, 10)
+
+        calendar.timeInMillis
     })
 }

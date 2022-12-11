@@ -8,7 +8,7 @@ interface ServerDao : Dao<Server> {
     suspend fun add(
         server: Server,
         sqlConnection: SqlConnection
-    ): String
+    ): Long
 
     suspend fun count(
         sqlConnection: SqlConnection

@@ -1,5 +1,7 @@
 package com.panomc.platform.db.model
 
+import com.panomc.platform.util.ServerStatus
+import com.panomc.platform.util.ServerType
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 
@@ -8,10 +10,10 @@ data class Server(
     val name: String,
     val playerCount: Long,
     val maxPlayerCount: Long,
-    val type: String,
+    val type: ServerType,
     val version: String,
     val favicon: String,
-    val status: String
+    val status: ServerStatus
 ) {
     companion object {
         fun from(row: Row) = Server(
@@ -19,10 +21,10 @@ data class Server(
             row.getString(1),
             row.getLong(2),
             row.getLong(3),
-            row.getString(4),
+            ServerType.valueOf(row.getString(4)),
             row.getString(5),
             row.getString(6),
-            row.getString(7)
+            ServerStatus.valueOf(row.getInteger(7))!!
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

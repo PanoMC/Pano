@@ -115,9 +115,11 @@ class Main : CoroutineVerticle() {
 
         clearTempFiles()
 
-        initSetupManager()
+        val isPlatformInstalled = initSetupManager()
 
-        initDatabaseManager()
+        if (isPlatformInstalled) {
+            initDatabaseManager()
+        }
 
         initRoutes()
     }
@@ -162,7 +164,7 @@ class Main : CoroutineVerticle() {
         }
     }
 
-    private fun initSetupManager() {
+    private fun initSetupManager(): Boolean {
         logger.info("Checking is platform installed")
 
         val setupManager = applicationContext.getBean(SetupManager::class.java)
@@ -170,10 +172,12 @@ class Main : CoroutineVerticle() {
         if (!setupManager.isSetupDone()) {
             logger.info("Platform is not installed! Skipping database manager initializing")
 
-            return
+            return false
         }
 
         logger.info("Platform is installed")
+
+        return true
     }
 
     private suspend fun initDatabaseManager() {

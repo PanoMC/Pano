@@ -105,7 +105,7 @@ abstract class Api : Route() {
         context.fail(exception)
     }
 
-    abstract override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler
+    abstract override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler?
 
     abstract suspend fun handler(context: RoutingContext): Result?
 

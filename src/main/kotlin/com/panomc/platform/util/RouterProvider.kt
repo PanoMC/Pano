@@ -72,15 +72,25 @@ class RouterProvider private constructor(
 
         routeList.forEach { route ->
             route.paths.forEach { path ->
-                when (path.routeType) {
+                val endpoint = when (path.routeType) {
                     RouteType.ROUTE -> router.route(path.url)
                     RouteType.GET -> router.get(path.url)
                     RouteType.POST -> router.post(path.url)
                     RouteType.DELETE -> router.delete(path.url)
                     RouteType.PUT -> router.put(path.url)
                 }
+
+                endpoint
                     .order(route.order)
-                    .handler(route.getValidationHandler(schemaParser))
+
+                val validationHandler = route.getValidationHandler(schemaParser)
+
+                if (validationHandler != null) {
+                    endpoint
+                        .handler(validationHandler)
+                }
+
+                endpoint
                     .handler(route.getHandler())
                     .failureHandler(route.getFailureHandler())
             }

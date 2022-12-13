@@ -13,7 +13,7 @@ abstract class Route {
 
     abstract fun getHandler(): Handler<RoutingContext>
 
-    open fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
+    open fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler? =
         ValidationHandlerBuilder.create(schemaParser).build()
 
     open fun getFailureHandler(): Handler<RoutingContext> = Handler { request ->

@@ -1,3 +1,12 @@
 package com.panomc.platform.model
 
-class Errors(val errors: Map<String, Any>) : Throwable(), Result
+class Errors(val errors: Map<String, Any>) : Throwable(), Result {
+    override fun encode(): String {
+        return encode(
+            mapOf(
+                "result" to "errors",
+                "errors" to errors
+            )
+        )
+    }
+}

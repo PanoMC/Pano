@@ -2,7 +2,6 @@ package com.panomc.platform.model
 
 import com.panomc.platform.db.DatabaseManager
 import io.vertx.core.Handler
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestParameters
 import io.vertx.ext.web.validation.ValidationHandler
@@ -70,33 +69,7 @@ abstract class Api : Route() {
         response
             .putHeader("content-type", "application/json; charset=utf-8")
 
-        val responseMap = mutableMapOf<String, Any?>(
-            "result" to "ok"
-        )
-
-        if (result is Successful) {
-            responseMap.putAll(result.map)
-        }
-
-        if (result is Error) {
-            responseMap.putAll(
-                mapOf(
-                    "result" to "error",
-                    "error" to result.errorCode
-                )
-            )
-        }
-
-        if (result is Errors) {
-            responseMap.putAll(
-                mapOf(
-                    "result" to "error",
-                    "error" to result.errors
-                )
-            )
-        }
-
-        response.end(JsonObject(responseMap).encode())
+        response.end(result.encode())
     }
 
     fun getParameters(context: RoutingContext): RequestParameters = context.get(REQUEST_CONTEXT_KEY)

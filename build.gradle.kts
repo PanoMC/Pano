@@ -1,4 +1,4 @@
-val vertxVersion = "4.3.5"
+val vertxVersion = "4.3.6"
 val log4jVersion = "2.19.0"
 
 plugins {

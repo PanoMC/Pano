@@ -57,7 +57,7 @@ class ServerConnectNewAPI(
             type = ServerType.valueOf(data.getString("serverType")),
             version = data.getString("serverVersion"),
             favicon = data.getString("favicon"),
-            status = ServerStatus.ONLINE
+            status = ServerStatus.OFFLINE
         )
 
         val sqlConnection = createConnection(databaseManager, context)

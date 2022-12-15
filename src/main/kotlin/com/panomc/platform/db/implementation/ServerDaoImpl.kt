@@ -124,4 +124,16 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         return rows.toList()[0].getLong(0) == 1L
     }
+
+    override suspend fun deleteById(id: Long, sqlConnection: SqlConnection) {
+        val query =
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(id)
+            )
+            .await()
+    }
 }

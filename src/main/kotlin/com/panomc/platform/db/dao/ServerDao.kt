@@ -30,4 +30,9 @@ interface ServerDao : Dao<Server> {
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean
+
+    suspend fun deleteById(
+        id: Long,
+        sqlConnection: SqlConnection
+    )
 }

@@ -109,4 +109,19 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             )
             .await()
     }
+
+    override suspend fun existsById(id: Long, sqlConnection: SqlConnection): Boolean {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    id
+                )
+            )
+            .await()
+
+        return rows.toList()[0].getLong(0) == 1L
+    }
 }

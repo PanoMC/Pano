@@ -25,4 +25,9 @@ interface ServerDao : Dao<Server> {
         status: ServerStatus,
         sqlConnection: SqlConnection
     )
+
+    suspend fun existsById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ): Boolean
 }

@@ -62,6 +62,28 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
+    override suspend fun getById(id: Long, sqlConnection: SqlConnection): Server? {
+        val query =
+            "SELECT `id`, `name`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    id
+                )
+            )
+            .await()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val row = rows.toList()[0]
+
+        return Server.from(row)
+    }
+
     override suspend fun count(sqlConnection: SqlConnection): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 

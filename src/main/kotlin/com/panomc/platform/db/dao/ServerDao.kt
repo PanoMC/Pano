@@ -10,6 +10,11 @@ interface ServerDao : Dao<Server> {
         sqlConnection: SqlConnection
     ): Long
 
+    suspend fun getById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ): Server?
+
     suspend fun count(
         sqlConnection: SqlConnection
     ): Long

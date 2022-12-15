@@ -5,6 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.ServerDao
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.util.ServerStatus
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -93,5 +94,19 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
 
         return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun updateStatusById(id: Long, status: ServerStatus, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `status` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    status.value,
+                    id
+                )
+            )
+            .await()
     }
 }

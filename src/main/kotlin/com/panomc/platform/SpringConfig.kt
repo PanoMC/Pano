@@ -106,6 +106,14 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun serverAuthProvider(
+        databaseManager: DatabaseManager,
+        tokenProvider: TokenProvider
+    ) = ServerAuthProvider(databaseManager, tokenProvider)
+
+    @Bean
+    @Lazy
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun provideWebClient(): WebClient = WebClient.create(vertx)
 
     @Bean

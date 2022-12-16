@@ -11,7 +11,7 @@ import io.vertx.json.schema.SchemaParser
 import org.slf4j.Logger
 
 @Endpoint
-class DisconnectServerAPI(
+class ServerDisconnectAPI(
     private val databaseManager: DatabaseManager,
     private val setupManager: SetupManager,
     private val serverAuthProvider: ServerAuthProvider,

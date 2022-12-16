@@ -110,6 +110,24 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
+    override suspend fun updatePermissionGrantedById(
+        id: Long,
+        permissionGranted: Boolean,
+        sqlConnection: SqlConnection
+    ) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `permission_granted` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    if (permissionGranted) 1 else 0,
+                    id
+                )
+            )
+            .await()
+    }
+
     override suspend fun existsById(id: Long, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 

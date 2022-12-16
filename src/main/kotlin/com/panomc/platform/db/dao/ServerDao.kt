@@ -26,6 +26,12 @@ interface ServerDao : Dao<Server> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun updatePermissionGrantedById(
+        id: Long,
+        permissionGranted: Boolean,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection

@@ -8,14 +8,12 @@ import com.panomc.platform.util.ServerAuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaParser
-import org.slf4j.Logger
 
 @Endpoint
 class ServerDisconnectAPI(
     private val databaseManager: DatabaseManager,
     private val setupManager: SetupManager,
-    private val serverAuthProvider: ServerAuthProvider,
-    private val logger: Logger
+    private val serverAuthProvider: ServerAuthProvider
 ) : Api() {
     override val paths = listOf(Path("/api/server/disconnect", RouteType.POST))
 

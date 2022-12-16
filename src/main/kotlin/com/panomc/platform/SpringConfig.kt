@@ -2,6 +2,7 @@ package com.panomc.platform
 
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.server.ServerManager
 import com.panomc.platform.util.*
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
@@ -122,4 +123,9 @@ open class SpringConfig {
     open fun provideSchemeParser(vertx: Vertx): SchemaParser = SchemaParser.createOpenAPI3SchemaParser(
         SchemaRouter.create(vertx, SchemaRouterOptions())
     )
+
+    @Bean
+    @Lazy
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun provideServerManager(): ServerManager = ServerManager(logger)
 }

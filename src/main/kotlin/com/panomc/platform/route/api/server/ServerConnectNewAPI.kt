@@ -1,11 +1,14 @@
 package com.panomc.platform.route.api.server
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.Notifications
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
 import com.panomc.platform.util.*
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -18,7 +21,8 @@ class ServerConnectNewAPI(
     private val platformCodeManager: PlatformCodeManager,
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
-    private val setupManager: SetupManager
+    private val setupManager: SetupManager,
+    private val authProvider: AuthProvider
 ) : Api() {
     override val paths = listOf(Path("/api/server/connect", RouteType.POST))
 
@@ -67,6 +71,21 @@ class ServerConnectNewAPI(
         val (token, expireDate) = tokenProvider.generateToken(serverId.toString(), TokenType.SERVER_AUTHENTICATION)
 
         tokenProvider.saveToken(token, serverId.toString(), TokenType.SERVER_AUTHENTICATION, expireDate, sqlConnection)
+
+        val adminList = authProvider.getAdminList(sqlConnection)
+
+        val notifications = adminList.map { admin ->
+            val adminId = databaseManager.userDao.getUserIdFromUsername(admin, sqlConnection)!!
+
+            PanelNotification(
+                userId = adminId,
+                typeId = Notifications.PanelNotification.SERVER_CONNECT_REQUEST.typeId,
+                action = Notifications.PanelNotification.SERVER_CONNECT_REQUEST.action,
+                properties = JsonObject().put("id", serverId)
+            )
+        }
+
+        databaseManager.panelNotificationDao.addAll(notifications, sqlConnection)
 
         return Successful(
             mapOf(

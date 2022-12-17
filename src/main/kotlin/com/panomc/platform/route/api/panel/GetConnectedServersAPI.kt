@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.server
+package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
@@ -13,8 +13,8 @@ class GetConnectedServersAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
     authProvider: AuthProvider
-) : LoggedInApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/servers", RouteType.GET))
+) : PanelApi(setupManager, authProvider) {
+    override val paths = listOf(Path("/api/panel/servers", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 

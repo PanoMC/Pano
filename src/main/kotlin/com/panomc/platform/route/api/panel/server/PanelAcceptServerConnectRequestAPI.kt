@@ -14,7 +14,7 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
-class AcceptServerConnectRequestAPI(
+class PanelAcceptServerConnectRequestAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
     authProvider: AuthProvider

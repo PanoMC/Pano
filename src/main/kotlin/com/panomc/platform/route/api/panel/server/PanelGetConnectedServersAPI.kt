@@ -9,7 +9,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
-class GetConnectedServersAPI(
+class PanelGetConnectedServersAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
     authProvider: AuthProvider

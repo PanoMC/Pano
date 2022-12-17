@@ -85,7 +85,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return Server.from(row)
     }
 
-    override suspend fun getAllByPermissionGranted(id: Long, sqlConnection: SqlConnection): List<Server> {
+    override suspend fun getAllByPermissionGranted(sqlConnection: SqlConnection): List<Server> {
         val query =
             "SELECT `id`, `name`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
 

@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.panel
+package com.panomc.platform.route.api.panel.server
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager

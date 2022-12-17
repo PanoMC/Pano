@@ -38,6 +38,8 @@ class PanelGetBasicDataAPI(
 
         val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
 
+        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlConnection)
+
         return Successful(
             mapOf(
                 "user" to mapOf(
@@ -52,7 +54,7 @@ class PanelGetBasicDataAPI(
                 "platformServerMatchKey" to platformCodeManager.getPlatformKey(),
                 "platformServerMatchKeyTimeStarted" to platformCodeManager.getTimeStarted(),
                 "platformHostAddress" to context.request().host(),
-                "servers" to listOf<Map<String, Any?>>(),
+                "servers" to servers,
                 "notificationCount" to count,
                 "locale" to configManager.getConfig().getString("locale")
             )

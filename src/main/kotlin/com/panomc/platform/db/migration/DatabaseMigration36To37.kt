@@ -15,9 +15,9 @@ class DatabaseMigration36To37(databaseManager: DatabaseManager) : DatabaseMigrat
 
     override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
         listOf(
-//            deleteSecretKeyColumn(),
-//            deletePublicKeyColumn(),
-//            deleteTokenColumn(),
+            deleteSecretKeyColumn(),
+            deletePublicKeyColumn(),
+            deleteTokenColumn(),
             updateServerTableStatusColumn()
         )
 

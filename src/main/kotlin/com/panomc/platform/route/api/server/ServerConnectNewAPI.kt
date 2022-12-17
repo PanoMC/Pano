@@ -32,7 +32,7 @@ class ServerConnectNewAPI(
                 json(
                     objectSchema()
                         .property("platformCode", stringSchema())
-                        .property("favicon", stringSchema())
+                        .optionalProperty("favicon", stringSchema())
                         .property("serverName", stringSchema())
                         .property("playerCount", numberSchema())
                         .property("maxPlayerCount", numberSchema())
@@ -60,7 +60,7 @@ class ServerConnectNewAPI(
             maxPlayerCount = data.getLong("maxPlayerCount"),
             type = ServerType.valueOf(data.getString("serverType")),
             version = data.getString("serverVersion"),
-            favicon = data.getString("favicon"),
+            favicon = data.getString("favicon") ?: "",
             status = ServerStatus.OFFLINE
         )
 

@@ -16,6 +16,10 @@ interface ServerDao : Dao<Server> {
         sqlConnection: SqlConnection
     ): Server?
 
+    suspend fun getAllByPermissionGranted(
+        sqlConnection: SqlConnection
+    ): List<Server>
+
     suspend fun count(
         sqlConnection: SqlConnection
     ): Long

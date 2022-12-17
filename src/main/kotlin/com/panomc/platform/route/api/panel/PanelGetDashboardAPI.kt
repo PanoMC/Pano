@@ -204,6 +204,10 @@ class PanelGetDashboardAPI(
         websiteActivityDataList["visitorData"] = visitorDateMap
         websiteActivityDataList["viewData"] = viewsDateMap
 
+        val connectedServerCount = databaseManager.serverDao.countOfPermissionGranted(sqlConnection)
+
+        result["connectedServerCount"] = connectedServerCount
+
         return Successful(result)
     }
 }

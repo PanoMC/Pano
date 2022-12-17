@@ -23,6 +23,9 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `name` varchar(255) NOT NULL,
+                              `motd` text NOT NULL,
+                              `host` varchar(255) NOT NULL,
+                              `port` int(5) NOT NULL,
                               `player_count` bigint NOT NULL,
                               `max_player_count` bigint NOT NULL,
                               `server_type` varchar(255) NOT NULL,
@@ -43,14 +46,17 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         sqlConnection: SqlConnection
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (name, player_count, max_player_count, server_type, server_version, favicon, status) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `status`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     server.name,
+                    server.motd,
+                    server.host,
+                    server.port,
                     server.playerCount,
                     server.maxPlayerCount,
                     server.type,
@@ -65,7 +71,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getById(id: Long, sqlConnection: SqlConnection): Server? {
         val query =
-            "SELECT `id`, `name`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -87,7 +93,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getAllByPermissionGranted(sqlConnection: SqlConnection): List<Server> {
         val query =
-            "SELECT `id`, `name`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

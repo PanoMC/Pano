@@ -34,6 +34,9 @@ class ServerConnectNewAPI(
                         .property("platformCode", stringSchema())
                         .optionalProperty("favicon", stringSchema())
                         .property("serverName", stringSchema())
+                        .optionalProperty("motd", stringSchema())
+                        .property("host", stringSchema())
+                        .property("port", intSchema())
                         .property("playerCount", numberSchema())
                         .property("maxPlayerCount", numberSchema())
                         .property("serverType", enumSchema(*ServerType.values().map { it.toString() }.toTypedArray()))
@@ -56,6 +59,9 @@ class ServerConnectNewAPI(
 
         val server = Server(
             name = data.getString("serverName"),
+            motd = data.getString("motd") ?: "",
+            host = data.getString("host"),
+            port = data.getInteger("port"),
             playerCount = data.getLong("playerCount"),
             maxPlayerCount = data.getLong("maxPlayerCount"),
             type = ServerType.valueOf(data.getString("serverType")),

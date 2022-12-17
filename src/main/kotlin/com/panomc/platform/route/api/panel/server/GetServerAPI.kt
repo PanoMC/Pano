@@ -1,10 +1,9 @@
-package com.panomc.platform.route.api.server
+package com.panomc.platform.route.api.panel.server
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.server.ServerManager
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
@@ -15,13 +14,12 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
-class RejectServerConnectRequestAPI(
+class GetServerAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
-    authProvider: AuthProvider,
-    private val serverManager: ServerManager
-) : LoggedInApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/servers/:id/reject", RouteType.POST))
+    authProvider: AuthProvider
+) : PanelApi(setupManager, authProvider) {
+    override val paths = listOf(Path("/api/panel/servers/:id", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
@@ -34,18 +32,12 @@ class RejectServerConnectRequestAPI(
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val exists = databaseManager.serverDao.existsById(id, sqlConnection)
+        val server = databaseManager.serverDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        if (!exists) {
-            return Error(ErrorCode.NOT_EXISTS)
-        }
-
-        if (serverManager.isConnected(id)) {
-            serverManager.closeConnection(id)
-        }
-
-        databaseManager.serverDao.deleteById(id, sqlConnection)
-
-        return Successful()
+        return Successful(
+            mapOf(
+                "server" to server
+            )
+        )
     }
 }

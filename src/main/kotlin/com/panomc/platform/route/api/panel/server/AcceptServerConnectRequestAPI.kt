@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.server
+package com.panomc.platform.route.api.panel.server
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
@@ -18,8 +18,8 @@ class AcceptServerConnectRequestAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
     authProvider: AuthProvider
-) : LoggedInApi(setupManager, authProvider) {
-    override val paths = listOf(Path("/api/servers/:id/accept", RouteType.POST))
+) : PanelApi(setupManager, authProvider) {
+    override val paths = listOf(Path("/api/panel/servers/:id/accept", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

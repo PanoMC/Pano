@@ -4,8 +4,6 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
 import com.panomc.platform.util.SetupManager
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
@@ -14,8 +12,7 @@ class CheckAPI(
 ) : SetupApi(setupManager) {
     override val paths = listOf(Path("/api/setup/step/check", RouteType.GET))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser).build()
+    override fun getValidationHandler(schemaParser: SchemaParser) = null
 
     override suspend fun handler(context: RoutingContext): Result {
         return Successful(setupManager.getCurrentStepData().map)

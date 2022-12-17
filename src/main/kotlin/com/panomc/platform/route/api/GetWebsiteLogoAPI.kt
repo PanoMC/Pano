@@ -7,8 +7,6 @@ import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import java.io.File
 
@@ -16,8 +14,7 @@ import java.io.File
 class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
     override val paths = listOf(Path("/api/websiteLogo", RouteType.GET))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser).build()
+    override fun getValidationHandler(schemaParser: SchemaParser) = null
 
     override suspend fun handler(context: RoutingContext): Result? {
         val websiteLogoPath = configManager.getConfig().getJsonObject("file-paths").getString("websiteLogo")

@@ -20,6 +20,10 @@ interface ServerDao : Dao<Server> {
         sqlConnection: SqlConnection
     ): List<Server>
 
+    suspend fun countOfPermissionGranted(
+        sqlConnection: SqlConnection
+    ): Long
+
     suspend fun count(
         sqlConnection: SqlConnection
     ): Long

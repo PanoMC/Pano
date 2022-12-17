@@ -105,6 +105,19 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return Server.from(rows)
     }
 
+    override suspend fun countOfPermissionGranted(sqlConnection: SqlConnection): Long {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(1)
+            )
+            .await()
+
+        return rows.toList()[0].getLong(0)
+    }
+
     override suspend fun count(sqlConnection: SqlConnection): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 

@@ -31,6 +31,7 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .await()
 
         addShowGettingStartedOption(sqlConnection)
+        addMainServerOption(sqlConnection)
     }
 
     override suspend fun add(
@@ -139,5 +140,11 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         sqlConnection: SqlConnection
     ) {
         add(SystemProperty(option = "show_getting_started", value = "true"), sqlConnection)
+    }
+
+    private suspend fun addMainServerOption(
+        sqlConnection: SqlConnection
+    ) {
+        add(SystemProperty(option = "main_server", value = "-1"), sqlConnection)
     }
 }

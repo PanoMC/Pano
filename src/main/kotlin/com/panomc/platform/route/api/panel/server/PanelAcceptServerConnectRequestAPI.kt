@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.server
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.SetupManager
@@ -39,6 +40,20 @@ class PanelAcceptServerConnectRequestAPI(
         }
 
         databaseManager.serverDao.updatePermissionGrantedById(id, true, sqlConnection)
+
+        val mainServerId = databaseManager.systemPropertyDao.getValue(
+            SystemProperty(option = "main_server"),
+            sqlConnection
+        )!!.value.toLong()
+
+        if (mainServerId == -1L) {
+            databaseManager.systemPropertyDao.update(
+                SystemProperty(
+                    option = "main_server",
+                    value = id.toString()
+                ), sqlConnection
+            )
+        }
 
         return Successful()
     }

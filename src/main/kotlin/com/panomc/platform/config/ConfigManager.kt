@@ -34,6 +34,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
                     "website-description" to "",
                     "support-email" to "",
                     "server-ip-address" to "play.ipadress.com",
+                    "server-game-version" to "1.8.x",
                     "keywords" to listOf<String>(),
 
                     "setup" to mapOf(

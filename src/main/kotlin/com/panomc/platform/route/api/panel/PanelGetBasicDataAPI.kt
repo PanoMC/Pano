@@ -4,6 +4,8 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Server
+import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.PlatformCodeManager
@@ -35,7 +37,15 @@ class PanelGetBasicDataAPI(
 
         val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
 
-        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlConnection)
+        val mainServerId = databaseManager.systemPropertyDao.getValue(
+            SystemProperty(option = "main_server"),
+            sqlConnection
+        )?.value?.toLong()
+        var mainServer: Server? = null
+
+        if (mainServerId != null && mainServerId != -1L) {
+            mainServer = databaseManager.serverDao.getById(mainServerId, sqlConnection)
+        }
 
         return Successful(
             mapOf(
@@ -51,7 +61,7 @@ class PanelGetBasicDataAPI(
                 "platformServerMatchKey" to platformCodeManager.getPlatformKey(),
                 "platformServerMatchKeyTimeStarted" to platformCodeManager.getTimeStarted(),
                 "platformHostAddress" to context.request().host(),
-                "servers" to servers,
+                "mainServer" to mainServer,
                 "notificationCount" to count,
                 "locale" to configManager.getConfig().getString("locale")
             )

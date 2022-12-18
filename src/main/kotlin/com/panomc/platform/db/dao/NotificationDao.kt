@@ -67,6 +67,11 @@ interface NotificationDao : Dao<Notification> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun markReadById(
+        id: Long,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun deleteAllByUserId(
         userId: Long,
         sqlConnection: SqlConnection

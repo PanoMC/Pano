@@ -47,6 +47,16 @@ class PanelGetBasicDataAPI(
             mainServer = databaseManager.serverDao.getById(mainServerId, sqlConnection)
         }
 
+        val selectedServerPanelConfig =
+            databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlConnection)
+        var selectedServer: Server? = null
+
+        if (selectedServerPanelConfig != null) {
+            val selectedServerId = selectedServerPanelConfig.value.toLong()
+
+            selectedServer = databaseManager.serverDao.getById(selectedServerId, sqlConnection)
+        }
+
         return Successful(
             mapOf(
                 "user" to mapOf(
@@ -62,6 +72,7 @@ class PanelGetBasicDataAPI(
                 "platformServerMatchKeyTimeStarted" to platformCodeManager.getTimeStarted(),
                 "platformHostAddress" to context.request().host(),
                 "mainServer" to mainServer,
+                "selectedServer" to selectedServer,
                 "notificationCount" to count,
                 "locale" to configManager.getConfig().getString("locale")
             )

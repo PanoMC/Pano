@@ -47,6 +47,7 @@ class PanelGetSettingsAPI(
             result["websiteDescription"] = configManager.getConfig().getString("website-description")
             result["supportEmail"] = configManager.getConfig().getString("support-email")
             result["serverIpAddress"] = configManager.getConfig().getString("server-ip-address")
+            result["serverGameVersion"] = configManager.getConfig().getString("server-game-version")
             result["keywords"] = configManager.getConfig().getJsonArray("keywords")
         }
 

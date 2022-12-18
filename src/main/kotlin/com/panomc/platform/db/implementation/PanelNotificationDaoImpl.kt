@@ -286,6 +286,20 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
             ).await()
     }
 
+    override suspend fun markReadById(id: Long, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `status` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    NotificationStatus.READ,
+                    id
+                )
+            ).await()
+    }
+
     override suspend fun deleteAllByUserId(
         userId: Long,
         sqlConnection: SqlConnection

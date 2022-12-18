@@ -72,6 +72,11 @@ interface PanelNotificationDao : Dao<PanelNotification> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun markReadById(
+        id: Long,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun deleteAllByUserId(
         userId: Long,
         sqlConnection: SqlConnection

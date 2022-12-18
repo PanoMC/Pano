@@ -77,6 +77,7 @@ class PanelUpdateSettingAPI(
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("supportEmail", stringSchema())
                         .optionalProperty("serverIpAddress", stringSchema())
+                        .optionalProperty("serverGameVersion", stringSchema())
                         .optionalProperty("keywords", arraySchema().items(stringSchema()))
                 )
             )
@@ -94,6 +95,7 @@ class PanelUpdateSettingAPI(
         val websiteDescription = data.getString("websiteDescription")
         val supportEmail = data.getString("supportEmail")
         val serverIpAddress = data.getString("serverIpAddress")
+        val serverGameVersion = data.getString("serverGameVersion")
         val keywords = data.getJsonArray("keywords")
 
         if (fileUploads.size > 0) {
@@ -141,6 +143,10 @@ class PanelUpdateSettingAPI(
 
         if (serverIpAddress != null) {
             configManager.getConfig().put("server-ip-address", serverIpAddress)
+        }
+
+        if (serverGameVersion != null) {
+            configManager.getConfig().put("server-game-version", serverGameVersion)
         }
 
         if (keywords != null) {

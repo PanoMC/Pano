@@ -10,4 +10,9 @@ interface PanelConfigDao : Dao<PanelConfig> {
         option: String,
         sqlConnection: SqlConnection
     ): PanelConfig?
+
+    suspend fun add(
+        panelConfig: PanelConfig,
+        sqlConnection: SqlConnection
+    )
 }

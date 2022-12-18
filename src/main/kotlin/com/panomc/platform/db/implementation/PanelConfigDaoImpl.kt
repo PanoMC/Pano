@@ -48,4 +48,19 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
 
         return PanelConfig.from(row)
     }
+
+    override suspend fun add(panelConfig: PanelConfig, sqlConnection: SqlConnection) {
+        val query = "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `option`, `value`) VALUES (?, ?, ?)"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    panelConfig.userId,
+                    panelConfig.option,
+                    panelConfig.value
+                )
+            )
+            .await()
+    }
 }

@@ -33,7 +33,7 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
 
     override suspend fun byUserIdAndOption(userId: Long, option: String, sqlConnection: SqlConnection): PanelConfig? {
         val query =
-            "SELECT `id`, `option`, `value` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND `option` = ?"
+            "SELECT `id`, `user_id`, `option`, `value` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND `option` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

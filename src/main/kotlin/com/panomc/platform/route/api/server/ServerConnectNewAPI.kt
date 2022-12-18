@@ -6,6 +6,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.model.*
 import com.panomc.platform.util.*
 import io.vertx.core.json.JsonObject
@@ -77,6 +78,20 @@ class ServerConnectNewAPI(
         val (token, expireDate) = tokenProvider.generateToken(serverId.toString(), TokenType.SERVER_AUTHENTICATION)
 
         tokenProvider.saveToken(token, serverId.toString(), TokenType.SERVER_AUTHENTICATION, expireDate, sqlConnection)
+
+        val mainServerId = databaseManager.systemPropertyDao.getValue(
+            SystemProperty(option = "main_server"),
+            sqlConnection
+        )!!.value.toLong()
+
+        if (mainServerId == -1L) {
+            databaseManager.systemPropertyDao.update(
+                SystemProperty(
+                    option = "main_server",
+                    value = serverId.toString()
+                ), sqlConnection
+            )
+        }
 
         val adminList = authProvider.getAdminList(sqlConnection)
 

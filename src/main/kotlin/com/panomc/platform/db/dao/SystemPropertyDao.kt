@@ -11,12 +11,13 @@ interface SystemPropertyDao : Dao<SystemProperty> {
     )
 
     suspend fun update(
-        systemProperty: SystemProperty,
+        option: String,
+        value: String,
         sqlConnection: SqlConnection
     )
 
-    suspend fun isPropertyExists(
-        systemProperty: SystemProperty,
+    suspend fun existsByOption(
+        option: String,
         sqlConnection: SqlConnection
     ): Boolean
 
@@ -25,8 +26,8 @@ interface SystemPropertyDao : Dao<SystemProperty> {
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun getValue(
-        systemProperty: SystemProperty,
+    suspend fun getByOption(
+        option: String,
         sqlConnection: SqlConnection
     ): SystemProperty?
 }

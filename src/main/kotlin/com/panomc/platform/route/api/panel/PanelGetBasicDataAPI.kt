@@ -5,7 +5,6 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
-import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.PlatformCodeManager
@@ -37,8 +36,8 @@ class PanelGetBasicDataAPI(
 
         val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
 
-        val mainServerId = databaseManager.systemPropertyDao.getValue(
-            SystemProperty(option = "main_server"),
+        val mainServerId = databaseManager.systemPropertyDao.getByOption(
+            "main_server",
             sqlConnection
         )?.value?.toLong()
         var mainServer: Server? = null

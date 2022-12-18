@@ -3,7 +3,6 @@ package com.panomc.platform.route.api.server
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.model.*
 import com.panomc.platform.util.ServerAuthProvider
 import com.panomc.platform.util.SetupManager
@@ -39,14 +38,15 @@ class ServerDisconnectAPI(
             return Error(ErrorCode.INVALID_TOKEN)
         }
 
-        val mainServerId = databaseManager.systemPropertyDao.getValue(
-            SystemProperty(option = "main_server"),
+        val mainServerId = databaseManager.systemPropertyDao.getByOption(
+            "main_server",
             sqlConnection
         )!!.value.toLong()
 
         if (mainServerId == serverId) {
             databaseManager.systemPropertyDao.update(
-                SystemProperty(option = "main_server", value = "-1"),
+                "main_server",
+                "-1",
                 sqlConnection
             )
         }

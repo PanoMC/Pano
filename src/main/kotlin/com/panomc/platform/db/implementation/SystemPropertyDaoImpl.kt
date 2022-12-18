@@ -52,32 +52,27 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
     }
 
     override suspend fun update(
-        systemProperty: SystemProperty,
+        option: String,
+        value: String,
         sqlConnection: SqlConnection
     ) {
-        val params = Tuple.tuple()
-
-        params.addString(systemProperty.value)
-
-        if (systemProperty.id == -1L)
-            params.addString(systemProperty.option)
-        else
-            params.addLong(systemProperty.id)
-
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET value = ? ${if (systemProperty.id != -1L) ", option = ?" else ""} WHERE `${if (systemProperty.id == -1L) "option" else "id"}` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `value` = ? WHERE `option` = ?"
 
         sqlConnection
             .preparedQuery(query)
             .execute(
-                params
+                Tuple.of(
+                    value,
+                    option
+                )
             )
             .await()
     }
 
 
-    override suspend fun isPropertyExists(
-        systemProperty: SystemProperty,
+    override suspend fun existsByOption(
+        option: String,
         sqlConnection: SqlConnection
     ): Boolean {
         val query = "SELECT COUNT(`value`) FROM `${getTablePrefix() + tableName}` where `option` = ?"
@@ -85,7 +80,7 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
-                Tuple.of(systemProperty.option)
+                Tuple.of(option)
             )
             .await()
 
@@ -112,8 +107,8 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return rows.toList()[0].getLong(0) != 0L
     }
 
-    override suspend fun getValue(
-        systemProperty: SystemProperty,
+    override suspend fun getByOption(
+        option: String,
         sqlConnection: SqlConnection
     ): SystemProperty? {
         val query = "SELECT `id`, `option`, `value` FROM `${getTablePrefix() + tableName}` where `option` = ?"
@@ -122,7 +117,7 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    systemProperty.option
+                    option
                 )
             )
             .await()

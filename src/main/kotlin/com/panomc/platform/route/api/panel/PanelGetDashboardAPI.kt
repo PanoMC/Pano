@@ -4,7 +4,6 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
-import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AuthProvider
@@ -69,10 +68,8 @@ class PanelGetDashboardAPI(
             databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlConnection)
 
         if (isUserInstalled) {
-            val systemProperty = databaseManager.systemPropertyDao.getValue(
-                SystemProperty(
-                    option = "show_getting_started"
-                ),
+            val systemProperty = databaseManager.systemPropertyDao.getByOption(
+                "show_getting_started",
                 sqlConnection
             ) ?: throw Error(ErrorCode.UNKNOWN)
 

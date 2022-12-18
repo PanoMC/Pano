@@ -4,7 +4,6 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
-import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -28,8 +27,8 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
 
         val sqlConnection = createConnection(databaseManager, context)
 
-        val mainServerId = databaseManager.systemPropertyDao.getValue(
-            SystemProperty(option = "main_server"),
+        val mainServerId = databaseManager.systemPropertyDao.getByOption(
+            "main_server",
             sqlConnection
         )?.value?.toLong()
         var mainServer: Server? = null

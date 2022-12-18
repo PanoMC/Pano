@@ -118,14 +118,15 @@ object RegisterUtil {
         userId = databaseManager.userDao.add(adminUser, sqlConnection, isSetup)
         val property = SystemProperty(option = "who_installed_user_id", value = userId.toString())
 
-        val isPropertyExists = databaseManager.systemPropertyDao.isPropertyExists(
-            property,
+        val isPropertyExists = databaseManager.systemPropertyDao.existsByOption(
+            property.option,
             sqlConnection
         )
 
         if (isPropertyExists) {
             databaseManager.systemPropertyDao.update(
-                property,
+                property.option,
+                property.value,
                 sqlConnection
             )
 

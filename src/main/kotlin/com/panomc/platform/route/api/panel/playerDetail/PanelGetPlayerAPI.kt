@@ -58,6 +58,7 @@ class PanelGetPlayerAPI(
             "username" to user.username,
             "email" to user.email,
             "registerDate" to user.registerDate,
+            "lastLoginDate" to user.lastLoginDate,
             "isBanned" to user.banned,
             "isEmailVerified" to user.emailVerified,
             "permissionGroup" to "-"

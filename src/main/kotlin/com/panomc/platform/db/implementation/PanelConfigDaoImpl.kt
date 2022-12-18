@@ -63,4 +63,19 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
             )
             .await()
     }
+
+    override suspend fun updateValueById(id: Long, value: String, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `value` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    value,
+                    id
+                )
+            )
+            .await()
+    }
 }

@@ -15,4 +15,10 @@ interface PanelConfigDao : Dao<PanelConfig> {
         panelConfig: PanelConfig,
         sqlConnection: SqlConnection
     )
+
+    suspend fun updateValueById(
+        id: Long,
+        value: String,
+        sqlConnection: SqlConnection
+    )
 }

@@ -95,7 +95,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
             .setComments(true)        // true: keep original comment
             .setFormatted(true)
 
-        val parsedConfig = ConfigFactory.parseMap(config.map)
+        val parsedConfig = ConfigFactory.parseString(config.toString())
 
         configFile.writeText(parsedConfig.root().render(renderOptions))
     }

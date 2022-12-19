@@ -47,7 +47,7 @@ class GetTicketMessagesAPI(
             throw Error(ErrorCode.NO_PERMISSION)
         }
 
-        val isTicketMessageIdExists = databaseManager.ticketMessageDao.isExistsById(id, sqlConnection)
+        val isTicketMessageIdExists = databaseManager.ticketMessageDao.isExistsById(lastMessageId, sqlConnection)
 
         if (!isTicketMessageIdExists) {
             throw Error(ErrorCode.NOT_EXISTS)

@@ -1,12 +1,25 @@
 package com.panomc.platform.server
 
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.ServerWebSocket
 import org.slf4j.Logger
 
-class ServerManager(private val logger: Logger) {
+class ServerManager(private val logger: Logger, private val databaseManager: DatabaseManager) {
     private val connectedServers = mutableMapOf<Server, ServerWebSocket>()
+
+    suspend fun init() {
+        val sqlConnection = databaseManager.createConnection()
+
+        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlConnection)
+
+        servers.forEach { server ->
+            databaseManager.serverDao.updateStatusById(server.id, ServerStatus.OFFLINE, sqlConnection)
+        }
+
+        databaseManager.closeConnection(sqlConnection)
+    }
 
     fun onServerConnect(server: Server, serverWebSocket: ServerWebSocket) {
         connectedServers[server] = serverWebSocket

@@ -3,6 +3,7 @@ package com.panomc.platform
 import com.panomc.platform.annotation.Boot
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.TimeUtil
 import io.vertx.core.Vertx
@@ -119,6 +120,8 @@ class Main : CoroutineVerticle() {
 
         if (isPlatformInstalled) {
             initDatabaseManager()
+
+            initServerManager()
         }
 
         initRoutes()
@@ -186,6 +189,14 @@ class Main : CoroutineVerticle() {
         val databaseManager = applicationContext.getBean(DatabaseManager::class.java)
 
         databaseManager.init()
+    }
+
+    private suspend fun initServerManager() {
+        logger.info("Initializing server manager")
+
+        val serverManager = applicationContext.getBean(ServerManager::class.java)
+
+        serverManager.init()
     }
 
     private fun initRoutes() {

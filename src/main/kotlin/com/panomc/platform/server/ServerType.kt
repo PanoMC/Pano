@@ -1,4 +1,4 @@
-package com.panomc.platform.util
+package com.panomc.platform.server
 
 enum class ServerType {
     BUNGEECORD,

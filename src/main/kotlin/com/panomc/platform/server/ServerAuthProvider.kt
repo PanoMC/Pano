@@ -1,6 +1,8 @@
-package com.panomc.platform.util
+package com.panomc.platform.server
 
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
 
 class ServerAuthProvider(

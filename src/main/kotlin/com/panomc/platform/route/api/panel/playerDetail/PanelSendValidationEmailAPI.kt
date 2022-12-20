@@ -2,12 +2,12 @@ package com.panomc.platform.route.api.panel.playerDetail
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.mail.ActivationMail
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.mails.ActivationMail
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.MailUtil
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
@@ -20,7 +20,7 @@ class PanelSendValidationEmailAPI(
     setupManager: SetupManager,
     authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val mailUtil: MailUtil
+    private val mailManager: MailManager
 ) : PanelApi(setupManager, authProvider) {
     override val paths = listOf(Path("/api/panel/players/:username/verificationMail", RouteType.POST))
 
@@ -51,7 +51,7 @@ class PanelSendValidationEmailAPI(
             throw Error(ErrorCode.EMAIL_ALREADY_VERIFIED)
         }
 
-        mailUtil.sendMail(sqlConnection, userId, ActivationMail())
+        mailManager.sendMail(sqlConnection, userId, ActivationMail())
 
         return Successful()
     }

@@ -3,7 +3,7 @@ package com.panomc.platform.route.api.setup
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.mail.MailClient
 import io.vertx.ext.mail.MailConfig
 import io.vertx.ext.mail.MailMessage

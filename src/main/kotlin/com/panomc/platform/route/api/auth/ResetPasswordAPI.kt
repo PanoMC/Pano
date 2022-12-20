@@ -3,9 +3,9 @@ package com.panomc.platform.route.api.auth
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.mail.ResetPasswordMail
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.mails.ResetPasswordMail
 import com.panomc.platform.model.*
-import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -16,7 +16,7 @@ import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class ResetPasswordAPI(
-    private val mailUtil: MailUtil,
+    private val mailManager: MailManager,
     private val databaseManager: DatabaseManager
 ) : Api() {
     override val paths = listOf(Path("/api/auth/resetPassword", RouteType.POST))
@@ -53,7 +53,7 @@ class ResetPasswordAPI(
                 ErrorCode.NOT_EXISTS
             )
 
-        mailUtil.sendMail(sqlConnection, userId, ResetPasswordMail())
+        mailManager.sendMail(sqlConnection, userId, ResetPasswordMail())
 
         return Successful()
     }

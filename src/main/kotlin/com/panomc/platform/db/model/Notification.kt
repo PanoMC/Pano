@@ -1,6 +1,6 @@
 package com.panomc.platform.db.model
 
-import com.panomc.platform.util.NotificationStatus
+import com.panomc.platform.notification.NotificationStatus
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet

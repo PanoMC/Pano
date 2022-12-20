@@ -1,6 +1,6 @@
 package com.panomc.platform.db.model
 
-import com.panomc.platform.util.TokenType
+import com.panomc.platform.token.TokenType
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 

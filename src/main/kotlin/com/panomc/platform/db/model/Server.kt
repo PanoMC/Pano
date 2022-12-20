@@ -1,7 +1,7 @@
 package com.panomc.platform.db.model
 
-import com.panomc.platform.util.ServerStatus
-import com.panomc.platform.util.ServerType
+import com.panomc.platform.server.ServerStatus
+import com.panomc.platform.server.ServerType
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 

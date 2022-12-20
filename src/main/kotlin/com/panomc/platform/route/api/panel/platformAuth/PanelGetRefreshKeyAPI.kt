@@ -1,13 +1,13 @@
 package com.panomc.platform.route.api.panel.platformAuth
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.PlatformCodeManager
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.server.PlatformCodeManager
+import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaParser
 

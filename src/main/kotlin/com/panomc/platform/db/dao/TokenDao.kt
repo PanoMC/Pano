@@ -2,7 +2,7 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Token
-import com.panomc.platform.util.TokenType
+import com.panomc.platform.token.TokenType
 import io.vertx.sqlclient.SqlConnection
 
 interface TokenDao : Dao<Token> {

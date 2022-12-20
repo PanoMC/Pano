@@ -1,7 +1,7 @@
 package com.panomc.platform.mail
 
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.util.TokenProvider
+import com.panomc.platform.token.TokenProvider
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 

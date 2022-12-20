@@ -2,7 +2,7 @@ package com.panomc.platform.route.api.setup.step
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaParser
 

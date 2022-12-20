@@ -1,4 +1,4 @@
-package com.panomc.platform.util
+package com.panomc.platform.token
 
 import java.util.*
 

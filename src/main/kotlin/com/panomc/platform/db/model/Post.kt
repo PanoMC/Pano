@@ -1,8 +1,8 @@
 package com.panomc.platform.db.model
 
+import com.panomc.platform.AppConstants
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.util.AppConstants
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.PostStatus
 import io.vertx.sqlclient.Row

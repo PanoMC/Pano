@@ -2,13 +2,13 @@ package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.notification.PasswordUpdatedMail
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.MailUtil
-import com.panomc.platform.util.TokenProvider
-import com.panomc.platform.util.TokenType
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
@@ -18,7 +18,7 @@ import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class RenewPasswordAPI(
-    private val mailUtil: MailUtil,
+    private val mailManager: MailManager,
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
     private val authProvider: AuthProvider
@@ -62,7 +62,7 @@ class RenewPasswordAPI(
 
         tokenProvider.invalidateToken(token, sqlConnection)
 
-        mailUtil.sendMail(sqlConnection, userId, PasswordUpdatedMail())
+        mailManager.sendMail(sqlConnection, userId, PasswordUpdatedMail())
 
         return Successful()
     }

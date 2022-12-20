@@ -3,7 +3,7 @@ package com.panomc.platform
 import com.panomc.platform.annotation.Boot
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.TimeUtil
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions

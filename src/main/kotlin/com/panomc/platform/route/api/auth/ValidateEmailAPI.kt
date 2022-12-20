@@ -2,11 +2,11 @@ package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.TokenProvider
-import com.panomc.platform.util.TokenType
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies

@@ -1,8 +1,8 @@
 package com.panomc.platform.model
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher

@@ -2,9 +2,9 @@ package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.mail.ActivationMail
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.mails.ActivationMail
 import com.panomc.platform.model.*
-import com.panomc.platform.util.MailUtil
 import com.panomc.platform.util.RegisterUtil
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.ext.web.RoutingContext
@@ -18,7 +18,7 @@ import io.vertx.json.schema.common.dsl.Schemas
 class RegisterAPI(
     private val reCaptcha: ReCaptcha,
     private val databaseManager: DatabaseManager,
-    private val mailUtil: MailUtil
+    private val mailManager: MailManager
 ) : Api() {
     override val paths = listOf(Path("/api/auth/register", RouteType.POST))
 
@@ -65,7 +65,7 @@ class RegisterAPI(
             isSetup = false
         )
 
-        mailUtil.sendMail(sqlConnection, userId, ActivationMail())
+        mailManager.sendMail(sqlConnection, userId, ActivationMail())
 
         return Successful()
     }

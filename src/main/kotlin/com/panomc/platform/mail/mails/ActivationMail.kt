@@ -1,8 +1,9 @@
-package com.panomc.platform.mail
+package com.panomc.platform.mail.mails
 
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.util.TokenProvider
-import com.panomc.platform.util.TokenType
+import com.panomc.platform.mail.Mail
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.TokenType
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 

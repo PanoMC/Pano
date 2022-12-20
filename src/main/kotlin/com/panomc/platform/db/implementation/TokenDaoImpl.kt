@@ -5,7 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TokenDao
 import com.panomc.platform.db.model.Token
-import com.panomc.platform.util.TokenType
+import com.panomc.platform.token.TokenType
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row

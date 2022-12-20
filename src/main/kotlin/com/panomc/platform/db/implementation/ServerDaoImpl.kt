@@ -5,7 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.ServerDao
 import com.panomc.platform.db.model.Server
-import com.panomc.platform.util.ServerStatus
+import com.panomc.platform.server.ServerStatus
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row

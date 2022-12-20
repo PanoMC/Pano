@@ -5,7 +5,7 @@ import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PanelNotificationDao
 import com.panomc.platform.db.model.PanelNotification
-import com.panomc.platform.util.NotificationStatus
+import com.panomc.platform.notification.NotificationStatus
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet

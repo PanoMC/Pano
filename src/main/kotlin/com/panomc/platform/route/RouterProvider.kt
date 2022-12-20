@@ -1,4 +1,4 @@
-package com.panomc.platform.util
+package com.panomc.platform.route
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager

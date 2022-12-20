@@ -1,4 +1,4 @@
-package com.panomc.platform.util
+package com.panomc.platform.setup
 
 import com.panomc.platform.config.ConfigManager
 import io.vertx.core.json.JsonObject

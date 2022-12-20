@@ -1,16 +1,16 @@
-package com.panomc.platform.util
+package com.panomc.platform.mail
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.mail.Mail
 import com.panomc.platform.model.Error
+import com.panomc.platform.token.TokenProvider
 import io.vertx.ext.mail.MailMessage
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
 
-class MailUtil(
+class MailManager(
     private val configManager: ConfigManager,
     private val templateEngine: HandlebarsTemplateEngine,
     private val mailClientProvider: MailClientProvider,

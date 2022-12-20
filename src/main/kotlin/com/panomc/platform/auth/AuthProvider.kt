@@ -1,8 +1,11 @@
-package com.panomc.platform.util
+package com.panomc.platform.auth
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Error
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.TokenType
+import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
 

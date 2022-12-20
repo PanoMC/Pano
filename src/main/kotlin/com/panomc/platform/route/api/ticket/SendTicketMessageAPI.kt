@@ -1,14 +1,14 @@
 package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.Notifications
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.notification.Notifications
+import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler

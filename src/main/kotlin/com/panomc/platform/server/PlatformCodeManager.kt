@@ -1,4 +1,4 @@
-package com.panomc.platform.util
+package com.panomc.platform.server
 
 import io.vertx.core.Vertx
 import java.util.*

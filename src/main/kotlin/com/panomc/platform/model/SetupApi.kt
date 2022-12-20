@@ -1,7 +1,7 @@
 package com.panomc.platform.model
 
 import com.panomc.platform.ErrorCode
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 

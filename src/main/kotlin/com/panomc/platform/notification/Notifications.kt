@@ -1,4 +1,4 @@
-package com.panomc.platform
+package com.panomc.platform.notification
 
 enum class Notifications {
     ;

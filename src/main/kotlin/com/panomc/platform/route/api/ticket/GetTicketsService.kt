@@ -1,13 +1,13 @@
 package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.ErrorCode
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
-import com.panomc.platform.util.AuthProvider
 import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestParameters

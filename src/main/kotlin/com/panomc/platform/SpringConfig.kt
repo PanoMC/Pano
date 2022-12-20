@@ -1,8 +1,16 @@
 package com.panomc.platform
 
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.mail.MailClientProvider
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.route.RouterProvider
+import com.panomc.platform.server.PlatformCodeManager
+import com.panomc.platform.server.ServerAuthProvider
 import com.panomc.platform.server.ServerManager
+import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.util.*
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
@@ -66,7 +74,7 @@ open class SpringConfig {
         mailClientProvider: MailClientProvider,
         databaseManager: DatabaseManager,
         tokenProvider: TokenProvider
-    ) = MailUtil(configManager, templateEngine, mailClientProvider, databaseManager, tokenProvider)
+    ) = MailManager(configManager, templateEngine, mailClientProvider, databaseManager, tokenProvider)
 
     @Bean
     @Lazy

@@ -1,4 +1,4 @@
-package com.panomc.platform.util
+package com.panomc.platform
 
 object AppConstants {
     const val DEFAULT_POST_UPLOAD_PATH = "post"

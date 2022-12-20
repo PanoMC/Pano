@@ -1,11 +1,10 @@
 package com.panomc.platform.route.api.panel.settings
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AuthProvider
-import com.panomc.platform.util.SettingType
-import com.panomc.platform.util.SetupManager
+import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -52,5 +51,19 @@ class PanelGetSettingsAPI(
         }
 
         return Successful(result)
+    }
+
+    enum class SettingType(val type: String, val value: Int) {
+        GENERAL("general", 0),
+        WEBSITE("website", 1);
+
+        override fun toString(): String {
+            return type
+        }
+
+        companion object {
+            fun valueOf(type: String?) = values().find { it.type == type }
+            fun valueOf(value: Int) = values().find { it.value == value }
+        }
     }
 }

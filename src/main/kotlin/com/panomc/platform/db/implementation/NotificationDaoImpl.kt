@@ -58,6 +58,34 @@ class NotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             ).await()
     }
 
+    override suspend fun addAll(notifications: List<Notification>, sqlConnection: SqlConnection) {
+        val tuple = Tuple.tuple()
+        var listText = ""
+
+        notifications.forEach { notification ->
+            tuple.addValue(notification.userId)
+            tuple.addValue(notification.typeId)
+            tuple.addValue(notification.action)
+            tuple.addValue(notification.properties.toString())
+            tuple.addValue(notification.date)
+            tuple.addValue(notification.status)
+
+            if (listText == "")
+                listText = "(?, ?, ?, ?, ?, ?)"
+            else
+                listText += ", (?, ?, ?, ?, ?, ?)"
+        }
+
+        val query =
+            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type_id`, `action`, `properties`, `date`, `status`) " +
+                    "VALUES $listText"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(tuple)
+            .await()
+    }
+
     override suspend fun getCountOfNotReadByUserId(
         userId: Long,
         sqlConnection: SqlConnection

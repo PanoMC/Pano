@@ -10,6 +10,11 @@ interface NotificationDao : Dao<Notification> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun addAll(
+        notifications: List<Notification>,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun getCountOfNotReadByUserId(
         userId: Long,
         sqlConnection: SqlConnection

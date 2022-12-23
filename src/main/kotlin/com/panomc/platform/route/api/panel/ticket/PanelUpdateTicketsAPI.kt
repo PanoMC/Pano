@@ -4,8 +4,8 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.Notification
 import com.panomc.platform.model.*
+import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
@@ -20,7 +20,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 class PanelUpdateTicketsAPI(
     private val databaseManager: DatabaseManager,
     setupManager: SetupManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val notificationManager: NotificationManager
 ) : PanelApi(setupManager, authProvider) {
     override val paths = listOf(Path("/api/panel/tickets", RouteType.PUT))
 
@@ -64,13 +65,14 @@ class PanelUpdateTicketsAPI(
             selectedTickets.map { it.toString().toLong() }.forEach {
                 val ticket = databaseManager.ticketDao.getById(it, sqlConnection)!!
 
-                databaseManager.notificationDao.add(
-                    Notification(
-                        userId = ticket.userId,
-                        typeId = Notifications.UserNotification.AN_ADMIN_CLOSED_TICKET.typeId,
-                        action = Notifications.UserNotification.AN_ADMIN_CLOSED_TICKET.action,
-                        properties = JsonObject().put("id", it).put("whoClosed", username)
-                    ),
+                val notificationProperties = JsonObject()
+                    .put("id", it)
+                    .put("whoClosed", username)
+
+                notificationManager.sendNotification(
+                    ticket.userId,
+                    Notifications.UserNotificationType.AN_ADMIN_CLOSED_TICKET,
+                    notificationProperties,
                     sqlConnection
                 )
             }

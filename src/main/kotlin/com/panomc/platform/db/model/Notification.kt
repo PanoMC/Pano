@@ -8,8 +8,7 @@ import io.vertx.sqlclient.RowSet
 data class Notification(
     val id: Long = -1,
     val userId: Long,
-    val typeId: String,
-    val action: String,
+    val type: String,
     val properties: JsonObject = JsonObject(),
     val date: Long = System.currentTimeMillis(),
     val status: NotificationStatus = NotificationStatus.NOT_READ
@@ -19,10 +18,9 @@ data class Notification(
             row.getLong(0),
             row.getLong(1),
             row.getString(2),
-            row.getString(3),
-            if (row.getString(4).isNullOrEmpty()) JsonObject() else JsonObject(row.getString(4)),
-            row.getLong(5),
-            NotificationStatus.valueOf(row.getString(6)),
+            if (row.getString(3).isNullOrEmpty()) JsonObject() else JsonObject(row.getString(3)),
+            row.getLong(4),
+            NotificationStatus.valueOf(row.getString(5)),
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

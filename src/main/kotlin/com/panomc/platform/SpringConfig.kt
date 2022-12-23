@@ -5,6 +5,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.MailClientProvider
 import com.panomc.platform.mail.MailManager
+import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.server.PlatformCodeManager
 import com.panomc.platform.server.ServerAuthProvider
@@ -137,4 +138,12 @@ open class SpringConfig {
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun provideServerManager(databaseManager: DatabaseManager): ServerManager =
         ServerManager(logger, databaseManager)
+
+    @Bean
+    @Lazy
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun provideNotificationManager(
+        databaseManager: DatabaseManager,
+        authProvider: AuthProvider
+    ): NotificationManager = NotificationManager(databaseManager, authProvider)
 }

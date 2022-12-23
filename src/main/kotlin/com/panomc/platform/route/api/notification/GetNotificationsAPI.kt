@@ -35,8 +35,7 @@ class GetNotificationsAPI(
             notificationsDataList.add(
                 mapOf(
                     "id" to notification.id,
-                    "typeId" to notification.typeId,
-                    "action" to notification.action,
+                    "type" to notification.type,
                     "properties" to notification.properties,
                     "date" to notification.date,
                     "status" to notification.status,

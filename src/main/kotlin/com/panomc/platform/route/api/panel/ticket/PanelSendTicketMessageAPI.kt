@@ -4,9 +4,9 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.Notification
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
+import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
@@ -22,6 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 class PanelSendTicketMessageAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
+    private val notificationManager: NotificationManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
     override val paths = listOf(Path("/api/panel/tickets/:id/message", RouteType.POST))
@@ -58,13 +59,14 @@ class PanelSendTicketMessageAPI(
 
         databaseManager.ticketDao.makeStatus(ticketId, 2, sqlConnection)
 
-        databaseManager.notificationDao.add(
-            Notification(
-                userId = ticket.userId,
-                typeId = Notifications.UserNotification.AN_ADMIN_REPLIED_TICKET.typeId,
-                action = Notifications.UserNotification.AN_ADMIN_REPLIED_TICKET.action,
-                properties = JsonObject().put("id", ticketId).put("whoReplied", username)
-            ),
+        val notificationProperties = JsonObject()
+            .put("id", ticketId)
+            .put("whoReplied", username)
+
+        notificationManager.sendNotification(
+            ticket.userId,
+            Notifications.UserNotificationType.AN_ADMIN_REPLIED_TICKET,
+            notificationProperties,
             sqlConnection
         )
 

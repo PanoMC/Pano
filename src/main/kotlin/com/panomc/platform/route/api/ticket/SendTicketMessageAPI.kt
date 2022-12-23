@@ -4,9 +4,9 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
+import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
@@ -22,6 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 class SendTicketMessageAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
+    private val notificationManager: NotificationManager,
     setupManager: SetupManager
 ) : PanelApi(setupManager, authProvider) {
     override val paths = listOf(Path("/api/tickets/:id/message", RouteType.POST))
@@ -72,20 +73,13 @@ class SendTicketMessageAPI(
             sqlConnection
         )
 
-        val adminList = authProvider.getAdminList(sqlConnection)
+        val notificationProperties = JsonObject().put("id", ticketId)
 
-        val notifications = adminList.map { admin ->
-            val adminId = databaseManager.userDao.getUserIdFromUsername(admin, sqlConnection)!!
-
-            PanelNotification(
-                userId = adminId,
-                typeId = Notifications.PanelNotification.NEW_TICKET_MESSAGE.typeId,
-                action = Notifications.PanelNotification.NEW_TICKET_MESSAGE.action,
-                properties = JsonObject().put("id", ticketId)
-            )
-        }
-
-        databaseManager.panelNotificationDao.addAll(notifications, sqlConnection)
+        notificationManager.sendNotificationToAllAdmins(
+            Notifications.PanelNotificationType.NEW_TICKET_MESSAGE,
+            notificationProperties,
+            sqlConnection
+        )
 
         return Successful(
             mapOf(

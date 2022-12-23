@@ -23,8 +23,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `user_id` bigint NOT NULL,
-                              `type_id` varchar(255) NOT NULL,
-                              `action` varchar(255) NOT NULL,
+                              `type` varchar(255) NOT NULL,
                               `properties` mediumtext NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `status` varchar(255) NOT NULL,
@@ -41,16 +40,15 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type_id`, `action`, `properties`, `date`, `status`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type`, `properties`, `date`, `status`) " +
+                    "VALUES (?, ?, ?, ?, ?)"
 
         sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     panelNotification.userId,
-                    panelNotification.typeId,
-                    panelNotification.action,
+                    panelNotification.type,
                     panelNotification.properties.toString(),
                     panelNotification.date,
                     panelNotification.status
@@ -64,20 +62,19 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
 
         panelNotifications.forEach { panelNotification ->
             tuple.addValue(panelNotification.userId)
-            tuple.addValue(panelNotification.typeId)
-            tuple.addValue(panelNotification.action)
+            tuple.addValue(panelNotification.type)
             tuple.addValue(panelNotification.properties.toString())
             tuple.addValue(panelNotification.date)
             tuple.addValue(panelNotification.status)
 
             if (listText == "")
-                listText = "(?, ?, ?, ?, ?, ?)"
+                listText = "(?, ?, ?, ?, ?)"
             else
-                listText += ", (?, ?, ?, ?, ?, ?)"
+                listText += ", (?, ?, ?, ?, ?)"
         }
 
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type_id`, `action`, `properties`, `date`, `status`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type`, `properties`, `date`, `status`) " +
                     "VALUES $listText"
 
         sqlConnection
@@ -128,7 +125,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -147,7 +144,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -202,7 +199,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -251,7 +248,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlConnection: SqlConnection
     ): PanelNotification? {
         val query =
-            "SELECT `id`, `user_id`, `type_id`, `action`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

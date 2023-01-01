@@ -1,10 +1,10 @@
-val vertxVersion = "4.3.6"
+val vertxVersion = "4.3.7"
 val log4jVersion = "2.19.0"
 
 plugins {
     java
-    kotlin("jvm") version "1.7.21"
-    kotlin("kapt") version "1.7.21"
+    kotlin("jvm") version "1.8.0"
+    kotlin("kapt") version "1.8.0"
     id("com.github.johnrengelman.shadow") version "7.1.2"
     application
 }

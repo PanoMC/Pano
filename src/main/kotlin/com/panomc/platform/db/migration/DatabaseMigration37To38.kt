@@ -22,7 +22,7 @@ class DatabaseMigration37To38(databaseManager: DatabaseManager) : DatabaseMigrat
     private fun addMotdFieldToServerTable(): suspend (sqlConnection: SqlConnection) -> Unit =
         { sqlConnection: SqlConnection ->
             sqlConnection
-                .query("ALTER TABLE `${getTablePrefix()}server` ADD `motd` text NOT NULL DEFAULT '';")
+                .query("ALTER TABLE `${getTablePrefix()}server` ADD `motd` text NOT NULL;")
                 .execute()
                 .await()
         }

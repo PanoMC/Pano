@@ -137,7 +137,7 @@ open class SpringConfig {
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun provideServerManager(databaseManager: DatabaseManager): ServerManager =
-        ServerManager(logger, databaseManager)
+        ServerManager(logger, databaseManager, applicationContext)
 
     @Bean
     @Lazy

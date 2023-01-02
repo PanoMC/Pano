@@ -1,13 +1,25 @@
 package com.panomc.platform.server
 
+import com.panomc.platform.annotation.Event
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
-import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.ServerWebSocket
+import io.vertx.core.json.JsonObject
 import org.slf4j.Logger
+import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
-class ServerManager(private val logger: Logger, private val databaseManager: DatabaseManager) {
+class ServerManager(
+    private val logger: Logger,
+    private val databaseManager: DatabaseManager,
+    private val applicationContext: AnnotationConfigApplicationContext
+) {
     private val connectedServers = mutableMapOf<Server, ServerWebSocket>()
+
+    private val eventListeners by lazy {
+        val beans = applicationContext.getBeansWithAnnotation(Event::class.java)
+
+        beans.filter { it.value is ServerEventListener }.map { it.value as ServerEventListener }
+    }
 
     suspend fun init() {
         val sqlConnection = databaseManager.createConnection()
@@ -41,6 +53,15 @@ class ServerManager(private val logger: Logger, private val databaseManager: Dat
             return
         }
 
+        val serverEvent = ServerEvent.valueOf(event)
+
+        eventListeners
+            .filter {
+                it.serverEvent == serverEvent
+            }
+            .forEach {
+                it.handle(body, server)
+            }
     }
 
     fun closeConnection(id: Long) {

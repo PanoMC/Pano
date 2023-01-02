@@ -37,7 +37,8 @@ class DatabaseManager(
     @Lazy val permissionGroupPermsDao: PermissionGroupPermsDao,
     @Lazy val websiteViewDao: WebsiteViewDao,
     @Lazy val tokenDao: TokenDao,
-    @Lazy val notificationDao: NotificationDao
+    @Lazy val notificationDao: NotificationDao,
+    @Lazy val serverPlayerDao: ServerPlayerDao
 ) {
 
     @Autowired

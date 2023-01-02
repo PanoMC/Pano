@@ -88,8 +88,10 @@ class ServerConnectAPI(
 
         serverManager.onServerConnect(server, serverWebSocket)
 
-        serverWebSocket.handler {
-            serverManager.onServerWrite(it)
+        serverWebSocket.textMessageHandler {
+            CoroutineScope(context.vertx().dispatcher()).launch {
+                serverManager.onServerWrite(it, server)
+            }
         }
 
         serverWebSocket.closeHandler {

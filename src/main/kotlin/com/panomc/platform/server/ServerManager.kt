@@ -33,7 +33,13 @@ class ServerManager(private val logger: Logger, private val databaseManager: Dat
         logger.warn("\"${server.name}\" Minecraft server is disconnected!")
     }
 
-    fun onServerWrite(buffer: Buffer) {
+    suspend fun onServerWrite(text: String, server: Server) {
+        val body = JsonObject(text)
+        val event = body.getString("event")
+
+        if (!ServerEvent.values().any { it.name == event }) {
+            return
+        }
 
     }
 

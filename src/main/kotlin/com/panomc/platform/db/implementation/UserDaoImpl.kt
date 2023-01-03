@@ -35,6 +35,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                               `email_verified` int(1) NOT NULL DEFAULT 0,
                               `banned` int(1) NOT NULL DEFAULT 0,
                               `mc_uuid` varchar(255) NOT NULL DEFAULT '',
+                              `last_activity_time` BIGINT NOT NULL DEFAULT 0,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User Table';
                         """
@@ -49,8 +50,8 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         isSetup: Boolean
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registered_ip, permission_group_id, register_date, `last_login_date`, email_verified) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registered_ip, permission_group_id, register_date, `last_login_date`, `email_verified`, `last_activity_time`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -63,7 +64,8 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     user.permissionGroupId,
                     user.registerDate,
                     user.lastLoginDate,
-                    if (isSetup) 1 else 0
+                    if (isSetup) 1 else 0,
+                    user.lastActivityTime
                 )
             )
             .await()
@@ -244,7 +246,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): User? {
         val query =
-            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -265,7 +267,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): User? {
         val query =
-            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned` FROM `${getTablePrefix() + tableName}` where `username` = ?"
+            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time` FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -310,7 +312,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): List<Map<String, Any>> {
         val query =
-            "SELECT id, username, email, register_date, `last_login_date`, permission_group_id, `banned` FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ? " else if (status == PlayerStatus.BANNED) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, username, email, register_date, `last_login_date`, permission_group_id, `banned`, `last_activity_time` FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ? " else if (status == PlayerStatus.BANNED) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -341,7 +343,8 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                         "registerDate" to row.getLong(3),
                         "lastLoginDate" to row.getLong(4),
                         "permissionGroupId" to row.getLong(5),
-                        "banned" to row.getBoolean(6)
+                        "banned" to row.getBoolean(6),
+                        "lastActivityTime" to row.getLong(7)
                     )
                 )
             }
@@ -355,7 +358,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): List<Map<String, Any>> {
         val query =
-            "SELECT id, username, email, register_date, `last_login_date`, permission_group_id, `banned` FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, username, email, register_date, `last_login_date`, permission_group_id, `banned`, `last_activity_time` FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -378,7 +381,8 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                         "registerDate" to row.getLong(3),
                         "lastLoginDate" to row.getLong(4),
                         "permissionGroupId" to row.getLong(5),
-                        "banned" to row.getBoolean(6)
+                        "banned" to row.getBoolean(6),
+                        "lastActivityTime" to row.getLong(7)
                     )
                 )
             }

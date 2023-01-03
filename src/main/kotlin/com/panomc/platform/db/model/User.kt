@@ -13,7 +13,8 @@ data class User(
     val registerDate: Long = System.currentTimeMillis(),
     val lastLoginDate: Long = System.currentTimeMillis(),
     val emailVerified: Int = 0,
-    val banned: Int = 0
+    val banned: Int = 0,
+    val lastActivityTime: Long = System.currentTimeMillis(),
 ) {
     companion object {
         fun from(row: Row) = User(
@@ -26,7 +27,8 @@ data class User(
             row.getLong(6),
             row.getLong(7),
             row.getInteger(8),
-            row.getInteger(9)
+            row.getInteger(9),
+            row.getLong(10),
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

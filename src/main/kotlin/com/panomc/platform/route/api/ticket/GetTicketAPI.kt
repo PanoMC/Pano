@@ -32,7 +32,7 @@ class GetTicketAPI(
         val id = parameters.pathParameter("id").long
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.ticketDao.isExistsById(id, sqlConnection)
 

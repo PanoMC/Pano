@@ -27,7 +27,7 @@ class PanelDeletePostCategoryAPI(
 
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.postCategoryDao.isExistsById(id, sqlConnection)
 

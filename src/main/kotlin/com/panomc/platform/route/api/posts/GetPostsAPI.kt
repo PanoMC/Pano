@@ -28,7 +28,7 @@ class GetPostsAPI(
 
     override suspend fun handler(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         return getPostsService.handle(parameters, sqlConnection)
     }

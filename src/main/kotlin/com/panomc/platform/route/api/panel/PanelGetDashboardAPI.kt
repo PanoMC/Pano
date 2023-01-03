@@ -60,7 +60,7 @@ class PanelGetDashboardAPI(
             "websiteActivityDataList" to mutableMapOf<String, Any?>()
         )
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isUserInstalled =
             databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlConnection)

@@ -43,7 +43,7 @@ class PanelSetPermissionGroupPermissionAPI(
             throw Error(ErrorCode.UNKNOWN)
         }
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isTherePermissionGroup =
             databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlConnection)

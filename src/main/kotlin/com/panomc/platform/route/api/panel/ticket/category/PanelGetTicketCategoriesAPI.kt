@@ -29,7 +29,7 @@ class PanelGetTicketCategoriesAPI(
         val parameters = getParameters(context)
         val page = parameters.queryParameter("page")?.long ?: 1
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val count = databaseManager.ticketCategoryDao.count(sqlConnection)
 

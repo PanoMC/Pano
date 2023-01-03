@@ -75,7 +75,7 @@ class ServerConnectNewAPI(
             status = ServerStatus.OFFLINE
         )
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val serverId = databaseManager.serverDao.add(server, sqlConnection)
 

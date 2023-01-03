@@ -31,7 +31,7 @@ class MarkNotificationAsReadAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.notificationDao.existsById(id, sqlConnection)
 

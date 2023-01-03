@@ -30,7 +30,7 @@ class PanelGetPermissionGroupsAPI(
 
         val result = mutableMapOf<String, Any?>()
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val permissionGroupCount = databaseManager.permissionGroupDao.countPermissionGroups(sqlConnection)
         val permissions = databaseManager.permissionDao.getPermissions(sqlConnection)

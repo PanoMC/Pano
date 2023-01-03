@@ -30,7 +30,7 @@ class ServerDisconnectAPI(
 
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.serverDao.existsById(serverId, sqlConnection)
 

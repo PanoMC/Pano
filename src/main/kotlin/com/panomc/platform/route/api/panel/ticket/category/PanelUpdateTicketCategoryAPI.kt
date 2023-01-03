@@ -41,7 +41,7 @@ class PanelUpdateTicketCategoryAPI(
 
         validateForm(title)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.ticketCategoryDao.isExistsById(id, sqlConnection)
 

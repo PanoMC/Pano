@@ -28,7 +28,7 @@ class PanelGetPermissionGroupAPI(
 
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isTherePermissionGroupById = databaseManager.permissionGroupDao.isThereById(id, sqlConnection)
 

@@ -52,7 +52,7 @@ class RegisterAPI(
 
         RegisterUtil.validateForm(username, email, password, passwordRepeat, agreement, recaptchaToken, null)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val userId = RegisterUtil.register(
             databaseManager,

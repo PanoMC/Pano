@@ -23,7 +23,7 @@ class ProfileSidebarAPI(private val databaseManager: DatabaseManager, private va
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)!!
 

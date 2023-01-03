@@ -20,7 +20,7 @@ class PanelCloseConnectServerCardAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isUserInstalledSystem =
             databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlConnection)

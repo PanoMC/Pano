@@ -20,7 +20,7 @@ class GetCredentialsAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val user = databaseManager.userDao.getById(userId, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
 

@@ -38,7 +38,7 @@ abstract class LoggedInApi : Api() {
     suspend fun updateLastActivityTime(context: RoutingContext) {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         databaseManager.userDao.updateLastActivityTime(userId, sqlConnection)
     }

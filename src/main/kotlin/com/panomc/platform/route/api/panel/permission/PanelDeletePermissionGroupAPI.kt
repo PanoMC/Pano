@@ -27,7 +27,7 @@ class PanelDeletePermissionGroupAPI(
 
         val permissionGroupId = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isTherePermissionGroup =
             databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlConnection)

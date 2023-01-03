@@ -67,7 +67,7 @@ class PanelCreateOrUpdatePostAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         var postInDb: Post? = null
 

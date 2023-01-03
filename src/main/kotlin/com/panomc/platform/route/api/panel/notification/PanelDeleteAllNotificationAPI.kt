@@ -19,7 +19,7 @@ class PanelDeleteAllNotificationAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         databaseManager.panelNotificationDao.deleteAllByUserId(userId, sqlConnection)
 

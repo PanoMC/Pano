@@ -45,7 +45,7 @@ class PanelBanPlayerAPI(
 
         val sendNotification = data.getBoolean("sendNotification") ?: false
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isExists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
 

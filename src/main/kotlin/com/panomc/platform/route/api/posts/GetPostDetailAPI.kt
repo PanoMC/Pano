@@ -29,7 +29,7 @@ class GetPostDetailAPI(
 
         val url = parameters.pathParameter("url").string
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isPostExists = databaseManager.postDao.isExistsByUrl(url, sqlConnection)
 

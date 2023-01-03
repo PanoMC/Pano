@@ -48,7 +48,7 @@ class CreateTicketAPI(
         validateInput(title, message)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         if (categoryId != -1L) {
             val isCategoryExists = databaseManager.ticketCategoryDao.isExistsById(categoryId, sqlConnection)

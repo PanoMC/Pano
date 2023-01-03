@@ -47,7 +47,7 @@ class PanelUpdateTicketsAPI(
         }
 
         if (ticketStatus != null && ticketStatus == "close") {
-            val sqlConnection = createConnection(databaseManager, context)
+            val sqlConnection = createConnection(context)
 
             val areIdListExist =
                 databaseManager.ticketDao.areIdListExist(selectedTickets.map { it.toString().toLong() }, sqlConnection)

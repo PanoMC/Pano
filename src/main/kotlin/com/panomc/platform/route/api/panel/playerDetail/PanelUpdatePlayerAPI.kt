@@ -44,7 +44,7 @@ class PanelUpdatePlayerAPI(
 
         validateForm(username, email, newPassword, newPasswordRepeat)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.userDao.isExistsById(id, sqlConnection)
 

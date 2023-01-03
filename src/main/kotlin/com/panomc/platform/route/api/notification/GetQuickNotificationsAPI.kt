@@ -19,7 +19,7 @@ class GetQuickNotificationsAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val notifications = databaseManager.notificationDao.getLast5ByUserId(userId, sqlConnection)
 

@@ -43,7 +43,7 @@ class UpdateTicketAPI(
         val ticketStatus = data.getString("status")
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isExists = databaseManager.ticketDao.isExistsById(id, sqlConnection)
 

@@ -19,7 +19,7 @@ class GetNotificationsAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val count = databaseManager.notificationDao.getCountByUserId(userId, sqlConnection)
 

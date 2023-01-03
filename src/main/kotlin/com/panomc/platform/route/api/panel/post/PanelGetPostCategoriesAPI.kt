@@ -30,7 +30,7 @@ class PanelGetPostCategoriesAPI(
 
         val page = parameters.queryParameter("page")?.long ?: 1L
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val count = databaseManager.postCategoryDao.getCount(sqlConnection)
 

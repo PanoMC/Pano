@@ -43,7 +43,7 @@ class PanelGetTicketsAPI(
 
         var ticketCategory: TicketCategory? = null
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         if (categoryUrl != null && categoryUrl != "-") {
             val exists = databaseManager.ticketCategoryDao.isExistsByUrl(

@@ -31,7 +31,7 @@ class PanelMarkNotificationAsReadAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.panelNotificationDao.existsById(id, sqlConnection)
 

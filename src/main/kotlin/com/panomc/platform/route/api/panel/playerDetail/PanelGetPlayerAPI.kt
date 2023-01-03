@@ -34,7 +34,7 @@ class PanelGetPlayerAPI(
         val username = parameters.pathParameter("username").string
         val page = parameters.queryParameter("page")?.long ?: 1L
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
 

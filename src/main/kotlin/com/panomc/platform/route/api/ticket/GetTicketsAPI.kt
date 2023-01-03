@@ -1,7 +1,6 @@
 package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.LoggedInApi
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
@@ -17,7 +16,6 @@ import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 
 @Endpoint
 class GetTicketsAPI(
-    val databaseManager: DatabaseManager,
     private val getTicketsService: GetTicketsService
 ) : LoggedInApi() {
     override val paths = listOf(Path("/api/tickets", RouteType.GET))
@@ -35,7 +33,7 @@ class GetTicketsAPI(
             .build()
 
     override suspend fun handler(context: RoutingContext): Result {
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
         val parameters = getParameters(context)
 
         return getTicketsService.handle(context, sqlConnection, parameters)

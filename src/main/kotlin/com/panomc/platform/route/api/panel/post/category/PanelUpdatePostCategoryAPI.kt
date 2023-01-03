@@ -45,7 +45,7 @@ class PanelUpdatePostCategoryAPI(
 
         validateForm(title, url, color)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.postCategoryDao.isExistsByUrlNotById(url, id, sqlConnection)
 

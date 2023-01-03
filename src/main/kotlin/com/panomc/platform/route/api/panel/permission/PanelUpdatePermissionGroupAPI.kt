@@ -63,7 +63,7 @@ class PanelUpdatePermissionGroupAPI(
 
         name = getSystematicName(name)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         validateSelfUpdating(addedUsers, removedUsers, userId, sqlConnection)
 

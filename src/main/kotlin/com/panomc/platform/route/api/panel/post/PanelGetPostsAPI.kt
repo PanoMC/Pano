@@ -47,7 +47,7 @@ class PanelGetPostsAPI(
 
         var postCategory: PostCategory? = null
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         if (categoryUrl != null && categoryUrl != "-") {
             val isPostCategoryExists = databaseManager.postCategoryDao.isExistsByUrl(categoryUrl, sqlConnection)

@@ -62,7 +62,7 @@ class FinishAPI(
             null
         )
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         databaseManager.initDatabase(sqlConnection)
 

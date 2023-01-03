@@ -21,7 +21,7 @@ class PanelGetPermissionsAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val result = mutableMapOf<String, Any?>()
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val permissions = databaseManager.permissionDao.getPermissions(sqlConnection)
 

@@ -42,7 +42,7 @@ class PanelGetPlayersAPI(
         val page = parameters.queryParameter("page")?.long ?: 1L
         val permissionGroupName = parameters.queryParameter("permissionGroup")?.string
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         var permissionGroup: PermissionGroup? = null
 

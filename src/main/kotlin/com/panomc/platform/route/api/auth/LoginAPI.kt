@@ -42,7 +42,7 @@ class LoginAPI(
 
         authProvider.validateInput(usernameOrEmail, password, recaptcha)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         authProvider.authenticate(usernameOrEmail, password, sqlConnection)
 

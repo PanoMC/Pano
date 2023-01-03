@@ -28,7 +28,7 @@ class GetPostPreviewAPI(
 
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val isPostExistsById = databaseManager.postDao.isExistsById(id, sqlConnection)
 

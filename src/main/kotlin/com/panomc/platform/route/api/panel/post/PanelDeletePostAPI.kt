@@ -29,7 +29,7 @@ class PanelDeletePostAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.postDao.isExistsById(id, sqlConnection)
 

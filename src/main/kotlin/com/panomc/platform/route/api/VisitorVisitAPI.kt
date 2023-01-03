@@ -35,7 +35,7 @@ class VisitorVisitAPI(private val databaseManager: DatabaseManager) : Api() {
 
         validateIpAddress(ipAddress)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.websiteViewDao.isIpAddressExistsByToday(ipAddress, sqlConnection)
 

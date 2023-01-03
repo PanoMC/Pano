@@ -31,7 +31,7 @@ class GetTicketMessagesAPI(
         val lastMessageId = parameters.queryParameter("lastMessageId").long
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.ticketDao.isExistsById(id, sqlConnection)
 

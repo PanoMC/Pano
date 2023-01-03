@@ -42,7 +42,7 @@ class PanelAddPostCategoryAPI(
 
         validateForm(title, url, color)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val exists = databaseManager.postCategoryDao.isExistsByUrl(url, sqlConnection)
 

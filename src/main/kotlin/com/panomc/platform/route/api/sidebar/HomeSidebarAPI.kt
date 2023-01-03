@@ -25,7 +25,7 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
         response["ipAddress"] = configManager.getConfig().getString("server-ip-address")
         response["serverGameVersion"] = configManager.getConfig().getString("server-game-version")
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(
             "main_server",

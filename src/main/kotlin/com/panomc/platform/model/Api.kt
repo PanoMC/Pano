@@ -13,10 +13,13 @@ import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.springframework.beans.factory.annotation.Autowired
 
 abstract class Api : Route() {
+    @Autowired
+    private lateinit var databaseManager: DatabaseManager
 
-    suspend fun createConnection(databaseManager: DatabaseManager, routingContext: RoutingContext): SqlConnection {
+    suspend fun createConnection(routingContext: RoutingContext): SqlConnection {
         val existingSqlConnection = routingContext.get<SqlConnection>("sqlConnection")
 
         if (existingSqlConnection != null) {

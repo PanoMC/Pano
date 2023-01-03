@@ -19,7 +19,7 @@ class PanelGetNotificationsAPI(
     override suspend fun handler(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val count = databaseManager.panelNotificationDao.getCountByUserId(userId, sqlConnection)
 

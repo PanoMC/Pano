@@ -45,7 +45,7 @@ class PanelSendTicketMessageAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(databaseManager, context)
+        val sqlConnection = createConnection(context)
 
         val ticket = databaseManager.ticketDao.getById(ticketId, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 

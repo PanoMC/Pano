@@ -2,8 +2,15 @@ package com.panomc.platform.setup
 
 import com.panomc.platform.config.ConfigManager
 import io.vertx.core.json.JsonObject
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Scope
+import org.springframework.stereotype.Component
 import java.net.InetAddress
 
+@Lazy
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class SetupManager(private val mConfigManager: ConfigManager) {
 
     fun isSetupDone() = getStep() == 5

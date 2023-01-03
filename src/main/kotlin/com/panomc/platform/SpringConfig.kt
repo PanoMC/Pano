@@ -1,17 +1,8 @@
 package com.panomc.platform
 
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.MailClientProvider
-import com.panomc.platform.mail.MailManager
-import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.route.RouterProvider
-import com.panomc.platform.server.PlatformCodeManager
-import com.panomc.platform.server.ServerAuthProvider
-import com.panomc.platform.server.ServerManager
-import com.panomc.platform.setup.SetupManager
-import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.util.*
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
@@ -59,23 +50,8 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun configManager() = ConfigManager(vertx, logger, applicationContext)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun mailClientProvider(configManager: ConfigManager) = MailClientProvider.create(vertx, configManager)
 
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun mailUtil(
-        configManager: ConfigManager,
-        templateEngine: HandlebarsTemplateEngine,
-        mailClientProvider: MailClientProvider,
-        databaseManager: DatabaseManager,
-        tokenProvider: TokenProvider
-    ) = MailManager(configManager, templateEngine, mailClientProvider, databaseManager, tokenProvider)
 
     @Bean
     @Lazy
@@ -91,39 +67,6 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun setupManager(configManager: ConfigManager) = SetupManager(configManager)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun platformCodeManager() = PlatformCodeManager(vertx)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun tokenProvider(configManager: ConfigManager, databaseManager: DatabaseManager) =
-        TokenProvider(databaseManager, configManager)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun authProvider(
-        databaseManager: DatabaseManager,
-        tokenProvider: TokenProvider
-    ) =
-        AuthProvider(databaseManager, tokenProvider)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun serverAuthProvider(
-        databaseManager: DatabaseManager,
-        tokenProvider: TokenProvider
-    ) = ServerAuthProvider(databaseManager, tokenProvider)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun provideWebClient(): WebClient = WebClient.create(vertx)
 
     @Bean
@@ -132,18 +75,4 @@ open class SpringConfig {
     open fun provideSchemeParser(vertx: Vertx): SchemaParser = SchemaParser.createOpenAPI3SchemaParser(
         SchemaRouter.create(vertx, SchemaRouterOptions())
     )
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun provideServerManager(databaseManager: DatabaseManager): ServerManager =
-        ServerManager(logger, databaseManager, applicationContext)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun provideNotificationManager(
-        databaseManager: DatabaseManager,
-        authProvider: AuthProvider
-    ): NotificationManager = NotificationManager(databaseManager, authProvider)
 }

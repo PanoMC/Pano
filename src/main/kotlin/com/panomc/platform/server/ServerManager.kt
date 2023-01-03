@@ -6,8 +6,15 @@ import com.panomc.platform.db.model.Server
 import io.vertx.core.http.ServerWebSocket
 import io.vertx.core.json.JsonObject
 import org.slf4j.Logger
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Scope
+import org.springframework.stereotype.Component
 
+@Lazy
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class ServerManager(
     private val logger: Logger,
     private val databaseManager: DatabaseManager,

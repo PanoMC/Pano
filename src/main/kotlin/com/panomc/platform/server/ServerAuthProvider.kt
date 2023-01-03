@@ -4,7 +4,14 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Scope
+import org.springframework.stereotype.Component
 
+@Lazy
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class ServerAuthProvider(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,

@@ -9,7 +9,14 @@ import io.vertx.ext.mail.MailMessage
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.SqlConnection
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Scope
+import org.springframework.stereotype.Component
 
+@Lazy
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class MailManager(
     private val configManager: ConfigManager,
     private val templateEngine: HandlebarsTemplateEngine,

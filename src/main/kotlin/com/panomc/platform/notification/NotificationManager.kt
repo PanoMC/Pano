@@ -6,7 +6,14 @@ import com.panomc.platform.db.model.Notification
 import com.panomc.platform.db.model.PanelNotification
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Scope
+import org.springframework.stereotype.Component
 
+@Lazy
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class NotificationManager(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
     suspend fun sendNotification(
         userId: Long,

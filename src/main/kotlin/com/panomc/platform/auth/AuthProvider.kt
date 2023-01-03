@@ -8,7 +8,14 @@ import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlConnection
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Scope
+import org.springframework.stereotype.Component
 
+@Lazy
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class AuthProvider(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,

@@ -10,13 +10,13 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
-class ProfileSidebarAPI(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) : Api() {
+class ProfileSidebarAPI(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) :
+    LoggedInApi() {
     override val paths = listOf(Path("/api/sidebar/profile", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
             .build()
-
 
     override suspend fun handler(context: RoutingContext): Result {
         val response = mutableMapOf<String, Any?>()

@@ -49,4 +49,10 @@ interface ServerDao : Dao<Server> {
         id: Long,
         sqlConnection: SqlConnection
     )
+
+    suspend fun updatePlayerCountById(
+        id: Long,
+        playerCount: Int,
+        sqlConnection: SqlConnection
+    )
 }

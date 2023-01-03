@@ -187,4 +187,18 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             )
             .await()
     }
+
+    override suspend fun updatePlayerCountById(id: Long, playerCount: Int, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `player_count` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    playerCount,
+                    id
+                )
+            )
+            .await()
+    }
 }

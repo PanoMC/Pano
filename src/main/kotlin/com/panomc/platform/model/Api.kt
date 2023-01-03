@@ -17,7 +17,14 @@ import kotlinx.coroutines.launch
 abstract class Api : Route() {
 
     suspend fun createConnection(databaseManager: DatabaseManager, routingContext: RoutingContext): SqlConnection {
+        val existingSqlConnection = routingContext.get<SqlConnection>("sqlConnection")
+
+        if (existingSqlConnection != null) {
+            return existingSqlConnection
+        }
+
         val sqlConnection = databaseManager.createConnection()
+
 
         routingContext.put("sqlConnection", sqlConnection)
 

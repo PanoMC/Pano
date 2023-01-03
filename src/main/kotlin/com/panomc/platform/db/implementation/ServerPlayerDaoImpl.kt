@@ -70,4 +70,18 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .await()
     }
 
+    override suspend fun isExistsByUsername(
+        username: String,
+        sqlConnection: SqlConnection
+    ): Boolean {
+        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(username))
+            .await()
+
+        return rows.toList()[0].getLong(0) > 0
+    }
+
 }

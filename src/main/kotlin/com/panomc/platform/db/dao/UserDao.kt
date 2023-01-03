@@ -201,4 +201,9 @@ interface UserDao : Dao<User> {
         userId: Long,
         sqlConnection: SqlConnection
     )
+
+    suspend fun updateLastPanelActivityTime(
+        userId: Long,
+        sqlConnection: SqlConnection
+    )
 }

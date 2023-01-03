@@ -1,13 +1,11 @@
 package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.LoggedInApi
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
-import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -19,11 +17,9 @@ import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 
 @Endpoint
 class GetTicketsAPI(
-    setupManager: SetupManager,
-    authProvider: AuthProvider,
     val databaseManager: DatabaseManager,
     private val getTicketsService: GetTicketsService
-) : LoggedInApi(setupManager, authProvider) {
+) : LoggedInApi() {
     override val paths = listOf(Path("/api/tickets", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

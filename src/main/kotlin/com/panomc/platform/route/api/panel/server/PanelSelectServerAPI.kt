@@ -6,7 +6,6 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelConfig
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -17,9 +16,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 @Endpoint
 class PanelSelectServerAPI(
     private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
     private val authProvider: AuthProvider
-) : PanelApi(setupManager, authProvider) {
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id/select", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

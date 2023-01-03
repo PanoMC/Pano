@@ -7,7 +7,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
-import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -19,10 +18,9 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 @Endpoint
 class PanelUpdateTicketsAPI(
     private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
     private val authProvider: AuthProvider,
     private val notificationManager: NotificationManager
-) : PanelApi(setupManager, authProvider) {
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/tickets", RouteType.PUT))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

@@ -11,9 +11,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.springframework.beans.factory.annotation.Autowired
 
-abstract class LoggedInApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) : Api() {
+abstract class LoggedInApi : Api() {
     @Autowired
     private lateinit var databaseManager: DatabaseManager
+
+    @Autowired
+    private lateinit var setupManager: SetupManager
+
+    @Autowired
+    private lateinit var authProvider: AuthProvider
 
     fun checkSetup() {
         if (!setupManager.isSetupDone()) {

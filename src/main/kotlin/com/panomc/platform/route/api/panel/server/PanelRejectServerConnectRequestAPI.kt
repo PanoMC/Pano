@@ -2,11 +2,9 @@ package com.panomc.platform.route.api.panel.server
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -17,10 +15,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 @Endpoint
 class PanelRejectServerConnectRequestAPI(
     private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
-    authProvider: AuthProvider,
     private val serverManager: ServerManager
-) : PanelApi(setupManager, authProvider) {
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id/reject", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

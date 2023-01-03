@@ -2,11 +2,9 @@ package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -18,10 +16,8 @@ import kotlin.math.ceil
 
 @Endpoint
 class PanelGetPlayersAPI(
-    private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
-    authProvider: AuthProvider
-) : PanelApi(setupManager, authProvider) {
+    private val databaseManager: DatabaseManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

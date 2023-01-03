@@ -2,10 +2,8 @@ package com.panomc.platform.route.api.panel.permission
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -15,10 +13,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
 class PanelDeletePermissionGroupAPI(
-    private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
-    authProvider: AuthProvider
-) : PanelApi(setupManager, authProvider) {
+    private val databaseManager: DatabaseManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/permissions/:id", RouteType.DELETE))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

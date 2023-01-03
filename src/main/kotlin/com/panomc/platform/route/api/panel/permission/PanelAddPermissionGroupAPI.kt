@@ -7,7 +7,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -20,9 +19,8 @@ import io.vertx.sqlclient.SqlConnection
 @Endpoint
 class PanelAddPermissionGroupAPI(
     private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
     private val authProvider: AuthProvider
-) : PanelApi(setupManager, authProvider) {
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/permissionGroups", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

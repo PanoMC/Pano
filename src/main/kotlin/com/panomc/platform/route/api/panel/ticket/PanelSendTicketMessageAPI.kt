@@ -8,7 +8,6 @@ import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
-import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -22,9 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 class PanelSendTicketMessageAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val notificationManager: NotificationManager,
-    setupManager: SetupManager
-) : PanelApi(setupManager, authProvider) {
+    private val notificationManager: NotificationManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/tickets/:id/message", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

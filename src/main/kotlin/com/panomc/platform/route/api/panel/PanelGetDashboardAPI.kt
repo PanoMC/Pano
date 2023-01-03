@@ -8,7 +8,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.TimeUtil.toGroupGetCountAndDates
 import io.vertx.ext.web.RoutingContext
@@ -22,9 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 @Endpoint
 class PanelGetDashboardAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager,
-    setupManager: SetupManager
-) : PanelApi(setupManager, authProvider) {
+    private val databaseManager: DatabaseManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/dashboard", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

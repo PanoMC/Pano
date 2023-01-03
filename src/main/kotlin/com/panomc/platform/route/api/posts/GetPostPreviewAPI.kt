@@ -2,11 +2,9 @@ package com.panomc.platform.route.api.posts
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -16,10 +14,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
 class GetPostPreviewAPI(
-    private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
-    authProvider: AuthProvider
-) : PanelApi(setupManager, authProvider) {
+    private val databaseManager: DatabaseManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/posts/:id/preview", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

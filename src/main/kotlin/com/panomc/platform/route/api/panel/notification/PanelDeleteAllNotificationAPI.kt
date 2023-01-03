@@ -4,16 +4,14 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaParser
 
 @Endpoint
 class PanelDeleteAllNotificationAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager,
-    setupManager: SetupManager
-) : PanelApi(setupManager, authProvider) {
+    private val databaseManager: DatabaseManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/notifications", RouteType.DELETE))
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null

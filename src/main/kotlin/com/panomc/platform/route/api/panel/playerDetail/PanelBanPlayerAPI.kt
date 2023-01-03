@@ -7,7 +7,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.notification.BannedMail
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
@@ -20,12 +19,11 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class PanelBanPlayerAPI(
-    setupManager: SetupManager,
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val mailManager: MailManager,
     private val tokenProvider: TokenProvider
-) : PanelApi(setupManager, authProvider) {
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/ban", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

@@ -8,7 +8,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
 import com.panomc.platform.server.PlatformCodeManager
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaParser
 
@@ -17,9 +16,8 @@ class PanelGetBasicDataAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val platformCodeManager: PlatformCodeManager,
-    private val configManager: ConfigManager,
-    setupManager: SetupManager
-) : PanelApi(setupManager, authProvider) {
+    private val configManager: ConfigManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/basicData", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null

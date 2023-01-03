@@ -9,7 +9,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.Post.Companion.deleteThumbnailFile
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.PostStatus
 import com.panomc.platform.util.TextUtil
@@ -26,10 +25,9 @@ import java.io.File
 @Endpoint
 class PanelCreateOrUpdatePostAPI(
     private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
-) : PanelApi(setupManager, authProvider) {
+) : PanelApi() {
     override val paths = listOf(
         Path("/api/panel/posts/:id", RouteType.PUT),
         Path("/api/panel/post", RouteType.POST)

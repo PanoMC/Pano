@@ -1,11 +1,9 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -16,10 +14,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class PanelAddTicketCategoryAPI(
-    private val databaseManager: DatabaseManager,
-    setupManager: SetupManager,
-    authProvider: AuthProvider
-) : PanelApi(setupManager, authProvider) {
+    private val databaseManager: DatabaseManager
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/ticket/category", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

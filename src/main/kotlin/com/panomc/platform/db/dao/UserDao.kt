@@ -206,4 +206,9 @@ interface UserDao : Dao<User> {
         userId: Long,
         sqlConnection: SqlConnection
     )
+
+    suspend fun getOnlineAdmins(
+        limit: Long,
+        sqlConnection: SqlConnection
+    ): List<User>
 }

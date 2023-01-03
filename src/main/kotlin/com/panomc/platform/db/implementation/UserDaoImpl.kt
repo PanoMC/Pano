@@ -819,4 +819,20 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
     }
+
+    override suspend fun getOnlineAdmins(limit: Long, sqlConnection: SqlConnection): List<User> {
+        val query =
+            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` WHERE `last_panel_activity_time` > ? ${if (limit == -1L) "" else "LIMIT $limit"}"
+
+        val fiveMinutesAgoInMillis = System.currentTimeMillis() - 5 * 60 * 1000
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(fiveMinutesAgoInMillis)
+            )
+            .await()
+
+        return User.from(rows)
+    }
 }

@@ -9,8 +9,10 @@ import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-abstract class PanelApi(private val setupManager: SetupManager, private val authProvider: AuthProvider) :
-    LoggedInApi(setupManager, authProvider) {
+abstract class PanelApi(
+    setupManager: SetupManager,
+    private val authProvider: AuthProvider
+) : LoggedInApi(setupManager, authProvider) {
 
     override fun getHandler() = Handler<RoutingContext> { context ->
         checkSetup()
@@ -21,6 +23,8 @@ abstract class PanelApi(private val setupManager: SetupManager, private val auth
             if (!authProvider.hasAccessPanel(context)) {
                 throw Error(ErrorCode.NO_PERMISSION)
             }
+
+            updateLastActivityTime(context)
 
             callHandler(context)
         }

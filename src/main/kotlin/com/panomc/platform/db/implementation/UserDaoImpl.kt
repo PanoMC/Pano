@@ -786,4 +786,19 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
     }
+
+    override suspend fun updateLastActivityTime(userId: Long, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `last_activity_time` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    System.currentTimeMillis(),
+                    userId
+                )
+            )
+            .await()
+    }
 }

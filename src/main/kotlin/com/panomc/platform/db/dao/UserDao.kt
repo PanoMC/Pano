@@ -192,5 +192,13 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): List<String>
 
-    suspend fun updateLastLoginDate(userId: Long, sqlConnection: SqlConnection)
+    suspend fun updateLastLoginDate(
+        userId: Long,
+        sqlConnection: SqlConnection
+    )
+
+    suspend fun updateLastActivityTime(
+        userId: Long,
+        sqlConnection: SqlConnection
+    )
 }

@@ -13,6 +13,7 @@ class OnPlayerDisconnect(private val databaseManager: DatabaseManager) : ServerE
 
     override suspend fun handle(body: JsonObject, server: Server) {
         val player = body.getJsonObject("player")
+        val playerCount = body.getInteger("playerCount")
 
         val sqlConnection = databaseManager.createConnection()
 
@@ -21,6 +22,7 @@ class OnPlayerDisconnect(private val databaseManager: DatabaseManager) : ServerE
             server.id,
             sqlConnection
         )
+        databaseManager.serverDao.updatePlayerCountById(server.id, playerCount, sqlConnection)
 
         databaseManager.closeConnection(sqlConnection)
     }

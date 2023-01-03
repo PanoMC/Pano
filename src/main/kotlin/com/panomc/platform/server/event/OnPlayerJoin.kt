@@ -15,6 +15,7 @@ class OnPlayerJoin(private val databaseManager: DatabaseManager) : ServerEventLi
 
     override suspend fun handle(body: JsonObject, server: Server) {
         val player = body.getJsonObject("player")
+        val playerCount = body.getInteger("playerCount")
 
         val sqlConnection = databaseManager.createConnection()
 
@@ -27,6 +28,7 @@ class OnPlayerJoin(private val databaseManager: DatabaseManager) : ServerEventLi
         )
 
         databaseManager.serverPlayerDao.add(serverPlayer, sqlConnection)
+        databaseManager.serverDao.updatePlayerCountById(server.id, playerCount, sqlConnection)
 
         databaseManager.closeConnection(sqlConnection)
     }

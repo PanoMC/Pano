@@ -201,4 +201,19 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             )
             .await()
     }
+
+    override suspend fun updateServerForOfflineById(id: Long, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `status` = ?, `player_count` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    ServerStatus.OFFLINE.value,
+                    0,
+                    id
+                )
+            )
+            .await()
+    }
 }

@@ -55,4 +55,9 @@ interface ServerDao : Dao<Server> {
         playerCount: Int,
         sqlConnection: SqlConnection
     )
+
+    suspend fun updateServerForOfflineById(
+        id: Long,
+        sqlConnection: SqlConnection
+    )
 }

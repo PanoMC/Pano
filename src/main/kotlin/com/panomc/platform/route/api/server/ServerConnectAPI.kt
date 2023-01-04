@@ -74,7 +74,7 @@ class ServerConnectAPI(
     private suspend fun onConnectionEstablished(context: RoutingContext, serverWebSocket: ServerWebSocket) {
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlConnection = createConnection(context)
 
         val server = databaseManager.serverDao.getById(serverId, sqlConnection)!!
 

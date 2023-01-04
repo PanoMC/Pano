@@ -34,7 +34,7 @@ class ServerManager(
         val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlConnection)
 
         servers.forEach { server ->
-            databaseManager.serverDao.updateStatusById(server.id, ServerStatus.OFFLINE, sqlConnection)
+            databaseManager.serverDao.updateServerForOfflineById(server.id, sqlConnection)
         }
 
         databaseManager.closeConnection(sqlConnection)

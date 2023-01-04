@@ -42,15 +42,9 @@ class ServerConnectAPI(
 
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlConnection = createConnection(context)
 
-        val server = databaseManager.serverDao.getById(serverId, sqlConnection)
-
-        databaseManager.closeConnection(sqlConnection)
-
-        if (server == null) {
-            return Error(ErrorCode.INVALID_TOKEN)
-        }
+        val server = databaseManager.serverDao.getById(serverId, sqlConnection) ?: return Error(ErrorCode.INVALID_TOKEN)
 
         if (!server.permissionGranted) {
             return Error(ErrorCode.NEED_PERMISSION)

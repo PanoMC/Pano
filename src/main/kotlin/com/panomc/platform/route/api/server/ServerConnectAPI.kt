@@ -50,6 +50,8 @@ class ServerConnectAPI(
             return Error(ErrorCode.NEED_PERMISSION)
         }
 
+        databaseManager.closeConnection(sqlConnection)
+
         request.resume()
 
         val webSocket = request.toWebSocket()

@@ -7,7 +7,6 @@ data class User(
     val id: Long = -1,
     val username: String,
     val email: String,
-    val password: String,
     val registeredIp: String,
     val permissionGroupId: Long = -1,
     val registerDate: Long = System.currentTimeMillis(),
@@ -23,14 +22,13 @@ data class User(
             row.getString(1),
             row.getString(2),
             row.getString(3),
-            row.getString(4),
+            row.getLong(4),
             row.getLong(5),
             row.getLong(6),
-            row.getLong(7),
+            row.getInteger(7),
             row.getInteger(8),
-            row.getInteger(9),
-            row.getLong(10),
-            row.getLong(11)
+            row.getLong(9),
+            row.getLong(10)
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

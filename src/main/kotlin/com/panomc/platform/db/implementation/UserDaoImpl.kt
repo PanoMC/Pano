@@ -47,6 +47,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun add(
         user: User,
+        hashedPassword: String,
         sqlConnection: SqlConnection,
         isSetup: Boolean
     ): Long {
@@ -60,7 +61,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                 Tuple.of(
                     user.username,
                     user.email,
-                    DigestUtils.md5Hex(user.password),
+                    hashedPassword,
                     user.registeredIp,
                     user.permissionGroupId,
                     user.registerDate,
@@ -247,7 +248,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): User? {
         val query =
-            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT `id`, `username`, `email`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -268,7 +269,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlConnection: SqlConnection
     ): User? {
         val query =
-            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` where `username` = ?"
+            "SELECT `id`, `username`, `email`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -822,7 +823,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun getOnlineAdmins(limit: Long, sqlConnection: SqlConnection): List<User> {
         val query =
-            "SELECT `id`, `username`, `email`, `password`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` WHERE `last_panel_activity_time` > ? ${if (limit == -1L) "" else "LIMIT $limit"}"
+            "SELECT `id`, `username`, `email`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` WHERE `last_panel_activity_time` > ? ${if (limit == -1L) "" else "LIMIT $limit"}"
 
         val fiveMinutesAgoInMillis = System.currentTimeMillis() - 5 * 60 * 1000
 

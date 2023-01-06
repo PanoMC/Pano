@@ -10,6 +10,7 @@ interface UserDao : Dao<User> {
 
     suspend fun add(
         user: User,
+        hashedPassword: String,
         sqlConnection: SqlConnection,
         isSetup: Boolean
     ): Long

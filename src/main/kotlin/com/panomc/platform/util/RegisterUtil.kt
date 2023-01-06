@@ -7,6 +7,7 @@ import com.panomc.platform.db.model.User
 import com.panomc.platform.model.Error
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.sqlclient.SqlConnection
+import org.apache.commons.codec.digest.DigestUtils
 
 object RegisterUtil {
 
@@ -93,11 +94,13 @@ object RegisterUtil {
             throw Error(ErrorCode.REGISTER_EMAIL_NOT_AVAILABLE)
         }
 
-        val user = User(username = username, email = email, password = password, registeredIp = remoteIP)
+        val user = User(username = username, email = email, registeredIp = remoteIP)
         val userId: Long
 
+        val hashedPassword = DigestUtils.md5Hex(password)
+
         if (!isAdmin) {
-            userId = databaseManager.userDao.add(user, sqlConnection, isSetup)
+            userId = databaseManager.userDao.add(user, hashedPassword, sqlConnection, isSetup)
 
             return userId
         }
@@ -110,12 +113,11 @@ object RegisterUtil {
         val adminUser = User(
             username = username,
             email = email,
-            password = password,
             registeredIp = remoteIP,
             permissionGroupId = adminPermissionGroupId
         )
 
-        userId = databaseManager.userDao.add(adminUser, sqlConnection, isSetup)
+        userId = databaseManager.userDao.add(adminUser, hashedPassword, sqlConnection, isSetup)
         val property = SystemProperty(option = "who_installed_user_id", value = userId.toString())
 
         val isPropertyExists = databaseManager.systemPropertyDao.existsByOption(

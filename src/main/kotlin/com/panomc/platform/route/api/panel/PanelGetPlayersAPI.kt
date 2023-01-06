@@ -103,19 +103,21 @@ class PanelGetPlayersAPI(
             return Successful(result)
         }
 
-        val addPlayerToList =
-            { user: User, mutablePlayerList: MutableList<Map<String, Any>>, ticketCount: Long, permissionGroup: PermissionGroup? ->
+        val addPlayerToList: suspend (user: User, mutablePlayerList: MutableList<Map<String, Any>>, ticketCount: Long, permissionGroup: PermissionGroup?) -> Unit =
+            { user, mutablePlayerList, ticketCount: Long, userPermissionGroup ->
                 mutablePlayerList.add(
                     mapOf(
                         "id" to user.id,
                         "username" to user.username,
                         "email" to user.email,
                         "permissionGroupId" to user.permissionGroupId,
-                        "permissionGroup" to (permissionGroup?.name ?: "-"),
+                        "permissionGroup" to (userPermissionGroup?.name ?: "-"),
                         "ticketCount" to ticketCount,
                         "registerDate" to user.registerDate,
                         "lastLoginDate" to user.lastLoginDate,
-                        "isBanned" to user.banned
+                        "isBanned" to user.banned,
+                        "lastActivityTime" to user.lastActivityTime,
+                        "inGame" to databaseManager.serverPlayerDao.isExistsByUsername(user.username, sqlConnection)
                     )
                 )
             }

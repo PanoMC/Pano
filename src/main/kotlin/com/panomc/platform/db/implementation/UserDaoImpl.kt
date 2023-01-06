@@ -312,9 +312,9 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         page: Long,
         status: PlayerStatus,
         sqlConnection: SqlConnection
-    ): List<Map<String, Any>> {
+    ): List<User> {
         val query =
-            "SELECT id, username, email, register_date, `last_login_date`, permission_group_id, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permission_group_id != ? " else if (status == PlayerStatus.BANNED) "WHERE banned = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT `id`, `username`, `email`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE `permission_group_id` != ? " else if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -329,39 +329,16 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(parameters)
             .await()
 
-        val players = mutableListOf<Map<String, Any>>()
-
-        if (rows.size() == 0) {
-            return players
-        }
-
-        if (rows.size() > 0)
-            rows.forEach { row ->
-                players.add(
-                    mapOf(
-                        "id" to row.getLong(0),
-                        "username" to row.getString(1),
-                        "email" to row.getString(2),
-                        "registerDate" to row.getLong(3),
-                        "lastLoginDate" to row.getLong(4),
-                        "permissionGroupId" to row.getLong(5),
-                        "banned" to row.getBoolean(6),
-                        "lastActivityTime" to row.getLong(7),
-                        "lastPanelActivityTime" to row.getLong(8)
-                    )
-                )
-            }
-
-        return players
+        return User.from(rows)
     }
 
     override suspend fun getAllByPageAndPermissionGroup(
         page: Long,
         permissionGroupId: Long,
         sqlConnection: SqlConnection
-    ): List<Map<String, Any>> {
+    ): List<User> {
         val query =
-            "SELECT id, username, email, register_date, `last_login_date`, permission_group_id, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` WHERE permission_group_id = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT `id`, `username`, `email`, `registered_ip`, `permission_group_id`, `register_date`, `last_login_date`, `email_verified`, `banned`, `last_activity_time`, `last_panel_activity_time` FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -372,26 +349,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .execute(parameters)
             .await()
 
-        val players = mutableListOf<Map<String, Any>>()
-
-        if (rows.size() > 0)
-            rows.forEach { row ->
-                players.add(
-                    mapOf(
-                        "id" to row.getLong(0),
-                        "username" to row.getString(1),
-                        "email" to row.getString(2),
-                        "registerDate" to row.getLong(3),
-                        "lastLoginDate" to row.getLong(4),
-                        "permissionGroupId" to row.getLong(5),
-                        "banned" to row.getBoolean(6),
-                        "lastActivityTime" to row.getLong(7),
-                        "lastPanelActivityTime" to row.getLong(8)
-                    )
-                )
-            }
-
-        return players
+        return User.from(rows)
     }
 
     override suspend fun getUserIdFromUsernameOrEmail(

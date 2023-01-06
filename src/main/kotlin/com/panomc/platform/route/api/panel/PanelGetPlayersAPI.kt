@@ -4,6 +4,7 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
+import com.panomc.platform.db.model.User
 import com.panomc.platform.model.*
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.ext.web.RoutingContext
@@ -103,36 +104,36 @@ class PanelGetPlayersAPI(
         }
 
         val addPlayerToList =
-            { user: Map<String, Any?>, mutablePlayerList: MutableList<Map<String, Any>>, ticketCount: Long, permissionGroup: PermissionGroup? ->
+            { user: User, mutablePlayerList: MutableList<Map<String, Any>>, ticketCount: Long, permissionGroup: PermissionGroup? ->
                 mutablePlayerList.add(
                     mapOf(
-                        "id" to user["id"] as Long,
-                        "username" to user["username"] as String,
-                        "email" to user["email"] as String,
-                        "permissionGroupId" to user["permissionGroupId"] as Long,
+                        "id" to user.id,
+                        "username" to user.username,
+                        "email" to user.email,
+                        "permissionGroupId" to user.permissionGroupId,
                         "permissionGroup" to (permissionGroup?.name ?: "-"),
                         "ticketCount" to ticketCount,
-                        "registerDate" to user["registerDate"] as Long,
-                        "lastLoginDate" to user["lastLoginDate"] as Long,
-                        "isBanned" to user["banned"] as Boolean
+                        "registerDate" to user.registerDate,
+                        "lastLoginDate" to user.lastLoginDate,
+                        "isBanned" to user.banned
                     )
                 )
             }
 
-        val getPlayerData: suspend (Map<String, Any>) -> Unit = getPlayerData@{ user ->
+        val getPlayerData: suspend (User) -> Unit = getPlayerData@{ user ->
             val count = databaseManager.ticketDao.countByUserId(
-                user["id"] as Long,
+                user.id,
                 sqlConnection
             )
 
-            if (user["permissionGroupId"] as Long == -1L) {
+            if (user.permissionGroupId == -1L) {
                 addPlayerToList(user, playerList, count, null)
 
                 return@getPlayerData
             }
 
             val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(
-                user["permissionGroupId"] as Long,
+                user.permissionGroupId,
                 sqlConnection
             )
 

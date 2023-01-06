@@ -74,13 +74,13 @@ interface UserDao : Dao<User> {
         page: Long,
         status: PlayerStatus,
         sqlConnection: SqlConnection
-    ): List<Map<String, Any>>
+    ): List<User>
 
     suspend fun getAllByPageAndPermissionGroup(
         page: Long,
         permissionGroupId: Long,
         sqlConnection: SqlConnection
-    ): List<Map<String, Any>>
+    ): List<User>
 
     suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,

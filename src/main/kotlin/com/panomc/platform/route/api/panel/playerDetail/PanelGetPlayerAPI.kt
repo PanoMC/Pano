@@ -57,7 +57,9 @@ class PanelGetPlayerAPI(
             "lastLoginDate" to user.lastLoginDate,
             "isBanned" to user.banned,
             "isEmailVerified" to user.emailVerified,
-            "permissionGroup" to "-"
+            "permissionGroup" to "-",
+            "lastActivityTime" to user.lastActivityTime,
+            "inGame" to databaseManager.serverPlayerDao.isExistsByUsername(user.username, sqlConnection)
         )
 
         if (user.permissionGroupId != -1L) {

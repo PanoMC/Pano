@@ -167,9 +167,18 @@ class NotificationManager(private val databaseManager: DatabaseManager, private 
         panelPermission: PanelPermission,
         sqlConnection: SqlConnection
     ) {
-        val users = databaseManager.userDao.getIdsByPermission(panelPermission, sqlConnection)
+        val users = mutableSetOf<Long>()
+        val usersWithPermission = databaseManager.userDao.getIdsByPermission(panelPermission, sqlConnection)
+        val adminList = authProvider.getAdminList(sqlConnection)
 
-        sendPanelNotificationToAll(users, notificationType, properties, sqlConnection)
+        val adminUserIdList = adminList.map { username ->
+            databaseManager.userDao.getUserIdFromUsername(username, sqlConnection)!!
+        }
+
+        users.addAll(usersWithPermission)
+        users.addAll(adminUserIdList)
+
+        sendPanelNotificationToAll(users.toList(), notificationType, properties, sqlConnection)
     }
 
     suspend fun sendNotificationToAllAdminsWithPermission(

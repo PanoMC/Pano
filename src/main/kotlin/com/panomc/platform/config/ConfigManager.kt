@@ -80,7 +80,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
 
                     "update-period" to UpdatePeriod.ONCE_PER_DAY.period,
 
-                    "url-address" to "http://localhost:3000",
+                    "ui-address" to "http://localhost:3000",
                     "file-uploads-folder" to "file-uploads",
                     "file-paths" to mapOf<String, String>()
                 )

@@ -229,4 +229,16 @@ interface UserDao : Dao<User> {
         panelPermission: PanelPermission,
         sqlConnection: SqlConnection
     ): List<Long>
+
+    suspend fun updateEmailVerifyStatusById(
+        userId: Long,
+        verified: Boolean,
+        sqlConnection: SqlConnection
+    )
+
+    suspend fun updateCanCreateTicketStatusById(
+        userId: Long,
+        canCreateTicket: Boolean,
+        sqlConnection: SqlConnection
+    )
 }

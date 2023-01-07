@@ -862,4 +862,38 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         return listOfUsernames
     }
+
+    override suspend fun updateEmailVerifyStatusById(userId: Long, verified: Boolean, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `email_verified` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    if (verified) 1 else 0,
+                    userId
+                )
+            )
+            .await()
+    }
+
+    override suspend fun updateCanCreateTicketStatusById(
+        userId: Long,
+        canCreateTicket: Boolean,
+        sqlConnection: SqlConnection
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `can_create_ticket` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    if (canCreateTicket) 1 else 0,
+                    userId
+                )
+            )
+            .await()
+    }
 }

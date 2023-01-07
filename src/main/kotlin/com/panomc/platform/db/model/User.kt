@@ -12,8 +12,8 @@ data class User(
     val registerDate: Long = System.currentTimeMillis(),
     val lastLoginDate: Long = System.currentTimeMillis(),
     val emailVerified: Int = 0,
-    val banned: Int = 0,
-    val canCreateTicket: Int = 1,
+    val banned: Boolean = false,
+    val canCreateTicket: Boolean = true,
     val lastActivityTime: Long = System.currentTimeMillis(),
     val lastPanelActivityTime: Long = System.currentTimeMillis(),
 ) {
@@ -27,8 +27,8 @@ data class User(
             row.getLong(5),
             row.getLong(6),
             row.getInteger(7),
-            row.getInteger(8),
-            row.getInteger(9),
+            row.getInteger(8) == 1,
+            row.getInteger(9) == 1,
             row.getLong(10),
             row.getLong(11)
         )

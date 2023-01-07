@@ -1,6 +1,7 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.UserDao
@@ -832,5 +833,32 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         }
 
         return rows.toList()[0].getString(0)
+    }
+
+    override suspend fun getIdsByPermission(
+        panelPermission: PanelPermission,
+        sqlConnection: SqlConnection
+    ): List<Long> {
+        val query = """SELECT u.id
+                        FROM `${getTablePrefix() + tableName}` u
+                        JOIN `${getTablePrefix()}permission_group` p_group ON u.permission_group_id = p_group.id
+                        JOIN `${getTablePrefix()}permission_group_perms` p_group_perms ON p_group.id = p_group_perms.permission_group_id
+                        JOIN `${getTablePrefix()}permission` p ON p_group_perms.permission_id = p.id
+                        WHERE p.name = ?"""
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(panelPermission.toString())
+            )
+            .await()
+
+        val listOfUsernames = mutableListOf<Long>()
+
+        rows.forEach { row ->
+            listOfUsernames.add(row.getLong(0))
+        }
+
+        return listOfUsernames
     }
 }

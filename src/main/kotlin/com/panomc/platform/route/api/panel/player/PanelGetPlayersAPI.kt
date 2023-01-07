@@ -121,6 +121,8 @@ class PanelGetPlayersAPI(
                         "registerDate" to user.registerDate,
                         "lastLoginDate" to user.lastLoginDate,
                         "isBanned" to user.banned,
+                        "canCreateTicket" to user.canCreateTicket,
+                        "isEmailVerified" to user.emailVerified,
                         "lastActivityTime" to user.lastActivityTime,
                         "inGame" to databaseManager.serverPlayerDao.isExistsByUsername(user.username, sqlConnection)
                     )

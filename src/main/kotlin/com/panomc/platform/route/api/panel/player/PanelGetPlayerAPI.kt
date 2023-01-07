@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.player
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
@@ -18,7 +20,8 @@ import kotlin.math.ceil
 
 @Endpoint
 class PanelGetPlayerAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username", RouteType.GET))
 
@@ -70,6 +73,10 @@ class PanelGetPlayerAPI(
 
             @Suppress("UNCHECKED_CAST")
             (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
+        }
+
+        if (!authProvider.hasPermission(user.id, PanelPermission.MANAGE_TICKETS, context)) {
+            return Successful(result)
         }
 
         val count = databaseManager.ticketDao.countByUserId(user.id, sqlConnection)

@@ -36,7 +36,8 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
             Permission(name = "manage_players", iconName = "fa-users"),
             Permission(name = "manage_view", iconName = "fa-palette"),
             Permission(name = "manage_addons", iconName = "fa-puzzle-piece"),
-            Permission(name = "manage_platform_settings", iconName = "fa-cog")
+            Permission(name = "manage_platform_settings", iconName = "fa-cog"),
+            Permission(name = "manage_permission_groups", iconName = "fa-lock-open")
         )
 
         permissions.forEach { add(it, sqlConnection) }

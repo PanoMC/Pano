@@ -35,7 +35,17 @@ abstract class Api : Route() {
     }
 
     override fun getHandler() = Handler<RoutingContext> { context ->
-        callHandler(context)
+        val getSqlConnectionMethod: suspend () -> SqlConnection = {
+            createConnection(context)
+        }
+
+        context.put("getSqlConnection", getSqlConnectionMethod)
+
+        CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
+            onBeforeHandle(context)
+
+            handle(context)
+        }
     }
 
     override fun getFailureHandler() = Handler<RoutingContext> { context ->
@@ -56,24 +66,17 @@ abstract class Api : Route() {
         }
     }
 
-    fun handler(context: RoutingContext, handler: (result: Result) -> Unit) {
+    suspend fun handle(context: RoutingContext) {
+        val result = handler(context)
 
-        CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
-            val result = handler(context)
+        val sqlConnection = context.get<SqlConnection>("sqlConnection")
 
-            val sqlConnection = context.get<SqlConnection>("sqlConnection")
+        sqlConnection?.close()?.await()
 
-            sqlConnection?.close()?.await()
-
-            result?.let(handler)
-        }
+        result?.let { sendResult(it, context) }
     }
 
-    fun callHandler(context: RoutingContext) {
-        handler(context) { sendResult(it, context) }
-    }
-
-    fun sendResult(result: Result, context: RoutingContext) {
+    private fun sendResult(result: Result, context: RoutingContext) {
         val response = context.response()
 
         response
@@ -82,15 +85,17 @@ abstract class Api : Route() {
         response.end(result.encode())
     }
 
-    fun getParameters(context: RoutingContext): RequestParameters = context.get(REQUEST_CONTEXT_KEY)
-
-    fun getExceptionHandler(context: RoutingContext) = CoroutineExceptionHandler { _, exception ->
+    private fun getExceptionHandler(context: RoutingContext) = CoroutineExceptionHandler { _, exception ->
         context.fail(exception)
     }
+
+    fun getParameters(context: RoutingContext): RequestParameters = context.get(REQUEST_CONTEXT_KEY)
 
     abstract override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler?
 
     abstract suspend fun handler(context: RoutingContext): Result?
 
     open suspend fun getFailureHandler(context: RoutingContext) = Unit
+
+    open suspend fun onBeforeHandle(context: RoutingContext) = Unit
 }

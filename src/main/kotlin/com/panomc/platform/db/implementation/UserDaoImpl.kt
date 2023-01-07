@@ -4,6 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.UserDao
+import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
@@ -793,5 +794,43 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
 
         return User.from(rows)
+    }
+
+    override suspend fun getPermissionsById(userId: Long, sqlConnection: SqlConnection): List<Permission> {
+        val query = """SELECT p.id, p.name, p.icon_name
+                    FROM `${getTablePrefix() + tableName}` u
+                    JOIN `${getTablePrefix()}permission_group` p_group ON u.permission_group_id = p_group.id
+                    JOIN `${getTablePrefix()}permission_group_perms` p_group_perms ON p_group.id = p_group_perms.permission_group_id
+                    JOIN `${getTablePrefix()}permission` p ON p_group_perms.permission_id = p.id
+                    WHERE u.id = ?"""
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(userId)
+            )
+            .await()
+
+        return Permission.from(rows)
+    }
+
+    override suspend fun getPermissionGroupNameById(userId: Long, sqlConnection: SqlConnection): String? {
+        val query = """SELECT p_group.name
+                    FROM `${getTablePrefix() + tableName}` u
+                    JOIN `${getTablePrefix()}permission_group` p_group ON u.permission_group_id = p_group.id
+                    WHERE u.id = ?"""
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(userId)
+            )
+            .await()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getString(0)
     }
 }

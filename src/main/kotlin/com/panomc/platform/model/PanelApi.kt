@@ -3,11 +3,7 @@ package com.panomc.platform.model
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
-import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
-import io.vertx.kotlin.coroutines.dispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import org.springframework.beans.factory.annotation.Autowired
 
 abstract class PanelApi : LoggedInApi() {
@@ -18,26 +14,19 @@ abstract class PanelApi : LoggedInApi() {
     private lateinit var databaseManager: DatabaseManager
 
     private suspend fun updateLastPanelActivityTime(context: RoutingContext) {
-        val userId = authProvider.getUserIdFromRoutingContext(context)
-
         val sqlConnection = createConnection(context)
+        val userId = authProvider.getUserIdFromRoutingContext(context)
 
         databaseManager.userDao.updateLastPanelActivityTime(userId, sqlConnection)
     }
 
-    override fun getHandler() = Handler<RoutingContext> { context ->
-        checkSetup()
+    override suspend fun onBeforeHandle(context: RoutingContext) {
+        super.onBeforeHandle(context)
 
-        CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
-            checkLoggedIn(context)
-
-            if (!authProvider.hasAccessPanel(context)) {
-                throw Error(ErrorCode.NO_PERMISSION)
-            }
-
-            updateLastPanelActivityTime(context)
-
-            callHandler(context)
+        if (!authProvider.hasAccessPanel(context)) {
+            throw Error(ErrorCode.NO_PERMISSION)
         }
+
+        updateLastPanelActivityTime(context)
     }
 }

@@ -2,6 +2,7 @@ package com.panomc.platform.auth
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Permission
 import com.panomc.platform.model.Error
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class AuthProvider(
     private val databaseManager: DatabaseManager,
-    private val tokenProvider: TokenProvider,
+    private val tokenProvider: TokenProvider
 ) {
     companion object {
         const val HEADER_PREFIX = "Bearer "
@@ -74,15 +75,12 @@ class AuthProvider(
     }
 
     suspend fun isLoggedIn(
-        routingContext: RoutingContext
+        routingContext: RoutingContext,
+        sqlConnection: SqlConnection
     ): Boolean {
         val token = getTokenFromRoutingContext(routingContext) ?: return false
 
-        val sqlConnection = databaseManager.createConnection()
-
         val isTokenValid = tokenProvider.isTokenValid(token, TokenType.AUTHENTICATION, sqlConnection)
-
-        databaseManager.closeConnection(sqlConnection)
 
         return isTokenValid
     }
@@ -171,28 +169,16 @@ class AuthProvider(
     suspend fun hasAccessPanel(
         routingContext: RoutingContext
     ): Boolean {
-        val sqlConnection = databaseManager.createConnection()
-
-        val hasAccess = hasAccessPanel(routingContext, sqlConnection)
-
-        databaseManager.closeConnection(sqlConnection)
-
-        return hasAccess
-    }
-
-    suspend fun hasAccessPanel(
-        routingContext: RoutingContext,
-        sqlConnection: SqlConnection
-    ): Boolean {
         val userId = getUserIdFromRoutingContext(routingContext)
+//        val sqlConnection = routingContext.get<suspend () -> SqlConnection>("getSqlConnection").invoke()
 
-        val permissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
+//        val permissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
+//
+//        if (permissionGroupId == null || permissionGroupId == -1L) {
+//            return false
+//        }
 
-        if (permissionGroupId == null || permissionGroupId == -1L) {
-            return false
-        }
-
-        return true
+        return hasPermission(userId, PanelPermission.ACCESS_PANEL, routingContext)
     }
 
     fun validateInput(
@@ -222,13 +208,6 @@ class AuthProvider(
 //            return
 //        }
     }
-
-//    fun logout(
-//        databaseManager: DatabaseManager,
-//        routingContext: RoutingContext,
-//        handler: (isLoggedOut: Result?, asyncResult: AsyncResult<*>?) -> Unit
-//    ) {
-//    }
 
     fun getUserIdFromRoutingContext(routingContext: RoutingContext): Long {
         val token = getTokenFromRoutingContext(routingContext)
@@ -265,7 +244,7 @@ class AuthProvider(
     }
 
     suspend fun logout(routingContext: RoutingContext, sqlConnection: SqlConnection) {
-        val isLoggedIn = isLoggedIn(routingContext)
+        val isLoggedIn = isLoggedIn(routingContext, sqlConnection)
 
         if (!isLoggedIn) {
             return
@@ -283,4 +262,37 @@ class AuthProvider(
 
         return admins
     }
+
+    suspend fun hasPermission(userId: Long, panelPermission: PanelPermission, context: RoutingContext): Boolean {
+        val isAdmin = context.get<Boolean>("isAdmin")
+
+        if (isAdmin != null) {
+            return isAdmin
+        }
+
+        val existingPermissionsList = context.get<List<Permission>>("permissions")
+
+        if (existingPermissionsList != null) {
+            return existingPermissionsList.hasPermission(panelPermission)
+        }
+
+        val sqlConnection = context.get<suspend () -> SqlConnection>("getSqlConnection").invoke()
+
+        val permissionGroupName = databaseManager.userDao.getPermissionGroupNameById(userId, sqlConnection)
+
+        if (permissionGroupName == "admin") {
+            context.put("isAdmin", true)
+
+            return true
+        }
+
+        val permissions = databaseManager.userDao.getPermissionsById(userId, sqlConnection)
+
+        context.put("permissions", permissions)
+
+        return permissions.hasPermission(panelPermission)
+    }
+
+    private fun List<Permission>.hasPermission(panelPermission: PanelPermission) =
+        this.any { it.name == panelPermission.toString() }
 }

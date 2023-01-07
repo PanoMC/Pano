@@ -1,6 +1,7 @@
 package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
+import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
@@ -212,4 +213,14 @@ interface UserDao : Dao<User> {
         limit: Long,
         sqlConnection: SqlConnection
     ): List<User>
+
+    suspend fun getPermissionsById(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): List<Permission>
+
+    suspend fun getPermissionGroupNameById(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): String?
 }

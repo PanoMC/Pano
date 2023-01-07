@@ -4,11 +4,8 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.setup.SetupManager
-import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
-import io.vertx.kotlin.coroutines.dispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import io.vertx.sqlclient.SqlConnection
 import org.springframework.beans.factory.annotation.Autowired
 
 abstract class LoggedInApi : Api() {
@@ -21,37 +18,33 @@ abstract class LoggedInApi : Api() {
     @Autowired
     private lateinit var authProvider: AuthProvider
 
-    fun checkSetup() {
+    private fun checkSetup() {
         if (!setupManager.isSetupDone()) {
             throw Error(ErrorCode.INSTALLATION_REQUIRED)
         }
     }
 
-    suspend fun checkLoggedIn(context: RoutingContext) {
-        val isLoggedIn = authProvider.isLoggedIn(context)
+    private suspend fun checkLoggedIn(context: RoutingContext, sqlConnection: SqlConnection) {
+        val isLoggedIn = authProvider.isLoggedIn(context, sqlConnection)
 
         if (!isLoggedIn) {
             throw Error(ErrorCode.NOT_LOGGED_IN)
         }
     }
 
-    private suspend fun updateLastActivityTime(context: RoutingContext) {
+    private suspend fun updateLastActivityTime(context: RoutingContext, sqlConnection: SqlConnection) {
         val userId = authProvider.getUserIdFromRoutingContext(context)
-
-        val sqlConnection = createConnection(context)
 
         databaseManager.userDao.updateLastActivityTime(userId, sqlConnection)
     }
 
-    override fun getHandler() = Handler<RoutingContext> { context ->
+    override suspend fun onBeforeHandle(context: RoutingContext) {
         checkSetup()
 
-        CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
-            checkLoggedIn(context)
+        val sqlConnection = createConnection(context)
 
-            updateLastActivityTime(context)
+        checkLoggedIn(context, sqlConnection)
 
-            callHandler(context)
-        }
+        updateLastActivityTime(context, sqlConnection)
     }
 }

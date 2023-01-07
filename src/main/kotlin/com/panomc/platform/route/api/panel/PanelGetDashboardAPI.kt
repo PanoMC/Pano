@@ -3,7 +3,7 @@ package com.panomc.platform.route.api.panel
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.Permission.ACCESS_PANEL
+import com.panomc.platform.auth.PanelPermission.ACCESS_PANEL
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.TicketCategory
@@ -142,7 +142,7 @@ class PanelGetDashboardAPI(
         }
 
         val permissionId = databaseManager.permissionDao.getPermissionId(
-            Permission(name = ACCESS_PANEL.value, iconName = ""),
+            Permission(name = ACCESS_PANEL.toString(), iconName = ""),
             sqlConnection
         )
         val permissionGroupsByPermissionId =

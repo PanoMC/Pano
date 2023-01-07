@@ -31,6 +31,8 @@ class PanelUpdatePlayerAPI(
                         .property("email", stringSchema())
                         .property("newPassword", stringSchema())
                         .property("newPasswordRepeat", stringSchema())
+                        .property("emailVerified", booleanSchema())
+                        .property("canCreateTicket", booleanSchema())
                 )
             )
             .build()
@@ -44,6 +46,8 @@ class PanelUpdatePlayerAPI(
         val email = data.getString("email")
         val newPassword = data.getString("newPassword")
         val newPasswordRepeat = data.getString("newPasswordRepeat")
+        val emailVerified = data.getBoolean("emailVerified")
+        val canCreateTicket = data.getBoolean("canCreateTicket")
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -87,6 +91,11 @@ class PanelUpdatePlayerAPI(
 
         if (newPassword.isNotEmpty()) {
             databaseManager.userDao.setPasswordById(user.id, newPassword, sqlConnection)
+        }
+
+        if (id != userId) {
+            databaseManager.userDao.updateEmailVerifyStatusById(id, emailVerified, sqlConnection)
+            databaseManager.userDao.updateCanCreateTicketStatusById(id, canCreateTicket, sqlConnection)
         }
 
         return Successful()

@@ -17,7 +17,7 @@ class PanelGetRefreshKeyAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 
-    override suspend fun handler(context: RoutingContext) = Successful(
+    override suspend fun handle(context: RoutingContext) = Successful(
         mapOf(
             "key" to platformCodeManager.getPlatformKey(),
             "timeStarted" to platformCodeManager.getTimeStarted()

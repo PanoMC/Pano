@@ -50,7 +50,7 @@ class ServerConnectNewAPI(
             )
             .build()
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         if (!setupManager.isSetupDone()) {
             throw Error(ErrorCode.INSTALLATION_REQUIRED)
         }

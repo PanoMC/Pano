@@ -26,7 +26,7 @@ class GetPostsAPI(
             .queryParameter(Parameters.optionalParam("categoryUrl", Schemas.stringSchema()))
             .build()
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
         val sqlConnection = createConnection(context)
 

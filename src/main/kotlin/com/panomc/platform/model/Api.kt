@@ -44,7 +44,13 @@ abstract class Api : Route() {
         CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
             onBeforeHandle(context)
 
-            handle(context)
+            val result = handle(context)
+
+            val sqlConnection = context.get<SqlConnection>("sqlConnection")
+
+            sqlConnection?.close()?.await()
+
+            result?.let { sendResult(it, context) }
         }
     }
 
@@ -66,16 +72,6 @@ abstract class Api : Route() {
         }
     }
 
-    suspend fun handle(context: RoutingContext) {
-        val result = handler(context)
-
-        val sqlConnection = context.get<SqlConnection>("sqlConnection")
-
-        sqlConnection?.close()?.await()
-
-        result?.let { sendResult(it, context) }
-    }
-
     private fun sendResult(result: Result, context: RoutingContext) {
         val response = context.response()
 
@@ -93,7 +89,7 @@ abstract class Api : Route() {
 
     abstract override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler?
 
-    abstract suspend fun handler(context: RoutingContext): Result?
+    abstract suspend fun handle(context: RoutingContext): Result?
 
     open suspend fun getFailureHandler(context: RoutingContext) = Unit
 

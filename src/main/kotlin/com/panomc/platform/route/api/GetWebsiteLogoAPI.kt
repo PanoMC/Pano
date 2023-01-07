@@ -16,7 +16,7 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 
-    override suspend fun handler(context: RoutingContext): Result? {
+    override suspend fun handle(context: RoutingContext): Result? {
         val websiteLogoPath = configManager.getConfig().getJsonObject("file-paths").getString("websiteLogo")
 
         if (websiteLogoPath == null) {

@@ -19,7 +19,7 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
             .build()
 
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         val response = mutableMapOf<String, Any?>()
 
         response["ipAddress"] = configManager.getConfig().getString("server-ip-address")

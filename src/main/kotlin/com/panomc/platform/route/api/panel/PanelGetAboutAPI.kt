@@ -16,7 +16,7 @@ class PanelGetAboutAPI : PanelApi() {
         ValidationHandlerBuilder.create(schemaParser)
             .build()
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         val result = mutableMapOf<String, Any?>()
 
         result["platformVersion"] = Main.VERSION

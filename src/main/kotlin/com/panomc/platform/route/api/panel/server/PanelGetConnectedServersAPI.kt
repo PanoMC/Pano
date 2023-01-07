@@ -14,7 +14,7 @@ class PanelGetConnectedServersAPI(
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         val sqlConnection = createConnection(context)
 
         val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlConnection)

@@ -79,7 +79,7 @@ class PanelUpdateSettingAPI(
             )
             .build()
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 

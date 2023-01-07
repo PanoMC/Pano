@@ -18,7 +18,7 @@ class ProfileSidebarAPI(private val databaseManager: DatabaseManager, private va
         ValidationHandlerBuilder.create(schemaParser)
             .build()
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         val response = mutableMapOf<String, Any?>()
 
         val userId = authProvider.getUserIdFromRoutingContext(context)

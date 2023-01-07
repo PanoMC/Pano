@@ -32,7 +32,7 @@ class GetTicketsAPI(
             .queryParameter(optionalParam("categoryUrl", Schemas.stringSchema()))
             .build()
 
-    override suspend fun handler(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result {
         val sqlConnection = createConnection(context)
         val parameters = getParameters(context)
 

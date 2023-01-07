@@ -13,6 +13,7 @@ data class User(
     val lastLoginDate: Long = System.currentTimeMillis(),
     val emailVerified: Int = 0,
     val banned: Int = 0,
+    val canCreateTicket: Int = 1,
     val lastActivityTime: Long = System.currentTimeMillis(),
     val lastPanelActivityTime: Long = System.currentTimeMillis(),
 ) {
@@ -27,8 +28,9 @@ data class User(
             row.getLong(6),
             row.getInteger(7),
             row.getInteger(8),
-            row.getLong(9),
-            row.getLong(10)
+            row.getInteger(9),
+            row.getLong(10),
+            row.getLong(11)
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

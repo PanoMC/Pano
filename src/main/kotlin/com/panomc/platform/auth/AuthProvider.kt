@@ -85,98 +85,10 @@ class AuthProvider(
         return isTokenValid
     }
 
-//    fun isAdmin(
-//        databaseManager: DatabaseManager,
-//        routingContext: RoutingContext,
-//        handler: (isAdmin: Boolean, asyncResult: AsyncResult<*>?) -> Unit
-//    ) {
-//        val cookie = routingContext.getCookie(COOKIE_NAME)
-//
-//        val token = cookie.value
-//
-//        databaseManager.createConnection { sqlConnection, asyncResultOfCreateConnection ->
-//            if (sqlConnection == null) {
-//                handler.invoke(false, asyncResultOfCreateConnection)
-//
-//                return@createConnection
-//            }
-//
-//            databaseManager.tokenDao.getUserIDFromToken(
-//                token,
-//                sqlConnection
-//            ) { userID, asyncResultGetUserIDFromToken ->
-//                if (userID == null) {
-//                    databaseManager.closeConnection(sqlConnection) {
-//                        handler.invoke(false, asyncResultGetUserIDFromToken)
-//                    }
-//
-//                    return@getUserIDFromToken
-//                }
-//
-//                if (userID == 0) {
-//                    databaseManager.closeConnection(sqlConnection) {
-//                        handler.invoke(false, asyncResultGetUserIDFromToken)
-//                    }
-//
-//                    return@getUserIDFromToken
-//                }
-//
-//                databaseManager.userDao.getPermissionGroupIDFromUserID(
-//                    userID,
-//                    sqlConnection
-//                ) { permissionGroupID, asyncResultOfGetPermissionGroupIDFromUserID ->
-//                    if (permissionGroupID == null) {
-//                        databaseManager.closeConnection(sqlConnection) {
-//                            handler.invoke(false, asyncResultOfGetPermissionGroupIDFromUserID)
-//                        }
-//
-//                        return@getPermissionGroupIDFromUserID
-//                    }
-//
-//                    if (permissionGroupID == -1) {
-//                        databaseManager.closeConnection(sqlConnection) {
-//                            handler.invoke(false, asyncResultOfGetPermissionGroupIDFromUserID)
-//                        }
-//
-//                        return@getPermissionGroupIDFromUserID
-//                    }
-//
-//                    databaseManager.permissionGroupDao.getPermissionGroupByID(
-//                        permissionGroupID,
-//                        sqlConnection
-//                    ) { permissionGroup, asyncResultOfGetPermissionGroupID ->
-//                        databaseManager.closeConnection(sqlConnection) {
-//                            if (permissionGroup == null) {
-//                                handler.invoke(false, asyncResultOfGetPermissionGroupID)
-//
-//                                return@closeConnection
-//                            }
-//
-//                            if (permissionGroup.name != "admin") {
-//                                handler.invoke(false, asyncResultOfGetPermissionGroupID)
-//
-//                                return@closeConnection
-//                            }
-//
-//                            handler.invoke(true, asyncResultOfGetPermissionGroupID)
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
-
     suspend fun hasAccessPanel(
         routingContext: RoutingContext
     ): Boolean {
         val userId = getUserIdFromRoutingContext(routingContext)
-//        val sqlConnection = routingContext.get<suspend () -> SqlConnection>("getSqlConnection").invoke()
-
-//        val permissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
-//
-//        if (permissionGroupId == null || permissionGroupId == -1L) {
-//            return false
-//        }
 
         return hasPermission(userId, PanelPermission.ACCESS_PANEL, routingContext)
     }

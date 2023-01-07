@@ -4,6 +4,7 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission.ACCESS_PANEL
+import com.panomc.platform.auth.PanelPermission.MANAGE_TICKETS
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.TicketCategory
@@ -50,15 +51,22 @@ class PanelGetDashboardAPI(
             ),
             "registeredPlayerCount" to 0,
             "postCount" to 0,
-            "ticketCount" to 0,
-            "openTicketCount" to 0,
-            "tickets" to mutableListOf<Map<String, Any?>>(),
             "adminCount" to 0,
             "connectedServerCount" to 0,
             "newRegisterCount" to 0,
             "period" to period.period,
             "websiteActivityDataList" to mutableMapOf<String, Any?>()
         )
+
+        if (authProvider.hasPermission(userId, MANAGE_TICKETS, context)) {
+            result.putAll(
+                mapOf(
+                    "ticketCount" to 0,
+                    "openTicketCount" to 0,
+                    "tickets" to mutableListOf<Map<String, Any?>>()
+                )
+            )
+        }
 
         val sqlConnection = createConnection(context)
 
@@ -92,53 +100,55 @@ class PanelGetDashboardAPI(
             sqlConnection
         )
 
-        result["ticketCount"] = ticketCount
+        if (authProvider.hasPermission(userId, MANAGE_TICKETS, context)) {
+            result["ticketCount"] = ticketCount
 
-        if (ticketCount != 0L) {
-            val openTicketCount = databaseManager.ticketDao.countOfOpenTickets(sqlConnection)
+            if (ticketCount != 0L) {
+                val openTicketCount = databaseManager.ticketDao.countOfOpenTickets(sqlConnection)
 
-            result["openTicketCount"] = openTicketCount
+                result["openTicketCount"] = openTicketCount
 
-            val tickets = databaseManager.ticketDao.getLast5Tickets(sqlConnection)
+                val tickets = databaseManager.ticketDao.getLast5Tickets(sqlConnection)
 
-            val userIdList = tickets.distinctBy { it.userId }.map { it.userId }
+                val userIdList = tickets.distinctBy { it.userId }.map { it.userId }
 
-            val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+                val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
 
-            val categoryIdList =
-                tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
-            var ticketCategoryList: Map<Long, TicketCategory> = mapOf()
+                val categoryIdList =
+                    tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
+                var ticketCategoryList: Map<Long, TicketCategory> = mapOf()
 
-            if (categoryIdList.isNotEmpty()) {
-                ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
-            }
+                if (categoryIdList.isNotEmpty()) {
+                    ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
+                }
 
-            val ticketDataList = mutableListOf<Map<String, Any?>>()
+                val ticketDataList = mutableListOf<Map<String, Any?>>()
 
-            tickets.forEach { ticket ->
-                ticketDataList.add(
-                    mapOf(
-                        "id" to ticket.id,
-                        "title" to ticket.title,
-                        "category" to
-                                if (ticket.categoryId == -1L)
-                                    TicketCategory()
-                                else
-                                    ticketCategoryList.getOrDefault(
-                                        ticket.categoryId,
+                tickets.forEach { ticket ->
+                    ticketDataList.add(
+                        mapOf(
+                            "id" to ticket.id,
+                            "title" to ticket.title,
+                            "category" to
+                                    if (ticket.categoryId == -1L)
                                         TicketCategory()
-                                    ),
-                        "writer" to mapOf(
-                            "username" to usernameList[ticket.userId]
-                        ),
-                        "date" to ticket.date,
-                        "lastUpdate" to ticket.lastUpdate,
-                        "status" to ticket.status.value
+                                    else
+                                        ticketCategoryList.getOrDefault(
+                                            ticket.categoryId,
+                                            TicketCategory()
+                                        ),
+                            "writer" to mapOf(
+                                "username" to usernameList[ticket.userId]
+                            ),
+                            "date" to ticket.date,
+                            "lastUpdate" to ticket.lastUpdate,
+                            "status" to ticket.status.value
+                        )
                     )
-                )
-            }
+                }
 
-            result["tickets"] = ticketDataList
+                result["tickets"] = ticketDataList
+            }
         }
 
         val permissionId = databaseManager.permissionDao.getPermissionId(
@@ -174,7 +184,13 @@ class PanelGetDashboardAPI(
         val websiteActivityDataList = result["websiteActivityDataList"] as MutableMap<String, Any?>
 
         val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlConnection)
-        val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlConnection)
+        websiteActivityDataList["newRegisterData"] = registerDateList.toGroupGetCountAndDates()
+
+        if (authProvider.hasPermission(userId, MANAGE_TICKETS, context)) {
+            val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlConnection)
+            websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
+        }
+
         val websiteViewData = databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlConnection)
 
         val viewsDateMap = mutableMapOf<Long, Long>()
@@ -193,9 +209,6 @@ class PanelGetDashboardAPI(
                 visitorDateMap[viewData.date] = 1
             }
         }
-
-        websiteActivityDataList["newRegisterData"] = registerDateList.toGroupGetCountAndDates()
-        websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
         websiteActivityDataList["visitorData"] = visitorDateMap
         websiteActivityDataList["viewData"] = viewsDateMap
 

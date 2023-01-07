@@ -205,6 +205,14 @@ class AuthProvider(
         return permissions.hasPermission(panelPermission)
     }
 
+    suspend fun requirePermission(panelPermission: PanelPermission, context: RoutingContext) {
+        val userId = getUserIdFromRoutingContext(context)
+
+        if (!hasPermission(userId, panelPermission, context)) {
+            throw Error(ErrorCode.NO_PERMISSION)
+        }
+    }
+
     private fun List<Permission>.hasPermission(panelPermission: PanelPermission) =
         this.any { it.name == panelPermission.toString() }
 }

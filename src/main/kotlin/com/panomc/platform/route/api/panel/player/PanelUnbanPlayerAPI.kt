@@ -1,10 +1,8 @@
-package com.panomc.platform.route.api.panel.playerDetail
+package com.panomc.platform.route.api.panel.player
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.mails.ActivationMail
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -14,11 +12,10 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
-class PanelSendValidationEmailAPI(
+class PanelUnbanPlayerAPI(
     private val databaseManager: DatabaseManager,
-    private val mailManager: MailManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/players/:username/verificationMail", RouteType.POST))
+    override val paths = listOf(Path("/api/panel/players/:username/unban", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
@@ -41,13 +38,13 @@ class PanelSendValidationEmailAPI(
         val userId =
             databaseManager.userDao.getUserIdFromUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlConnection)
+        val isBanned = databaseManager.userDao.isBanned(userId, sqlConnection)
 
-        if (isEmailVerified) {
-            throw Error(ErrorCode.EMAIL_ALREADY_VERIFIED)
+        if (!isBanned) {
+            throw Error(ErrorCode.NOT_BANNED)
         }
 
-        mailManager.sendMail(sqlConnection, userId, ActivationMail())
+        databaseManager.userDao.unbanPlayer(userId, sqlConnection)
 
         return Successful()
     }

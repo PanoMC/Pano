@@ -1,7 +1,9 @@
-package com.panomc.platform.route.api.panel.playerDetail
+package com.panomc.platform.route.api.panel.player
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -14,7 +16,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class PanelUpdatePlayerAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:id", RouteType.PUT))
 
@@ -41,6 +44,14 @@ class PanelUpdatePlayerAPI(
         val email = data.getString("email")
         val newPassword = data.getString("newPassword")
         val newPasswordRepeat = data.getString("newPasswordRepeat")
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+
+        val hasManagePlayerPermission = authProvider.hasPermission(userId, PanelPermission.MANAGE_PLAYERS, context)
+
+        if (!hasManagePlayerPermission && id != userId) {
+            throw Error(ErrorCode.NO_PERMISSION)
+        }
 
         validateForm(username, email, newPassword, newPasswordRepeat)
 

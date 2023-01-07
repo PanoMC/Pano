@@ -1,7 +1,9 @@
-package com.panomc.platform.route.api.panel
+package com.panomc.platform.route.api.panel.player
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.User
@@ -17,7 +19,8 @@ import kotlin.math.ceil
 
 @Endpoint
 class PanelGetPlayersAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players", RouteType.GET))
 
@@ -35,6 +38,8 @@ class PanelGetPlayersAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(PanelPermission.MANAGE_PLAYERS, context)
+
         val parameters = getParameters(context)
 
         val playerStatus =

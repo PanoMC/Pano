@@ -1,8 +1,9 @@
-package com.panomc.platform.route.api.panel.playerDetail
+package com.panomc.platform.route.api.panel.player
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.notification.BannedMail
@@ -38,6 +39,8 @@ class PanelBanPlayerAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(PanelPermission.MANAGE_PLAYERS, context)
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 

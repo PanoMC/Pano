@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.server
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
@@ -85,9 +86,10 @@ class ServerConnectNewAPI(
 
         val notificationProperties = JsonObject().put("id", serverId)
 
-        notificationManager.sendNotificationToAllAdmins(
+        notificationManager.sendNotificationToAllWithPermission(
             Notifications.PanelNotificationType.SERVER_CONNECT_REQUEST,
             notificationProperties,
+            PanelPermission.MANAGE_SERVERS,
             sqlConnection
         )
 

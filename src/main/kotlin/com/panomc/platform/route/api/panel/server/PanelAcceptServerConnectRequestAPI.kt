@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.server
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -13,7 +15,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
 class PanelAcceptServerConnectRequestAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id/accept", RouteType.POST))
 
@@ -23,6 +26,8 @@ class PanelAcceptServerConnectRequestAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(PanelPermission.MANAGE_SERVERS, context)
+
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 

@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.settings
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -13,7 +15,8 @@ import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 
 @Endpoint
 class PanelGetSettingsAPI(
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.GET))
 
@@ -25,6 +28,8 @@ class PanelGetSettingsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(PanelPermission.MANAGE_PLATFORM_SETTINGS, context)
+
         val parameters = getParameters(context)
 
         val settingType =

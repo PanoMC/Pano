@@ -1,6 +1,7 @@
 package com.panomc.platform.notification
 
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Notification
 import com.panomc.platform.db.model.PanelNotification
@@ -156,6 +157,29 @@ class NotificationManager(private val databaseManager: DatabaseManager, private 
         val sqlConnection = databaseManager.createConnection()
 
         sendNotificationToAllAdmins(notificationType, properties, sqlConnection)
+
+        databaseManager.closeConnection(sqlConnection)
+    }
+
+    suspend fun sendNotificationToAllWithPermission(
+        notificationType: Notifications.PanelNotificationType,
+        properties: JsonObject = JsonObject(),
+        panelPermission: PanelPermission,
+        sqlConnection: SqlConnection
+    ) {
+        val users = databaseManager.userDao.getIdsByPermission(panelPermission, sqlConnection)
+
+        sendPanelNotificationToAll(users, notificationType, properties, sqlConnection)
+    }
+
+    suspend fun sendNotificationToAllAdminsWithPermission(
+        notificationType: Notifications.PanelNotificationType,
+        properties: JsonObject = JsonObject(),
+        panelPermission: PanelPermission
+    ) {
+        val sqlConnection = databaseManager.createConnection()
+
+        sendNotificationToAllWithPermission(notificationType, properties, panelPermission, sqlConnection)
 
         databaseManager.closeConnection(sqlConnection)
     }

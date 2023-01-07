@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -13,7 +15,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
 @Endpoint
 class PanelGetTicketMessagesAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/tickets/:id/messages", RouteType.GET))
 
@@ -24,6 +27,8 @@ class PanelGetTicketMessagesAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(PanelPermission.MANAGE_TICKETS, context)
+
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
         val lastMessageId = parameters.queryParameter("lastMessageId").long

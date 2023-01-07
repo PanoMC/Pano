@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.ticket
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketMessage
@@ -73,9 +74,10 @@ class CreateTicketAPI(
 
         val notificationProperties = JsonObject().put("id", id)
 
-        notificationManager.sendNotificationToAllAdmins(
+        notificationManager.sendNotificationToAllWithPermission(
             Notifications.PanelNotificationType.NEW_TICKET,
             notificationProperties,
+            PanelPermission.MANAGE_TICKETS,
             sqlConnection
         )
 

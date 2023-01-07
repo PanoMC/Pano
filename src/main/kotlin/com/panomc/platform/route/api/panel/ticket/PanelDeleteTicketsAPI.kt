@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -13,7 +15,8 @@ import io.vertx.json.schema.common.dsl.Schemas.intSchema
 
 @Endpoint
 class PanelDeleteTicketsAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/tickets", RouteType.DELETE))
 
@@ -25,6 +28,8 @@ class PanelDeleteTicketsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(PanelPermission.MANAGE_TICKETS, context)
+
         val parameters = getParameters(context)
         val selectedTickets = parameters.queryParameter("ids").jsonArray
 

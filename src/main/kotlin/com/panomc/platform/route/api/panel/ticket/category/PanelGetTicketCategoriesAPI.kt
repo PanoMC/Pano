@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.ticket.category
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
@@ -16,7 +18,8 @@ import kotlin.math.ceil
 
 @Endpoint
 class PanelGetTicketCategoriesAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/ticket/categories", RouteType.GET))
 
@@ -26,6 +29,8 @@ class PanelGetTicketCategoriesAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(PanelPermission.MANAGE_TICKETS, context)
+
         val parameters = getParameters(context)
         val page = parameters.queryParameter("page")?.long ?: 1
 

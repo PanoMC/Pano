@@ -74,7 +74,7 @@ class PanelAddPermissionGroupAPI(
         val adminPermissionGroupId =
             databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
 
-        validateAddedUsersContainAdmin(adminPermissionGroupId, addedUsers, sqlConnection)
+        validateAddedUsersContainAdminAndHasUserPerm(adminPermissionGroupId, addedUsers, sqlConnection, context)
 
         validateAreAddedUsersExist(addedUsers, sqlConnection)
 
@@ -103,17 +103,20 @@ class PanelAddPermissionGroupAPI(
         }
     }
 
-    private suspend fun validateAddedUsersContainAdmin(
+    private suspend fun validateAddedUsersContainAdminAndHasUserPerm(
         adminPermissionGroupId: Long,
         addedUsers: List<String>,
-        sqlConnection: SqlConnection
+        sqlConnection: SqlConnection,
+        context: RoutingContext
     ) {
         val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
             .map { it.lowercase() }
 
+        val isAdmin = context.get<Boolean>("isAdmin") ?: false
+
         admins.forEach { admin ->
-            if (addedUsers.find { it.lowercase() == admin } != null) {
-                throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_USER_PERM_GROUP)
+            if (addedUsers.find { it.lowercase() == admin } != null && !isAdmin) {
+                throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_USER)
             }
         }
     }

@@ -93,6 +93,12 @@ class PanelUpdatePlayerPermissionGroupAPI(
                 sqlConnection
             )
 
+            val isAdmin = context.get<Boolean>("isAdmin") ?: false
+
+            if (!isAdmin) {
+                throw Error(ErrorCode.NO_PERMISSION)
+            }
+
             if (count == 1L) {
                 throw Errors(mapOf("LAST_ADMIN" to true))
             }

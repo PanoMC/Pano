@@ -49,6 +49,19 @@ class PanelUnbanPlayerAPI(
             throw Error(ErrorCode.NOT_BANNED)
         }
 
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
+            ?: throw Error(ErrorCode.UNKNOWN)
+
+        val userPermissionGroup =
+            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
+                ?: throw Error(ErrorCode.UNKNOWN)
+
+        val isAdmin = context.get<Boolean>("isAdmin") ?: false
+
+        if (userPermissionGroup.name == "admin" && !isAdmin) {
+            throw Error(ErrorCode.NO_PERMISSION)
+        }
+
         databaseManager.userDao.unbanPlayer(userId, sqlConnection)
 
         return Successful()

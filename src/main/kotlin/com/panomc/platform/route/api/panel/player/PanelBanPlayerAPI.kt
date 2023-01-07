@@ -58,8 +58,9 @@ class PanelBanPlayerAPI(
 
         val userId =
             databaseManager.userDao.getUserIdFromUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+        val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
-        if (userId == authProvider.getUserIdFromRoutingContext(context)) {
+        if (userId == authUserId) {
             throw Error(ErrorCode.CANT_BAN_YOURSELF)
         }
 
@@ -78,6 +79,12 @@ class PanelBanPlayerAPI(
                     ?: throw Error(ErrorCode.UNKNOWN)
 
             if (userPermissionGroup.name == "admin") {
+                val isAdmin = context.get<Boolean>("isAdmin") ?: false
+
+                if (!isAdmin) {
+                    throw Error(ErrorCode.NO_PERMISSION)
+                }
+
                 val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(
                     userPermissionGroupId,
                     sqlConnection

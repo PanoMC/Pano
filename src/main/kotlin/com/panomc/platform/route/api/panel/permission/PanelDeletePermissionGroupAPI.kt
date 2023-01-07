@@ -46,7 +46,7 @@ class PanelDeletePermissionGroupAPI(
                 ?: throw Error(ErrorCode.UNKNOWN)
 
         if (permissionGroup.name == "admin") {
-            throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
+            throw Error(ErrorCode.CANT_DELETE_ADMIN_PERMISSION)
         }
 
         databaseManager.permissionGroupPermsDao.removePermissionGroup(permissionGroupId, sqlConnection)

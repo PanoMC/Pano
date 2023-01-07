@@ -67,6 +67,19 @@ class PanelUpdatePlayerAPI(
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(id, sqlConnection)
+            ?: throw Error(ErrorCode.UNKNOWN)
+
+        val userPermissionGroup =
+            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
+                ?: throw Error(ErrorCode.UNKNOWN)
+
+        val isAdmin = context.get<Boolean>("isAdmin") ?: false
+
+        if (userPermissionGroup.name == "admin" && !isAdmin) {
+            throw Error(ErrorCode.NO_PERMISSION)
+        }
+
         val user = databaseManager.userDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
 
         if (username != user.username) {

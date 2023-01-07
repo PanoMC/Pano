@@ -46,6 +46,19 @@ class PanelSendValidationEmailAPI(
         val userId =
             databaseManager.userDao.getUserIdFromUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
 
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
+            ?: throw Error(ErrorCode.UNKNOWN)
+
+        val userPermissionGroup =
+            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
+                ?: throw Error(ErrorCode.UNKNOWN)
+
+        val isAdmin = context.get<Boolean>("isAdmin") ?: false
+
+        if (userPermissionGroup.name == "admin" && !isAdmin) {
+            throw Error(ErrorCode.NO_PERMISSION)
+        }
+
         val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlConnection)
 
         if (isEmailVerified) {

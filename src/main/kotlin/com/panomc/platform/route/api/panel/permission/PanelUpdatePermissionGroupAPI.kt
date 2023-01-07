@@ -77,6 +77,14 @@ class PanelUpdatePermissionGroupAPI(
 
         validateHavePermissionToUpdateAdminPermGroup(id, adminPermissionGroupId, userId, sqlConnection)
 
+        validateHavePermissionToUpdateAdminUser(
+            addedUsers,
+            removedUsers,
+            adminPermissionGroupId,
+            sqlConnection,
+            context
+        )
+
         val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
 
         val permissionsInDb = databaseManager.permissionDao.getPermissions(sqlConnection)
@@ -211,6 +219,25 @@ class PanelUpdatePermissionGroupAPI(
 
             if (user!!.permissionGroupId != adminPermissionGroupId) {
                 throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_PERM_GROUP)
+            }
+        }
+    }
+
+    private suspend fun validateHavePermissionToUpdateAdminUser(
+        addedUsers: List<String>,
+        removedUsers: List<String>,
+        adminPermissionGroupId: Long,
+        sqlConnection: SqlConnection,
+        context: RoutingContext
+    ) {
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
+            .map { it.lowercase() }
+
+        val isAdmin = context.get<Boolean>("isAdmin") ?: false
+
+        admins.forEach { admin ->
+            if ((addedUsers.find { it.lowercase() == admin } != null || removedUsers.find { it.lowercase() == admin } != null) && !isAdmin) {
+                throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_USER)
             }
         }
     }

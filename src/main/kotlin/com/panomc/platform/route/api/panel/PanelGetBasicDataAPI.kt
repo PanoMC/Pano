@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
 import com.panomc.platform.server.PlatformCodeManager
@@ -54,12 +55,17 @@ class PanelGetBasicDataAPI(
             selectedServer = databaseManager.serverDao.getById(selectedServerId, sqlConnection)
         }
 
+//        Since it's a panel API, it calls AuthProvider#hasAccessPanel method and these context fields are created
+        val isAdmin = context.get<Boolean>("isAdmin") ?: false
+        val permissions = context.get<List<Permission>>("permissions") ?: listOf()
+
         return Successful(
             mapOf(
                 "user" to mapOf(
                     "username" to user.username,
                     "email" to user.email,
-                    "permissionId" to user.permissionGroupId
+                    "permissions" to permissions.map { it.name },
+                    "admin" to isAdmin
                 ),
                 "website" to mapOf(
                     "name" to configManager.getConfig().getString("website-name"),

@@ -6,6 +6,7 @@ import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -45,7 +46,14 @@ class PanelAddTicketCategoryAPI(
 
         val sqlConnection = createConnection(context)
 
-        databaseManager.ticketCategoryDao.add(TicketCategory(title = title, description = description), sqlConnection)
+        val categoryId = databaseManager.ticketCategoryDao.add(
+            TicketCategory(title = title, description = description),
+            sqlConnection
+        )
+
+        val url = TextUtil.convertStringToUrl(title, 32)
+
+        databaseManager.ticketCategoryDao.updateUrlById(categoryId, "$url-$categoryId", sqlConnection)
 
         return Successful()
     }

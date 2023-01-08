@@ -143,4 +143,9 @@ interface TicketDao : Dao<Ticket> {
         ids: List<Long>,
         sqlConnection: SqlConnection
     ): Boolean
+
+    suspend fun removeTicketCategoriesByCategoryId(
+        categoryId: Long,
+        sqlConnection: SqlConnection
+    )
 }

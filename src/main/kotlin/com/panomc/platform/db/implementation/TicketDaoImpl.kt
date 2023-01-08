@@ -499,4 +499,18 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         return rows.toList()[0].getLong(0) == ids.size.toLong()
     }
+
+    override suspend fun removeTicketCategoriesByCategoryId(categoryId: Long, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `category_id` = ? WHERE `category_id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    -1,
+                    categoryId
+                )
+            )
+            .await()
+    }
 }

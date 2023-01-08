@@ -101,7 +101,7 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
         sqlConnection: SqlConnection
     ): Token? {
         val query =
-            "SELECT `id`, `subject`, `token`, `type`, `expireDate`, `start_date` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC limit 1"
+            "SELECT `id`, `subject`, `token`, `type`, `expire_date`, `start_date` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expire_date` DESC limit 1"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

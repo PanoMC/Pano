@@ -241,4 +241,10 @@ interface UserDao : Dao<User> {
         canCreateTicket: Boolean,
         sqlConnection: SqlConnection
     )
+
+    suspend fun isPasswordCorrectWithId(
+        id: Long,
+        hashedPassword: String,
+        sqlConnection: SqlConnection
+    ): Boolean
 }

@@ -896,4 +896,25 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
     }
+
+    override suspend fun isPasswordCorrectWithId(
+        id: Long,
+        hashedPassword: String,
+        sqlConnection: SqlConnection
+    ): Boolean {
+        val query =
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where `id` = ? and `password` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    id,
+                    hashedPassword
+                )
+            )
+            .await()
+
+        return rows.toList()[0].getLong(0) == 1L
+    }
 }

@@ -50,6 +50,14 @@ class PanelUpdatePlayerPermissionGroupAPI(
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
+        val userId = databaseManager.userDao.getUserIdFromUsername(username, sqlConnection)
+
+        val authUserId = authProvider.getUserIdFromRoutingContext(context)
+
+        if (userId == authUserId) {
+            throw Error(ErrorCode.CANT_AUTHORIZE_YOURSELF)
+        }
+
         var permissionGroupId = -1L
 
         if (permissionGroup != "-") {

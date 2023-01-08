@@ -27,7 +27,7 @@ class ChangeEmailMail : Mail {
 
         tokenProvider.saveToken(token, userId.toString(), TokenType.CHANGE_EMAIL, expireDate, sqlConnection)
 
-        parameters.put("link", "$uiAddress/change-email?token=$token")
+        parameters.put("link", "$uiAddress/activate-new-email?token=$token")
 
         return parameters
     }

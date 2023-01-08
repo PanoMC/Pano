@@ -106,10 +106,10 @@ class GetTicketAPI(
                     "username" to username,
                     "title" to ticket.title,
                     "category" to
-                            if (ticket.categoryId == -1L)
+                            if (ticketCategory == null)
                                 mapOf("title" to "-", "url" to "-")
                             else
-                                mapOf("title" to ticketCategory!!.title, "url" to ticketCategory.url),
+                                mapOf("title" to ticketCategory.title, "url" to ticketCategory.url),
                     "messages" to messages,
                     "status" to ticket.status.value,
                     "date" to ticket.date,

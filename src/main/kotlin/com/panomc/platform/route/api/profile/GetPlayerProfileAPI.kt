@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api
+package com.panomc.platform.route.api.profile
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint

@@ -15,12 +15,12 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
-class ValidateEmailAPI(
+class VerifyEmailAPI(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/auth/validateEmail", RouteType.POST))
+    override val paths = listOf(Path("/api/auth/verifyEmail", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

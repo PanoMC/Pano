@@ -9,7 +9,8 @@ data class Token(
     val subject: String,
     val token: String,
     val type: TokenType,
-    val expireDate: Long
+    val expireDate: Long,
+    val startDate: Long = System.currentTimeMillis()
 ) {
     companion object {
         fun from(row: Row) =
@@ -18,7 +19,8 @@ data class Token(
                 row.getString(1),
                 row.getString(2),
                 TokenType.valueOf(row.getString(3)),
-                row.getLong(4)
+                row.getLong(4),
+                row.getLong(5)
             )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

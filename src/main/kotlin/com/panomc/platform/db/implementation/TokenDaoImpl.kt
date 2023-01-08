@@ -26,6 +26,7 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
                           `token` mediumtext NOT NULL,
                           `type` varchar(32) NOT NULL,
                           `expire_date` bigint(20) NOT NULL,
+                          `start_date` bigint NOT NULL,
                           PRIMARY KEY (`id`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Valid token table.';
                         """
@@ -36,8 +37,8 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
 
     override suspend fun add(token: Token, sqlConnection: SqlConnection): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`subject`, `token`, `type`, `expire_date`) " +
-                    "VALUES (?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`subject`, `token`, `type`, `expire_date`, `start_date`) " +
+                    "VALUES (?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -46,7 +47,8 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
                     token.subject,
                     token.token,
                     token.type.name,
-                    token.expireDate
+                    token.expireDate,
+                    token.startDate
                 )
             )
             .await()
@@ -99,7 +101,7 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
         sqlConnection: SqlConnection
     ): Token? {
         val query =
-            "SELECT `id`, `subject`, `token`, `type`, `expireDate` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC limit 1"
+            "SELECT `id`, `subject`, `token`, `type`, `expireDate`, `start_date` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC limit 1"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)

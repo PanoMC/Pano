@@ -39,6 +39,8 @@ class PanelDeleteTicketCategoryAPI(
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
+        databaseManager.ticketDao.removeTicketCategoriesByCategoryId(id, sqlConnection)
+
         databaseManager.ticketCategoryDao.deleteById(id, sqlConnection)
 
         return Successful()

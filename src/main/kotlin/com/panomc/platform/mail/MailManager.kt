@@ -28,20 +28,21 @@ class MailManager(
         mailClientProvider.provide()
     }
 
-    suspend fun sendMail(sqlConnection: SqlConnection, userId: Long, mail: Mail) {
-        val email =
-            databaseManager.userDao.getEmailFromUserId(userId, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+    suspend fun sendMail(sqlConnection: SqlConnection, userId: Long, mail: Mail, email: String? = null) {
+        val emailAddress =
+            email ?: databaseManager.userDao.getEmailFromUserId(userId, sqlConnection)
+            ?: throw Error(ErrorCode.NOT_EXISTS)
 
         val emailConfig = configManager.getConfig().getJsonObject("email")
         val message = MailMessage()
 
         message.from = emailConfig.getString("address")
         message.subject = mail.subject
-        message.setTo(email)
+        message.setTo(emailAddress)
 
         message.html = templateEngine.render(
             mail.parameterGenerator(
-                email,
+                emailAddress,
                 userId,
                 configManager.getConfig().getString("ui-address"),
                 databaseManager,

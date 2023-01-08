@@ -30,5 +30,12 @@ enum class TokenType(val expireDate: (() -> Long)) {
         calendar.add(Calendar.YEAR, 10)
 
         calendar.timeInMillis
-    })
+    }),
+    CHANGE_EMAIL({
+        val calendar = Calendar.getInstance()
+
+        calendar.add(Calendar.MINUTE, 15)
+
+        calendar.timeInMillis
+    }),
 }

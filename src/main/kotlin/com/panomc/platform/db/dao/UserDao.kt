@@ -253,4 +253,9 @@ interface UserDao : Dao<User> {
         pendingEmail: String,
         sqlConnection: SqlConnection
     )
+
+    suspend fun getPendingEmailById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ): String
 }

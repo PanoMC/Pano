@@ -937,4 +937,19 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
     }
+
+    override suspend fun getPendingEmailById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ): String {
+        val query =
+            "SELECT `pending_email` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(Tuple.of(id))
+            .await()
+
+        return rows.toList()[0].getString(0)
+    }
 }

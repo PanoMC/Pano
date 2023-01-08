@@ -40,6 +40,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                               `mc_uuid` varchar(255) NOT NULL DEFAULT '',
                               `last_activity_time` BIGINT NOT NULL DEFAULT 0,
                               `last_panel_activity_time` BIGINT NOT NULL DEFAULT 0,
+                              `pending_email` varchar(255) NOT NULL DEFAULT '',
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User Table';
                         """

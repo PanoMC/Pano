@@ -7,6 +7,7 @@ import com.panomc.platform.db.dao.TicketCategoryDao
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.util.TextUtil
 import io.vertx.kotlin.coroutines.await
+import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlConnection
@@ -89,17 +90,34 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
     override suspend fun add(
         ticketCategory: TicketCategory,
         sqlConnection: SqlConnection
-    ) {
+    ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `description`, `url`) VALUES (?, ?, ?)"
 
-        sqlConnection
+        val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     ticketCategory.title,
                     ticketCategory.description,
                     TextUtil.convertStringToUrl(ticketCategory.title)
+                )
+            )
+            .await()
+
+        return rows.property(MySQLClient.LAST_INSERTED_ID)
+    }
+
+    override suspend fun updateUrlById(id: Long, newUrl: String, sqlConnection: SqlConnection) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `url` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    newUrl,
+                    id
                 )
             )
             .await()

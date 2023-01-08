@@ -27,6 +27,12 @@ interface TicketCategoryDao : Dao<TicketCategory> {
     suspend fun add(
         ticketCategory: TicketCategory,
         sqlConnection: SqlConnection
+    ): Long
+
+    suspend fun updateUrlById(
+        id: Long,
+        newUrl: String,
+        sqlConnection: SqlConnection
     )
 
     suspend fun update(

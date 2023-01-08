@@ -918,4 +918,23 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         return rows.toList()[0].getLong(0) == 1L
     }
+
+    override suspend fun updatePendingEmailById(
+        userId: Long,
+        pendingEmail: String,
+        sqlConnection: SqlConnection
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `pending_email` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    pendingEmail,
+                    userId
+                )
+            )
+            .await()
+    }
 }

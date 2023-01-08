@@ -247,4 +247,10 @@ interface UserDao : Dao<User> {
         hashedPassword: String,
         sqlConnection: SqlConnection
     ): Boolean
+
+    suspend fun updatePendingEmailById(
+        userId: Long,
+        pendingEmail: String,
+        sqlConnection: SqlConnection
+    )
 }

@@ -55,7 +55,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
         if (userId == authUserId) {
-            throw Error(ErrorCode.CANT_AUTHORIZE_YOURSELF)
+            throw Error(ErrorCode.CANT_UPDATE_PERM_GROUP_YOURSELF)
         }
 
         var permissionGroupId = -1L

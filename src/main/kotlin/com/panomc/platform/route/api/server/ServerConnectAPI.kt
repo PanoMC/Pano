@@ -103,6 +103,7 @@ class ServerConnectAPI(
         val serverExists = databaseManager.serverDao.existsById(server.id, sqlConnection)
 
         if (serverExists) {
+            databaseManager.serverDao.updateStopTimeById(server.id, System.currentTimeMillis(), sqlConnection)
             databaseManager.serverDao.updateServerForOfflineById(server.id, sqlConnection)
         }
 

@@ -40,10 +40,10 @@ class ServerAuthProvider(
         return getServerIdFromToken(token!!)
     }
 
-    fun getServerIdFromToken(token: String): Long {
+    private fun getServerIdFromToken(token: String): Long {
         val jwt = tokenProvider.parseToken(token)
 
-        return jwt.body.subject.toLong()
+        return jwt.subject.toLong()
     }
 
     fun getTokenFromRoutingContext(context: RoutingContext): String? {

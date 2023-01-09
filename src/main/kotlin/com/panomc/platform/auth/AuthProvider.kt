@@ -130,7 +130,7 @@ class AuthProvider(
     fun getUserIdFromToken(token: String): Long {
         val jwt = tokenProvider.parseToken(token)
 
-        return jwt.body.subject.toLong()
+        return jwt.subject.toLong()
     }
 
     fun getTokenFromRoutingContext(routingContext: RoutingContext): String? {

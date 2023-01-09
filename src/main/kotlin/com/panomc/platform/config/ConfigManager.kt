@@ -5,7 +5,6 @@ import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
-import io.jsonwebtoken.io.Encoders
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
@@ -19,6 +18,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.io.File
+import java.util.*
 
 @Lazy
 @Component
@@ -29,7 +29,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
         private const val CONFIG_VERSION = 13
 
         private val DEFAULT_CONFIG by lazy {
-            val key = KeyGeneratorUtil.generateJWTKeys()
+            val key = KeyGeneratorUtil.generateJWTKey()
 
             JsonObject(
                 mapOf(
@@ -73,10 +73,7 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
                         "SSL" to true
                     ),
 
-                    "jwt-keys" to mapOf(
-                        "private" to Encoders.BASE64.encode(key.private.encoded),
-                        "public" to Encoders.BASE64.encode(key.public.encoded)
-                    ),
+                    "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),
 
                     "update-period" to UpdatePeriod.ONCE_PER_DAY.period,
 

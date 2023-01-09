@@ -1,21 +1,16 @@
 package com.panomc.platform.token
 
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
+import com.auth0.jwt.interfaces.DecodedJWT
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Token
-import io.jsonwebtoken.Claims
-import io.jsonwebtoken.Jws
-import io.jsonwebtoken.JwtException
-import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.io.Decoders
 import io.vertx.sqlclient.SqlConnection
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
-import java.security.KeyFactory
-import java.security.spec.PKCS8EncodedKeySpec
-import java.security.spec.X509EncodedKeySpec
 import java.util.*
 
 @Lazy
@@ -25,27 +20,21 @@ class TokenProvider(
     private val databaseManager: DatabaseManager,
     private val configManager: ConfigManager
 ) {
+    fun getAlgorithm(): Algorithm {
+        val secretKey = String(Base64.getDecoder().decode(configManager.getConfig().getString("jwt-key")))
+
+        return Algorithm.HMAC512(secretKey)
+    }
+
     fun generateToken(subject: String, tokenType: TokenType): Pair<String, Long> {
-        val privateKeySpec = PKCS8EncodedKeySpec(
-            Decoders.BASE64.decode(
-                configManager.getConfig().getJsonObject("jwt-keys").getString("private")
-            )
-        )
-        val keyFactory = KeyFactory.getInstance("RSA")
-
-        val claims = mutableMapOf<String, Any>()
-
-        claims["tokenType"] = tokenType.name
-
         val expireDate = tokenType.expireDate.invoke()
 
-        val token = Jwts.builder()
-            .setSubject(subject)
-            .setId(UUID.randomUUID().toString())
-            .addClaims(claims)
-            .setExpiration(Date(expireDate))
-            .signWith(keyFactory.generatePrivate(privateKeySpec))
-            .compact()
+        val token = JWT.create()
+            .withJWTId(UUID.randomUUID().toString())
+            .withSubject(subject)
+            .withClaim("tokenType", tokenType.expireDate.invoke())
+            .withExpiresAt(Date(expireDate))
+            .sign(getAlgorithm())
 
         return Pair(token, expireDate)
     }
@@ -80,20 +69,10 @@ class TokenProvider(
         databaseManager.tokenDao.deleteBySubjectAndType(subject, type, sqlConnection)
     }
 
-    @Throws(JwtException::class)
-    fun parseToken(token: String): Jws<Claims> {
-        val publicKeySpec = X509EncodedKeySpec(
-            Decoders.BASE64.decode(
-                configManager.getConfig().getJsonObject("jwt-keys").getString("public")
-            )
-        )
-        val keyFactory = KeyFactory.getInstance("RSA")
-
-        return Jwts.parserBuilder()
-            .setSigningKey(
-                keyFactory.generatePublic(publicKeySpec)
-            )
+    fun parseToken(token: String): DecodedJWT {
+        val verifier = JWT.require(getAlgorithm())
             .build()
-            .parseClaimsJws(token)
+
+        return verifier.verify(token)
     }
 }

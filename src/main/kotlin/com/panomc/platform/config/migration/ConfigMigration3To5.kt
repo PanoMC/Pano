@@ -7,8 +7,8 @@ import com.panomc.platform.config.ConfigMigration
 import com.panomc.platform.util.UpdatePeriod
 
 @Migration
-class ConfigMigration4To5(
-    override val FROM_VERSION: Int = 4,
+class ConfigMigration3To5(
+    override val FROM_VERSION: Int = 3,
     override val VERSION: Int = 5,
     override val VERSION_INFO: String = "Add update-period field"
 ) : ConfigMigration() {

@@ -42,7 +42,7 @@ class ServerConnectAPI(
 
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlConnection = databaseManager.createConnection()
 
         val server = databaseManager.serverDao.getById(serverId, sqlConnection) ?: return Error(ErrorCode.INVALID_TOKEN)
 
@@ -74,7 +74,7 @@ class ServerConnectAPI(
     private suspend fun onConnectionEstablished(context: RoutingContext, serverWebSocket: ServerWebSocket) {
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlConnection = databaseManager.createConnection()
 
         val server = databaseManager.serverDao.getById(serverId, sqlConnection)!!
 

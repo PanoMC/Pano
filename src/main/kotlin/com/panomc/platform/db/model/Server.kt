@@ -17,7 +17,9 @@ data class Server(
     val version: String,
     val favicon: String,
     val permissionGranted: Boolean = false,
-    val status: ServerStatus
+    val status: ServerStatus,
+    val startTime: Long,
+    val stopTime: Long = 0
 ) {
     companion object {
         fun from(row: Row) = Server(
@@ -32,7 +34,9 @@ data class Server(
             row.getString(8),
             row.getString(9),
             row.getInteger(10) == 1,
-            ServerStatus.valueOf(row.getInteger(11))!!
+            ServerStatus.valueOf(row.getInteger(11))!!,
+            row.getLong(12),
+            row.getLong(13)
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

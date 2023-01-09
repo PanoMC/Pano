@@ -56,6 +56,18 @@ interface ServerDao : Dao<Server> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun updateStartTimeById(
+        id: Long,
+        startTime: Long,
+        sqlConnection: SqlConnection
+    )
+
+    suspend fun updateStopTimeById(
+        id: Long,
+        stopTime: Long,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun updateServerForOfflineById(
         id: Long,
         sqlConnection: SqlConnection

@@ -33,6 +33,8 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                               `favicon` text NOT NULL,
                               `permission_granted` int(1) default 0,
                               `status` int(1) NOT NULL,
+                              `start_time` bigint NOT NULL,
+                              `stop_time` bigint NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Server table.';
                         """
@@ -46,8 +48,8 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         sqlConnection: SqlConnection
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `status`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `status`, `start_time`, `stop_time`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -62,7 +64,9 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                     server.type,
                     server.version,
                     server.favicon,
-                    server.status.value
+                    server.status.value,
+                    server.startTime,
+                    server.stopTime
                 )
             ).await()
 
@@ -71,7 +75,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getById(id: Long, sqlConnection: SqlConnection): Server? {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -93,7 +97,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getAllByPermissionGranted(sqlConnection: SqlConnection): List<Server> {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -196,6 +200,34 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(
                 Tuple.of(
                     playerCount,
+                    id
+                )
+            )
+            .await()
+    }
+
+    override suspend fun updateStartTimeById(id: Long, startTime: Long, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `start_time` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    startTime,
+                    id
+                )
+            )
+            .await()
+    }
+
+    override suspend fun updateStopTimeById(id: Long, stopTime: Long, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `stop_time` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    stopTime,
                     id
                 )
             )

@@ -47,6 +47,7 @@ class ServerConnectNewAPI(
                         .property("maxPlayerCount", numberSchema())
                         .property("serverType", enumSchema(*ServerType.values().map { it.toString() }.toTypedArray()))
                         .property("serverVersion", stringSchema())
+                        .property("startTime", numberSchema())
                 )
             )
             .build()
@@ -73,7 +74,8 @@ class ServerConnectNewAPI(
             type = ServerType.valueOf(data.getString("serverType")),
             version = data.getString("serverVersion"),
             favicon = data.getString("favicon") ?: "",
-            status = ServerStatus.OFFLINE
+            status = ServerStatus.OFFLINE,
+            startTime = data.getLong("startTime")
         )
 
         val sqlConnection = createConnection(context)

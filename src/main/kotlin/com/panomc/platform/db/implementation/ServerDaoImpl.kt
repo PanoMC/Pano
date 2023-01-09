@@ -6,6 +6,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.ServerDao
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.server.ServerStatus
+import com.panomc.platform.server.ServerType
 import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -243,6 +244,45 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                 Tuple.of(
                     ServerStatus.OFFLINE.value,
                     0,
+                    id
+                )
+            )
+            .await()
+    }
+
+    override suspend fun updateById(
+        id: Long,
+        name: String,
+        motd: String,
+        host: String,
+        port: Int,
+        playerCount: Long,
+        maxPlayerCount: Long,
+        type: ServerType,
+        version: String,
+        favicon: String,
+        status: ServerStatus,
+        startTime: Long,
+        sqlConnection: SqlConnection
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `player_count` = ?, `max_player_count` = ?, `server_type` = ?, `server_version` = ?, `favicon` = ?, `status` = ?, `start_time` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    name,
+                    motd,
+                    host,
+                    port,
+                    playerCount,
+                    maxPlayerCount,
+                    type,
+                    version,
+                    favicon,
+                    status.value,
+                    startTime,
                     id
                 )
             )

@@ -3,6 +3,7 @@ package com.panomc.platform.db.dao
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.server.ServerStatus
+import com.panomc.platform.server.ServerType
 import io.vertx.sqlclient.SqlConnection
 
 interface ServerDao : Dao<Server> {
@@ -70,6 +71,22 @@ interface ServerDao : Dao<Server> {
 
     suspend fun updateServerForOfflineById(
         id: Long,
+        sqlConnection: SqlConnection
+    )
+
+    suspend fun updateById(
+        id: Long,
+        name: String,
+        motd: String,
+        host: String,
+        port: Int,
+        playerCount: Long,
+        maxPlayerCount: Long,
+        type: ServerType,
+        version: String,
+        favicon: String,
+        status: ServerStatus,
+        startTime: Long,
         sqlConnection: SqlConnection
     )
 }

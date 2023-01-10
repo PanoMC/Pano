@@ -40,6 +40,7 @@ class PanelAcceptServerConnectRequestAPI(
         }
 
         databaseManager.serverDao.updatePermissionGrantedById(id, true, sqlConnection)
+        databaseManager.serverDao.updateAcceptedTimeById(id, System.currentTimeMillis(), sqlConnection)
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(
             "main_server",

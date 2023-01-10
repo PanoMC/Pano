@@ -69,6 +69,12 @@ interface ServerDao : Dao<Server> {
         sqlConnection: SqlConnection
     )
 
+    suspend fun updateAcceptedTimeById(
+        id: Long,
+        acceptedTime: Long,
+        sqlConnection: SqlConnection
+    )
+
     suspend fun updateServerForOfflineById(
         id: Long,
         sqlConnection: SqlConnection

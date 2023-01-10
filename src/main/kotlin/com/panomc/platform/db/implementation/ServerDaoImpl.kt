@@ -34,6 +34,8 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                               `favicon` text NOT NULL,
                               `permission_granted` int(1) default 0,
                               `status` int(1) NOT NULL,
+                              `added_time` bigint NOT NULL,
+                              `accepted_time` bigint NOT NULL,
                               `start_time` bigint NOT NULL,
                               `stop_time` bigint NOT NULL,
                               PRIMARY KEY (`id`)
@@ -49,8 +51,8 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         sqlConnection: SqlConnection
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `status`, `start_time`, `stop_time`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -66,8 +68,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                     server.version,
                     server.favicon,
                     server.status.value,
+                    server.addedTime,
+                    0,
                     server.startTime,
-                    server.stopTime
+                    0,
                 )
             ).await()
 
@@ -76,7 +80,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getById(id: Long, sqlConnection: SqlConnection): Server? {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -98,7 +102,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getAllByPermissionGranted(sqlConnection: SqlConnection): List<Server> {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -229,6 +233,20 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .execute(
                 Tuple.of(
                     stopTime,
+                    id
+                )
+            )
+            .await()
+    }
+
+    override suspend fun updateAcceptedTimeById(id: Long, acceptedTime: Long, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `accepted_time` = ? WHERE `id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    acceptedTime,
                     id
                 )
             )

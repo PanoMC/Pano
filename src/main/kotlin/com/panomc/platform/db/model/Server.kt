@@ -18,6 +18,8 @@ data class Server(
     val favicon: String,
     val permissionGranted: Boolean = false,
     val status: ServerStatus,
+    val addedTime: Long = System.currentTimeMillis(),
+    val acceptedTime: Long = 0,
     val startTime: Long,
     val stopTime: Long = 0
 ) {
@@ -36,7 +38,9 @@ data class Server(
             row.getInteger(10) == 1,
             ServerStatus.valueOf(row.getInteger(11))!!,
             row.getLong(12),
-            row.getLong(13)
+            row.getLong(13),
+            row.getLong(14),
+            row.getLong(15)
         )
 
         fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }

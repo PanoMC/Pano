@@ -952,4 +952,19 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         return rows.toList()[0].getString(0)
     }
+
+    override suspend fun countOfOnline(sqlConnection: SqlConnection): Long {
+        val query = "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `last_activity_time` > ?"
+
+        val fiveMinutesAgoInMillis = System.currentTimeMillis() - 5 * 60 * 1000
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(fiveMinutesAgoInMillis)
+            )
+            .await()
+
+        return rows.toList()[0].getLong(0)
+    }
 }

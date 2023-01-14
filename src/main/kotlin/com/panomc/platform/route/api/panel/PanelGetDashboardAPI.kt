@@ -49,6 +49,7 @@ class PanelGetDashboardAPI(
             "gettingStartedBlocks" to mapOf(
                 "welcomeBoard" to false
             ),
+            "onlinePlayerCount" to 0,
             "registeredPlayerCount" to 0,
             "postCount" to 0,
             "adminCount" to 0,
@@ -84,21 +85,13 @@ class PanelGetDashboardAPI(
             )
         }
 
-        val userCount = databaseManager.userDao.count(
-            sqlConnection
-        )
+        result["registeredPlayerCount"] = databaseManager.userDao.count(sqlConnection)
 
-        result["registeredPlayerCount"] = userCount
+        result["onlinePlayerCount"] = databaseManager.userDao.countOfOnline(sqlConnection)
 
-        val postCount = databaseManager.postDao.count(
-            sqlConnection
-        )
+        result["postCount"] = databaseManager.postDao.count(sqlConnection)
 
-        result["postCount"] = postCount
-
-        val ticketCount = databaseManager.ticketDao.count(
-            sqlConnection
-        )
+        val ticketCount = databaseManager.ticketDao.count(sqlConnection)
 
         result["ticketCount"] = ticketCount
 

@@ -134,7 +134,15 @@ class AuthProvider(
     }
 
     fun getTokenFromRoutingContext(routingContext: RoutingContext): String? {
-        val authorizationHeader = routingContext.request().getHeader("Authorization") ?: return null
+        val request = routingContext.request()
+
+        val jwtCookie = request.getCookie("pano_jwt")
+
+        if (jwtCookie != null) {
+            return jwtCookie.value
+        }
+
+        val authorizationHeader = request.getHeader("Authorization") ?: return null
 
         if (!authorizationHeader.contains(HEADER_PREFIX)) {
             return null

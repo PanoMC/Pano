@@ -7,31 +7,16 @@ import com.panomc.platform.db.model.WebsiteView
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.objectSchema
-import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class VisitorVisitAPI(private val databaseManager: DatabaseManager) : Api() {
     override val paths = listOf(Path("/api/visitorVisit", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser)
-            .body(
-                json(
-                    objectSchema()
-                        .property("ipAddress", stringSchema())
-                )
-            )
-            .build()
+    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler? = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        val parameters = getParameters(context)
-        val data = parameters.body().jsonObject
-
-        val ipAddress = data.getString("ipAddress")
+        val ipAddress = context.request().remoteAddress().host()
 
         validateIpAddress(ipAddress)
 

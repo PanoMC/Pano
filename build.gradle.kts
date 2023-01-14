@@ -40,6 +40,7 @@ dependencies {
     implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
     implementation("io.vertx:vertx-web-validation:$vertxVersion")
     implementation("io.vertx:vertx-json-schema:$vertxVersion")
+    implementation("io.vertx:vertx-web-proxy:$vertxVersion")
 
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
     implementation("com.auth0:java-jwt:4.2.1")

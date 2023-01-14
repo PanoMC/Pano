@@ -20,7 +20,7 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
         val websiteLogoPath = configManager.getConfig().getJsonObject("file-paths").getString("websiteLogo")
 
         if (websiteLogoPath == null) {
-            context.response().setStatusCode(404).end()
+            sendDefault(context)
 
             return null
         }
@@ -31,7 +31,7 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
         val file = File(path)
 
         if (!file.exists()) {
-            context.response().setStatusCode(404).end()
+            sendDefault(context)
 
             return null
         }
@@ -39,5 +39,9 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
         context.response().sendFile(path)
 
         return null
+    }
+
+    private fun sendDefault(context: RoutingContext) {
+        context.response().sendFile("assets/img/minecraft-logo.png")
     }
 }

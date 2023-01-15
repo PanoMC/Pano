@@ -44,8 +44,11 @@ class GetPostPreviewAPI(
                 ?: throw Error(ErrorCode.UNKNOWN)
         }
 
-        val username = databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlConnection)
-            ?: throw Error(ErrorCode.UNKNOWN)
+        val username = if (post.writerUserId == -1L)
+            "-"
+        else
+            databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlConnection)
+                ?: throw Error(ErrorCode.UNKNOWN)
 
         return Successful(
             mapOf(

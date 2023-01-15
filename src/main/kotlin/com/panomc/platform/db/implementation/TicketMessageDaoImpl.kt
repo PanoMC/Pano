@@ -162,4 +162,18 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         return rows.toList()[0].getLong(0) == 1L
     }
+
+    override suspend fun updateUserIdByUserId(userId: Long, newUserId: Long, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `user_id` = ? WHERE `user_id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    newUserId,
+                    userId
+                )
+            )
+            .await()
+    }
 }

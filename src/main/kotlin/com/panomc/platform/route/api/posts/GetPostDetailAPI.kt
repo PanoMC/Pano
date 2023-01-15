@@ -46,7 +46,10 @@ class GetPostDetailAPI(
             postCategory = databaseManager.postCategoryDao.getById(post.categoryId, sqlConnection)
         }
 
-        val username = databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlConnection)
+        val username = if (post.writerUserId == -1L)
+            "-"
+        else
+            databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlConnection)
 
         var previousPost: Post? = null
         var nextPost: Post? = null

@@ -148,4 +148,9 @@ interface TicketDao : Dao<Ticket> {
         categoryId: Long,
         sqlConnection: SqlConnection
     )
+
+    suspend fun getByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): List<Ticket>
 }

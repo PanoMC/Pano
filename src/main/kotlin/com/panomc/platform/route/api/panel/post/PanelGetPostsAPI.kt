@@ -92,7 +92,7 @@ class PanelGetPostsAPI(
             return getResults(postCategory, posts, mapOf(), mapOf(), count, totalPage)
         }
 
-        val userIdList = posts.distinctBy { it.writerUserId }.map { it.writerUserId }
+        val userIdList = posts.distinctBy { it.writerUserId }.map { it.writerUserId }.filter { it != -1L }
 
         val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
 
@@ -136,7 +136,7 @@ class PanelGetPostsAPI(
                                         mapOf("id" to -1, "title" to "-", "url" to "-")
                                     )),
                     "writer" to mapOf(
-                        "username" to usernameList[post.writerUserId]
+                        "username" to (usernameList[post.writerUserId] ?: "-")
                     ),
                     "date" to post.date,
                     "views" to post.views,

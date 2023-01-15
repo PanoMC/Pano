@@ -52,10 +52,12 @@ class PanelGetTicketMessagesAPI(
 
         val userIdList = mutableListOf<Long>()
 
-        ticketMessages.forEach { message ->
-            if (userIdList.indexOf(message.userId) == -1)
-                userIdList.add(message.userId)
-        }
+        ticketMessages
+            .filter { ticketMessage -> ticketMessage.userId != -1L }
+            .forEach { message ->
+                if (userIdList.indexOf(message.userId) == -1)
+                    userIdList.add(message.userId)
+            }
 
         val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
 
@@ -68,7 +70,7 @@ class PanelGetTicketMessagesAPI(
                     "id" to ticketMessage.id,
                     "userID" to ticketMessage.userId,
                     "ticketID" to ticketMessage.ticketId,
-                    "username" to usernameList[ticketMessage.userId],
+                    "username" to (usernameList[ticketMessage.userId] ?: "-"),
                     "message" to ticketMessage.message,
                     "date" to ticketMessage.date,
                     "panel" to ticketMessage.panel

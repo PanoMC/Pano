@@ -41,4 +41,10 @@ interface TicketMessageDao : Dao<TicketMessage> {
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean
+
+    suspend fun updateUserIdByUserId(
+        userId: Long,
+        newUserId: Long,
+        sqlConnection: SqlConnection
+    )
 }

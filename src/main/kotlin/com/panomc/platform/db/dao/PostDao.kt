@@ -157,4 +157,10 @@ interface PostDao : Dao<Post> {
         date: Long,
         sqlConnection: SqlConnection
     ): Post?
+
+    suspend fun updateUserIdByUserId(
+        userId: Long,
+        newUserId: Long,
+        sqlConnection: SqlConnection
+    )
 }

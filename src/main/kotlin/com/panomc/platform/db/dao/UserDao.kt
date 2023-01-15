@@ -260,4 +260,6 @@ interface UserDao : Dao<User> {
     ): String
 
     suspend fun countOfOnline(sqlConnection: SqlConnection): Long
+
+    suspend fun deleteById(id: Long, sqlConnection: SqlConnection)
 }

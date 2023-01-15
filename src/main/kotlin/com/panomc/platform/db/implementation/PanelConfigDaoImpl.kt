@@ -78,4 +78,17 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
             )
             .await()
     }
+
+    override suspend fun deleteByUserId(userId: Long, sqlConnection: SqlConnection) {
+        val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            )
+            .await()
+    }
 }

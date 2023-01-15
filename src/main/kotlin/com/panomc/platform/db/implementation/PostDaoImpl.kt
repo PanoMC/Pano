@@ -615,4 +615,18 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         return Post.from(row)
     }
+
+    override suspend fun updateUserIdByUserId(userId: Long, newUserId: Long, sqlConnection: SqlConnection) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `writer_user_id` = ? WHERE `writer_user_id` = ?"
+
+        sqlConnection
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    newUserId,
+                    userId
+                )
+            )
+            .await()
+    }
 }

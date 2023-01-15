@@ -21,4 +21,9 @@ interface PanelConfigDao : Dao<PanelConfig> {
         value: String,
         sqlConnection: SqlConnection
     )
+
+    suspend fun deleteByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    )
 }

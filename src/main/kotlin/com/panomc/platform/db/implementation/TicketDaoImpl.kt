@@ -513,4 +513,23 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             )
             .await()
     }
+
+    override suspend fun getByUserId(
+        userId: Long,
+        sqlConnection: SqlConnection
+    ): List<Ticket> {
+        val query =
+            "SELECT id, title, category_id, user_id, `date`, `last_update`, status FROM `${getTablePrefix() + tableName}` WHERE user_id = ? ORDER BY `last_update` DESC, `id` DESC"
+
+        val parameters = Tuple.tuple()
+
+        parameters.addLong(userId)
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(parameters)
+            .await()
+
+        return Ticket.from(rows)
+    }
 }

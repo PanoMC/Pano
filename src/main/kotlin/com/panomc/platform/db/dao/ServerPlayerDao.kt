@@ -20,4 +20,9 @@ interface ServerPlayerDao : Dao<ServerPlayer> {
         username: String,
         sqlConnection: SqlConnection
     ): Boolean
+
+    suspend fun deleteByServerId(
+        serverId: Long,
+        sqlConnection: SqlConnection
+    )
 }

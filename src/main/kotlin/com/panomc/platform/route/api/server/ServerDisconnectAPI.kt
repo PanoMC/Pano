@@ -51,6 +51,8 @@ class ServerDisconnectAPI(
             )
         }
 
+        databaseManager.serverPlayerDao.deleteByServerId(serverId, sqlConnection)
+
         databaseManager.serverDao.deleteById(serverId, sqlConnection)
 
         return Successful()

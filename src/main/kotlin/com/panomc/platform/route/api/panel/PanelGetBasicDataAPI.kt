@@ -35,6 +35,7 @@ class PanelGetBasicDataAPI(
         ) ?: throw Error(ErrorCode.UNKNOWN)
 
         val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
+        val connectedServerCount = databaseManager.serverDao.countOfPermissionGranted(sqlConnection)
 
 //        Since it's a panel API, it calls AuthProvider#hasAccessPanel method and these context fields are created
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
@@ -52,7 +53,8 @@ class PanelGetBasicDataAPI(
                 "description" to configManager.getConfig().getString("website-description")
             ),
             "notificationCount" to count,
-            "locale" to configManager.getConfig().getString("locale")
+            "locale" to configManager.getConfig().getString("locale"),
+            "connectedServerCount" to connectedServerCount
         )
 
         if (authProvider.hasPermission(userId, PanelPermission.MANAGE_SERVERS, context)) {

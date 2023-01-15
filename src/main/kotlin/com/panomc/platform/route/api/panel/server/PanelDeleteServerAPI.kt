@@ -6,6 +6,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.server.ServerManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
@@ -19,7 +20,8 @@ import org.apache.commons.codec.digest.DigestUtils
 @Endpoint
 class PanelDeleteServerAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val serverManager: ServerManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id/delete", RouteType.POST))
 
@@ -58,6 +60,12 @@ class PanelDeleteServerAPI(
         if (!isCurrentPasswordCorrect) {
             throw Error(ErrorCode.CURRENT_PASSWORD_NOT_CORRECT)
         }
+
+        serverManager.getConnectedServers()
+            .filter { it.key.id == id }
+            .forEach {
+                it.value.close()
+            }
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(
             "main_server",

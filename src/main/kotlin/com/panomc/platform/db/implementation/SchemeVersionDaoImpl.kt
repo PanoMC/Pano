@@ -75,7 +75,7 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
     override suspend fun getLastSchemeVersion(
         sqlConnection: SqlConnection
     ): SchemeVersion? {
-        val query = "SELECT MAX(`key`) FROM `${getTablePrefix() + tableName}`"
+        val query = "SELECT `key` FROM `${getTablePrefix() + tableName}`"
 
         val rows: RowSet<Row> = sqlConnection
             .preparedQuery(query)
@@ -86,7 +86,7 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             return null
         }
 
-        val row = rows.toList()[0]
+        val row = rows.toList().maxBy { it.getString(0).toInt() }
 
         if (row.getString(0) == null) {
             return null

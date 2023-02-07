@@ -55,7 +55,7 @@ class DatabaseManager(
 
     private lateinit var pool: Pool
 
-    private val mMigrations by lazy {
+    private val migrations by lazy {
         val beans = applicationContext.getBeansWithAnnotation(Migration::class.java)
 
         beans.filter { it.value is DatabaseMigration }.map { it.value as DatabaseMigration }
@@ -117,7 +117,7 @@ class DatabaseManager(
         databaseInitProcessHandlers.forEach { it.init(sqlConnection) }
     }
 
-    internal fun getLatestMigration() = mMigrations.maxByOrNull { it.SCHEME_VERSION }!!
+    internal fun getLatestMigration() = migrations.maxByOrNull { it.SCHEME_VERSION }!!
 
     private suspend fun checkMigration() {
         logger.info("Checking available database migrations")
@@ -153,7 +153,7 @@ class DatabaseManager(
     }
 
     private suspend fun migrate(sqlConnection: SqlConnection, databaseVersion: Int, closeConnection: Boolean = true) {
-        mMigrations
+        migrations
             .find { it.isMigratable(databaseVersion) }
             ?.let {
                 logger.info("Migration Found! Migrating database from version ${it.FROM_SCHEME_VERSION} to ${it.SCHEME_VERSION}: ${it.SCHEME_VERSION_INFO}")

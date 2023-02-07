@@ -33,9 +33,9 @@ class GetMoreNotificationsAPI(
         val sqlConnection = createConnection(context)
 
         val notifications =
-            databaseManager.panelNotificationDao.get10ByUserIdAndStartFromId(userId, lastNotificationId, sqlConnection)
+            databaseManager.notificationDao.get10ByUserIdAndStartFromId(userId, lastNotificationId, sqlConnection)
 
-        databaseManager.panelNotificationDao.markReadLast10StartFromId(userId, lastNotificationId, sqlConnection)
+        databaseManager.notificationDao.markReadLast10StartFromId(userId, lastNotificationId, sqlConnection)
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 

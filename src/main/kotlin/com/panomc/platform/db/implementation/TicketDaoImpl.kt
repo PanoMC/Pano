@@ -445,7 +445,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun save(ticket: Ticket, sqlConnection: SqlConnection): Long {
+    override suspend fun add(ticket: Ticket, sqlConnection: SqlConnection): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `category_id`, `user_id`, `date`, `last_update`, `status`) VALUES (?, ?, ?, ?, ?, ?)"
 

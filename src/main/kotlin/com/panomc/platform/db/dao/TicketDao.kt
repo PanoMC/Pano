@@ -129,7 +129,7 @@ interface TicketDao : Dao<Ticket> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun save(
+    suspend fun add(
         ticket: Ticket,
         sqlConnection: SqlConnection
     ): Long

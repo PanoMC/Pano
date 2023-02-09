@@ -59,7 +59,7 @@ class CreateTicketAPI(
             }
         }
 
-        val id = databaseManager.ticketDao.save(
+        val id = databaseManager.ticketDao.add(
             Ticket(
                 title = title,
                 categoryId = categoryId,

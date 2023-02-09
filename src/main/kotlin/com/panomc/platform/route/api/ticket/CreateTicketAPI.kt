@@ -89,11 +89,11 @@ class CreateTicketAPI(
     }
 
     private fun validateInput(title: String, message: String) {
-        if (title.isEmpty()) {
+        if (title.isBlank()) {
             throw Error(ErrorCode.TITLE_CANT_BE_EMPTY)
         }
 
-        if (message.isEmpty()) {
+        if (message.isBlank()) {
             throw Error(ErrorCode.MESSAGE_CANT_BE_EMPTY)
         }
     }

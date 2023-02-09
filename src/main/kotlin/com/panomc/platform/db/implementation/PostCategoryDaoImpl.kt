@@ -34,7 +34,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .await()
     }
 
-    override suspend fun isExistsById(
+    override suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -133,7 +133,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return PostCategory.from(rows)
     }
 
-    override suspend fun isExistsByUrl(
+    override suspend fun existsByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -148,7 +148,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isExistsByUrlNotById(
+    override suspend fun existsByUrlNotById(
         url: String,
         id: Long,
         sqlConnection: SqlConnection

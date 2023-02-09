@@ -34,9 +34,9 @@ class PanelUnbanPlayerAPI(
 
         val sqlConnection = createConnection(context)
 
-        val isExists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlConnection)
 
-        if (!isExists) {
+        if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 

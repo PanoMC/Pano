@@ -99,7 +99,7 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Map<Long, String>
 
-    suspend fun isExistsByUsername(
+    suspend fun existsByUsername(
         username: String,
         sqlConnection: SqlConnection
     ): Boolean
@@ -109,12 +109,12 @@ interface UserDao : Dao<User> {
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isExistsByUsernameOrEmail(
+    suspend fun existsByUsernameOrEmail(
         usernameOrEmail: String,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isExistsById(
+    suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean

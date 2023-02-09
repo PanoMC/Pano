@@ -36,7 +36,7 @@ class PanelGetTicketAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.ticketDao.isExistsById(id, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(id, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
@@ -48,7 +48,7 @@ class PanelGetTicketAPI(
             ErrorCode.UNKNOWN
         )
 
-        val messages = databaseManager.ticketMessageDao.getByTicketIdAndPage(id, sqlConnection)
+        val messages = databaseManager.ticketMessageDao.getByTicketId(id, sqlConnection)
 
         val userIdList = mutableListOf<Long>()
 

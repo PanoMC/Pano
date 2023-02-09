@@ -40,7 +40,7 @@ class ProfileSidebarAPI(private val databaseManager: DatabaseManager, private va
 
         response["lastActivityTime"] = user.lastActivityTime
 
-        response["inGame"] = databaseManager.serverPlayerDao.isExistsByUsername(user.username, sqlConnection)
+        response["inGame"] = databaseManager.serverPlayerDao.existsByUsername(user.username, sqlConnection)
 
         response["permissionGroupName"] = name
 

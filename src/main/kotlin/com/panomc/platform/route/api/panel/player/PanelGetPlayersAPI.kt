@@ -124,7 +124,7 @@ class PanelGetPlayersAPI(
                         "canCreateTicket" to user.canCreateTicket,
                         "isEmailVerified" to user.emailVerified,
                         "lastActivityTime" to user.lastActivityTime,
-                        "inGame" to databaseManager.serverPlayerDao.isExistsByUsername(user.username, sqlConnection)
+                        "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlConnection)
                     )
                 )
             }

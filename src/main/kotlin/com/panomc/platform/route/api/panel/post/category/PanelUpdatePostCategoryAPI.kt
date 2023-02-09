@@ -52,7 +52,7 @@ class PanelUpdatePostCategoryAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.postCategoryDao.isExistsByUrlNotById(url, id, sqlConnection)
+        val exists = databaseManager.postCategoryDao.existsByUrlNotById(url, id, sqlConnection)
 
         if (exists) {
             val errors = mutableMapOf<String, Boolean>()

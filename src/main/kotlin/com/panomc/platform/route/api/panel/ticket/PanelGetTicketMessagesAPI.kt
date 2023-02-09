@@ -35,13 +35,13 @@ class PanelGetTicketMessagesAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.ticketDao.isExistsById(id, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(id, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val isTicketMessageIdExists = databaseManager.ticketMessageDao.isExistsById(lastMessageId, sqlConnection)
+        val isTicketMessageIdExists = databaseManager.ticketMessageDao.existsById(lastMessageId, sqlConnection)
 
         if (!isTicketMessageIdExists) {
             throw Error(ErrorCode.NOT_EXISTS)

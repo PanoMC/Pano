@@ -58,7 +58,7 @@ class TokenProvider(
             return false
         }
 
-        return databaseManager.tokenDao.isExistsByTokenAndType(token, tokenType, sqlConnection)
+        return databaseManager.tokenDao.existsByTokenAndType(token, tokenType, sqlConnection)
     }
 
     suspend fun invalidateToken(token: String, sqlConnection: SqlConnection) {

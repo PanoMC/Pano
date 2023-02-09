@@ -11,12 +11,12 @@ interface PostDao : Dao<Post> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun isExistsById(
+    suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isExistsByUrl(
+    suspend fun existsByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): Boolean

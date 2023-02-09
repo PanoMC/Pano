@@ -35,7 +35,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             .await()
     }
 
-    override suspend fun getByTicketIdAndPage(
+    override suspend fun getByTicketId(
         ticketId: Long,
         sqlConnection: SqlConnection
     ): List<TicketMessage> {
@@ -152,7 +152,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         return TicketMessage.from(row)
     }
 
-    override suspend fun isExistsById(id: Long, sqlConnection: SqlConnection): Boolean {
+    override suspend fun existsById(id: Long, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlConnection

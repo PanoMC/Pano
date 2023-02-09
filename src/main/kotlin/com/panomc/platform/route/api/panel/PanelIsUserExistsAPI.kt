@@ -30,7 +30,7 @@ class PanelIsUserExistsAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)

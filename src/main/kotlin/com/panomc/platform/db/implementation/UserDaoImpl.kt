@@ -421,7 +421,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return listOfUsers
     }
 
-    override suspend fun isExistsByUsername(
+    override suspend fun existsByUsername(
         username: String,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -455,7 +455,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0) == usernames.size.toLong()
     }
 
-    override suspend fun isExistsByUsernameOrEmail(usernameOrEmail: String, sqlConnection: SqlConnection): Boolean {
+    override suspend fun existsByUsernameOrEmail(usernameOrEmail: String, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` = ? or `email` = ?"
 
         val rows: RowSet<Row> = sqlConnection
@@ -466,7 +466,7 @@ class UserDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isExistsById(
+    override suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean {

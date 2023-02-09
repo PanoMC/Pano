@@ -12,7 +12,7 @@ interface TokenDao : Dao<Token> {
         sqlConnection: SqlConnection
     ): Long
 
-    suspend fun isExistsByTokenAndType(
+    suspend fun existsByTokenAndType(
         token: String,
         tokenType: TokenType,
         sqlConnection: SqlConnection

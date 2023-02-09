@@ -36,7 +36,7 @@ class PanelDeletePostAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.postDao.isExistsById(id, sqlConnection)
+        val exists = databaseManager.postDao.existsById(id, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)

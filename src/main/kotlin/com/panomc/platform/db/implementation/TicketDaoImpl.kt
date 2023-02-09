@@ -373,7 +373,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return Ticket.from(row)
     }
 
-    override suspend fun isExistsById(
+    override suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -387,7 +387,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isBelongToUserIdsById(id: Long, userId: Long, sqlConnection: SqlConnection): Boolean {
+    override suspend fun isIdBelongToUserId(id: Long, userId: Long, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ? AND `user_id` = ?"
 
         val rows: RowSet<Row> = sqlConnection
@@ -398,7 +398,7 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isExistsByIdAndUserId(id: Long, userId: Long, sqlConnection: SqlConnection): Boolean {
+    override suspend fun existsByIdAndUserId(id: Long, userId: Long, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ? and `user_id` = ?"
 
         val rows: RowSet<Row> = sqlConnection

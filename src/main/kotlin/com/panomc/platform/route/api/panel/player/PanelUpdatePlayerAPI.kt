@@ -61,7 +61,7 @@ class PanelUpdatePlayerAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.userDao.isExistsById(id, sqlConnection)
+        val exists = databaseManager.userDao.existsById(id, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
@@ -83,7 +83,7 @@ class PanelUpdatePlayerAPI(
         val user = databaseManager.userDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
 
         if (username != user.username) {
-            val usernameExists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
+            val usernameExists = databaseManager.userDao.existsByUsername(username, sqlConnection)
 
             if (usernameExists) {
                 throw Errors(mapOf("username" to "EXISTS"))

@@ -5,7 +5,7 @@ import com.panomc.platform.db.model.PostCategory
 import io.vertx.sqlclient.SqlConnection
 
 interface PostCategoryDao : Dao<PostCategory> {
-    suspend fun isExistsById(
+    suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean
@@ -31,12 +31,12 @@ interface PostCategoryDao : Dao<PostCategory> {
         sqlConnection: SqlConnection
     ): List<PostCategory>
 
-    suspend fun isExistsByUrl(
+    suspend fun existsByUrl(
         url: String,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isExistsByUrlNotById(
+    suspend fun existsByUrlNotById(
         url: String,
         id: Long,
         sqlConnection: SqlConnection

@@ -49,7 +49,7 @@ class PanelAddPostCategoryAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.postCategoryDao.isExistsByUrl(url, sqlConnection)
+        val exists = databaseManager.postCategoryDao.existsByUrl(url, sqlConnection)
 
         if (exists) {
             val errors = mutableMapOf<String, Boolean>()

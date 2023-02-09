@@ -16,7 +16,7 @@ interface ServerPlayerDao : Dao<ServerPlayer> {
         sqlConnection: SqlConnection
     )
 
-    suspend fun isExistsByUsername(
+    suspend fun existsByUsername(
         username: String,
         sqlConnection: SqlConnection
     ): Boolean

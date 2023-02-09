@@ -33,7 +33,7 @@ class PanelDeleteTicketCategoryAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.ticketCategoryDao.isExistsById(id, sqlConnection)
+        val exists = databaseManager.ticketCategoryDao.existsById(id, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)

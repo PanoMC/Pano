@@ -52,7 +52,7 @@ class CreateTicketAPI(
         val sqlConnection = createConnection(context)
 
         if (categoryId != -1L) {
-            val isCategoryExists = databaseManager.ticketCategoryDao.isExistsById(categoryId, sqlConnection)
+            val isCategoryExists = databaseManager.ticketCategoryDao.existsById(categoryId, sqlConnection)
 
             if (!isCategoryExists) {
                 throw Error(ErrorCode.CATEGORY_NOT_EXISTS)

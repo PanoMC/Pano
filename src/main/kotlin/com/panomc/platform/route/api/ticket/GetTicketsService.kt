@@ -27,7 +27,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         var ticketCategory: TicketCategory? = null
 
         if (categoryUrl != null && categoryUrl != "-") {
-            val exists = databaseManager.ticketCategoryDao.isExistsByUrl(
+            val exists = databaseManager.ticketCategoryDao.existsByUrl(
                 categoryUrl,
                 sqlConnection
             )

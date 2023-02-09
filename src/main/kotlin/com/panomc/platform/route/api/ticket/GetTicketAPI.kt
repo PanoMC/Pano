@@ -34,13 +34,13 @@ class GetTicketAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.ticketDao.isExistsById(id, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(id, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val isBelong = databaseManager.ticketDao.isBelongToUserIdsById(id, userId, sqlConnection)
+        val isBelong = databaseManager.ticketDao.isIdBelongToUserId(id, userId, sqlConnection)
 
         if (!isBelong) {
             throw Error(ErrorCode.NO_PERMISSION)
@@ -52,7 +52,7 @@ class GetTicketAPI(
             ErrorCode.UNKNOWN
         )
 
-        val messages = databaseManager.ticketMessageDao.getByTicketIdAndPage(id, sqlConnection)
+        val messages = databaseManager.ticketMessageDao.getByTicketId(id, sqlConnection)
 
         val userIdList = mutableListOf<Long>()
 

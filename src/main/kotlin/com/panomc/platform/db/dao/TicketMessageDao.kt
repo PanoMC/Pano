@@ -6,7 +6,7 @@ import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlConnection
 
 interface TicketMessageDao : Dao<TicketMessage> {
-    suspend fun getByTicketIdAndPage(
+    suspend fun getByTicketId(
         ticketId: Long,
         sqlConnection: SqlConnection
     ): List<TicketMessage>
@@ -37,7 +37,7 @@ interface TicketMessageDao : Dao<TicketMessage> {
         sqlConnection: SqlConnection
     ): TicketMessage?
 
-    suspend fun isExistsById(
+    suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean

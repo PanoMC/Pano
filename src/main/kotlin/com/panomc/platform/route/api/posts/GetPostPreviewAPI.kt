@@ -30,7 +30,7 @@ class GetPostPreviewAPI(
 
         val sqlConnection = createConnection(context)
 
-        val isPostExistsById = databaseManager.postDao.isExistsById(id, sqlConnection)
+        val isPostExistsById = databaseManager.postDao.existsById(id, sqlConnection)
 
         if (!isPostExistsById) {
             throw Error(ErrorCode.POST_NOT_FOUND)

@@ -42,7 +42,7 @@ class ResetPasswordAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.userDao.isExistsByUsernameOrEmail(usernameOrEmail, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsernameOrEmail(usernameOrEmail, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)

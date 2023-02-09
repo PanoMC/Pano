@@ -56,7 +56,7 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun isExistsByTokenAndType(
+    override suspend fun existsByTokenAndType(
         token: String,
         tokenType: TokenType,
         sqlConnection: SqlConnection

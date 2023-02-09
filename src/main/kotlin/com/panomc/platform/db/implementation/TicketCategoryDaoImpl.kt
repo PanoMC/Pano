@@ -47,7 +47,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return TicketCategory.from(rows)
     }
 
-    override suspend fun isExistsById(
+    override suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -61,7 +61,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isExistsByUrl(
+    override suspend fun existsByUrl(
         url: String,
         sqlConnection: SqlConnection,
     ): Boolean {

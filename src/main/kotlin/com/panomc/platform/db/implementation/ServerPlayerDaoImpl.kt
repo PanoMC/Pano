@@ -70,7 +70,7 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .await()
     }
 
-    override suspend fun isExistsByUsername(
+    override suspend fun existsByUsername(
         username: String,
         sqlConnection: SqlConnection
     ): Boolean {

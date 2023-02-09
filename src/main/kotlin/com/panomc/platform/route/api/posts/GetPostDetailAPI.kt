@@ -31,7 +31,7 @@ class GetPostDetailAPI(
 
         val sqlConnection = createConnection(context)
 
-        val isPostExists = databaseManager.postDao.isExistsByUrl(url, sqlConnection)
+        val isPostExists = databaseManager.postDao.existsByUrl(url, sqlConnection)
 
         if (!isPostExists) {
             throw Error(ErrorCode.POST_NOT_FOUND)

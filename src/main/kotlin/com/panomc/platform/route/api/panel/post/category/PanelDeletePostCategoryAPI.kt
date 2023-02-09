@@ -34,7 +34,7 @@ class PanelDeletePostCategoryAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.postCategoryDao.isExistsById(id, sqlConnection)
+        val exists = databaseManager.postCategoryDao.existsById(id, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)

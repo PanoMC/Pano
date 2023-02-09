@@ -57,7 +57,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun isExistsById(
+    override suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean {
@@ -75,7 +75,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isExistsByUrl(url: String, sqlConnection: SqlConnection): Boolean {
+    override suspend fun existsByUrl(url: String, sqlConnection: SqlConnection): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ?"
 
         val rows: RowSet<Row> = sqlConnection

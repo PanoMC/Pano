@@ -100,18 +100,18 @@ interface TicketDao : Dao<Ticket> {
         sqlConnection: SqlConnection
     ): Ticket?
 
-    suspend fun isExistsById(
+    suspend fun existsById(
         id: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isBelongToUserIdsById(
+    suspend fun isIdBelongToUserId(
         id: Long,
         userId: Long,
         sqlConnection: SqlConnection
     ): Boolean
 
-    suspend fun isExistsByIdAndUserId(
+    suspend fun existsByIdAndUserId(
         id: Long,
         userId: Long,
         sqlConnection: SqlConnection

@@ -39,7 +39,7 @@ class PanelGetPlayerAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.userDao.isExistsByUsername(username, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
@@ -63,7 +63,7 @@ class PanelGetPlayerAPI(
             "isEmailVerified" to user.emailVerified,
             "permissionGroup" to "-",
             "lastActivityTime" to user.lastActivityTime,
-            "inGame" to databaseManager.serverPlayerDao.isExistsByUsername(user.username, sqlConnection)
+            "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlConnection)
         )
 
         if (user.permissionGroupId != -1L) {

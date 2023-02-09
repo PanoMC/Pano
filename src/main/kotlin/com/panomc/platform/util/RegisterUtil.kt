@@ -79,7 +79,7 @@ object RegisterUtil {
         isAdmin: Boolean = false,
         isSetup: Boolean = false,
     ): Long {
-        val isUsernameExists = databaseManager.userDao.isExistsByUsername(
+        val isUsernameExists = databaseManager.userDao.existsByUsername(
             username,
             sqlConnection
         )

@@ -48,13 +48,13 @@ class SendTicketMessageAPI(
 
         val sqlConnection = createConnection(context)
 
-        val exists = databaseManager.ticketDao.isExistsById(ticketId, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(ticketId, sqlConnection)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val isBelong = databaseManager.ticketDao.isBelongToUserIdsById(ticketId, userId, sqlConnection)
+        val isBelong = databaseManager.ticketDao.isIdBelongToUserId(ticketId, userId, sqlConnection)
 
         if (!isBelong) {
             throw Error(ErrorCode.NO_PERMISSION)

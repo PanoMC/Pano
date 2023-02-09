@@ -50,7 +50,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         return TicketMessage.from(rows)
     }
 
-    override suspend fun getByTicketIdPageAndStartFromId(
+    override suspend fun getByTicketIdAndStartFromId(
         lastMessageId: Long,
         ticketId: Long,
         sqlConnection: SqlConnection

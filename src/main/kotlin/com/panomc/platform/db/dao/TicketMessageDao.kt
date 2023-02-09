@@ -11,7 +11,7 @@ interface TicketMessageDao : Dao<TicketMessage> {
         sqlConnection: SqlConnection
     ): List<TicketMessage>
 
-    suspend fun getByTicketIdPageAndStartFromId(
+    suspend fun getByTicketIdAndStartFromId(
         lastMessageId: Long,
         ticketId: Long,
         sqlConnection: SqlConnection

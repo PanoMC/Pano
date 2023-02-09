@@ -52,7 +52,7 @@ class GetTicketMessagesAPI(
         }
 
         val ticketMessages =
-            databaseManager.ticketMessageDao.getByTicketIdPageAndStartFromId(lastMessageId, id, sqlConnection)
+            databaseManager.ticketMessageDao.getByTicketIdAndStartFromId(lastMessageId, id, sqlConnection)
 
         val userIdList = mutableListOf<Long>()
 

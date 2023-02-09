@@ -44,6 +44,10 @@ class SendTicketMessageAPI(
         val ticketId = parameters.pathParameter("id").long
         val message = data.getString("message")
 
+        if (message.isBlank()) {
+            throw Error(ErrorCode.MESSAGE_CANT_BE_EMPTY)
+        }
+
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlConnection = createConnection(context)

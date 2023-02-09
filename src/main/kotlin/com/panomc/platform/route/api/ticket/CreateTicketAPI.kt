@@ -94,7 +94,7 @@ class CreateTicketAPI(
         }
 
         if (message.isEmpty()) {
-            throw Error(ErrorCode.DESCRIPTION_CANT_BE_EMPTY)
+            throw Error(ErrorCode.MESSAGE_CANT_BE_EMPTY)
         }
     }
 }

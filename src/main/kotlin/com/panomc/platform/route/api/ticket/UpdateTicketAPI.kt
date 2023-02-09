@@ -60,16 +60,16 @@ class UpdateTicketAPI(
 
         if (ticketStatus != null && ticketStatus == "close") {
             databaseManager.ticketDao.closeTicketById(id, sqlConnection)
+
+            val notificationProperties = JsonObject().put("id", id)
+
+            notificationManager.sendNotificationToAllWithPermission(
+                Notifications.PanelNotificationType.TICKET_CLOSED_BY_USER,
+                notificationProperties,
+                PanelPermission.MANAGE_TICKETS,
+                sqlConnection
+            )
         }
-
-        val notificationProperties = JsonObject().put("id", id)
-
-        notificationManager.sendNotificationToAllWithPermission(
-            Notifications.PanelNotificationType.TICKET_CLOSED_BY_USER,
-            notificationProperties,
-            PanelPermission.MANAGE_TICKETS,
-            sqlConnection
-        )
 
         return Successful()
     }

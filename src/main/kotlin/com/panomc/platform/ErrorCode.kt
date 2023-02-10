@@ -95,4 +95,5 @@ enum class ErrorCode {
     CANT_CHANGE_EMAIL_WAIT_15_MINUTES,
 
     CANT_DELETE_YOURSELF,
+    TICKET_IS_CLOSED,
 }

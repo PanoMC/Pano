@@ -153,4 +153,9 @@ interface TicketDao : Dao<Ticket> {
         userId: Long,
         sqlConnection: SqlConnection
     ): List<Ticket>
+
+    suspend fun getStatusById(
+        id: Long,
+        sqlConnection: SqlConnection
+    ): TicketStatus?
 }

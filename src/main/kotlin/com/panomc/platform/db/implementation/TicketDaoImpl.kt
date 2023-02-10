@@ -532,4 +532,26 @@ class TicketDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         return Ticket.from(rows)
     }
+
+    override suspend fun getStatusById(id: Long, sqlConnection: SqlConnection): TicketStatus? {
+        val query =
+            "SELECT `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        val parameters = Tuple.tuple()
+
+        parameters.addLong(id)
+
+        val rows: RowSet<Row> = sqlConnection
+            .preparedQuery(query)
+            .execute(parameters)
+            .await()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        val row = rows.toList()[0]
+
+        return TicketStatus.valueOf(row.getInteger(0))!!
+    }
 }

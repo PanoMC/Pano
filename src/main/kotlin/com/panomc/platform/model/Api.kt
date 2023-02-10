@@ -75,6 +75,10 @@ abstract class Api : Route() {
     private fun sendResult(result: Result, context: RoutingContext) {
         val response = context.response()
 
+        if (response.ended()) {
+            return
+        }
+
         response
             .putHeader("content-type", "application/json; charset=utf-8")
 

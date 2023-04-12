@@ -45,15 +45,15 @@ class LoginAPI(
 
         authProvider.validateInput(usernameOrEmail, password, recaptcha)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        authProvider.authenticate(usernameOrEmail, password, sqlConnection)
+        authProvider.authenticate(usernameOrEmail, password, sqlClient)
 
-        val token = authProvider.login(usernameOrEmail, sqlConnection)
+        val token = authProvider.login(usernameOrEmail, sqlClient)
 
-        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlConnection)!!
+        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)!!
 
-        databaseManager.userDao.updateLastLoginDate(userId, sqlConnection)
+        databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
 
         val csrfToken = CSRFTokenGenerator.nextToken()
 

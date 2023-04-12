@@ -31,27 +31,27 @@ class PanelAcceptServerConnectRequestAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(id, sqlConnection)
+        val exists = databaseManager.serverDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        databaseManager.serverDao.updatePermissionGrantedById(id, true, sqlConnection)
-        databaseManager.serverDao.updateAcceptedTimeById(id, System.currentTimeMillis(), sqlConnection)
+        databaseManager.serverDao.updatePermissionGrantedById(id, true, sqlClient)
+        databaseManager.serverDao.updateAcceptedTimeById(id, System.currentTimeMillis(), sqlClient)
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(
             "main_server",
-            sqlConnection
+            sqlClient
         )!!.value.toLong()
 
         if (mainServerId == -1L) {
             databaseManager.systemPropertyDao.update(
                 "main_server",
                 id.toString(),
-                sqlConnection
+                sqlClient
             )
         }
 

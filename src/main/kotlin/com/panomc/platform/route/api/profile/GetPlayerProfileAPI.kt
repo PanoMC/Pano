@@ -27,9 +27,9 @@ class GetPlayerProfileAPI(
 
         val username = parameters.pathParameter("username").string
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val user = databaseManager.userDao.getByUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+        val user = databaseManager.userDao.getByUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
 
         val response = mutableMapOf<String, Any?>()
 

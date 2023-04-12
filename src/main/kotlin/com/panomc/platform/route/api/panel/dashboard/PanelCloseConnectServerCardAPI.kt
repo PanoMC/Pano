@@ -20,10 +20,10 @@ class PanelCloseConnectServerCardAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val isUserInstalledSystem =
-            databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlConnection)
+            databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlClient)
 
         if (!isUserInstalledSystem) {
             throw Error(ErrorCode.NO_PERMISSION)
@@ -32,7 +32,7 @@ class PanelCloseConnectServerCardAPI(
         databaseManager.systemPropertyDao.update(
             "show_connect_server_info",
             "false",
-            sqlConnection
+            sqlClient
         )
 
         return Successful()

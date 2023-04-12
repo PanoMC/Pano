@@ -16,7 +16,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.*
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 @Endpoint
 class PanelUpdatePermissionGroupAPI(
@@ -66,37 +66,37 @@ class PanelUpdatePermissionGroupAPI(
 
         name = getSystematicName(name)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        validateSelfUpdating(addedUsers, removedUsers, userId, sqlConnection)
+        validateSelfUpdating(addedUsers, removedUsers, userId, sqlClient)
 
-        validatePermissionGroupExists(id, sqlConnection)
+        validatePermissionGroupExists(id, sqlClient)
 
         val adminPermissionGroupId =
-            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlClient)!!
 
-        validateHavePermissionToUpdateAdminPermGroup(id, adminPermissionGroupId, userId, sqlConnection)
+        validateHavePermissionToUpdateAdminPermGroup(id, adminPermissionGroupId, userId, sqlClient)
 
         validateHavePermissionToUpdateAdminUser(
             addedUsers,
             removedUsers,
             adminPermissionGroupId,
-            sqlConnection,
+            sqlClient,
             context
         )
 
-        val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
+        val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlClient)!!
 
-        val permissionsInDb = databaseManager.permissionDao.getPermissions(sqlConnection)
+        val permissionsInDb = databaseManager.permissionDao.getPermissions(sqlClient)
 
         validatePermissions(permissions, permissionsInDb)
 
         validateIsAdminPermGroup(permissions, permissionsInDb, permissionGroup, name, adminPermissionGroupId)
 
-        validateAreAddedUsersExist(addedUsers, sqlConnection)
-        validateAreRemovedUsersExist(removedUsers, sqlConnection)
+        validateAreAddedUsersExist(addedUsers, sqlClient)
+        validateAreRemovedUsersExist(removedUsers, sqlClient)
 
-        validateIsPermissionGroupNameExists(name, permissionGroup, sqlConnection)
+        validateIsPermissionGroupNameExists(name, permissionGroup, sqlClient)
 
         permissions.forEach { permission ->
             val permissionId = permission.getLong("id")
@@ -105,31 +105,31 @@ class PanelUpdatePermissionGroupAPI(
             val permissionExists = databaseManager.permissionGroupPermsDao.doesPermissionGroupHavePermission(
                 id,
                 permissionId,
-                sqlConnection
+                sqlClient
             )
 
             if (isPermissionSelected && !permissionExists) {
-                databaseManager.permissionGroupPermsDao.addPermission(id, permissionId, sqlConnection)
+                databaseManager.permissionGroupPermsDao.addPermission(id, permissionId, sqlClient)
             }
 
             if (!isPermissionSelected && permissionExists) {
-                databaseManager.permissionGroupPermsDao.removePermission(id, permissionId, sqlConnection)
+                databaseManager.permissionGroupPermsDao.removePermission(id, permissionId, sqlClient)
             }
         }
 
         if (permissionGroup.name != name) {
             databaseManager.permissionGroupDao.update(
                 PermissionGroup(id, name),
-                sqlConnection
+                sqlClient
             )
         }
 
         if (addedUsers.isNotEmpty()) {
-            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlConnection)
+            databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlClient)
         }
 
         if (removedUsers.isNotEmpty()) {
-            databaseManager.userDao.setPermissionGroupByUsernames(-1, removedUsers, sqlConnection)
+            databaseManager.userDao.setPermissionGroupByUsernames(-1, removedUsers, sqlClient)
         }
 
         return Successful()
@@ -150,11 +150,11 @@ class PanelUpdatePermissionGroupAPI(
     private suspend fun validateIsPermissionGroupNameExists(
         name: String,
         permissionGroup: PermissionGroup,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         if (permissionGroup.name != name) {
             val isTherePermissionGroupByName =
-                databaseManager.permissionGroupDao.isThereByName(name, sqlConnection)
+                databaseManager.permissionGroupDao.isThereByName(name, sqlClient)
 
             if (isTherePermissionGroupByName) {
                 throw Errors(mapOf("name" to true))
@@ -162,9 +162,9 @@ class PanelUpdatePermissionGroupAPI(
         }
     }
 
-    private suspend fun validateAreRemovedUsersExist(removedUsers: List<String>, sqlConnection: SqlConnection) {
+    private suspend fun validateAreRemovedUsersExist(removedUsers: List<String>, sqlClient: SqlClient) {
         if (removedUsers.isNotEmpty()) {
-            val areRemovedUsersExists = databaseManager.userDao.areUsernamesExists(removedUsers, sqlConnection)
+            val areRemovedUsersExists = databaseManager.userDao.areUsernamesExists(removedUsers, sqlClient)
 
             if (!areRemovedUsersExists) {
                 throw Error(ErrorCode.SOME_USERS_ARENT_EXISTS)
@@ -172,9 +172,9 @@ class PanelUpdatePermissionGroupAPI(
         }
     }
 
-    private suspend fun validateAreAddedUsersExist(addedUsers: List<String>, sqlConnection: SqlConnection) {
+    private suspend fun validateAreAddedUsersExist(addedUsers: List<String>, sqlClient: SqlClient) {
         if (addedUsers.isNotEmpty()) {
-            val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlConnection)
+            val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlClient)
 
             if (!areAddedUsersExists) {
                 throw Error(ErrorCode.SOME_USERS_ARENT_EXISTS)
@@ -212,10 +212,10 @@ class PanelUpdatePermissionGroupAPI(
         permissionGroupId: Long,
         adminPermissionGroupId: Long,
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         if (permissionGroupId == adminPermissionGroupId) {
-            val user = databaseManager.userDao.getById(userId, sqlConnection)
+            val user = databaseManager.userDao.getById(userId, sqlClient)
 
             if (user!!.permissionGroupId != adminPermissionGroupId) {
                 throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_PERM_GROUP)
@@ -227,10 +227,10 @@ class PanelUpdatePermissionGroupAPI(
         addedUsers: List<String>,
         removedUsers: List<String>,
         adminPermissionGroupId: Long,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         context: RoutingContext
     ) {
-        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlConnection)
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionGroupId, -1, sqlClient)
             .map { it.lowercase() }
 
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
@@ -246,18 +246,18 @@ class PanelUpdatePermissionGroupAPI(
         addedUsers: List<String>,
         removedUsers: List<String>,
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)!!.lowercase()
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!.lowercase()
 
         if (addedUsers.any { it.lowercase() == username } || removedUsers.any { it.lowercase() == username }) {
             throw Error(ErrorCode.CANT_UPDATE_PERM_GROUP_YOURSELF)
         }
     }
 
-    private suspend fun validatePermissionGroupExists(permissionGroupId: Long, sqlConnection: SqlConnection) {
+    private suspend fun validatePermissionGroupExists(permissionGroupId: Long, sqlClient: SqlClient) {
         val isTherePermissionGroupById =
-            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlConnection)
+            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlClient)
 
         if (!isTherePermissionGroupById) {
             throw Error(ErrorCode.PERM_GROUP_NOT_EXISTS)

@@ -49,23 +49,23 @@ class PanelSendTicketMessageAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val ticket = databaseManager.ticketDao.getById(ticketId, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+        val ticket = databaseManager.ticketDao.getById(ticketId, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        val isTicketClosed = databaseManager.ticketDao.getStatusById(ticketId, sqlConnection) == TicketStatus.CLOSED
+        val isTicketClosed = databaseManager.ticketDao.getStatusById(ticketId, sqlClient) == TicketStatus.CLOSED
 
         if (isTicketClosed) {
             throw Error(ErrorCode.TICKET_IS_CLOSED)
         }
 
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
 
         val ticketMessage = TicketMessage(userId = userId, ticketId = ticketId, message = message, panel = 1)
 
-        val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlConnection)
+        val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlClient)
 
-        databaseManager.ticketDao.makeStatus(ticketId, 2, sqlConnection)
+        databaseManager.ticketDao.makeStatus(ticketId, 2, sqlClient)
 
         val notificationProperties = JsonObject()
             .put("id", ticketId)
@@ -75,13 +75,13 @@ class PanelSendTicketMessageAPI(
             ticket.userId,
             Notifications.UserNotificationType.AN_ADMIN_REPLIED_TICKET,
             notificationProperties,
-            sqlConnection
+            sqlClient
         )
 
         databaseManager.ticketDao.updateLastUpdateDate(
             ticketMessage.ticketId,
             System.currentTimeMillis(),
-            sqlConnection
+            sqlClient
         )
 
         return Successful(

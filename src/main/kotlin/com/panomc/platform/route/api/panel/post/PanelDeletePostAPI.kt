@@ -34,19 +34,19 @@ class PanelDeletePostAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.postDao.existsById(id, sqlConnection)
+        val exists = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val post = databaseManager.postDao.getById(id, sqlConnection)!!
+        val post = databaseManager.postDao.getById(id, sqlClient)!!
 
         post.deleteThumbnailFile(configManager)
 
-        databaseManager.postDao.delete(id, sqlConnection)
+        databaseManager.postDao.delete(id, sqlClient)
 
         return Successful()
     }

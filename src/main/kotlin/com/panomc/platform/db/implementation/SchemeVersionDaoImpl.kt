@@ -8,15 +8,15 @@ import com.panomc.platform.db.model.SchemeVersion
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "scheme_version"),
     SchemeVersionDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -30,11 +30,11 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             .execute()
             .await()
 
-        val lastSchemeVersion = getLastSchemeVersion(sqlConnection)
+        val lastSchemeVersion = getLastSchemeVersion(sqlClient)
 
         if (lastSchemeVersion == null) {
             add(
-                sqlConnection,
+                sqlClient,
                 SchemeVersion(
                     databaseManager.getLatestMigration().SCHEME_VERSION.toString(),
                     databaseManager.getLatestMigration().SCHEME_VERSION_INFO
@@ -48,7 +48,7 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         if (databaseVersion == 0) {
             add(
-                sqlConnection,
+                sqlClient,
                 SchemeVersion(
                     databaseManager.getLatestMigration().SCHEME_VERSION.toString(),
                     databaseManager.getLatestMigration().SCHEME_VERSION_INFO
@@ -58,10 +58,10 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
     }
 
     override suspend fun add(
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         schemeVersion: SchemeVersion
     ) {
-        sqlConnection
+        sqlClient
             .preparedQuery("INSERT INTO `${getTablePrefix() + tableName}` (`key`, `extra`) VALUES (?, ?)")
             .execute(
                 Tuple.of(
@@ -73,11 +73,11 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
     }
 
     override suspend fun getLastSchemeVersion(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): SchemeVersion? {
         val query = "SELECT `key` FROM `${getTablePrefix() + tableName}`"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()

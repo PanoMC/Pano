@@ -14,7 +14,7 @@ class OnServerConnect(private val databaseManager: DatabaseManager) : ServerEven
     override val serverEvent: ServerEvent = ServerEvent.ON_SERVER_CONNECT
 
     override suspend fun handle(body: JsonObject, server: Server) {
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
         databaseManager.serverDao.updateById(
             server.id,
@@ -29,9 +29,7 @@ class OnServerConnect(private val databaseManager: DatabaseManager) : ServerEven
             body.getString("favicon") ?: "",
             ServerStatus.ONLINE,
             body.getLong("startTime"),
-            sqlConnection
+            sqlClient
         )
-
-        databaseManager.closeConnection(sqlConnection)
     }
 }

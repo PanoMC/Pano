@@ -4,7 +4,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.NotificationMail
 import com.panomc.platform.token.TokenProvider
 import io.vertx.core.json.JsonObject
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 class PasswordUpdatedMail : NotificationMail() {
     override val templatePath = "${super.templatePath}/password-updated.hbs"
@@ -15,12 +15,12 @@ class PasswordUpdatedMail : NotificationMail() {
         userId: Long,
         uiAddress: String,
         databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         tokenProvider: TokenProvider
     ): JsonObject {
         val parameters = JsonObject()
 
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
 
         parameters.put("username", username)
 

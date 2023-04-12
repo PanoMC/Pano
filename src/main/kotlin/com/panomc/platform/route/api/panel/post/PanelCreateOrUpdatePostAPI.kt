@@ -70,14 +70,14 @@ class PanelCreateOrUpdatePostAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         var postInDb: Post? = null
 
         if (id == null) {
             thumbnailUrl = saveUploadedFileAndGetThumbnailUrl(fileUploads, null)
         } else {
-            postInDb = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+            postInDb = databaseManager.postDao.getById(id, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
 
             if (removeThumbnail) {
                 postInDb.deleteThumbnailFile(configManager)
@@ -107,13 +107,13 @@ class PanelCreateOrUpdatePostAPI(
         )
 
         if (id == null) {
-            val postId = databaseManager.postDao.insert(post, sqlConnection)
+            val postId = databaseManager.postDao.insert(post, sqlClient)
 
-            databaseManager.postDao.updatePostUrlByUrl(url, "$url-$postId", sqlConnection)
+            databaseManager.postDao.updatePostUrlByUrl(url, "$url-$postId", sqlClient)
 
             body["id"] = postId
         } else {
-            databaseManager.postDao.update(userId, post, sqlConnection)
+            databaseManager.postDao.update(userId, post, sqlClient)
         }
 
         return Successful(body)

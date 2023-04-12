@@ -50,21 +50,21 @@ class PanelUpdateTicketsAPI(
         }
 
         if (ticketStatus != null && ticketStatus == "close") {
-            val sqlConnection = createConnection(context)
+            val sqlClient = getSqlClient()
 
             val areIdListExist =
-                databaseManager.ticketDao.areIdListExist(selectedTickets.map { it.toString().toLong() }, sqlConnection)
+                databaseManager.ticketDao.areIdListExist(selectedTickets.map { it.toString().toLong() }, sqlClient)
 
             if (!areIdListExist) {
                 throw Error(ErrorCode.SOME_TICKETS_ARENT_EXIST)
             }
 
-            databaseManager.ticketDao.closeTickets(selectedTickets, sqlConnection)
+            databaseManager.ticketDao.closeTickets(selectedTickets, sqlClient)
 
-            val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
+            val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
 
             selectedTickets.map { it.toString().toLong() }.forEach {
-                val ticket = databaseManager.ticketDao.getById(it, sqlConnection)!!
+                val ticket = databaseManager.ticketDao.getById(it, sqlClient)!!
 
                 val notificationProperties = JsonObject()
                     .put("id", it)
@@ -74,7 +74,7 @@ class PanelUpdateTicketsAPI(
                     ticket.userId,
                     Notifications.UserNotificationType.AN_ADMIN_CLOSED_TICKET,
                     notificationProperties,
-                    sqlConnection
+                    sqlClient
                 )
             }
         }

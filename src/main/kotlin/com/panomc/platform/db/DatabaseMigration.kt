@@ -1,10 +1,10 @@
 package com.panomc.platform.db
 
 import com.panomc.platform.db.model.SchemeVersion
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 abstract class DatabaseMigration(val databaseManager: DatabaseManager) {
-    abstract val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit>
+    abstract val handlers: List<suspend (sqlClient: SqlClient) -> Unit>
 
     abstract val FROM_SCHEME_VERSION: Int
     abstract val SCHEME_VERSION: Int
@@ -12,17 +12,17 @@ abstract class DatabaseMigration(val databaseManager: DatabaseManager) {
 
     fun isMigratable(version: Int) = version == FROM_SCHEME_VERSION
 
-    suspend fun migrate(sqlConnection: SqlConnection) {
+    suspend fun migrate(sqlClient: SqlClient) {
         handlers.forEach {
-            it.invoke(sqlConnection)
+            it.invoke(sqlClient)
         }
     }
 
     suspend fun updateSchemeVersion(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         databaseManager.schemeVersionDao.add(
-            sqlConnection,
+            sqlClient,
             SchemeVersion(SCHEME_VERSION.toString(), SCHEME_VERSION_INFO)
         )
     }

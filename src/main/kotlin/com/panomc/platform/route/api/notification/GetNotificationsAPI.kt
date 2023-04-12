@@ -19,13 +19,13 @@ class GetNotificationsAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val count = databaseManager.notificationDao.getCountByUserId(userId, sqlConnection)
+        val count = databaseManager.notificationDao.getCountByUserId(userId, sqlClient)
 
-        val notifications = databaseManager.notificationDao.getLast10ByUserId(userId, sqlConnection)
+        val notifications = databaseManager.notificationDao.getLast10ByUserId(userId, sqlClient)
 
-        databaseManager.notificationDao.markReadLast10(userId, sqlConnection)
+        databaseManager.notificationDao.markReadLast10(userId, sqlClient)
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 

@@ -3,26 +3,26 @@ package com.panomc.platform.db.dao
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.WebsiteView
 import com.panomc.platform.util.DashboardPeriodType
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface WebsiteViewDao : Dao<WebsiteView> {
     suspend fun isIpAddressExistsByToday(
         ipAddress: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun add(
         websiteView: WebsiteView,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun increaseTimesByOne(
         ipAddress: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getWebsiteViewListByPeriod(
         dashboardPeriodType: DashboardPeriodType,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<WebsiteView>
 }

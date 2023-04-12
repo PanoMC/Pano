@@ -49,10 +49,10 @@ class CreateTicketAPI(
         validateInput(title, message)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         if (categoryId != -1L) {
-            val isCategoryExists = databaseManager.ticketCategoryDao.existsById(categoryId, sqlConnection)
+            val isCategoryExists = databaseManager.ticketCategoryDao.existsById(categoryId, sqlClient)
 
             if (!isCategoryExists) {
                 throw Error(ErrorCode.CATEGORY_NOT_EXISTS)
@@ -64,12 +64,12 @@ class CreateTicketAPI(
                 title = title,
                 categoryId = categoryId,
                 userId = userId
-            ), sqlConnection
+            ), sqlClient
         )
 
         databaseManager.ticketMessageDao.addMessage(
             TicketMessage(userId = userId, ticketId = id, message = message),
-            sqlConnection
+            sqlClient
         )
 
         val notificationProperties = JsonObject().put("id", id)
@@ -78,7 +78,7 @@ class CreateTicketAPI(
             Notifications.PanelNotificationType.NEW_TICKET,
             notificationProperties,
             PanelPermission.MANAGE_TICKETS,
-            sqlConnection
+            sqlClient
         )
 
         return Successful(

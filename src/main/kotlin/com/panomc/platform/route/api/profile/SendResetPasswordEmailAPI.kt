@@ -24,10 +24,10 @@ class SendResetPasswordEmailAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val lastToken =
-            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlConnection)
+            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
 
         if (lastToken != null) {
             val fifteenMinutesLaterInMillis = lastToken.startDate + 15 * 60 * 1000
@@ -37,7 +37,7 @@ class SendResetPasswordEmailAPI(
             }
         }
 
-        mailManager.sendMail(sqlConnection, userId, ResetPasswordMail())
+        mailManager.sendMail(sqlClient, userId, ResetPasswordMail())
 
         return Successful()
     }

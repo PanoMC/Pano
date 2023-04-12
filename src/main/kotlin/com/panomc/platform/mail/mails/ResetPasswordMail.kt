@@ -5,7 +5,7 @@ import com.panomc.platform.mail.Mail
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.core.json.JsonObject
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 class ResetPasswordMail : Mail {
     override val templatePath = "mail/reset-password.hbs"
@@ -16,12 +16,12 @@ class ResetPasswordMail : Mail {
         userId: Long,
         uiAddress: String,
         databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         tokenProvider: TokenProvider
     ): JsonObject {
         val parameters = JsonObject()
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlConnection)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
 
         val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.RESET_PASSWORD)
 
@@ -30,7 +30,7 @@ class ResetPasswordMail : Mail {
             userId.toString(),
             TokenType.RESET_PASSWORD,
             expireDate,
-            sqlConnection
+            sqlClient
         )
 
         parameters.put("link", "$uiAddress/renew-password?token=$token")

@@ -28,8 +28,8 @@ class GetPostsAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        return getPostsService.handle(parameters, sqlConnection)
+        return getPostsService.handle(parameters, sqlClient)
     }
 }

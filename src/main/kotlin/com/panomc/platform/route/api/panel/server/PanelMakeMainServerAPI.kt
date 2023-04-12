@@ -31,9 +31,9 @@ class PanelMakeMainServerAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(id, sqlConnection)
+        val exists = databaseManager.serverDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
@@ -42,7 +42,7 @@ class PanelMakeMainServerAPI(
         databaseManager.systemPropertyDao.update(
             "main_server",
             id.toString(),
-            sqlConnection
+            sqlClient
         )
 
         return Successful()

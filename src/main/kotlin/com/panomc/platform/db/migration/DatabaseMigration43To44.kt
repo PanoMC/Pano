@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -14,16 +14,16 @@ class DatabaseMigration43To44(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Add manage_permission_groups permission."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             addManagePermissionGroupsPermission(),
         )
 
-    private fun addManagePermissionGroupsPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
+    private fun addManagePermissionGroupsPermission(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
             val query = "INSERT INTO `${getTablePrefix()}permission` (`name`, `icon_name`) VALUES (?, ?)"
 
-            sqlConnection
+            sqlClient
                 .preparedQuery(query)
                 .execute(
                     Tuple.of(

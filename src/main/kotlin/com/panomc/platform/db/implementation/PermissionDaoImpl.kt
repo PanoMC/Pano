@@ -8,13 +8,13 @@ import com.panomc.platform.db.model.Permission
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "permission"), PermissionDao {
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -40,17 +40,17 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
             Permission(name = "manage_permission_groups", iconName = "fa-lock-open")
         )
 
-        permissions.forEach { add(it, sqlConnection) }
+        permissions.forEach { add(it, sqlClient) }
     }
 
     override suspend fun isTherePermission(
         permission: Permission,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT COUNT(`name`) FROM `${getTablePrefix() + tableName}` where `name` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -63,12 +63,12 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
 
     override suspend fun isTherePermissionById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -81,11 +81,11 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
 
     override suspend fun add(
         permission: Permission,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query = "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `icon_name`) VALUES (?, ?)"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -97,12 +97,12 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
 
     override suspend fun getPermissionId(
         permission: Permission,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where `name` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -115,12 +115,12 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
 
     override suspend fun getPermissionById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Permission? {
         val query =
             "SELECT `id`, `name`, `icon_name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -138,12 +138,12 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
     }
 
     override suspend fun getPermissions(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Permission> {
         val query =
             "SELECT `id`, `name`, `icon_name` FROM `${getTablePrefix() + tableName}`"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
@@ -151,7 +151,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
         return Permission.from(rows)
     }
 
-    override suspend fun arePermissionsExist(idList: List<Long>, sqlConnection: SqlConnection): Boolean {
+    override suspend fun arePermissionsExist(idList: List<Long>, sqlClient: SqlClient): Boolean {
         var listText = ""
 
         idList.forEach { permissionId ->
@@ -164,7 +164,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
         val query =
             "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where `id` IN ($listText)"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()

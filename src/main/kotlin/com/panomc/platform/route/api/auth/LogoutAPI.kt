@@ -16,9 +16,9 @@ class LogoutAPI(
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        authProvider.logout(context, sqlConnection)
+        authProvider.logout(context, sqlClient)
 
         val response = context.response()
 

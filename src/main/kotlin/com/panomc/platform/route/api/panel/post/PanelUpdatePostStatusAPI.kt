@@ -43,24 +43,24 @@ class PanelUpdatePostStatusAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.postDao.existsById(id, sqlConnection)
+        val exists = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         if (moveTo == "trash") {
-            databaseManager.postDao.moveTrashById(id, sqlConnection)
+            databaseManager.postDao.moveTrashById(id, sqlClient)
         }
 
         if (moveTo == "draft") {
-            databaseManager.postDao.moveDraftById(id, sqlConnection)
+            databaseManager.postDao.moveDraftById(id, sqlClient)
         }
 
         if (moveTo == "publish") {
-            databaseManager.postDao.publishById(id, userId, sqlConnection)
+            databaseManager.postDao.publishById(id, userId, sqlClient)
         }
 
         return Successful()

@@ -52,17 +52,16 @@ class PanelGetPostsAPI(
 
         var postCategory: PostCategory? = null
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         if (categoryUrl != null && categoryUrl != "-") {
-            val isPostCategoryExists = databaseManager.postCategoryDao.existsByUrl(categoryUrl, sqlConnection)
+            val isPostCategoryExists = databaseManager.postCategoryDao.existsByUrl(categoryUrl, sqlClient)
 
             if (!isPostCategoryExists) {
                 throw Error(ErrorCode.CATEGORY_NOT_EXISTS)
             }
 
-            postCategory =
-                databaseManager.postCategoryDao.getByUrl(categoryUrl, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+            postCategory = databaseManager.postCategoryDao.getByUrl(categoryUrl, sqlClient)!!
         }
 
         if (categoryUrl != null && categoryUrl == "-") {
@@ -70,9 +69,9 @@ class PanelGetPostsAPI(
         }
 
         val count = if (postCategory != null)
-            databaseManager.postDao.countByPageTypeAndCategoryId(pageType, postCategory.id, sqlConnection)
+            databaseManager.postDao.countByPageTypeAndCategoryId(pageType, postCategory.id, sqlClient)
         else
-            databaseManager.postDao.countByPageType(pageType, sqlConnection)
+            databaseManager.postDao.countByPageType(pageType, sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -84,9 +83,9 @@ class PanelGetPostsAPI(
         }
 
         val posts = if (postCategory != null)
-            databaseManager.postDao.getByPagePageTypeAndCategoryId(page, pageType, postCategory.id, sqlConnection)
+            databaseManager.postDao.getByPagePageTypeAndCategoryId(page, pageType, postCategory.id, sqlClient)
         else
-            databaseManager.postDao.getByPageAndPageType(page, pageType, sqlConnection)
+            databaseManager.postDao.getByPageAndPageType(page, pageType, sqlClient)
 
         if (posts.isEmpty()) {
             return getResults(postCategory, posts, mapOf(), mapOf(), count, totalPage)
@@ -94,7 +93,7 @@ class PanelGetPostsAPI(
 
         val userIdList = posts.distinctBy { it.writerUserId }.map { it.writerUserId }.filter { it != -1L }
 
-        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
         if (postCategory != null) {
             return getResults(postCategory, posts, usernameList, mapOf(), count, totalPage)
@@ -106,7 +105,7 @@ class PanelGetPostsAPI(
             return getResults(null, posts, usernameList, mapOf(), count, totalPage)
         }
 
-        val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlConnection)
+        val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlClient)
 
         return getResults(null, posts, usernameList, categories, count, totalPage)
     }

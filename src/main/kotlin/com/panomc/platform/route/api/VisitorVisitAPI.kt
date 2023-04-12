@@ -20,14 +20,14 @@ class VisitorVisitAPI(private val databaseManager: DatabaseManager) : Api() {
 
         validateIpAddress(ipAddress)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.websiteViewDao.isIpAddressExistsByToday(ipAddress, sqlConnection)
+        val exists = databaseManager.websiteViewDao.isIpAddressExistsByToday(ipAddress, sqlClient)
 
         if (exists) {
-            databaseManager.websiteViewDao.increaseTimesByOne(ipAddress, sqlConnection)
+            databaseManager.websiteViewDao.increaseTimesByOne(ipAddress, sqlClient)
         } else {
-            databaseManager.websiteViewDao.add(WebsiteView(ipAddress = ipAddress), sqlConnection)
+            databaseManager.websiteViewDao.add(WebsiteView(ipAddress = ipAddress), sqlClient)
         }
 
         return Successful()

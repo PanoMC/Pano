@@ -5,7 +5,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import com.panomc.platform.db.model.PermissionGroup
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -15,7 +15,7 @@ class DatabaseMigration17To18(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Delete permissions, create permission group and permission group permission tables."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             deletePermissions(),
             createPermissionGroupTable(),
@@ -24,17 +24,17 @@ class DatabaseMigration17To18(databaseManager: DatabaseManager) : DatabaseMigrat
             changePermissionIdFieldName()
         )
 
-    private fun deletePermissions(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun deletePermissions(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("DELETE FROM `${getTablePrefix()}permission`")
                 .execute()
                 .await()
         }
 
-    private fun createPermissionGroupTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createPermissionGroupTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}permission_group` (
@@ -48,9 +48,9 @@ class DatabaseMigration17To18(databaseManager: DatabaseManager) : DatabaseMigrat
                 .await()
         }
 
-    private fun createPermissionGroupPermsTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createPermissionGroupPermsTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}permission_group_perms` (
@@ -65,13 +65,13 @@ class DatabaseMigration17To18(databaseManager: DatabaseManager) : DatabaseMigrat
                 .await()
         }
 
-    private fun createAdminPermissionGroup(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
+    private fun createAdminPermissionGroup(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
             val permissionGroup = PermissionGroup(name = "admin")
 
             val query = "INSERT INTO `${getTablePrefix()}permission_group` (name) VALUES (?)"
 
-            sqlConnection
+            sqlClient
                 .preparedQuery(query)
                 .execute(
                     Tuple.of(
@@ -81,9 +81,9 @@ class DatabaseMigration17To18(databaseManager: DatabaseManager) : DatabaseMigrat
                 .await()
         }
 
-    private fun changePermissionIdFieldName(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun changePermissionIdFieldName(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}user` RENAME COLUMN `permission_id` TO `permission_group_id`;")
                 .execute()
                 .await()

@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 @Migration
 class DatabaseMigration39To40(databaseManager: DatabaseManager) : DatabaseMigration(databaseManager) {
@@ -13,7 +13,7 @@ class DatabaseMigration39To40(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Delete action column from panel notification and notification tables & rename type_id column."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             renameNotificationTableTypeIdColumn(),
             renamePanelNotificationTableTypeIdColumn(),
@@ -21,33 +21,33 @@ class DatabaseMigration39To40(databaseManager: DatabaseManager) : DatabaseMigrat
             deleteActionColumnFromPanelNotificationTable()
         )
 
-    private fun renameNotificationTableTypeIdColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun renameNotificationTableTypeIdColumn(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}notification` RENAME COLUMN `type_id` TO `type`;")
                 .execute()
                 .await()
         }
 
-    private fun deleteActionColumnFromNotificationTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun deleteActionColumnFromNotificationTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}notification` DROP COLUMN `action`;")
                 .execute()
                 .await()
         }
 
-    private fun renamePanelNotificationTableTypeIdColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun renamePanelNotificationTableTypeIdColumn(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}panel_notification` RENAME COLUMN `type_id` TO `type`;")
                 .execute()
                 .await()
         }
 
-    private fun deleteActionColumnFromPanelNotificationTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun deleteActionColumnFromPanelNotificationTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}panel_notification` DROP COLUMN `action`;")
                 .execute()
                 .await()

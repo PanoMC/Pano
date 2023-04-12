@@ -2,27 +2,27 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.ServerPlayer
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface ServerPlayerDao : Dao<ServerPlayer> {
     suspend fun add(
         serverPlayer: ServerPlayer,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun deleteByUsernameAndServerId(
         username: String,
         serverId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun existsByUsername(
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun deleteByServerId(
         serverId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 }

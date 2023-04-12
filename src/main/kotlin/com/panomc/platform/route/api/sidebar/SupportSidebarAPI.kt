@@ -19,9 +19,9 @@ class SupportSidebarAPI(private val databaseManager: DatabaseManager) : Api() {
     override suspend fun handle(context: RoutingContext): Result {
         val response = mutableMapOf<String, Any?>()
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        response["onlineAdmins"] = databaseManager.userDao.getOnlineAdmins(-1, sqlConnection).map { it.username }
+        response["onlineAdmins"] = databaseManager.userDao.getOnlineAdmins(-1, sqlClient).map { it.username }
 
         return Successful(response)
     }

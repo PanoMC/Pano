@@ -31,17 +31,17 @@ class PanelDeleteTicketCategoryAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketCategoryDao.existsById(id, sqlConnection)
+        val exists = databaseManager.ticketCategoryDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        databaseManager.ticketDao.removeTicketCategoriesByCategoryId(id, sqlConnection)
+        databaseManager.ticketDao.removeTicketCategoriesByCategoryId(id, sqlClient)
 
-        databaseManager.ticketCategoryDao.deleteById(id, sqlConnection)
+        databaseManager.ticketCategoryDao.deleteById(id, sqlClient)
 
         return Successful()
     }

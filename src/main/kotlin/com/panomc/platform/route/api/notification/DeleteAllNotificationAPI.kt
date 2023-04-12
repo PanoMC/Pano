@@ -19,9 +19,9 @@ class DeleteAllNotificationAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        databaseManager.notificationDao.deleteAllByUserId(userId, sqlConnection)
+        databaseManager.notificationDao.deleteAllByUserId(userId, sqlClient)
 
         return Successful()
     }

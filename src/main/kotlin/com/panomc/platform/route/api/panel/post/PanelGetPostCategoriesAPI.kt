@@ -35,9 +35,9 @@ class PanelGetPostCategoriesAPI(
 
         val page = parameters.queryParameter("page")?.long ?: 1L
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val count = databaseManager.postCategoryDao.getCount(sqlConnection)
+        val count = databaseManager.postCategoryDao.getCount(sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -48,7 +48,7 @@ class PanelGetPostCategoriesAPI(
             throw Error(ErrorCode.PAGE_NOT_FOUND)
         }
 
-        val categories = databaseManager.postCategoryDao.getCategories(page, sqlConnection)
+        val categories = databaseManager.postCategoryDao.getCategories(page, sqlClient)
 
         val categoryDataList = mutableListOf<Map<String, Any?>>()
 
@@ -83,8 +83,8 @@ class PanelGetPostCategoriesAPI(
             }
 
         val getCategoryData: suspend (PostCategory) -> Unit = { category ->
-            val count = databaseManager.postDao.countByCategory(category.id, sqlConnection)
-            val posts = databaseManager.postDao.getByCategory(category.id, sqlConnection)
+            val count = databaseManager.postDao.countByCategory(category.id, sqlClient)
+            val posts = databaseManager.postDao.getByCategory(category.id, sqlClient)
 
             addCategoryToList(category, count, categoryDataList, posts)
         }

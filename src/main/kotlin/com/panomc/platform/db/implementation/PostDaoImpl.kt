@@ -10,14 +10,14 @@ import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "post"), PostDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -42,11 +42,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun removePostCategoriesByCategoryId(
         categoryId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET category_id = ? WHERE category_id = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -59,11 +59,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -75,10 +75,10 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun existsByUrl(url: String, sqlConnection: SqlConnection): Boolean {
+    override suspend fun existsByUrl(url: String, sqlClient: SqlClient): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -92,12 +92,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun getById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Post? {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -115,11 +115,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return Post.from(row)
     }
 
-    override suspend fun getByUrl(url: String, sqlConnection: SqlConnection): Post? {
+    override suspend fun getByUrl(url: String, sqlClient: SqlClient): Post? {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -139,12 +139,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun moveTrashById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET move_date = ?, status = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -158,12 +158,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun moveDraftById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET move_date = ?, status = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -178,12 +178,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     override suspend fun publishById(
         id: Long,
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET writer_user_id = ?, `date` = ?, move_date = ?, status = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -197,11 +197,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun insert(post: Post, sqlConnection: SqlConnection): Long {
+    override suspend fun insert(post: Post, sqlClient: SqlClient): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -222,11 +222,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun update(userId: Long, post: Post, sqlConnection: SqlConnection) {
+    override suspend fun update(userId: Long, post: Post, sqlClient: SqlClient) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET title = ?, category_id = ?, writer_user_id = ?, text = ?, `date` = ?, move_date = ?, status = ?, thumbnail_url = ?, `url` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -245,11 +245,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun updatePostUrlByUrl(url: String, newUrl: String, sqlConnection: SqlConnection) {
+    override suspend fun updatePostUrlByUrl(url: String, newUrl: String, sqlClient: SqlClient) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `url` = ? WHERE `url` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -260,10 +260,10 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun count(sqlConnection: SqlConnection): Long {
+    override suspend fun count(sqlClient: SqlClient): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
@@ -273,11 +273,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun countByCategory(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where category_id = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(id)
@@ -289,12 +289,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun countByPageType(
         postStatus: PostStatus,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `status` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(postStatus.value)
@@ -307,12 +307,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     override suspend fun countByPageTypeAndCategoryId(
         postStatus: PostStatus,
         categoryId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `category_id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(postStatus.value, categoryId)
@@ -324,12 +324,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun delete(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(id)
@@ -339,12 +339,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun getByCategory(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Post> {
         val query =
             "SELECT id, title, category_id, writer_user_id, text, `date`, move_date, status, thumbnail_url, views, `url` FROM `${getTablePrefix() + tableName}` WHERE category_id = ? ORDER BY `date` DESC LIMIT 5"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(id)
@@ -361,12 +361,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     override suspend fun getByPageAndPageType(
         page: Long,
         postStatus: PostStatus,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Post> {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(postStatus.value)
@@ -384,12 +384,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         page: Long,
         postStatus: PostStatus,
         categoryId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Post> {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `category_id` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(postStatus.value, categoryId)
@@ -400,12 +400,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     }
 
     override suspend fun countOfPublished(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE status = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(PostStatus.PUBLISHED.value)
@@ -417,12 +417,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun countOfPublishedByCategoryId(
         categoryId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `category_id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -437,12 +437,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun getPublishedListByPage(
         page: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Post> {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(PostStatus.PUBLISHED.value)
@@ -455,12 +455,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     override suspend fun getPublishedListByPageAndCategoryId(
         categoryId: Long,
         page: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Post> {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `category_id` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -476,12 +476,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
     override suspend fun getListByPageAndCategoryId(
         categoryId: Long,
         page: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Post> {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -495,12 +495,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun increaseViewByOne(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `views` = `views` + 1 WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -510,11 +510,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .await()
     }
 
-    override suspend fun increaseViewByOne(url: String, sqlConnection: SqlConnection) {
+    override suspend fun increaseViewByOne(url: String, sqlClient: SqlClient) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `views` = `views` + 1 WHERE `url` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -526,12 +526,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun isPreviousPostExistsByDate(
         date: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status`= ? and `date` < ? GROUP BY `id`) order by `date` DESC limit 1"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -546,12 +546,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun isNextPostExistsByDate(
         date: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}`where `status`= ? and `date` > ? GROUP BY `id`) order by `date` limit 1"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -566,12 +566,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun getPreviousPostByDate(
         date: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Post? {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` < ? GROUP BY `id` ) order by `date` DESC limit 1"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -592,12 +592,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun getNextPostByDate(
         date: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Post? {
         val query =
             "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN (SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` > ? GROUP BY `id` ) order by `date` limit 1"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -616,10 +616,10 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         return Post.from(row)
     }
 
-    override suspend fun updateUserIdByUserId(userId: Long, newUserId: Long, sqlConnection: SqlConnection) {
+    override suspend fun updateUserIdByUserId(userId: Long, newUserId: Long, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `writer_user_id` = ? WHERE `writer_user_id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(

@@ -37,9 +37,9 @@ class PanelGetPlayerAPI(
         val username = parameters.pathParameter("username").string
         val page = parameters.queryParameter("page")?.long ?: 1L
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsername(username, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
@@ -47,8 +47,8 @@ class PanelGetPlayerAPI(
 
         val user = databaseManager.userDao.getByUsername(
             username,
-            sqlConnection
-        ) ?: throw Error(ErrorCode.UNKNOWN)
+            sqlClient
+        )!!
 
         val result = mutableMapOf<String, Any?>()
 
@@ -63,14 +63,14 @@ class PanelGetPlayerAPI(
             "isEmailVerified" to user.emailVerified,
             "permissionGroup" to "-",
             "lastActivityTime" to user.lastActivityTime,
-            "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlConnection)
+            "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient)
         )
 
         if (user.permissionGroupId != -1L) {
             val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(
                 user.permissionGroupId,
-                sqlConnection
-            ) ?: throw Error(ErrorCode.UNKNOWN)
+                sqlClient
+            )!!
 
             @Suppress("UNCHECKED_CAST")
             (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
@@ -80,7 +80,7 @@ class PanelGetPlayerAPI(
             return Successful(result)
         }
 
-        val count = databaseManager.ticketDao.countByUserId(user.id, sqlConnection)
+        val count = databaseManager.ticketDao.countByUserId(user.id, sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -98,7 +98,7 @@ class PanelGetPlayerAPI(
             return getTickets(result, listOf(), mapOf(), user.username)
         }
 
-        val tickets = databaseManager.ticketDao.getAllByUserIdAndPage(user.id, page, sqlConnection)
+        val tickets = databaseManager.ticketDao.getAllByUserIdAndPage(user.id, page, sqlClient)
 
         val categoryIdList = tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
@@ -106,7 +106,7 @@ class PanelGetPlayerAPI(
             return getTickets(result, tickets, mapOf(), username)
         }
 
-        val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
+        val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlClient)
 
         return getTickets(result, tickets, ticketCategoryList, username)
     }

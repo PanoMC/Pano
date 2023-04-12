@@ -23,24 +23,24 @@ class ProfileSidebarAPI(private val databaseManager: DatabaseManager, private va
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)!!
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
 
         var name = ""
 
         if (userPermissionGroupId != -1L) {
             val userPermissionGroup =
-                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)!!
+                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
             name = userPermissionGroup.name
         }
 
-        val user = databaseManager.userDao.getById(userId, sqlConnection)!!
+        val user = databaseManager.userDao.getById(userId, sqlClient)!!
 
         response["lastActivityTime"] = user.lastActivityTime
 
-        response["inGame"] = databaseManager.serverPlayerDao.existsByUsername(user.username, sqlConnection)
+        response["inGame"] = databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient)
 
         response["permissionGroupName"] = name
 

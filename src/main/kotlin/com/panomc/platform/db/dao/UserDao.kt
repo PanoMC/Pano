@@ -6,260 +6,260 @@ import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface UserDao : Dao<User> {
 
     suspend fun add(
         user: User,
         hashedPassword: String,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         isSetup: Boolean
     ): Long
 
     suspend fun isEmailExists(
         email: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun getUserIdFromUsername(
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long?
 
     suspend fun getPermissionGroupIdFromUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long?
 
     suspend fun getPermissionGroupIdFromUsername(
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long?
 
     suspend fun isLoginCorrect(
         usernameOrEmail: String,
         password: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
-    suspend fun count(sqlConnection: SqlConnection): Long
+    suspend fun count(sqlClient: SqlClient): Long
 
-    suspend fun countOfRegisterByPeriod(dashboardPeriodType: DashboardPeriodType, sqlConnection: SqlConnection): Long
+    suspend fun countOfRegisterByPeriod(dashboardPeriodType: DashboardPeriodType, sqlClient: SqlClient): Long
 
     suspend fun getRegisterDatesByPeriod(
         dashboardPeriodType: DashboardPeriodType,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Long>
 
     suspend fun getUsernameFromUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): String?
 
     suspend fun getById(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): User?
 
     suspend fun getByUsername(
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): User?
 
     suspend fun countByStatus(
         status: PlayerStatus,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun getAllByPageAndStatus(
         page: Long,
         status: PlayerStatus,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<User>
 
     suspend fun getAllByPageAndPermissionGroup(
         page: Long,
         permissionGroupId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<User>
 
     suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long?
 
     suspend fun getEmailFromUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): String?
 
     suspend fun getUsernameByListOfId(
         userIdList: List<Long>,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Map<Long, String>
 
     suspend fun existsByUsername(
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun areUsernamesExists(
         usernames: List<String>,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun existsByUsernameOrEmail(
         usernameOrEmail: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun getUsernamesByPermissionGroupId(
         permissionGroupId: Long,
         limit: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<String>
 
     suspend fun getCountOfUsersByPermissionGroupId(
         permissionGroupId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun removePermissionGroupByPermissionGroupId(
         permissionGroupId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun setPermissionGroupByUsername(
         permissionGroupId: Long,
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun setPermissionGroupByUsernames(
         permissionGroupId: Long,
         usernames: List<String>,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun setUsernameById(
         id: Long,
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun setEmailById(
         id: Long,
         email: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun setPasswordById(
         id: Long,
         password: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun isEmailVerifiedById(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun isBanned(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun banPlayer(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun unbanPlayer(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun makeEmailVerifiedById(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getLastUsernames(
         limit: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<String>
 
     suspend fun updateLastLoginDate(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateLastActivityTime(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateLastPanelActivityTime(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getOnlineAdmins(
         limit: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<User>
 
     suspend fun getPermissionsById(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Permission>
 
     suspend fun getPermissionGroupNameById(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): String?
 
     suspend fun getIdsByPermission(
         panelPermission: PanelPermission,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Long>
 
     suspend fun updateEmailVerifyStatusById(
         userId: Long,
         verified: Boolean,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateCanCreateTicketStatusById(
         userId: Long,
         canCreateTicket: Boolean,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun isPasswordCorrectWithId(
         id: Long,
         hashedPassword: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun updatePendingEmailById(
         userId: Long,
         pendingEmail: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getPendingEmailById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): String
 
-    suspend fun countOfOnline(sqlConnection: SqlConnection): Long
+    suspend fun countOfOnline(sqlClient: SqlClient): Long
 
-    suspend fun deleteById(id: Long, sqlConnection: SqlConnection)
+    suspend fun deleteById(id: Long, sqlClient: SqlClient)
 }

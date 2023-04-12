@@ -8,14 +8,14 @@ import com.panomc.platform.db.model.PanelConfig
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "panel_config"), PanelConfigDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -31,11 +31,11 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
             .await()
     }
 
-    override suspend fun byUserIdAndOption(userId: Long, option: String, sqlConnection: SqlConnection): PanelConfig? {
+    override suspend fun byUserIdAndOption(userId: Long, option: String, sqlClient: SqlClient): PanelConfig? {
         val query =
             "SELECT `id`, `user_id`, `option`, `value` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND `option` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(userId, option))
             .await()
@@ -49,10 +49,10 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
         return PanelConfig.from(row)
     }
 
-    override suspend fun add(panelConfig: PanelConfig, sqlConnection: SqlConnection) {
+    override suspend fun add(panelConfig: PanelConfig, sqlClient: SqlClient) {
         val query = "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `option`, `value`) VALUES (?, ?, ?)"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -64,11 +64,11 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
             .await()
     }
 
-    override suspend fun updateValueById(id: Long, value: String, sqlConnection: SqlConnection) {
+    override suspend fun updateValueById(id: Long, value: String, sqlClient: SqlClient) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `value` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -79,10 +79,10 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
             .await()
     }
 
-    override suspend fun deleteByUserId(userId: Long, sqlConnection: SqlConnection) {
+    override suspend fun deleteByUserId(userId: Long, sqlClient: SqlClient) {
         val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(

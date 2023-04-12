@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -13,12 +13,12 @@ class DatabaseMigration1To2(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION = 2
     override val SCHEME_VERSION_INFO = ""
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(createSystemPropertyTable())
 
-    private fun createSystemPropertyTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createSystemPropertyTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}system_property` (
@@ -32,12 +32,12 @@ class DatabaseMigration1To2(databaseManager: DatabaseManager) : DatabaseMigratio
                 .execute()
                 .await()
 
-            sqlConnection
+            sqlClient
                 .preparedQuery("INSERT INTO ${getTablePrefix()}system_property (`option`, `value`) VALUES (?, ?)")
                 .execute(Tuple.of("show_getting_started", "true"))
                 .await()
 
-            sqlConnection
+            sqlClient
                 .preparedQuery("INSERT INTO ${getTablePrefix()}system_property (`option`, `value`) VALUES (?, ?)")
                 .execute(Tuple.of("show_connect_server_info", "true"))
                 .await()

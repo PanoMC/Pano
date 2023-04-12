@@ -8,7 +8,7 @@ import com.panomc.platform.token.TokenProvider
 import io.vertx.ext.mail.MailMessage
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -28,9 +28,9 @@ class MailManager(
         mailClientProvider.provide()
     }
 
-    suspend fun sendMail(sqlConnection: SqlConnection, userId: Long, mail: Mail, email: String? = null) {
+    suspend fun sendMail(sqlClient: SqlClient, userId: Long, mail: Mail, email: String? = null) {
         val emailAddress =
-            email ?: databaseManager.userDao.getEmailFromUserId(userId, sqlConnection)
+            email ?: databaseManager.userDao.getEmailFromUserId(userId, sqlClient)
             ?: throw Error(ErrorCode.NOT_EXISTS)
 
         val emailConfig = configManager.getConfig().getJsonObject("email")
@@ -46,7 +46,7 @@ class MailManager(
                 userId,
                 configManager.getConfig().getString("ui-address"),
                 databaseManager,
-                sqlConnection,
+                sqlClient,
                 tokenProvider
             ),
             mail.templatePath

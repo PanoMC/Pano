@@ -19,13 +19,13 @@ class PanelGetNotificationsAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val count = databaseManager.panelNotificationDao.getCountByUserId(userId, sqlConnection)
+        val count = databaseManager.panelNotificationDao.getCountByUserId(userId, sqlClient)
 
-        val notifications = databaseManager.panelNotificationDao.getLast10ByUserId(userId, sqlConnection)
+        val notifications = databaseManager.panelNotificationDao.getLast10ByUserId(userId, sqlClient)
 
-        databaseManager.panelNotificationDao.markReadLast10(userId, sqlConnection)
+        databaseManager.panelNotificationDao.markReadLast10(userId, sqlClient)
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 

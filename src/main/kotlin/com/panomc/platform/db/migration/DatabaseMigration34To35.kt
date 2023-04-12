@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 @Migration
 class DatabaseMigration34To35(databaseManager: DatabaseManager) : DatabaseMigration(databaseManager) {
@@ -13,7 +13,7 @@ class DatabaseMigration34To35(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Add action & properties fields to notification & panel notification tables."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             addActionFieldToNotificationTable(),
             addPropertiesFieldToNotificationTable(),
@@ -21,33 +21,33 @@ class DatabaseMigration34To35(databaseManager: DatabaseManager) : DatabaseMigrat
             addPropertiesFieldToPanelNotificationTable()
         )
 
-    private fun addActionFieldToNotificationTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addActionFieldToNotificationTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}notification` ADD `action` varchar(255) NOT NULL DEFAULT '';")
                 .execute()
                 .await()
         }
 
-    private fun addPropertiesFieldToNotificationTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addPropertiesFieldToNotificationTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}notification` ADD `properties` mediumtext NOT NULL;")
                 .execute()
                 .await()
         }
 
-    private fun addActionFieldToPanelNotificationTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addActionFieldToPanelNotificationTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}panel_notification` ADD `action` varchar(255) NOT NULL DEFAULT '';")
                 .execute()
                 .await()
         }
 
-    private fun addPropertiesFieldToPanelNotificationTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addPropertiesFieldToPanelNotificationTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}panel_notification` ADD `properties` mediumtext NOT NULL;")
                 .execute()
                 .await()

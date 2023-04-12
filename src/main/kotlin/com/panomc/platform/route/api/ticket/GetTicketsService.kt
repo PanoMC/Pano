@@ -11,13 +11,13 @@ import com.panomc.platform.model.Successful
 import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestParameters
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import org.springframework.stereotype.Service
 import kotlin.math.ceil
 
 @Service
 class GetTicketsService(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
-    suspend fun handle(context: RoutingContext, sqlConnection: SqlConnection, parameters: RequestParameters): Result {
+    suspend fun handle(context: RoutingContext, sqlClient: SqlClient, parameters: RequestParameters): Result {
         val pageType =
             TicketStatus.valueOf(status = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
                 ?: TicketStatus.ALL
@@ -29,15 +29,14 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         if (categoryUrl != null && categoryUrl != "-") {
             val exists = databaseManager.ticketCategoryDao.existsByUrl(
                 categoryUrl,
-                sqlConnection
+                sqlClient
             )
 
             if (!exists) {
                 throw Error(ErrorCode.NOT_EXISTS)
             }
 
-            ticketCategory = databaseManager.ticketCategoryDao.getByUrl(categoryUrl, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            ticketCategory = databaseManager.ticketCategoryDao.getByUrl(categoryUrl, sqlClient)!!
         }
 
         if (categoryUrl != null && categoryUrl == "-") {
@@ -47,9 +46,9 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val count = if (ticketCategory != null)
-            databaseManager.ticketDao.countByCategoryAndUserId(ticketCategory.id, userId, sqlConnection)
+            databaseManager.ticketDao.countByCategoryAndUserId(ticketCategory.id, userId, sqlClient)
         else
-            databaseManager.ticketDao.getCountByPageTypeAndUserId(userId, pageType, sqlConnection)
+            databaseManager.ticketDao.getCountByPageTypeAndUserId(userId, pageType, sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -61,15 +60,15 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         }
 
         val tickets = if (ticketCategory != null)
-            databaseManager.ticketDao.getAllByPageCategoryIdAndUserId(page, ticketCategory.id, userId, sqlConnection)
+            databaseManager.ticketDao.getAllByPageCategoryIdAndUserId(page, ticketCategory.id, userId, sqlClient)
         else
-            databaseManager.ticketDao.getAllByPagePageTypeAndUserId(userId, page, pageType, sqlConnection)
+            databaseManager.ticketDao.getAllByPagePageTypeAndUserId(userId, page, pageType, sqlClient)
 
         if (tickets.isEmpty()) {
             return getResults(ticketCategory, tickets, mapOf(), null, count, totalPage)
         }
 
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
 
         if (ticketCategory != null) {
             return getResults(ticketCategory, tickets, mapOf(), username, count, totalPage)
@@ -82,7 +81,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
             return getResults(null, tickets, mapOf(), username, count, totalPage)
         }
 
-        val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
+        val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlClient)
 
         return getResults(null, tickets, ticketCategoryList, username, count, totalPage)
     }

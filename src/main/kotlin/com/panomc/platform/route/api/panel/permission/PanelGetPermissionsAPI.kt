@@ -26,9 +26,9 @@ class PanelGetPermissionsAPI(
 
         val result = mutableMapOf<String, Any?>()
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val permissions = databaseManager.permissionDao.getPermissions(sqlConnection)
+        val permissions = databaseManager.permissionDao.getPermissions(sqlClient)
 
         result["permissions"] = permissions
 

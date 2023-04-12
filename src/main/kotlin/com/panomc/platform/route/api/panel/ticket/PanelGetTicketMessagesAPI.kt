@@ -33,22 +33,22 @@ class PanelGetTicketMessagesAPI(
         val id = parameters.pathParameter("id").long
         val lastMessageId = parameters.queryParameter("lastMessageId").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketDao.existsById(id, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val isTicketMessageIdExists = databaseManager.ticketMessageDao.existsById(lastMessageId, sqlConnection)
+        val isTicketMessageIdExists = databaseManager.ticketMessageDao.existsById(lastMessageId, sqlClient)
 
         if (!isTicketMessageIdExists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         val ticketMessages =
-            databaseManager.ticketMessageDao.getByTicketIdAndStartFromId(lastMessageId, id, sqlConnection)
+            databaseManager.ticketMessageDao.getByTicketIdAndStartFromId(lastMessageId, id, sqlClient)
 
         val userIdList = mutableListOf<Long>()
 
@@ -59,7 +59,7 @@ class PanelGetTicketMessagesAPI(
                     userIdList.add(message.userId)
             }
 
-        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
         val messages = mutableListOf<Map<String, Any?>>()
 

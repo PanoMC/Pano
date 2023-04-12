@@ -41,9 +41,9 @@ class VerifyNewEmailAPI(
 
         validateInput(token)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val isValid = tokenProvider.isTokenValid(token, TokenType.CHANGE_EMAIL, sqlConnection)
+        val isValid = tokenProvider.isTokenValid(token, TokenType.CHANGE_EMAIL, sqlClient)
 
         if (!isValid) {
             throw Error(ErrorCode.INVALID_LINK)
@@ -51,19 +51,19 @@ class VerifyNewEmailAPI(
 
         val userId = authProvider.getUserIdFromToken(token)
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.CHANGE_EMAIL, sqlConnection)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.CHANGE_EMAIL, sqlClient)
 
-        val pendingEmail = databaseManager.userDao.getPendingEmailById(userId, sqlConnection)
+        val pendingEmail = databaseManager.userDao.getPendingEmailById(userId, sqlClient)
 
-        val emailExists = databaseManager.userDao.isEmailExists(pendingEmail, sqlConnection)
+        val emailExists = databaseManager.userDao.isEmailExists(pendingEmail, sqlClient)
 
         if (emailExists) {
             throw Error(ErrorCode.INVALID_LINK)
         }
 
-        databaseManager.userDao.setEmailById(userId, pendingEmail, sqlConnection)
+        databaseManager.userDao.setEmailById(userId, pendingEmail, sqlClient)
 
-        databaseManager.userDao.updatePendingEmailById(userId, "", sqlConnection)
+        databaseManager.userDao.updatePendingEmailById(userId, "", sqlClient)
 
         return Successful()
     }

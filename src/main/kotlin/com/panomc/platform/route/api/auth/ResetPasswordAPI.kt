@@ -40,20 +40,20 @@ class ResetPasswordAPI(
 
         validateInput(usernameOrEmail)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsernameOrEmail(usernameOrEmail, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsernameOrEmail(usernameOrEmail, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlConnection) ?: throw Error(
+            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient) ?: throw Error(
                 ErrorCode.NOT_EXISTS
             )
 
-        mailManager.sendMail(sqlConnection, userId, ResetPasswordMail())
+        mailManager.sendMail(sqlClient, userId, ResetPasswordMail())
 
         return Successful()
     }

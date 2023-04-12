@@ -50,10 +50,10 @@ class ChangeEmailAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val lastToken =
-            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.CHANGE_EMAIL, sqlConnection)
+            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.CHANGE_EMAIL, sqlClient)
 
         if (lastToken != null) {
             val fifteenMinutesLaterInMillis = lastToken.startDate + 15 * 60 * 1000
@@ -64,21 +64,21 @@ class ChangeEmailAPI(
         }
 
         val isCurrentPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlConnection)
+            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
 
         if (!isCurrentPasswordCorrect) {
             throw Error(ErrorCode.CURRENT_PASSWORD_NOT_CORRECT)
         }
 
-        val emailExists = databaseManager.userDao.isEmailExists(newEmail, sqlConnection)
+        val emailExists = databaseManager.userDao.isEmailExists(newEmail, sqlClient)
 
         if (emailExists) {
             throw Error(ErrorCode.NEW_EMAIL_EXISTS)
         }
 
-        databaseManager.userDao.updatePendingEmailById(userId, newEmail, sqlConnection)
+        databaseManager.userDao.updatePendingEmailById(userId, newEmail, sqlClient)
 
-        mailManager.sendMail(sqlConnection, userId, ChangeEmailMail(), newEmail)
+        mailManager.sendMail(sqlClient, userId, ChangeEmailMail(), newEmail)
 
         return Successful()
     }

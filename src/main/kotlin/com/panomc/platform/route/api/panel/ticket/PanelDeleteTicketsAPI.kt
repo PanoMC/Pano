@@ -37,11 +37,11 @@ class PanelDeleteTicketsAPI(
             return Successful()
         }
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        databaseManager.ticketDao.delete(selectedTickets, sqlConnection)
+        databaseManager.ticketDao.delete(selectedTickets, sqlClient)
 
-        databaseManager.ticketMessageDao.deleteByTicketIdList(selectedTickets, sqlConnection)
+        databaseManager.ticketMessageDao.deleteByTicketIdList(selectedTickets, sqlClient)
 
         return Successful()
     }

@@ -1,7 +1,7 @@
 package com.panomc.platform.db
 
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface Dao<T> {
-    suspend fun init(sqlConnection: SqlConnection)
+    suspend fun init(sqlClient: SqlClient)
 }

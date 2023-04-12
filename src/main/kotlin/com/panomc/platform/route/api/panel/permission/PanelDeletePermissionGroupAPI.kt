@@ -32,28 +32,27 @@ class PanelDeletePermissionGroupAPI(
 
         val permissionGroupId = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val isTherePermissionGroup =
-            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlConnection)
+            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlClient)
 
         if (!isTherePermissionGroup) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         val permissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlClient)!!
 
         if (permissionGroup.name == "admin") {
             throw Error(ErrorCode.CANT_DELETE_ADMIN_PERMISSION)
         }
 
-        databaseManager.permissionGroupPermsDao.removePermissionGroup(permissionGroupId, sqlConnection)
+        databaseManager.permissionGroupPermsDao.removePermissionGroup(permissionGroupId, sqlClient)
 
-        databaseManager.userDao.removePermissionGroupByPermissionGroupId(permissionGroupId, sqlConnection)
+        databaseManager.userDao.removePermissionGroupByPermissionGroupId(permissionGroupId, sqlClient)
 
-        databaseManager.permissionGroupDao.deleteById(permissionGroupId, sqlConnection)
+        databaseManager.permissionGroupDao.deleteById(permissionGroupId, sqlClient)
 
         return Successful()
     }

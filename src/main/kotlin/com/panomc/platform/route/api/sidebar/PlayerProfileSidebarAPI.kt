@@ -25,17 +25,17 @@ class PlayerProfileSidebarAPI(private val databaseManager: DatabaseManager) : Ap
 
         val username = parameters.pathParameter("username").string
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val user = databaseManager.userDao.getByUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+        val user = databaseManager.userDao.getByUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(user.id, sqlConnection)!!
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(user.id, sqlClient)!!
 
         var name = ""
 
         if (userPermissionGroupId != -1L) {
             val userPermissionGroup =
-                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)!!
+                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
             name = userPermissionGroup.name
         }
@@ -44,7 +44,7 @@ class PlayerProfileSidebarAPI(private val databaseManager: DatabaseManager) : Ap
 
         response["lastActivityTime"] = user.lastActivityTime
 
-        response["inGame"] = databaseManager.serverPlayerDao.existsByUsername(user.username, sqlConnection)
+        response["inGame"] = databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient)
 
         response["permissionGroupName"] = name
 

@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.panel
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission.ACCESS_PANEL
@@ -69,49 +68,49 @@ class PanelGetDashboardAPI(
             )
         }
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val isUserInstalled =
-            databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlConnection)
+            databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlClient)
 
         if (isUserInstalled) {
             val systemProperty = databaseManager.systemPropertyDao.getByOption(
                 "show_getting_started",
-                sqlConnection
-            ) ?: throw Error(ErrorCode.UNKNOWN)
+                sqlClient
+            )!!
 
             result["gettingStartedBlocks"] = mapOf(
                 "welcomeBoard" to systemProperty.value.toBoolean()
             )
         }
 
-        result["registeredPlayerCount"] = databaseManager.userDao.count(sqlConnection)
+        result["registeredPlayerCount"] = databaseManager.userDao.count(sqlClient)
 
-        result["onlinePlayerCount"] = databaseManager.userDao.countOfOnline(sqlConnection)
+        result["onlinePlayerCount"] = databaseManager.userDao.countOfOnline(sqlClient)
 
-        result["postCount"] = databaseManager.postDao.count(sqlConnection)
+        result["postCount"] = databaseManager.postDao.count(sqlClient)
 
-        val ticketCount = databaseManager.ticketDao.count(sqlConnection)
+        val ticketCount = databaseManager.ticketDao.count(sqlClient)
 
         result["ticketCount"] = ticketCount
 
         if (authProvider.hasPermission(userId, MANAGE_TICKETS, context) && ticketCount != 0L) {
-            val openTicketCount = databaseManager.ticketDao.countOfOpenTickets(sqlConnection)
+            val openTicketCount = databaseManager.ticketDao.countOfOpenTickets(sqlClient)
 
             result["openTicketCount"] = openTicketCount
 
-            val tickets = databaseManager.ticketDao.getLast5Tickets(sqlConnection)
+            val tickets = databaseManager.ticketDao.getLast5Tickets(sqlClient)
 
             val userIdList = tickets.distinctBy { it.userId }.map { it.userId }
 
-            val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+            val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
             val categoryIdList =
                 tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
             var ticketCategoryList: Map<Long, TicketCategory> = mapOf()
 
             if (categoryIdList.isNotEmpty()) {
-                ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
+                ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlClient)
             }
 
             val ticketDataList = mutableListOf<Map<String, Any?>>()
@@ -144,43 +143,43 @@ class PanelGetDashboardAPI(
 
         val permissionId = databaseManager.permissionDao.getPermissionId(
             Permission(name = ACCESS_PANEL.toString(), iconName = ""),
-            sqlConnection
+            sqlClient
         )
         val permissionGroupsByPermissionId =
-            databaseManager.permissionGroupPermsDao.getPermissionGroupPermsByPermissionId(permissionId, sqlConnection)
+            databaseManager.permissionGroupPermsDao.getPermissionGroupPermsByPermissionId(permissionId, sqlClient)
 
         var adminCount = 0L
 
         val permissionGroupList = permissionGroupsByPermissionId.toMutableList()
 
         val adminPermissionGroupId =
-            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)
+            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlClient)
 
         val userCountOfAdminPermission =
-            databaseManager.userDao.getCountOfUsersByPermissionGroupId(adminPermissionGroupId!!, sqlConnection)
+            databaseManager.userDao.getCountOfUsersByPermissionGroupId(adminPermissionGroupId!!, sqlClient)
 
         adminCount += userCountOfAdminPermission
 
         permissionGroupList.forEach { permissionGroupPerm ->
             adminCount += databaseManager.userDao.getCountOfUsersByPermissionGroupId(
                 permissionGroupPerm.permissionGroupId,
-                sqlConnection
+                sqlClient
             )
         }
 
         result["adminCount"] = adminCount
 
-        result["newRegisterCount"] = databaseManager.userDao.countOfRegisterByPeriod(period, sqlConnection)
+        result["newRegisterCount"] = databaseManager.userDao.countOfRegisterByPeriod(period, sqlClient)
 
         val websiteActivityDataList = result["websiteActivityDataList"] as MutableMap<String, Any?>
 
-        val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlConnection)
+        val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlClient)
         websiteActivityDataList["newRegisterData"] = registerDateList.toGroupGetCountAndDates()
 
-        val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlConnection)
+        val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlClient)
         websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
 
-        val websiteViewData = databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlConnection)
+        val websiteViewData = databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlClient)
 
         val viewsDateMap = mutableMapOf<Long, Long>()
         val visitorDateMap = mutableMapOf<Long, Long>()
@@ -201,7 +200,7 @@ class PanelGetDashboardAPI(
         websiteActivityDataList["visitorData"] = visitorDateMap
         websiteActivityDataList["viewData"] = viewsDateMap
 
-        val connectedServerCount = databaseManager.serverDao.countOfPermissionGranted(sqlConnection)
+        val connectedServerCount = databaseManager.serverDao.countOfPermissionGranted(sqlClient)
 
         result["connectedServerCount"] = connectedServerCount
 

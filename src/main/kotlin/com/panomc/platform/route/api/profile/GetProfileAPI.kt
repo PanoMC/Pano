@@ -21,9 +21,9 @@ class GetProfileAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val user = databaseManager.userDao.getById(userId, sqlConnection)!!
+        val user = databaseManager.userDao.getById(userId, sqlClient)!!
 
         response["registerDate"] = user.registerDate
         response["lastLoginDate"] = user.lastLoginDate

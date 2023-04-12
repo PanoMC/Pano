@@ -17,7 +17,7 @@ class OnPlayerJoin(private val databaseManager: DatabaseManager) : ServerEventLi
         val player = body.getJsonObject("player")
         val playerCount = body.getInteger("playerCount")
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
         val serverPlayer = ServerPlayer(
             uuid = UUID.fromString(player.getString("uuid")),
@@ -27,9 +27,7 @@ class OnPlayerJoin(private val databaseManager: DatabaseManager) : ServerEventLi
             loginTime = player.getLong("loginTime")
         )
 
-        databaseManager.serverPlayerDao.add(serverPlayer, sqlConnection)
-        databaseManager.serverDao.updatePlayerCountById(server.id, playerCount, sqlConnection)
-
-        databaseManager.closeConnection(sqlConnection)
+        databaseManager.serverPlayerDao.add(serverPlayer, sqlClient)
+        databaseManager.serverDao.updatePlayerCountById(server.id, playerCount, sqlClient)
     }
 }

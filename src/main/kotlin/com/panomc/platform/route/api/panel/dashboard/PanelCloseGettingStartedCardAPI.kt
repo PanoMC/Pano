@@ -20,10 +20,10 @@ class PanelCloseGettingStartedCardAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val isUserInstalledSystem =
-            databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlConnection)
+            databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlClient)
 
         if (!isUserInstalledSystem) {
             throw Error(ErrorCode.NO_PERMISSION)
@@ -32,7 +32,7 @@ class PanelCloseGettingStartedCardAPI(
         databaseManager.systemPropertyDao.update(
             "show_getting_started",
             "false",
-            sqlConnection
+            sqlClient
         )
 
         return Successful()

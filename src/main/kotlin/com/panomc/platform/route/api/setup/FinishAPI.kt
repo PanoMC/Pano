@@ -62,13 +62,13 @@ class FinishAPI(
             null
         )
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        databaseManager.initDatabase(sqlConnection)
+        databaseManager.initDatabase(sqlClient)
 
         RegisterUtil.register(
             databaseManager,
-            sqlConnection,
+            sqlClient,
             username,
             email,
             password,
@@ -77,7 +77,7 @@ class FinishAPI(
             isSetup = true
         )
 
-        val token = authProvider.login(username, sqlConnection)
+        val token = authProvider.login(username, sqlClient)
 
         configManager.getConfig().put("locale", setupLocale)
 

@@ -8,27 +8,26 @@ import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import io.vertx.ext.web.validation.RequestParameters
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import org.springframework.stereotype.Service
 import util.StringUtil
 
 @Service
 class GetPostsService(private val databaseManager: DatabaseManager) {
-    suspend fun handle(parameters: RequestParameters, sqlConnection: SqlConnection): Result {
+    suspend fun handle(parameters: RequestParameters, sqlClient: SqlClient): Result {
         val page = parameters.queryParameter("page")?.long ?: 1
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
         var postCategory: PostCategory? = null
 
         if (categoryUrl != null && categoryUrl != "-") {
-            val isPostCategoryExists = databaseManager.postCategoryDao.existsByUrl(categoryUrl, sqlConnection)
+            val isPostCategoryExists = databaseManager.postCategoryDao.existsByUrl(categoryUrl, sqlClient)
 
             if (!isPostCategoryExists) {
                 throw Error(ErrorCode.CATEGORY_NOT_EXISTS)
             }
 
-            postCategory =
-                databaseManager.postCategoryDao.getByUrl(categoryUrl, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+            postCategory = databaseManager.postCategoryDao.getByUrl(categoryUrl, sqlClient)!!
         }
 
         if (categoryUrl != null && categoryUrl == "-") {
@@ -36,9 +35,9 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
         }
 
         val count = if (postCategory != null)
-            databaseManager.postDao.countOfPublishedByCategoryId(postCategory.id, sqlConnection)
+            databaseManager.postDao.countOfPublishedByCategoryId(postCategory.id, sqlClient)
         else
-            databaseManager.postDao.countOfPublished(sqlConnection)
+            databaseManager.postDao.countOfPublished(sqlClient)
 
         var totalPage = kotlin.math.ceil(count.toDouble() / 5).toLong()
 
@@ -50,9 +49,9 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
         }
 
         val posts = if (postCategory != null)
-            databaseManager.postDao.getPublishedListByPageAndCategoryId(postCategory.id, page, sqlConnection)
+            databaseManager.postDao.getPublishedListByPageAndCategoryId(postCategory.id, page, sqlClient)
         else
-            databaseManager.postDao.getPublishedListByPage(page, sqlConnection)
+            databaseManager.postDao.getPublishedListByPage(page, sqlClient)
 
         if (posts.isEmpty()) {
             return prepareResult(postCategory, posts, mapOf(), mapOf(), count, totalPage)
@@ -60,7 +59,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
 
         val userIdList = posts.distinctBy { it.writerUserId }.map { it.writerUserId }.filter { it != -1L }
 
-        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
         if (postCategory != null) {
             return prepareResult(postCategory, posts, usernameList, mapOf(), count, totalPage)
@@ -73,7 +72,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
             return prepareResult(null, posts, usernameList, mapOf(), count, totalPage)
         }
 
-        val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlConnection)
+        val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlClient)
 
         return prepareResult(null, posts, usernameList, categories, count, totalPage)
     }

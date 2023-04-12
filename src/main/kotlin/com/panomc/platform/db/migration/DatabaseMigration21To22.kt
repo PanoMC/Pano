@@ -8,7 +8,7 @@ import com.panomc.platform.util.TextUtil
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -18,23 +18,23 @@ class DatabaseMigration21To22(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Add URL column to ticket category table."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             addUrlColumnToTicketTable(),
             convertTicketCategoryTitlesToUrl()
         )
 
-    private fun addUrlColumnToTicketTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addUrlColumnToTicketTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}ticket_category` ADD `url` mediumtext NOT NULL DEFAULT '';")
                 .execute()
                 .await()
         }
 
-    private fun convertTicketCategoryTitlesToUrl(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            val rows: RowSet<Row> = sqlConnection
+    private fun convertTicketCategoryTitlesToUrl(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            val rows: RowSet<Row> = sqlClient
                 .preparedQuery("SELECT id, title FROM `${getTablePrefix()}ticket_category`")
                 .execute()
                 .await()
@@ -55,7 +55,7 @@ class DatabaseMigration21To22(databaseManager: DatabaseManager) : DatabaseMigrat
 
                 val url = TextUtil.convertStringToUrl(category.title)
 
-                sqlConnection
+                sqlClient
                     .preparedQuery(query)
                     .execute(
                         Tuple.of(

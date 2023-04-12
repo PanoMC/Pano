@@ -33,9 +33,9 @@ class PanelRejectServerConnectRequestAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(id, sqlConnection)
+        val exists = databaseManager.serverDao.existsById(id, sqlClient)
 
         if (!exists) {
             return Error(ErrorCode.NOT_EXISTS)
@@ -45,7 +45,7 @@ class PanelRejectServerConnectRequestAPI(
             serverManager.closeConnection(id)
         }
 
-        databaseManager.serverDao.deleteById(id, sqlConnection)
+        databaseManager.serverDao.deleteById(id, sqlClient)
 
         return Successful()
     }

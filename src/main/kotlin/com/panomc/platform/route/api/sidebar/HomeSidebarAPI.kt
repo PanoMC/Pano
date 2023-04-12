@@ -25,16 +25,16 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
         response["ipAddress"] = configManager.getConfig().getString("server-ip-address")
         response["serverGameVersion"] = configManager.getConfig().getString("server-game-version")
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(
             "main_server",
-            sqlConnection
+            sqlClient
         )?.value?.toLong()
         var mainServer: Server? = null
 
         if (mainServerId != null && mainServerId != -1L) {
-            mainServer = databaseManager.serverDao.getById(mainServerId, sqlConnection)
+            mainServer = databaseManager.serverDao.getById(mainServerId, sqlClient)
         }
 
         response["mainServer"] = if (mainServer == null) null else mapOf<String, Any?>(
@@ -42,7 +42,7 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
             "maxPlayerCount" to mainServer.maxPlayerCount,
             "status" to mainServer.status
         )
-        response["lastRegisteredUsers"] = databaseManager.userDao.getLastUsernames(12, sqlConnection)
+        response["lastRegisteredUsers"] = databaseManager.userDao.getLastUsernames(12, sqlClient)
 
         return Successful(response)
     }

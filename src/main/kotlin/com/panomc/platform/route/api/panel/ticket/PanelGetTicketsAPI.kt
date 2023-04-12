@@ -48,20 +48,19 @@ class PanelGetTicketsAPI(
 
         var ticketCategory: TicketCategory? = null
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         if (categoryUrl != null && categoryUrl != "-") {
             val exists = databaseManager.ticketCategoryDao.existsByUrl(
                 categoryUrl,
-                sqlConnection
+                sqlClient
             )
 
             if (!exists) {
                 throw Error(ErrorCode.NOT_EXISTS)
             }
 
-            ticketCategory = databaseManager.ticketCategoryDao.getByUrl(categoryUrl, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            ticketCategory = databaseManager.ticketCategoryDao.getByUrl(categoryUrl, sqlClient)!!
         }
 
         if (categoryUrl != null && categoryUrl == "-") {
@@ -69,9 +68,9 @@ class PanelGetTicketsAPI(
         }
 
         val count = if (ticketCategory != null)
-            databaseManager.ticketDao.countByCategory(ticketCategory.id, sqlConnection)
+            databaseManager.ticketDao.countByCategory(ticketCategory.id, sqlClient)
         else
-            databaseManager.ticketDao.getCountByPageType(pageType, sqlConnection)
+            databaseManager.ticketDao.getCountByPageType(pageType, sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -83,9 +82,9 @@ class PanelGetTicketsAPI(
         }
 
         val tickets = if (ticketCategory != null)
-            databaseManager.ticketDao.getAllByPageAndCategoryId(page, ticketCategory.id, sqlConnection)
+            databaseManager.ticketDao.getAllByPageAndCategoryId(page, ticketCategory.id, sqlClient)
         else
-            databaseManager.ticketDao.getAllByPageAndPageType(page, pageType, sqlConnection)
+            databaseManager.ticketDao.getAllByPageAndPageType(page, pageType, sqlClient)
 
         if (tickets.isEmpty()) {
             return getResults(ticketCategory, tickets, mapOf(), mapOf(), count, totalPage)
@@ -93,7 +92,7 @@ class PanelGetTicketsAPI(
 
         val userIdList = tickets.distinctBy { it.userId }.map { it.userId }
 
-        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
         if (ticketCategory != null) {
             return getResults(ticketCategory, tickets, mapOf(), usernameList, count, totalPage)
@@ -106,7 +105,7 @@ class PanelGetTicketsAPI(
             return getResults(null, tickets, mapOf(), usernameList, count, totalPage)
         }
 
-        val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlConnection)
+        val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlClient)
 
         return getResults(null, tickets, ticketCategoryList, usernameList, count, totalPage)
     }

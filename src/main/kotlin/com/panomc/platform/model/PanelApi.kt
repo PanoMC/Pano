@@ -14,10 +14,10 @@ abstract class PanelApi : LoggedInApi() {
     private lateinit var databaseManager: DatabaseManager
 
     private suspend fun updateLastPanelActivityTime(context: RoutingContext) {
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        databaseManager.userDao.updateLastPanelActivityTime(userId, sqlConnection)
+        databaseManager.userDao.updateLastPanelActivityTime(userId, sqlClient)
     }
 
     override suspend fun onBeforeHandle(context: RoutingContext) {

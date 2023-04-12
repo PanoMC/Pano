@@ -10,14 +10,14 @@ import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "token"), TokenDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                         CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -35,12 +35,12 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
             .await()
     }
 
-    override suspend fun add(token: Token, sqlConnection: SqlConnection): Long {
+    override suspend fun add(token: Token, sqlClient: SqlClient): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`subject`, `token`, `type`, `expire_date`, `start_date`) " +
                     "VALUES (?, ?, ?, ?, ?)"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -59,11 +59,11 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
     override suspend fun existsByTokenAndType(
         token: String,
         tokenType: TokenType,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query = "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `token` = ? AND `type` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(token, tokenType.name))
             .await()
@@ -71,11 +71,11 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun deleteByToken(token: String, sqlConnection: SqlConnection) {
+    override suspend fun deleteByToken(token: String, sqlClient: SqlClient) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `token` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(token)
@@ -83,11 +83,11 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
             .await()
     }
 
-    override suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlConnection: SqlConnection) {
+    override suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlClient: SqlClient) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(subject, type.name)
@@ -98,12 +98,12 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
     override suspend fun getLastBySubjectAndType(
         subject: String,
         type: TokenType,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Token? {
         val query =
             "SELECT `id`, `subject`, `token`, `type`, `expire_date`, `start_date` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expire_date` DESC limit 1"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(

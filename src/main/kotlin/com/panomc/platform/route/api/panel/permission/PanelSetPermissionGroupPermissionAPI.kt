@@ -45,27 +45,26 @@ class PanelSetPermissionGroupPermissionAPI(
         val mode = data.getString("mode")
 
         if (mode != "ADD" && mode != "DELETE") {
-            throw Error(ErrorCode.UNKNOWN)
+            throw Error(ErrorCode.FORBIDDEN)
         }
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val isTherePermissionGroup =
-            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlConnection)
+            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlClient)
 
         if (!isTherePermissionGroup) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         val permissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlClient)!!
 
         if (permissionGroup.name == "admin") {
             throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
         }
 
-        val isTherePermission = databaseManager.permissionDao.isTherePermissionById(permissionId, sqlConnection)
+        val isTherePermission = databaseManager.permissionDao.isTherePermissionById(permissionId, sqlClient)
 
         if (!isTherePermission) {
             throw Error(ErrorCode.NOT_EXISTS)
@@ -75,13 +74,13 @@ class PanelSetPermissionGroupPermissionAPI(
             databaseManager.permissionGroupPermsDao.doesPermissionGroupHavePermission(
                 permissionGroupId,
                 permissionId,
-                sqlConnection
+                sqlClient
             )
 
         if (mode == "ADD" && !doesPermissionGroupHavePermission)
-            databaseManager.permissionGroupPermsDao.addPermission(permissionGroupId, permissionId, sqlConnection)
+            databaseManager.permissionGroupPermsDao.addPermission(permissionGroupId, permissionId, sqlClient)
         else if (doesPermissionGroupHavePermission)
-            databaseManager.permissionGroupPermsDao.removePermission(permissionGroupId, permissionId, sqlConnection)
+            databaseManager.permissionGroupPermsDao.removePermission(permissionGroupId, permissionId, sqlClient)
 
         val body = mutableMapOf<String, Any?>()
 

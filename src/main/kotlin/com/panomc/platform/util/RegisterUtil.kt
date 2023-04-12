@@ -6,7 +6,7 @@ import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.model.Error
 import de.triology.recaptchav2java.ReCaptcha
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import org.apache.commons.codec.digest.DigestUtils
 
 object RegisterUtil {
@@ -71,7 +71,7 @@ object RegisterUtil {
 
     suspend fun register(
         databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         username: String,
         email: String,
         password: String,
@@ -81,14 +81,14 @@ object RegisterUtil {
     ): Long {
         val isUsernameExists = databaseManager.userDao.existsByUsername(
             username,
-            sqlConnection
+            sqlClient
         )
 
         if (isUsernameExists) {
             throw Error(ErrorCode.REGISTER_USERNAME_NOT_AVAILABLE)
         }
 
-        val isEmailExists = databaseManager.userDao.isEmailExists(email, sqlConnection)
+        val isEmailExists = databaseManager.userDao.isEmailExists(email, sqlClient)
 
         if (isEmailExists) {
             throw Error(ErrorCode.REGISTER_EMAIL_NOT_AVAILABLE)
@@ -100,15 +100,15 @@ object RegisterUtil {
         val hashedPassword = DigestUtils.md5Hex(password)
 
         if (!isAdmin) {
-            userId = databaseManager.userDao.add(user, hashedPassword, sqlConnection, isSetup)
+            userId = databaseManager.userDao.add(user, hashedPassword, sqlClient, isSetup)
 
             return userId
         }
 
         val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupIdByName(
             "admin",
-            sqlConnection
-        ) ?: throw Error(ErrorCode.UNKNOWN)
+            sqlClient
+        )!!
 
         val adminUser = User(
             username = username,
@@ -117,19 +117,19 @@ object RegisterUtil {
             permissionGroupId = adminPermissionGroupId
         )
 
-        userId = databaseManager.userDao.add(adminUser, hashedPassword, sqlConnection, isSetup)
+        userId = databaseManager.userDao.add(adminUser, hashedPassword, sqlClient, isSetup)
         val property = SystemProperty(option = "who_installed_user_id", value = userId.toString())
 
         val isPropertyExists = databaseManager.systemPropertyDao.existsByOption(
             property.option,
-            sqlConnection
+            sqlClient
         )
 
         if (isPropertyExists) {
             databaseManager.systemPropertyDao.update(
                 property.option,
                 property.value,
-                sqlConnection
+                sqlClient
             )
 
             return userId
@@ -137,7 +137,7 @@ object RegisterUtil {
 
         databaseManager.systemPropertyDao.add(
             property,
-            sqlConnection
+            sqlClient
         )
 
         return userId

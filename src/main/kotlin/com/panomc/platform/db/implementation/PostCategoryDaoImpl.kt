@@ -9,15 +9,15 @@ import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "post_category"),
     PostCategoryDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -36,12 +36,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -54,12 +54,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun deleteById(
         id: Long,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
     ) {
         val query =
             "DELETE FROM `${getTablePrefix() + tableName}` WHERE id = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -68,11 +68,11 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             ).await()
     }
 
-    override suspend fun getCount(sqlConnection: SqlConnection): Long {
+    override suspend fun getCount(sqlClient: SqlClient): Long {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
@@ -82,7 +82,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun getByIdList(
         idList: List<Long>,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Map<Long, PostCategory> {
         var listText = ""
 
@@ -96,7 +96,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE  `id` IN ($listText) ORDER BY id DESC"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
@@ -105,12 +105,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
     }
 
     override suspend fun getAll(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PostCategory> {
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
@@ -120,12 +120,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun getCategories(
         page: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PostCategory> {
         val query =
             "SELECT id, title, description, url, color FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
@@ -135,12 +135,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun existsByUrl(
         url: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(url))
             .await()
@@ -151,12 +151,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
     override suspend fun existsByUrlNotById(
         url: String,
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `url` = ? and id != ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(url, id))
             .await()
@@ -166,12 +166,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun add(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `description`, `url`, `color`) VALUES (?, ?, ?, ?)"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -188,12 +188,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun update(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET title = ?, description = ?, url = ?, color = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -208,12 +208,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun getById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): PostCategory? {
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(id)
@@ -231,12 +231,12 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun getByUrl(
         url: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): PostCategory? {
         val query =
             "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE `url` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(url)

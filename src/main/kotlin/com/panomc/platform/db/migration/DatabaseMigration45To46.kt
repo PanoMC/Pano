@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 @Migration
 class DatabaseMigration45To46(databaseManager: DatabaseManager) : DatabaseMigration(databaseManager) {
@@ -12,14 +12,14 @@ class DatabaseMigration45To46(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION = 46
     override val SCHEME_VERSION_INFO = "Add start_date field to token table."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             addStartDateFieldToTokenTable()
         )
 
-    private fun addStartDateFieldToTokenTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addStartDateFieldToTokenTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}token` ADD `start_date` bigint NOT NULL;")
                 .execute()
                 .await()

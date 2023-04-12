@@ -2,48 +2,48 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PermissionGroupPerms
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface PermissionGroupPermsDao : Dao<PermissionGroupPerms> {
     suspend fun getPermissionGroupPerms(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PermissionGroupPerms>
 
     suspend fun getPermissionGroupPermsByPermissionId(
         permissionId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PermissionGroupPerms>
 
     suspend fun getByPermissionGroupId(
         permissionGroupId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PermissionGroupPerms>
 
     suspend fun countPermissionsByPermissionGroupId(
         permissionGroupId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun doesPermissionGroupHavePermission(
         permissionGroupId: Long,
         permissionId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun addPermission(
         permissionGroupId: Long,
         permissionId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun removePermission(
         permissionGroupId: Long,
         permissionId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun removePermissionGroup(
         permissionGroupId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 }

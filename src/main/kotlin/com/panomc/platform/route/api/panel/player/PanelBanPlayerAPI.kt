@@ -48,35 +48,33 @@ class PanelBanPlayerAPI(
 
         val sendNotification = data.getBoolean("sendNotification") ?: false
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsername(username, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
         if (userId == authUserId) {
             throw Error(ErrorCode.CANT_BAN_YOURSELF)
         }
 
-        val isBanned = databaseManager.userDao.isBanned(userId, sqlConnection)
+        val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)
 
         if (isBanned) {
             throw Error(ErrorCode.ALREADY_BANNED)
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
-            ?: throw Error(ErrorCode.UNKNOWN)
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
 
         if (userPermissionGroupId != -1L) {
             val userPermissionGroup =
-                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
-                    ?: throw Error(ErrorCode.UNKNOWN)
+                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
             if (userPermissionGroup.name == "admin") {
                 val isAdmin = context.get<Boolean>("isAdmin") ?: false
@@ -87,7 +85,7 @@ class PanelBanPlayerAPI(
 
                 val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(
                     userPermissionGroupId,
-                    sqlConnection
+                    sqlClient
                 )
 
                 if (count == 1L) {
@@ -96,12 +94,12 @@ class PanelBanPlayerAPI(
             }
         }
 
-        databaseManager.userDao.banPlayer(userId, sqlConnection)
+        databaseManager.userDao.banPlayer(userId, sqlClient)
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlConnection)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
 
         if (sendNotification) {
-            mailManager.sendMail(sqlConnection, userId, BannedMail())
+            mailManager.sendMail(sqlClient, userId, BannedMail())
         }
 
         return Successful()

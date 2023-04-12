@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -13,14 +13,14 @@ class DatabaseMigration38To39(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION = 39
     override val SCHEME_VERSION_INFO = "Add main server option to system property table."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             addMainServerOptionToSystemPropertyTable()
         )
 
-    private fun addMainServerOptionToSystemPropertyTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addMainServerOptionToSystemPropertyTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .preparedQuery("INSERT INTO ${getTablePrefix()}system_property (`option`, `value`) VALUES (?, ?)")
                 .execute(Tuple.of("main_server", "-1"))
                 .await()

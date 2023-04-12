@@ -47,9 +47,9 @@ class PanelAddPostCategoryAPI(
 
         validateForm(title, url, color)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.postCategoryDao.existsByUrl(url, sqlConnection)
+        val exists = databaseManager.postCategoryDao.existsByUrl(url, sqlClient)
 
         if (exists) {
             val errors = mutableMapOf<String, Boolean>()
@@ -61,7 +61,7 @@ class PanelAddPostCategoryAPI(
 
         val id = databaseManager.postCategoryDao.add(
             PostCategory(title = title, description = description, url = url, color = color),
-            sqlConnection
+            sqlClient
         )
 
         return Successful(

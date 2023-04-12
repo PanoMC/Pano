@@ -19,11 +19,11 @@ class MarkQuickNotificationsAsReadAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        databaseManager.notificationDao.markReadLast5ByUserId(userId, sqlConnection)
+        databaseManager.notificationDao.markReadLast5ByUserId(userId, sqlClient)
 
-        val count = databaseManager.notificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
+        val count = databaseManager.notificationDao.getCountOfNotReadByUserId(userId, sqlClient)
 
         return Successful(
             mutableMapOf(

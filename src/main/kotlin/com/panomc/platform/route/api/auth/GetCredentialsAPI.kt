@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.auth
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -20,9 +19,9 @@ class GetCredentialsAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val user = databaseManager.userDao.getById(userId, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+        val user = databaseManager.userDao.getById(userId, sqlClient)!!
 
         return Successful(
             mapOf(

@@ -7,7 +7,7 @@ import io.vertx.ext.web.client.WebClient
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -18,23 +18,23 @@ class DatabaseMigration23To24(databaseManager: DatabaseManager, private val webC
     override val SCHEME_VERSION_INFO =
         "Add MC UUID column to users table and set users UUIDs."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             addMcUuidColumnToTicketTable(),
             setUserMcUuidFromMojangApi()
         )
 
-    private fun addMcUuidColumnToTicketTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addMcUuidColumnToTicketTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}user` ADD `mc_uuid` varchar(255) NOT NULL DEFAULT '';")
                 .execute()
                 .await()
         }
 
-    private fun setUserMcUuidFromMojangApi(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            val rows: RowSet<Row> = sqlConnection
+    private fun setUserMcUuidFromMojangApi(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            val rows: RowSet<Row> = sqlClient
                 .preparedQuery("SELECT id, username FROM `${getTablePrefix()}user`")
                 .execute()
                 .await()
@@ -61,7 +61,7 @@ class DatabaseMigration23To24(databaseManager: DatabaseManager, private val webC
 
                 val query = "UPDATE `${getTablePrefix()}user` SET mc_uuid = ? WHERE id = ?"
 
-                sqlConnection
+                sqlClient
                     .preparedQuery(query)
                     .execute(
                         Tuple.of(

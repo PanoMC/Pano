@@ -5,7 +5,7 @@ import com.panomc.platform.mail.Mail
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.core.json.JsonObject
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 class ActivationMail : Mail {
     override val templatePath = "mail/activation.hbs"
@@ -16,16 +16,16 @@ class ActivationMail : Mail {
         userId: Long,
         uiAddress: String,
         databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         tokenProvider: TokenProvider
     ): JsonObject {
         val parameters = JsonObject()
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlConnection)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlClient)
 
         val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.ACTIVATION)
 
-        tokenProvider.saveToken(token, userId.toString(), TokenType.ACTIVATION, expireDate, sqlConnection)
+        tokenProvider.saveToken(token, userId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
 
         parameters.put("link", "$uiAddress/activate?token=$token")
 

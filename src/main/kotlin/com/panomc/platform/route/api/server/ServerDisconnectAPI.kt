@@ -30,9 +30,9 @@ class ServerDisconnectAPI(
 
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(serverId, sqlConnection)
+        val exists = databaseManager.serverDao.existsById(serverId, sqlClient)
 
         if (!exists) {
             return Error(ErrorCode.INVALID_TOKEN)
@@ -40,20 +40,20 @@ class ServerDisconnectAPI(
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(
             "main_server",
-            sqlConnection
+            sqlClient
         )!!.value.toLong()
 
         if (mainServerId == serverId) {
             databaseManager.systemPropertyDao.update(
                 "main_server",
                 "-1",
-                sqlConnection
+                sqlClient
             )
         }
 
-        databaseManager.serverPlayerDao.deleteByServerId(serverId, sqlConnection)
+        databaseManager.serverPlayerDao.deleteByServerId(serverId, sqlClient)
 
-        databaseManager.serverDao.deleteById(serverId, sqlConnection)
+        databaseManager.serverDao.deleteById(serverId, sqlClient)
 
         return Successful()
     }

@@ -11,14 +11,14 @@ import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "server"), ServerDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -48,13 +48,13 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun add(
         server: Server,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time`) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -78,11 +78,11 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun getById(id: Long, sqlConnection: SqlConnection): Server? {
+    override suspend fun getById(id: Long, sqlClient: SqlClient): Server? {
         val query =
             "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -100,11 +100,11 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return Server.from(row)
     }
 
-    override suspend fun getAllByPermissionGranted(sqlConnection: SqlConnection): List<Server> {
+    override suspend fun getAllByPermissionGranted(sqlClient: SqlClient): List<Server> {
         val query =
             "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(1)
@@ -114,10 +114,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return Server.from(rows)
     }
 
-    override suspend fun countOfPermissionGranted(sqlConnection: SqlConnection): Long {
+    override suspend fun countOfPermissionGranted(sqlClient: SqlClient): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(1)
@@ -127,10 +127,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun count(sqlConnection: SqlConnection): Long {
+    override suspend fun count(sqlClient: SqlClient): Long {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}`"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
@@ -138,10 +138,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun updateStatusById(id: Long, status: ServerStatus, sqlConnection: SqlConnection) {
+    override suspend fun updateStatusById(id: Long, status: ServerStatus, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `status` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -155,11 +155,11 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     override suspend fun updatePermissionGrantedById(
         id: Long,
         permissionGranted: Boolean,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `permission_granted` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -170,10 +170,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun existsById(id: Long, sqlConnection: SqlConnection): Boolean {
+    override suspend fun existsById(id: Long, sqlClient: SqlClient): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -185,11 +185,11 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun deleteById(id: Long, sqlConnection: SqlConnection) {
+    override suspend fun deleteById(id: Long, sqlClient: SqlClient) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(id)
@@ -197,10 +197,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun updatePlayerCountById(id: Long, playerCount: Int, sqlConnection: SqlConnection) {
+    override suspend fun updatePlayerCountById(id: Long, playerCount: Int, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `player_count` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -211,10 +211,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun updateStartTimeById(id: Long, startTime: Long, sqlConnection: SqlConnection) {
+    override suspend fun updateStartTimeById(id: Long, startTime: Long, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `start_time` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -225,10 +225,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun updateStopTimeById(id: Long, stopTime: Long, sqlConnection: SqlConnection) {
+    override suspend fun updateStopTimeById(id: Long, stopTime: Long, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `stop_time` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -239,10 +239,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun updateAcceptedTimeById(id: Long, acceptedTime: Long, sqlConnection: SqlConnection) {
+    override suspend fun updateAcceptedTimeById(id: Long, acceptedTime: Long, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `accepted_time` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -253,10 +253,10 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .await()
     }
 
-    override suspend fun updateServerForOfflineById(id: Long, sqlConnection: SqlConnection) {
+    override suspend fun updateServerForOfflineById(id: Long, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `status` = ?, `player_count` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -281,12 +281,12 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         favicon: String,
         status: ServerStatus,
         startTime: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `player_count` = ?, `max_player_count` = ?, `server_type` = ?, `server_version` = ?, `favicon` = ?, `status` = ?, `start_time` = ? WHERE `id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(

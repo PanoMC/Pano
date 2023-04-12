@@ -25,11 +25,9 @@ class ServerAuthProvider(
     ): Boolean {
         val token = getTokenFromRoutingContext(context) ?: return false
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
-        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.SERVER_AUTHENTICATION, sqlConnection)
-
-        databaseManager.closeConnection(sqlConnection)
+        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.SERVER_AUTHENTICATION, sqlClient)
 
         return isTokenValid
     }

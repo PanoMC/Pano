@@ -20,9 +20,9 @@ class PanelGetConnectedServersAPI(
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(PanelPermission.MANAGE_SERVERS, context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlConnection)
+        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlClient)
 
         return Successful(
             mapOf(

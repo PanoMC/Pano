@@ -33,9 +33,9 @@ class PanelGetPermissionGroupAPI(
 
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val isTherePermissionGroupById = databaseManager.permissionGroupDao.isThereById(id, sqlConnection)
+        val isTherePermissionGroupById = databaseManager.permissionGroupDao.isThereById(id, sqlClient)
 
         if (!isTherePermissionGroupById) {
             throw Error(ErrorCode.NOT_EXISTS)
@@ -43,15 +43,15 @@ class PanelGetPermissionGroupAPI(
 
         val result = mutableMapOf<String, Any?>()
 
-        val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlConnection)!!
+        val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(id, sqlClient)!!
 
-        val userCount = databaseManager.userDao.getCountOfUsersByPermissionGroupId(id, sqlConnection)
+        val userCount = databaseManager.userDao.getCountOfUsersByPermissionGroupId(id, sqlClient)
 
         val usernameList =
-            databaseManager.userDao.getUsernamesByPermissionGroupId(id, -1, sqlConnection)
+            databaseManager.userDao.getUsernamesByPermissionGroupId(id, -1, sqlClient)
 
         val permissionGroupPerms =
-            databaseManager.permissionGroupPermsDao.getByPermissionGroupId(id, sqlConnection).map { it.permissionId }
+            databaseManager.permissionGroupPermsDao.getByPermissionGroupId(id, sqlClient).map { it.permissionId }
 
         result["id"] = id
         result["name"] = permissionGroup.name

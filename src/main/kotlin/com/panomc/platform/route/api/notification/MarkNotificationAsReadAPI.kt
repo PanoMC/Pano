@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.notification
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -31,22 +30,22 @@ class MarkNotificationAsReadAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.notificationDao.existsById(id, sqlConnection)
+        val exists = databaseManager.notificationDao.existsById(id, sqlClient)
 
         if (!exists) {
             return Successful()
         }
 
         val notification =
-            databaseManager.notificationDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.notificationDao.getById(id, sqlClient)!!
 
         if (notification.userId != userId) {
             return Successful()
         }
 
-        databaseManager.notificationDao.markReadById(id, sqlConnection)
+        databaseManager.notificationDao.markReadById(id, sqlClient)
 
         return Successful()
     }

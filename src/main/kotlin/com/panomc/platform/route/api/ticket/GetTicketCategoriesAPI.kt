@@ -26,9 +26,9 @@ class GetTicketCategoriesAPI(
 
         val page = parameters.queryParameter("page")?.long ?: 0
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val categories = databaseManager.ticketCategoryDao.getByPage(page, sqlConnection)
+        val categories = databaseManager.ticketCategoryDao.getByPage(page, sqlClient)
 
         return Successful(
             mapOf(

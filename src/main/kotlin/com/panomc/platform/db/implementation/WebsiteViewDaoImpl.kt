@@ -12,14 +12,14 @@ import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "website_view"), WebsiteViewDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                         CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -37,11 +37,11 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
 
     override suspend fun isIpAddressExistsByToday(
         ipAddress: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `ip_address` = ? && `date` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ipAddress, DateUtil.getTodayInMillis()))
             .await()
@@ -49,12 +49,12 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun add(websiteView: WebsiteView, sqlConnection: SqlConnection): Long {
+    override suspend fun add(websiteView: WebsiteView, sqlClient: SqlClient): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`times`, `date`, `ip_address`) " +
                     "VALUES (?, ?, ?)"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -68,11 +68,11 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun increaseTimesByOne(ipAddress: String, sqlConnection: SqlConnection) {
+    override suspend fun increaseTimesByOne(ipAddress: String, sqlClient: SqlClient) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `times` = `times` + 1 WHERE `ip_address` = ? AND `date` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -84,12 +84,12 @@ class WebsiteViewDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
 
     override suspend fun getWebsiteViewListByPeriod(
         dashboardPeriodType: DashboardPeriodType,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<WebsiteView> {
         val query =
             "SELECT `id`, `times`, `date`, `ip_address` FROM `${getTablePrefix() + tableName}` WHERE `date` > ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
             .await()

@@ -30,12 +30,12 @@ class GetMoreNotificationsAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val notifications =
-            databaseManager.notificationDao.get10ByUserIdAndStartFromId(userId, lastNotificationId, sqlConnection)
+            databaseManager.notificationDao.get10ByUserIdAndStartFromId(userId, lastNotificationId, sqlClient)
 
-        databaseManager.notificationDao.markReadLast10StartFromId(userId, lastNotificationId, sqlConnection)
+        databaseManager.notificationDao.markReadLast10StartFromId(userId, lastNotificationId, sqlClient)
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 

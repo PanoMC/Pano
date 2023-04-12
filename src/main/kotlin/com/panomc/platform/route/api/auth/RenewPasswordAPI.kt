@@ -48,9 +48,9 @@ class RenewPasswordAPI(
 
         validateInput(token, newPassword, newPasswordRepeat)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.RESET_PASSWORD, sqlConnection)
+        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.RESET_PASSWORD, sqlClient)
 
         if (!isTokenValid) {
             throw Error(ErrorCode.INVALID_LINK)
@@ -58,11 +58,11 @@ class RenewPasswordAPI(
 
         val userId = authProvider.getUserIdFromToken(token)
 
-        databaseManager.userDao.setPasswordById(userId, newPassword, sqlConnection)
+        databaseManager.userDao.setPasswordById(userId, newPassword, sqlClient)
 
-        tokenProvider.invalidateToken(token, sqlConnection)
+        tokenProvider.invalidateToken(token, sqlClient)
 
-        mailManager.sendMail(sqlConnection, userId, PasswordUpdatedMail())
+        mailManager.sendMail(sqlClient, userId, PasswordUpdatedMail())
 
         return Successful()
     }

@@ -35,23 +35,21 @@ class PanelSendValidationEmailAPI(
 
         val username = parameters.pathParameter("username").string
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsername(username, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)
-            ?: throw Error(ErrorCode.UNKNOWN)
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
 
         val userPermissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
@@ -59,13 +57,13 @@ class PanelSendValidationEmailAPI(
             throw Error(ErrorCode.NO_PERMISSION)
         }
 
-        val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlConnection)
+        val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
 
         if (isEmailVerified) {
             throw Error(ErrorCode.EMAIL_ALREADY_VERIFIED)
         }
 
-        mailManager.sendMail(sqlConnection, userId, ActivationMail())
+        mailManager.sendMail(sqlClient, userId, ActivationMail())
 
         return Successful()
     }

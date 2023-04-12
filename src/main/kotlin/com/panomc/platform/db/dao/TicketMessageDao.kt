@@ -3,48 +3,48 @@ package com.panomc.platform.db.dao
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.TicketMessage
 import io.vertx.core.json.JsonArray
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface TicketMessageDao : Dao<TicketMessage> {
     suspend fun getByTicketId(
         ticketId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<TicketMessage>
 
     suspend fun getByTicketIdAndStartFromId(
         lastMessageId: Long,
         ticketId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<TicketMessage>
 
     suspend fun getCountByTicketId(
         ticketId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun addMessage(
         ticketMessage: TicketMessage,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun deleteByTicketIdList(
         ticketIdList: JsonArray,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getLastMessageByTicketId(
         ticketId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): TicketMessage?
 
     suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun updateUserIdByUserId(
         userId: Long,
         newUserId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 }

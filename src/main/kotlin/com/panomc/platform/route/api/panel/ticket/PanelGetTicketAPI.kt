@@ -34,21 +34,19 @@ class PanelGetTicketAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketDao.existsById(id, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val ticket = databaseManager.ticketDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+        val ticket = databaseManager.ticketDao.getById(id, sqlClient)!!
 
-        val username = databaseManager.userDao.getUsernameFromUserId(ticket.userId, sqlConnection) ?: throw Error(
-            ErrorCode.UNKNOWN
-        )
+        val username = databaseManager.userDao.getUsernameFromUserId(ticket.userId, sqlClient)!!
 
-        val messages = databaseManager.ticketMessageDao.getByTicketId(id, sqlConnection)
+        val messages = databaseManager.ticketMessageDao.getByTicketId(id, sqlClient)
 
         val userIdList = mutableListOf<Long>()
 
@@ -59,15 +57,15 @@ class PanelGetTicketAPI(
                     userIdList.add(message.userId)
             }
 
-        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlConnection)
+        val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
-        val count = databaseManager.ticketMessageDao.getCountByTicketId(ticket.id, sqlConnection)
+        val count = databaseManager.ticketMessageDao.getCountByTicketId(ticket.id, sqlClient)
 
         if (ticket.categoryId == -1L) {
             return getResult(ticket, usernameList, null, username, messages, count)
         }
 
-        val ticketCategory = databaseManager.ticketCategoryDao.getById(ticket.categoryId, sqlConnection)
+        val ticketCategory = databaseManager.ticketCategoryDao.getById(ticket.categoryId, sqlClient)
 
         return getResult(ticket, usernameList, ticketCategory, username, messages, count)
     }

@@ -29,41 +29,41 @@ class GetPostDetailAPI(
 
         val url = parameters.pathParameter("url").string
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val isPostExists = databaseManager.postDao.existsByUrl(url, sqlConnection)
+        val isPostExists = databaseManager.postDao.existsByUrl(url, sqlClient)
 
         if (!isPostExists) {
             throw Error(ErrorCode.POST_NOT_FOUND)
         }
 
-        databaseManager.postDao.increaseViewByOne(url, sqlConnection)
+        databaseManager.postDao.increaseViewByOne(url, sqlClient)
 
-        val post = databaseManager.postDao.getByUrl(url, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+        val post = databaseManager.postDao.getByUrl(url, sqlClient)!!
         var postCategory: PostCategory? = null
 
         if (post.categoryId != -1L) {
-            postCategory = databaseManager.postCategoryDao.getById(post.categoryId, sqlConnection)
+            postCategory = databaseManager.postCategoryDao.getById(post.categoryId, sqlClient)
         }
 
         val username = if (post.writerUserId == -1L)
             "-"
         else
-            databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlConnection)
+            databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlClient)
 
         var previousPost: Post? = null
         var nextPost: Post? = null
 
-        val isPreviousPostExists = databaseManager.postDao.isPreviousPostExistsByDate(post.date, sqlConnection)
+        val isPreviousPostExists = databaseManager.postDao.isPreviousPostExistsByDate(post.date, sqlClient)
 
         if (isPreviousPostExists) {
-            previousPost = databaseManager.postDao.getPreviousPostByDate(post.date, sqlConnection)
+            previousPost = databaseManager.postDao.getPreviousPostByDate(post.date, sqlClient)
         }
 
-        val isNextPostExists = databaseManager.postDao.isNextPostExistsByDate(post.date, sqlConnection)
+        val isNextPostExists = databaseManager.postDao.isNextPostExistsByDate(post.date, sqlClient)
 
         if (isNextPostExists) {
-            nextPost = databaseManager.postDao.getNextPostByDate(post.date, sqlConnection)
+            nextPost = databaseManager.postDao.getNextPostByDate(post.date, sqlClient)
         }
 
         return Successful(

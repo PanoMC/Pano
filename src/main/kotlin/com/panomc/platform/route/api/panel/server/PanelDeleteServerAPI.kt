@@ -46,16 +46,16 @@ class PanelDeleteServerAPI(
         val currentPassword = data.getString("currentPassword")
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(id, sqlConnection)
+        val exists = databaseManager.serverDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
         val isCurrentPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlConnection)
+            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
 
         if (!isCurrentPasswordCorrect) {
             throw Error(ErrorCode.CURRENT_PASSWORD_NOT_CORRECT)
@@ -69,20 +69,20 @@ class PanelDeleteServerAPI(
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(
             "main_server",
-            sqlConnection
+            sqlClient
         )!!.value.toLong()
 
         if (mainServerId == id) {
             databaseManager.systemPropertyDao.update(
                 "main_server",
                 "-1",
-                sqlConnection
+                sqlClient
             )
         }
 
-        databaseManager.serverPlayerDao.deleteByServerId(id, sqlConnection)
+        databaseManager.serverPlayerDao.deleteByServerId(id, sqlClient)
 
-        databaseManager.serverDao.deleteById(id, sqlConnection)
+        databaseManager.serverDao.deleteById(id, sqlClient)
 
         return Successful()
     }

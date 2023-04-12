@@ -3,7 +3,7 @@ package com.panomc.platform.mail
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.token.TokenProvider
 import io.vertx.core.json.JsonObject
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface Mail {
     val templatePath: String
@@ -15,7 +15,7 @@ interface Mail {
         userId: Long,
         uiAddress: String,
         databaseManager: DatabaseManager,
-        sqlConnection: SqlConnection,
+        sqlClient: SqlClient,
         tokenProvider: TokenProvider
     ): JsonObject
 }

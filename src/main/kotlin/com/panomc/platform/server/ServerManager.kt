@@ -29,15 +29,13 @@ class ServerManager(
     }
 
     suspend fun init() {
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
-        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlConnection)
+        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlClient)
 
         servers.forEach { server ->
-            databaseManager.serverDao.updateServerForOfflineById(server.id, sqlConnection)
+            databaseManager.serverDao.updateServerForOfflineById(server.id, sqlClient)
         }
-
-        databaseManager.closeConnection(sqlConnection)
     }
 
     fun onServerConnect(server: Server, serverWebSocket: ServerWebSocket) {

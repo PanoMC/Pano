@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 @Migration
 class DatabaseMigration36To37(databaseManager: DatabaseManager) : DatabaseMigration(databaseManager) {
@@ -13,7 +13,7 @@ class DatabaseMigration36To37(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Update status column & delete secret_key & public_key & token columns from server table."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             deleteSecretKeyColumn(),
             deletePublicKeyColumn(),
@@ -21,33 +21,33 @@ class DatabaseMigration36To37(databaseManager: DatabaseManager) : DatabaseMigrat
             updateServerTableStatusColumn()
         )
 
-    private fun deleteSecretKeyColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun deleteSecretKeyColumn(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}server` DROP COLUMN `secret_key`;")
                 .execute()
                 .await()
         }
 
-    private fun deletePublicKeyColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun deletePublicKeyColumn(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}server` DROP COLUMN `public_key`;")
                 .execute()
                 .await()
         }
 
-    private fun deleteTokenColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun deleteTokenColumn(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}server` DROP COLUMN `token`;")
                 .execute()
                 .await()
         }
 
-    private fun updateServerTableStatusColumn(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun updateServerTableStatusColumn(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}server` MODIFY `status` int(1);")
                 .execute()
                 .await()

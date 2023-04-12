@@ -6,7 +6,7 @@ import com.auth0.jwt.interfaces.DecodedJWT
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Token
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -44,29 +44,29 @@ class TokenProvider(
         subject: String,
         tokenType: TokenType,
         expireDate: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val tokenObject = Token(subject = subject, token = token, type = tokenType, expireDate = expireDate)
 
-        databaseManager.tokenDao.add(tokenObject, sqlConnection)
+        databaseManager.tokenDao.add(tokenObject, sqlClient)
     }
 
-    suspend fun isTokenValid(token: String, tokenType: TokenType, sqlConnection: SqlConnection): Boolean {
+    suspend fun isTokenValid(token: String, tokenType: TokenType, sqlClient: SqlClient): Boolean {
         try {
             parseToken(token)
         } catch (exception: Exception) {
             return false
         }
 
-        return databaseManager.tokenDao.existsByTokenAndType(token, tokenType, sqlConnection)
+        return databaseManager.tokenDao.existsByTokenAndType(token, tokenType, sqlClient)
     }
 
-    suspend fun invalidateToken(token: String, sqlConnection: SqlConnection) {
-        databaseManager.tokenDao.deleteByToken(token, sqlConnection)
+    suspend fun invalidateToken(token: String, sqlClient: SqlClient) {
+        databaseManager.tokenDao.deleteByToken(token, sqlClient)
     }
 
-    suspend fun invalidateTokensBySubjectAndType(subject: String, type: TokenType, sqlConnection: SqlConnection) {
-        databaseManager.tokenDao.deleteBySubjectAndType(subject, type, sqlConnection)
+    suspend fun invalidateTokensBySubjectAndType(subject: String, type: TokenType, sqlClient: SqlClient) {
+        databaseManager.tokenDao.deleteBySubjectAndType(subject, type, sqlClient)
     }
 
     fun parseToken(token: String): DecodedJWT {

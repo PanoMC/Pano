@@ -44,16 +44,16 @@ class PanelAddTicketCategoryAPI(
 
         validateForm(title)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val categoryId = databaseManager.ticketCategoryDao.add(
             TicketCategory(title = title, description = description),
-            sqlConnection
+            sqlClient
         )
 
         val url = TextUtil.convertStringToUrl(title, 32)
 
-        databaseManager.ticketCategoryDao.updateUrlById(categoryId, "$url-$categoryId", sqlConnection)
+        databaseManager.ticketCategoryDao.updateUrlById(categoryId, "$url-$categoryId", sqlClient)
 
         return Successful()
     }

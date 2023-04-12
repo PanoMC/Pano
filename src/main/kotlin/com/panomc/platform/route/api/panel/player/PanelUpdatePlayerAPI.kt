@@ -59,20 +59,18 @@ class PanelUpdatePlayerAPI(
 
         validateForm(username, email, newPassword, newPasswordRepeat)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsById(id, sqlConnection)
+        val exists = databaseManager.userDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(id, sqlConnection)
-            ?: throw Error(ErrorCode.UNKNOWN)
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(id, sqlClient)!!
 
         val userPermissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
@@ -80,35 +78,35 @@ class PanelUpdatePlayerAPI(
             throw Error(ErrorCode.NO_PERMISSION)
         }
 
-        val user = databaseManager.userDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+        val user = databaseManager.userDao.getById(id, sqlClient)!!
 
         if (username != user.username) {
-            val usernameExists = databaseManager.userDao.existsByUsername(username, sqlConnection)
+            val usernameExists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
             if (usernameExists) {
                 throw Errors(mapOf("username" to "EXISTS"))
             }
 
-            databaseManager.userDao.setUsernameById(user.id, username, sqlConnection)
+            databaseManager.userDao.setUsernameById(user.id, username, sqlClient)
         }
 
         if (email != user.email) {
-            val emailExists = databaseManager.userDao.isEmailExists(email, sqlConnection)
+            val emailExists = databaseManager.userDao.isEmailExists(email, sqlClient)
 
             if (emailExists) {
                 throw Errors(mapOf("username" to "EXISTS"))
             }
 
-            databaseManager.userDao.setEmailById(user.id, username, sqlConnection)
+            databaseManager.userDao.setEmailById(user.id, username, sqlClient)
         }
 
         if (newPassword.isNotEmpty()) {
-            databaseManager.userDao.setPasswordById(user.id, newPassword, sqlConnection)
+            databaseManager.userDao.setPasswordById(user.id, newPassword, sqlClient)
         }
 
         if (id != userId) {
-            databaseManager.userDao.updateEmailVerifyStatusById(id, isEmailVerified, sqlConnection)
-            databaseManager.userDao.updateCanCreateTicketStatusById(id, canCreateTicket, sqlConnection)
+            databaseManager.userDao.updateEmailVerifyStatusById(id, isEmailVerified, sqlClient)
+            databaseManager.userDao.updateCanCreateTicketStatusById(id, canCreateTicket, sqlClient)
         }
 
         return Successful()

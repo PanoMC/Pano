@@ -2,63 +2,63 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.TicketCategory
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface TicketCategoryDao : Dao<TicketCategory> {
     suspend fun getAll(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<TicketCategory>
 
     suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun existsByUrl(
         url: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun deleteById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun add(
         ticketCategory: TicketCategory,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun updateUrlById(
         id: Long,
         newUrl: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun update(
         ticketCategory: TicketCategory,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
-    suspend fun count(sqlConnection: SqlConnection): Long
+    suspend fun count(sqlClient: SqlClient): Long
 
     suspend fun getByPage(
         page: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<TicketCategory>
 
     suspend fun getById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): TicketCategory?
 
     suspend fun getByUrl(
         url: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): TicketCategory?
 
     suspend fun getByIdList(
         ticketCategoryIdList: List<Long>,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Map<Long, TicketCategory>
 }

@@ -42,15 +42,13 @@ class ServerConnectAPI(
 
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
-        val server = databaseManager.serverDao.getById(serverId, sqlConnection) ?: return Error(ErrorCode.INVALID_TOKEN)
+        val server = databaseManager.serverDao.getById(serverId, sqlClient) ?: return Error(ErrorCode.INVALID_TOKEN)
 
         if (!server.permissionGranted) {
             return Error(ErrorCode.NEED_PERMISSION)
         }
-
-        databaseManager.closeConnection(sqlConnection)
 
         request.resume()
 
@@ -74,13 +72,11 @@ class ServerConnectAPI(
     private suspend fun onConnectionEstablished(context: RoutingContext, serverWebSocket: ServerWebSocket) {
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
-        val server = databaseManager.serverDao.getById(serverId, sqlConnection)!!
+        val server = databaseManager.serverDao.getById(serverId, sqlClient)!!
 
-        databaseManager.serverDao.updateStatusById(serverId, ServerStatus.ONLINE, sqlConnection)
-
-        databaseManager.closeConnection(sqlConnection)
+        databaseManager.serverDao.updateStatusById(serverId, ServerStatus.ONLINE, sqlClient)
 
         serverManager.onServerConnect(server, serverWebSocket)
 
@@ -98,16 +94,14 @@ class ServerConnectAPI(
     }
 
     private suspend fun onConnectionClosed(server: Server) {
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
-        val serverExists = databaseManager.serverDao.existsById(server.id, sqlConnection)
+        val serverExists = databaseManager.serverDao.existsById(server.id, sqlClient)
 
         if (serverExists) {
-            databaseManager.serverDao.updateStopTimeById(server.id, System.currentTimeMillis(), sqlConnection)
-            databaseManager.serverDao.updateServerForOfflineById(server.id, sqlConnection)
+            databaseManager.serverDao.updateStopTimeById(server.id, System.currentTimeMillis(), sqlClient)
+            databaseManager.serverDao.updateServerForOfflineById(server.id, sqlClient)
         }
-
-        databaseManager.closeConnection(sqlConnection)
 
         serverManager.onServerDisconnect(server)
     }

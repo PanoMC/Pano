@@ -15,15 +15,14 @@ class OnPlayerDisconnect(private val databaseManager: DatabaseManager) : ServerE
         val player = body.getJsonObject("player")
         val playerCount = body.getInteger("playerCount")
 
-        val sqlConnection = databaseManager.createConnection()
+        val sqlClient = databaseManager.getSqlClient()
 
         databaseManager.serverPlayerDao.deleteByUsernameAndServerId(
             player.getString("username"),
             server.id,
-            sqlConnection
+            sqlClient
         )
-        databaseManager.serverDao.updatePlayerCountById(server.id, playerCount, sqlConnection)
 
-        databaseManager.closeConnection(sqlConnection)
+        databaseManager.serverDao.updatePlayerCountById(server.id, playerCount, sqlClient)
     }
 }

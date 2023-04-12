@@ -2,63 +2,63 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PostCategory
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface PostCategoryDao : Dao<PostCategory> {
     suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun deleteById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
-    suspend fun getCount(sqlConnection: SqlConnection): Long
+    suspend fun getCount(sqlClient: SqlClient): Long
 
     suspend fun getByIdList(
         idList: List<Long>,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Map<Long, PostCategory>
 
     suspend fun getAll(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PostCategory>
 
     suspend fun getCategories(
         page: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PostCategory>
 
     suspend fun existsByUrl(
         url: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun existsByUrlNotById(
         url: String,
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun add(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun update(
         postCategory: PostCategory,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): PostCategory?
 
     suspend fun getByUrl(
         url: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): PostCategory?
 }

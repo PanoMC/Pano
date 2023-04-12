@@ -34,9 +34,9 @@ class PanelGetTicketCategoriesAPI(
         val parameters = getParameters(context)
         val page = parameters.queryParameter("page")?.long ?: 1
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val count = databaseManager.ticketCategoryDao.count(sqlConnection)
+        val count = databaseManager.ticketCategoryDao.count(sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -47,7 +47,7 @@ class PanelGetTicketCategoriesAPI(
             return Error(ErrorCode.PAGE_NOT_FOUND)
         }
 
-        val categories = databaseManager.ticketCategoryDao.getByPage(page, sqlConnection)
+        val categories = databaseManager.ticketCategoryDao.getByPage(page, sqlClient)
 
         val categoriesDataList = mutableListOf<Map<String, Any?>>()
 
@@ -80,9 +80,9 @@ class PanelGetTicketCategoriesAPI(
             }
 
         val getCategoryData: suspend (TicketCategory) -> Unit = { category ->
-            val count = databaseManager.ticketDao.countByCategory(category.id, sqlConnection)
+            val count = databaseManager.ticketDao.countByCategory(category.id, sqlClient)
 
-            val tickets = databaseManager.ticketDao.getByCategory(category.id, sqlConnection)
+            val tickets = databaseManager.ticketDao.getByCategory(category.id, sqlClient)
 
             addCategoryToList(category, count, categoriesDataList, tickets)
         }

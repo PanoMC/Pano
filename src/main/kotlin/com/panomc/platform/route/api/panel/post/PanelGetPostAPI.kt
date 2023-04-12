@@ -32,15 +32,15 @@ class PanelGetPostAPI(
 
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.postDao.existsById(id, sqlConnection)
+        val exists = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.POST_NOT_FOUND)
         }
 
-        val post = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+        val post = databaseManager.postDao.getById(id, sqlClient)!!
 
         return Successful(
             mapOf(

@@ -7,7 +7,7 @@ import com.panomc.platform.db.model.Permission
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -17,15 +17,15 @@ class DatabaseMigration25To26(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Add access_panel permission."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             shiftIdsInPermissionTable(),
             addAccessPanelPermission(),
         )
 
-    private fun shiftIdsInPermissionTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            val rows: RowSet<Row> = sqlConnection
+    private fun shiftIdsInPermissionTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            val rows: RowSet<Row> = sqlClient
                 .preparedQuery("SELECT `id` FROM `${getTablePrefix()}permission` order by `id` desc")
                 .execute()
                 .await()
@@ -34,7 +34,7 @@ class DatabaseMigration25To26(databaseManager: DatabaseManager) : DatabaseMigrat
                 val id = it.getLong(0)
                 val query = "UPDATE `${getTablePrefix()}permission` SET id = ? WHERE id = ?"
 
-                sqlConnection
+                sqlClient
                     .preparedQuery(query)
                     .execute(
                         Tuple.of(
@@ -46,13 +46,13 @@ class DatabaseMigration25To26(databaseManager: DatabaseManager) : DatabaseMigrat
             }
         }
 
-    private fun addAccessPanelPermission(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
+    private fun addAccessPanelPermission(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
             val permission = Permission(name = "access_panel", iconName = "fa-sign-in-alt")
 
             val query = "INSERT INTO `${getTablePrefix()}permission` (`id`, `name`, `icon_name`) VALUES (?, ?, ?)"
 
-            sqlConnection
+            sqlClient
                 .preparedQuery(query)
                 .execute(
                     Tuple.of(

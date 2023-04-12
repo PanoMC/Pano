@@ -47,10 +47,10 @@ class PanelDeletePlayerAPI(
         val username = parameters.pathParameter("username").string
         val currentPassword = data.getString("currentPassword")
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
         if (userId == authUserId) {
@@ -58,18 +58,17 @@ class PanelDeletePlayerAPI(
         }
 
         val isCurrentPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlConnection)
+            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
 
         if (!isCurrentPasswordCorrect) {
             throw Error(ErrorCode.CURRENT_PASSWORD_NOT_CORRECT)
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlConnection)!!
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
 
         if (userPermissionGroupId != -1L) {
             val userPermissionGroup =
-                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
-                    ?: throw Error(ErrorCode.UNKNOWN)
+                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
             if (userPermissionGroup.name == "admin") {
                 val isAdmin = context.get<Boolean>("isAdmin") ?: false
@@ -80,7 +79,7 @@ class PanelDeletePlayerAPI(
 
                 val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(
                     userPermissionGroupId,
-                    sqlConnection
+                    sqlClient
                 )
 
                 if (count == 1L) {
@@ -89,26 +88,26 @@ class PanelDeletePlayerAPI(
             }
         }
 
-        databaseManager.notificationDao.deleteAllByUserId(userId, sqlConnection)
-        databaseManager.panelConfigDao.deleteByUserId(userId, sqlConnection)
-        databaseManager.panelNotificationDao.deleteAllByUserId(userId, sqlConnection)
-        databaseManager.postDao.updateUserIdByUserId(userId, -1, sqlConnection)
+        databaseManager.notificationDao.deleteAllByUserId(userId, sqlClient)
+        databaseManager.panelConfigDao.deleteByUserId(userId, sqlClient)
+        databaseManager.panelNotificationDao.deleteAllByUserId(userId, sqlClient)
+        databaseManager.postDao.updateUserIdByUserId(userId, -1, sqlClient)
 
-        val tickets = databaseManager.ticketDao.getByUserId(userId, sqlConnection)
+        val tickets = databaseManager.ticketDao.getByUserId(userId, sqlClient)
 
         val ticketIdList = JsonArray(tickets.map { it.id })
 
         if (ticketIdList.size() != 0) {
-            databaseManager.ticketMessageDao.deleteByTicketIdList(ticketIdList, sqlConnection)
+            databaseManager.ticketMessageDao.deleteByTicketIdList(ticketIdList, sqlClient)
         }
 
-        databaseManager.ticketMessageDao.updateUserIdByUserId(userId, -1, sqlConnection)
+        databaseManager.ticketMessageDao.updateUserIdByUserId(userId, -1, sqlClient)
 
         TokenType.values().forEach { tokenType ->
-            tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), tokenType, sqlConnection)
+            tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), tokenType, sqlClient)
         }
 
-        databaseManager.userDao.deleteById(userId, sqlConnection)
+        databaseManager.userDao.deleteById(userId, sqlClient)
 
         return Successful()
     }

@@ -7,7 +7,7 @@ import com.panomc.platform.util.TextUtil
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -17,23 +17,23 @@ class DatabaseMigration27To28(databaseManager: DatabaseManager) : DatabaseMigrat
     override val SCHEME_VERSION_INFO =
         "Add URL column to post table."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             addUrlColumnToPostTable(),
             convertPostTitlesToUrl()
         )
 
-    private fun addUrlColumnToPostTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun addUrlColumnToPostTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query("ALTER TABLE `${getTablePrefix()}post` ADD `url` mediumtext NOT NULL DEFAULT '';")
                 .execute()
                 .await()
         }
 
-    private fun convertPostTitlesToUrl(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            val rows: RowSet<Row> = sqlConnection
+    private fun convertPostTitlesToUrl(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            val rows: RowSet<Row> = sqlClient
                 .preparedQuery("SELECT `id`, `title` FROM `${getTablePrefix()}post`")
                 .execute()
                 .await()
@@ -49,7 +49,7 @@ class DatabaseMigration27To28(databaseManager: DatabaseManager) : DatabaseMigrat
 
                 val url = TextUtil.convertStringToUrl(post.value)
 
-                sqlConnection
+                sqlClient
                     .preparedQuery(query)
                     .execute(
                         Tuple.of(

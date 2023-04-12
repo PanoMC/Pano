@@ -44,22 +44,22 @@ class UpdateTicketAPI(
         val ticketStatus = data.getString("status")
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketDao.existsById(id, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val isBelong = databaseManager.ticketDao.isIdBelongToUserId(id, userId, sqlConnection)
+        val isBelong = databaseManager.ticketDao.isIdBelongToUserId(id, userId, sqlClient)
 
         if (!isBelong) {
             throw Error(ErrorCode.NO_PERMISSION)
         }
 
         if (ticketStatus != null && ticketStatus == "close") {
-            databaseManager.ticketDao.closeTicketById(id, sqlConnection)
+            databaseManager.ticketDao.closeTicketById(id, sqlClient)
 
             val notificationProperties = JsonObject().put("id", id)
 
@@ -67,7 +67,7 @@ class UpdateTicketAPI(
                 Notifications.PanelNotificationType.TICKET_CLOSED_BY_USER,
                 notificationProperties,
                 PanelPermission.MANAGE_TICKETS,
-                sqlConnection
+                sqlClient
             )
         }
 

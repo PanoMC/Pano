@@ -31,9 +31,9 @@ class PanelGetServerAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val server = databaseManager.serverDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+        val server = databaseManager.serverDao.getById(id, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
 
         return Successful(
             mapOf(

@@ -78,13 +78,13 @@ class ServerConnectNewAPI(
             startTime = data.getLong("startTime")
         )
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val serverId = databaseManager.serverDao.add(server, sqlConnection)
+        val serverId = databaseManager.serverDao.add(server, sqlClient)
 
         val (token, expireDate) = tokenProvider.generateToken(serverId.toString(), TokenType.SERVER_AUTHENTICATION)
 
-        tokenProvider.saveToken(token, serverId.toString(), TokenType.SERVER_AUTHENTICATION, expireDate, sqlConnection)
+        tokenProvider.saveToken(token, serverId.toString(), TokenType.SERVER_AUTHENTICATION, expireDate, sqlClient)
 
         val notificationProperties = JsonObject().put("id", serverId)
 
@@ -92,7 +92,7 @@ class ServerConnectNewAPI(
             Notifications.PanelNotificationType.SERVER_CONNECT_REQUEST,
             notificationProperties,
             PanelPermission.MANAGE_SERVERS,
-            sqlConnection
+            sqlClient
         )
 
         return Successful(

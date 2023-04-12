@@ -50,9 +50,9 @@ class PanelUpdatePostCategoryAPI(
 
         validateForm(title, url, color)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.postCategoryDao.existsByUrlNotById(url, id, sqlConnection)
+        val exists = databaseManager.postCategoryDao.existsByUrlNotById(url, id, sqlClient)
 
         if (exists) {
             val errors = mutableMapOf<String, Boolean>()
@@ -64,7 +64,7 @@ class PanelUpdatePostCategoryAPI(
 
         databaseManager.postCategoryDao.update(
             PostCategory(id, title, description, url, color),
-            sqlConnection
+            sqlClient
         )
 
         return Successful()
@@ -77,7 +77,7 @@ class PanelUpdatePostCategoryAPI(
         color: String
     ) {
         if (color.length != 7) {
-            throw Error(ErrorCode.UNKNOWN)
+            throw Error(ErrorCode.FORBIDDEN)
         }
 
         val errors = mutableMapOf<String, Boolean>()

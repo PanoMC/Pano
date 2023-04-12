@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 @Migration
 class DatabaseMigration3To4(databaseManager: DatabaseManager) : DatabaseMigration(databaseManager) {
@@ -12,14 +12,14 @@ class DatabaseMigration3To4(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION = 4
     override val SCHEME_VERSION_INFO = "Add panel notifications table."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             createPanelNotificationsTable()
         )
 
-    private fun createPanelNotificationsTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createPanelNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}panel_notification` (

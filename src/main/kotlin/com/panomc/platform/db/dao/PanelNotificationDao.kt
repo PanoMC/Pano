@@ -2,83 +2,83 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PanelNotification
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface PanelNotificationDao : Dao<PanelNotification> {
     suspend fun add(
         panelNotification: PanelNotification,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun addAll(
         panelNotifications: List<PanelNotification>,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getCountOfNotReadByUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun getCountByUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun getLast10ByUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PanelNotification>
 
     suspend fun get10ByUserIdAndStartFromId(
         userId: Long,
         notificationId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PanelNotification>
 
     suspend fun markReadLast10(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun markReadLast10StartFromId(
         userId: Long,
         notificationId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun getLast5ByUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<PanelNotification>
 
     suspend fun markReadLast5ByUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun getById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): PanelNotification?
 
     suspend fun deleteById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun markReadById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun deleteAllByUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 }

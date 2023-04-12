@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.panel
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
@@ -27,15 +26,15 @@ class PanelGetBasicDataAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
         val user = databaseManager.userDao.getById(
             userId,
-            sqlConnection
-        ) ?: throw Error(ErrorCode.UNKNOWN)
+            sqlClient
+        )!!
 
-        val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlConnection)
-        val connectedServerCount = databaseManager.serverDao.countOfPermissionGranted(sqlConnection)
+        val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlClient)
+        val connectedServerCount = databaseManager.serverDao.countOfPermissionGranted(sqlClient)
 
 //        Since it's a panel API, it calls AuthProvider#hasAccessPanel method and these context fields are created
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
@@ -60,22 +59,22 @@ class PanelGetBasicDataAPI(
         if (authProvider.hasPermission(userId, PanelPermission.MANAGE_SERVERS, context)) {
             val mainServerId = databaseManager.systemPropertyDao.getByOption(
                 "main_server",
-                sqlConnection
+                sqlClient
             )?.value?.toLong()
             var mainServer: Server? = null
 
             if (mainServerId != null && mainServerId != -1L) {
-                mainServer = databaseManager.serverDao.getById(mainServerId, sqlConnection)
+                mainServer = databaseManager.serverDao.getById(mainServerId, sqlClient)
             }
 
             val selectedServerPanelConfig =
-                databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlConnection)
+                databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlClient)
             var selectedServer: Server? = null
 
             if (selectedServerPanelConfig != null) {
                 val selectedServerId = selectedServerPanelConfig.value.toLong()
 
-                selectedServer = databaseManager.serverDao.getById(selectedServerId, sqlConnection)
+                selectedServer = databaseManager.serverDao.getById(selectedServerId, sqlClient)
             }
 
             result["platformServerMatchKey"] = platformCodeManager.getPlatformKey()

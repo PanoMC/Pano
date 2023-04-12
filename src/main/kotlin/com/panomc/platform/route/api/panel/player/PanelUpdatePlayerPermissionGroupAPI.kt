@@ -42,15 +42,15 @@ class PanelUpdatePlayerPermissionGroupAPI(
         val username = parameters.pathParameter("username").string
         val permissionGroup = data.getString("permissionGroup")
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsername(username, sqlConnection)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val userId = databaseManager.userDao.getUserIdFromUsername(username, sqlConnection)
+        val userId = databaseManager.userDao.getUserIdFromUsername(username, sqlClient)
 
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -63,7 +63,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
         if (permissionGroup != "-") {
             val isTherePermissionGroup = databaseManager.permissionGroupDao.isThereByName(
                 permissionGroup,
-                sqlConnection
+                sqlClient
             )
 
             if (!isTherePermissionGroup) {
@@ -72,33 +72,30 @@ class PanelUpdatePlayerPermissionGroupAPI(
 
             permissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupIdByName(
                 permissionGroup,
-                sqlConnection
-            ) ?: throw Error(ErrorCode.UNKNOWN)
+                sqlClient
+            )!!
         }
 
         val userPermissionGroupId =
-            databaseManager.userDao.getPermissionGroupIdFromUsername(username, sqlConnection) ?: throw Error(
-                ErrorCode.UNKNOWN
-            )
+            databaseManager.userDao.getPermissionGroupIdFromUsername(username, sqlClient)!!
 
         if (userPermissionGroupId == -1L) {
             databaseManager.userDao.setPermissionGroupByUsername(
                 permissionGroupId,
                 username,
-                sqlConnection
+                sqlClient
             )
 
             return Successful()
         }
 
         val userPermissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
         if (userPermissionGroup.name == "admin") {
             val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(
                 userPermissionGroupId,
-                sqlConnection
+                sqlClient
             )
 
             val isAdmin = context.get<Boolean>("isAdmin") ?: false
@@ -115,7 +112,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
         databaseManager.userDao.setPermissionGroupByUsername(
             permissionGroupId,
             username,
-            sqlConnection
+            sqlClient
         )
 
         return Successful()

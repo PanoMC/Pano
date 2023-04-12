@@ -47,19 +47,19 @@ class PanelUpdateTicketCategoryAPI(
 
         validateForm(title)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketCategoryDao.existsById(id, sqlConnection)
+        val exists = databaseManager.ticketCategoryDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description), sqlConnection)
+        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description), sqlClient)
 
         val url = TextUtil.convertStringToUrl(title, 32)
 
-        databaseManager.ticketCategoryDao.updateUrlById(id, "$url-$id", sqlConnection)
+        databaseManager.ticketCategoryDao.updateUrlById(id, "$url-$id", sqlClient)
 
         return Successful()
     }

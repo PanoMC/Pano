@@ -9,15 +9,15 @@ import io.vertx.kotlin.coroutines.await
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "server_player"),
     ServerPlayerDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -37,13 +37,13 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun add(
         serverPlayer: ServerPlayer,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`uuid`, `username`, `ping`, `server_id`, `login_time`) " +
                     "VALUES (?, ?, ?, ?, ?)"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -58,11 +58,11 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun deleteByUsernameAndServerId(username: String, serverId: Long, sqlConnection: SqlConnection) {
+    override suspend fun deleteByUsernameAndServerId(username: String, serverId: Long, sqlClient: SqlClient) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `username` = ? AND `server_id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(username, serverId)
@@ -72,11 +72,11 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun existsByUsername(
         username: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(username))
             .await()
@@ -84,11 +84,11 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         return rows.toList()[0].getLong(0) > 0
     }
 
-    override suspend fun deleteByServerId(serverId: Long, sqlConnection: SqlConnection) {
+    override suspend fun deleteByServerId(serverId: Long, sqlClient: SqlClient) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `server_id` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(serverId)

@@ -41,9 +41,9 @@ class VerifyEmailAPI(
 
         validateInput(token)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val isValid = tokenProvider.isTokenValid(token, TokenType.ACTIVATION, sqlConnection)
+        val isValid = tokenProvider.isTokenValid(token, TokenType.ACTIVATION, sqlClient)
 
         if (!isValid) {
             throw Error(ErrorCode.INVALID_LINK)
@@ -51,9 +51,9 @@ class VerifyEmailAPI(
 
         val userId = authProvider.getUserIdFromToken(token)
 
-        databaseManager.userDao.makeEmailVerifiedById(userId, sqlConnection)
+        databaseManager.userDao.makeEmailVerifiedById(userId, sqlClient)
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlConnection)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlClient)
 
         return Successful()
     }

@@ -33,15 +33,15 @@ class PanelSelectServerAPI(
         val id = parameters.pathParameter("id").long
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(id, sqlConnection)
+        val exists = databaseManager.serverDao.existsById(id, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val panelConfig = databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlConnection)
+        val panelConfig = databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlClient)
 
         if (panelConfig == null) {
             databaseManager.panelConfigDao.add(
@@ -50,10 +50,10 @@ class PanelSelectServerAPI(
                     option = "selected_server",
                     value = "$id"
                 ),
-                sqlConnection
+                sqlClient
             )
         } else {
-            databaseManager.panelConfigDao.updateValueById(panelConfig.id, "$id", sqlConnection)
+            databaseManager.panelConfigDao.updateValueById(panelConfig.id, "$id", sqlClient)
         }
 
         return Successful()

@@ -33,9 +33,9 @@ class GetTicketsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
         val parameters = getParameters(context)
 
-        return getTicketsService.handle(context, sqlConnection, parameters)
+        return getTicketsService.handle(context, sqlClient, parameters)
     }
 }

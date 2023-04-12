@@ -5,7 +5,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.annotation.Autowired
 
 abstract class LoggedInApi : Api() {
@@ -24,27 +24,27 @@ abstract class LoggedInApi : Api() {
         }
     }
 
-    private suspend fun checkLoggedIn(context: RoutingContext, sqlConnection: SqlConnection) {
-        val isLoggedIn = authProvider.isLoggedIn(context, sqlConnection)
+    private suspend fun checkLoggedIn(context: RoutingContext, sqlClient: SqlClient) {
+        val isLoggedIn = authProvider.isLoggedIn(context, sqlClient)
 
         if (!isLoggedIn) {
             throw Error(ErrorCode.NOT_LOGGED_IN)
         }
     }
 
-    private suspend fun updateLastActivityTime(context: RoutingContext, sqlConnection: SqlConnection) {
+    private suspend fun updateLastActivityTime(context: RoutingContext, sqlClient: SqlClient) {
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        databaseManager.userDao.updateLastActivityTime(userId, sqlConnection)
+        databaseManager.userDao.updateLastActivityTime(userId, sqlClient)
     }
 
     override suspend fun onBeforeHandle(context: RoutingContext) {
         checkSetup()
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        checkLoggedIn(context, sqlConnection)
+        checkLoggedIn(context, sqlClient)
 
-        updateLastActivityTime(context, sqlConnection)
+        updateLastActivityTime(context, sqlClient)
     }
 }

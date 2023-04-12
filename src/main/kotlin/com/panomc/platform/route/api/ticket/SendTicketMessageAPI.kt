@@ -51,36 +51,36 @@ class SendTicketMessageAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketDao.existsById(ticketId, sqlConnection)
+        val exists = databaseManager.ticketDao.existsById(ticketId, sqlClient)
 
         if (!exists) {
             throw Error(ErrorCode.NOT_EXISTS)
         }
 
-        val isBelong = databaseManager.ticketDao.isIdBelongToUserId(ticketId, userId, sqlConnection)
+        val isBelong = databaseManager.ticketDao.isIdBelongToUserId(ticketId, userId, sqlClient)
 
         if (!isBelong) {
             throw Error(ErrorCode.NO_PERMISSION)
         }
 
-        val isTicketClosed = databaseManager.ticketDao.getStatusById(ticketId, sqlConnection) == TicketStatus.CLOSED
+        val isTicketClosed = databaseManager.ticketDao.getStatusById(ticketId, sqlClient) == TicketStatus.CLOSED
 
         if (isTicketClosed) {
             throw Error(ErrorCode.TICKET_IS_CLOSED)
         }
 
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlConnection)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
 
         val ticketMessage = TicketMessage(userId = userId, ticketId = ticketId, message = message)
 
-        val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlConnection)
+        val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlClient)
 
         databaseManager.ticketDao.updateLastUpdateDate(
             ticketMessage.ticketId,
             System.currentTimeMillis(),
-            sqlConnection
+            sqlClient
         )
 
         val notificationProperties = JsonObject().put("id", ticketId)
@@ -89,7 +89,7 @@ class SendTicketMessageAPI(
             Notifications.PanelNotificationType.NEW_TICKET_MESSAGE,
             notificationProperties,
             PanelPermission.MANAGE_TICKETS,
-            sqlConnection
+            sqlClient
         )
 
         return Successful(

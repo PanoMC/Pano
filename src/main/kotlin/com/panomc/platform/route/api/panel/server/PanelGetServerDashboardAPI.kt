@@ -36,11 +36,11 @@ class PanelGetServerDashboardAPI(
             "connectedServerCount" to 0
         )
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        result["server"] = databaseManager.serverDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.NOT_EXISTS)
+        result["server"] = databaseManager.serverDao.getById(id, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
 
-        result["connectedServerCount"] = databaseManager.serverDao.countOfPermissionGranted(sqlConnection)
+        result["connectedServerCount"] = databaseManager.serverDao.countOfPermissionGranted(sqlClient)
 
         return Successful(result)
     }

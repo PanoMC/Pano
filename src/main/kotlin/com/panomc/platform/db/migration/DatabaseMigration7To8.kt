@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.await
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Migration
@@ -13,7 +13,7 @@ class DatabaseMigration7To8(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION = 8
     override val SCHEME_VERSION_INFO = "Restore post, postCategory, ticket and ticketCategory tables."
 
-    override val handlers: List<suspend (sqlConnection: SqlConnection) -> Unit> =
+    override val handlers: List<suspend (sqlClient: SqlClient) -> Unit> =
         listOf(
             createPostTable(),
             createPostCategoryTable(),
@@ -21,9 +21,9 @@ class DatabaseMigration7To8(databaseManager: DatabaseManager) : DatabaseMigratio
             createTicketCategoryTable()
         )
 
-    private fun createPostTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createPostTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}post` (
@@ -44,9 +44,9 @@ class DatabaseMigration7To8(databaseManager: DatabaseManager) : DatabaseMigratio
                 .await()
         }
 
-    private fun createPostCategoryTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createPostCategoryTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}post_category` (
@@ -62,25 +62,25 @@ class DatabaseMigration7To8(databaseManager: DatabaseManager) : DatabaseMigratio
                 .execute()
                 .await()
 
-            sqlConnection
+            sqlClient
                 .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
                 .execute(Tuple.of("Genel", "Genel", "genel", "48CFAD"))
                 .await()
 
-            sqlConnection
+            sqlClient
                 .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
                 .execute(Tuple.of("Duyuru", "Duyuru", "duyuru", "5D9CEC"))
                 .await()
 
-            sqlConnection
+            sqlClient
                 .preparedQuery("INSERT INTO ${getTablePrefix()}post_category (title, description, url, color) VALUES (?, ?, ?, ?)")
                 .execute(Tuple.of("Haber", "Haber", "haber", "FFCE54"))
                 .await()
         }
 
-    private fun createTicketTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createTicketTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}ticket` (
@@ -98,9 +98,9 @@ class DatabaseMigration7To8(databaseManager: DatabaseManager) : DatabaseMigratio
                 .await()
         }
 
-    private fun createTicketCategoryTable(): suspend (sqlConnection: SqlConnection) -> Unit =
-        { sqlConnection: SqlConnection ->
-            sqlConnection
+    private fun createTicketCategoryTable(): suspend (sqlClient: SqlClient) -> Unit =
+        { sqlClient: SqlClient ->
+            sqlClient
                 .query(
                     """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix()}ticket_category` (
@@ -114,7 +114,7 @@ class DatabaseMigration7To8(databaseManager: DatabaseManager) : DatabaseMigratio
                 .execute()
                 .await()
 
-            sqlConnection
+            sqlClient
                 .preparedQuery("INSERT INTO ${getTablePrefix()}ticket_category (title) VALUES (?)")
                 .execute(Tuple.of("Genel"))
                 .await()

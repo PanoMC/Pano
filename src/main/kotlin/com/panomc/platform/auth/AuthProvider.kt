@@ -8,7 +8,7 @@ import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -32,26 +32,24 @@ class AuthProvider(
     suspend fun authenticate(
         usernameOrEmail: String,
         password: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
-        val isLoginCorrect = databaseManager.userDao.isLoginCorrect(usernameOrEmail, password, sqlConnection)
+        val isLoginCorrect = databaseManager.userDao.isLoginCorrect(usernameOrEmail, password, sqlClient)
 
         if (!isLoginCorrect) {
             throw Error(ErrorCode.LOGIN_IS_INVALID)
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlConnection) ?: throw Error(
-                ErrorCode.UNKNOWN
-            )
+            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)!!
 
-        val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlConnection)
+        val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
 
         if (!isVerified) {
             throw Error(ErrorCode.LOGIN_EMAIL_NOT_VERIFIED)
         }
 
-        val isBanned = databaseManager.userDao.isBanned(userId, sqlConnection)
+        val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)
 
         if (isBanned) {
             throw Error(ErrorCode.LOGIN_USER_IS_BANNED)
@@ -60,27 +58,27 @@ class AuthProvider(
 
     suspend fun login(
         usernameOrEmail: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): String {
         val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(
             usernameOrEmail,
-            sqlConnection
-        ) ?: throw Error(ErrorCode.UNKNOWN)
+            sqlClient
+        )!!
 
         val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.AUTHENTICATION)
 
-        tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlConnection)
+        tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlClient)
 
         return token
     }
 
     suspend fun isLoggedIn(
         routingContext: RoutingContext,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val token = getTokenFromRoutingContext(routingContext) ?: return false
 
-        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.AUTHENTICATION, sqlConnection)
+        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.AUTHENTICATION, sqlClient)
 
         return isTokenValid
     }
@@ -163,8 +161,8 @@ class AuthProvider(
         }
     }
 
-    suspend fun logout(routingContext: RoutingContext, sqlConnection: SqlConnection) {
-        val isLoggedIn = isLoggedIn(routingContext, sqlConnection)
+    suspend fun logout(routingContext: RoutingContext, sqlClient: SqlClient) {
+        val isLoggedIn = isLoggedIn(routingContext, sqlClient)
 
         if (!isLoggedIn) {
             return
@@ -172,13 +170,13 @@ class AuthProvider(
 
         val token = getTokenFromRoutingContext(routingContext)!!
 
-        tokenProvider.invalidateToken(token, sqlConnection)
+        tokenProvider.invalidateToken(token, sqlClient)
     }
 
-    suspend fun getAdminList(sqlConnection: SqlConnection): List<String> {
-        val adminPermissionId = databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlConnection)!!
+    suspend fun getAdminList(sqlClient: SqlClient): List<String> {
+        val adminPermissionId = databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlClient)!!
 
-        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionId, -1, sqlConnection)
+        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionId, -1, sqlClient)
 
         return admins
     }
@@ -196,9 +194,9 @@ class AuthProvider(
             return existingPermissionsList.hasPermission(panelPermission)
         }
 
-        val sqlConnection = context.get<suspend () -> SqlConnection>("getSqlConnection").invoke()
+        val sqlClient = context.get<SqlClient>("sqlClient")
 
-        val permissionGroupName = databaseManager.userDao.getPermissionGroupNameById(userId, sqlConnection)
+        val permissionGroupName = databaseManager.userDao.getPermissionGroupNameById(userId, sqlClient)
 
         if (permissionGroupName == "admin") {
             context.put("isAdmin", true)
@@ -206,7 +204,7 @@ class AuthProvider(
             return true
         }
 
-        val permissions = databaseManager.userDao.getPermissionsById(userId, sqlConnection)
+        val permissions = databaseManager.userDao.getPermissionsById(userId, sqlClient)
 
         context.put("permissions", permissions)
 

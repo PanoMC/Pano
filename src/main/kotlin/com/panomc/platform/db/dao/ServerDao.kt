@@ -4,80 +4,80 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.ServerType
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 
 interface ServerDao : Dao<Server> {
     suspend fun add(
         server: Server,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun getById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Server?
 
     suspend fun getAllByPermissionGranted(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): List<Server>
 
     suspend fun countOfPermissionGranted(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun count(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Long
 
     suspend fun updateStatusById(
         id: Long,
         status: ServerStatus,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updatePermissionGrantedById(
         id: Long,
         permissionGranted: Boolean,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun existsById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean
 
     suspend fun deleteById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updatePlayerCountById(
         id: Long,
         playerCount: Int,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateStartTimeById(
         id: Long,
         startTime: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateStopTimeById(
         id: Long,
         stopTime: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateAcceptedTimeById(
         id: Long,
         acceptedTime: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateServerForOfflineById(
         id: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 
     suspend fun updateById(
@@ -93,6 +93,6 @@ interface ServerDao : Dao<Server> {
         favicon: String,
         status: ServerStatus,
         startTime: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     )
 }

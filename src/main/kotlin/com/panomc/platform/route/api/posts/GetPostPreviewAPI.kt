@@ -28,27 +28,25 @@ class GetPostPreviewAPI(
 
         val id = parameters.pathParameter("id").long
 
-        val sqlConnection = createConnection(context)
+        val sqlClient = getSqlClient()
 
-        val isPostExistsById = databaseManager.postDao.existsById(id, sqlConnection)
+        val isPostExistsById = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!isPostExistsById) {
             throw Error(ErrorCode.POST_NOT_FOUND)
         }
 
-        val post = databaseManager.postDao.getById(id, sqlConnection) ?: throw Error(ErrorCode.UNKNOWN)
+        val post = databaseManager.postDao.getById(id, sqlClient)!!
         var postCategory: PostCategory? = null
 
         if (post.categoryId != -1L) {
-            postCategory = databaseManager.postCategoryDao.getById(post.categoryId, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            postCategory = databaseManager.postCategoryDao.getById(post.categoryId, sqlClient)!!
         }
 
         val username = if (post.writerUserId == -1L)
             "-"
         else
-            databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlConnection)
-                ?: throw Error(ErrorCode.UNKNOWN)
+            databaseManager.userDao.getUsernameFromUserId(post.writerUserId, sqlClient)!!
 
         return Successful(
             mapOf(

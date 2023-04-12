@@ -8,15 +8,15 @@ import com.panomc.platform.db.model.SystemProperty
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
-import io.vertx.sqlclient.SqlConnection
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
 class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "system_property"),
     SystemPropertyDao {
 
-    override suspend fun init(sqlConnection: SqlConnection) {
-        sqlConnection
+    override suspend fun init(sqlClient: SqlClient) {
+        sqlClient
             .query(
                 """
                         CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
@@ -30,17 +30,17 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute()
             .await()
 
-        addShowGettingStartedOption(sqlConnection)
-        addMainServerOption(sqlConnection)
+        addShowGettingStartedOption(sqlClient)
+        addMainServerOption(sqlClient)
     }
 
     override suspend fun add(
         systemProperty: SystemProperty,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query = "INSERT INTO `${getTablePrefix() + tableName}` (`option`, `value`) VALUES (?, ?)"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -54,12 +54,12 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
     override suspend fun update(
         option: String,
         value: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `value` = ? WHERE `option` = ?"
 
-        sqlConnection
+        sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -73,11 +73,11 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
     override suspend fun existsByOption(
         option: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query = "SELECT COUNT(`value`) FROM `${getTablePrefix() + tableName}` where `option` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(option)
@@ -89,12 +89,12 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
     override suspend fun isUserInstalledSystemByUserId(
         userId: Long,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): Boolean {
         val query =
             "SELECT COUNT(`value`) FROM `${getTablePrefix() + tableName}` where `option` = ? and `value` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -109,11 +109,11 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
     override suspend fun getByOption(
         option: String,
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ): SystemProperty? {
         val query = "SELECT `id`, `option`, `value` FROM `${getTablePrefix() + tableName}` where `option` = ?"
 
-        val rows: RowSet<Row> = sqlConnection
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
@@ -132,14 +132,14 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
     }
 
     private suspend fun addShowGettingStartedOption(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
-        add(SystemProperty(option = "show_getting_started", value = "true"), sqlConnection)
+        add(SystemProperty(option = "show_getting_started", value = "true"), sqlClient)
     }
 
     private suspend fun addMainServerOption(
-        sqlConnection: SqlConnection
+        sqlClient: SqlClient
     ) {
-        add(SystemProperty(option = "main_server", value = "-1"), sqlConnection)
+        add(SystemProperty(option = "main_server", value = "-1"), sqlClient)
     }
 }

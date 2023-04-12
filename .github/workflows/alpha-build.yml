@@ -27,6 +27,11 @@ jobs:
           timeZone: 8
           format: 'YYYYMMDDHHmmss'
 
+      - uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 8
+
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v2
         with:

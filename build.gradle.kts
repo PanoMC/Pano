@@ -1,11 +1,11 @@
-val vertxVersion = "4.3.7"
-val log4jVersion = "2.19.0"
+val vertxVersion = "4.4.1"
+val log4jVersion = "2.20.0"
 
 plugins {
     java
-    kotlin("jvm") version "1.8.0"
-    kotlin("kapt") version "1.8.0"
-    id("com.github.johnrengelman.shadow") version "7.1.2"
+    kotlin("jvm") version "1.8.20"
+    kotlin("kapt") version "1.8.20"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
     application
 }
 
@@ -25,8 +25,8 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.1")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -43,7 +43,7 @@ dependencies {
     implementation("io.vertx:vertx-web-proxy:$vertxVersion")
 
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
-    implementation("com.auth0:java-jwt:4.2.1")
+    implementation("com.auth0:java-jwt:4.4.0")
 
 
     implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = log4jVersion)
@@ -56,7 +56,7 @@ dependencies {
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
     implementation(group = "commons-codec", name = "commons-codec", version = "1.15")
 
-    implementation("org.springframework:spring-context:5.3.24")
+    implementation("org.springframework:spring-context:5.3.26")
 }
 
 tasks {

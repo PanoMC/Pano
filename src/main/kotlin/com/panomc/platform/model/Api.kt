@@ -2,6 +2,7 @@ package com.panomc.platform.model
 
 import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.*
@@ -19,12 +20,17 @@ abstract class Api : Route() {
     @Autowired
     private lateinit var databaseManager: DatabaseManager
 
+    @Autowired
+    private lateinit var setupManager: SetupManager
+
     fun getSqlClient(): SqlClient {
         return databaseManager.getSqlClient()
     }
 
     override fun getHandler() = Handler<RoutingContext> { context ->
-        context.put("sqlClient", databaseManager.getSqlClient())
+        if (setupManager.isSetupDone()) {
+            context.put("sqlClient", databaseManager.getSqlClient())
+        }
 
         CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
             onBeforeHandle(context)

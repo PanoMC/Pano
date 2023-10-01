@@ -1,4 +1,4 @@
-val vertxVersion = "4.4.1"
+val vertxVersion = "4.4.4"
 val log4jVersion = "2.20.0"
 
 plugins {
@@ -25,8 +25,8 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.2")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -54,9 +54,9 @@ dependencies {
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.15")
+    implementation(group = "commons-codec", name = "commons-codec", version = "1.16.0")
 
-    implementation("org.springframework:spring-context:5.3.26")
+    implementation("org.springframework:spring-context:5.3.30")
 }
 
 tasks {

@@ -26,7 +26,7 @@ import java.util.*
 class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
 
     companion object {
-        private const val CONFIG_VERSION = 13
+        private const val CONFIG_VERSION = 16
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKey()
@@ -70,7 +70,9 @@ class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext
                         "port" to 465,
                         "username" to "",
                         "password" to "",
-                        "SSL" to true
+                        "SSL" to true,
+                        "TLS" to true,
+                        "auth-method" to ""
                     ),
 
                     "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),

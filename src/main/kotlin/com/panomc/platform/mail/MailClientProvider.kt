@@ -19,14 +19,19 @@ class MailClientProvider private constructor(vertx: Vertx, configManager: Config
         mailClientConfig.port = emailConfig.getInteger("port")
 
         if (emailConfig.getBoolean("SSL")) {
-            mailClientConfig.starttls = StartTLSOptions.REQUIRED
             mailClientConfig.isSsl = true
+        }
+
+        if (emailConfig.getBoolean("TLS")) {
+            mailClientConfig.starttls = StartTLSOptions.REQUIRED
         }
 
         mailClientConfig.username = emailConfig.getString("username")
         mailClientConfig.password = emailConfig.getString("password")
 
-        mailClientConfig.authMethods = "PLAIN"
+        if (!emailConfig.getString("auth-method").isNullOrEmpty()) {
+            mailClientConfig.authMethods = emailConfig.getString("auth-method")
+        }
 
         MailClient.createShared(vertx, mailClientConfig, "mailClient")
     }

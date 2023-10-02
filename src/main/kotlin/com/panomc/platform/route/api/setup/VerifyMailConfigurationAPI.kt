@@ -18,8 +18,8 @@ import io.vertx.kotlin.coroutines.await
 import org.slf4j.Logger
 
 @Endpoint
-class MailConfigurationTestAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
-    override val paths = listOf(Path("/api/setup/mailConfigurationTest", RouteType.POST))
+class VerifyMailConfigurationAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
+    override val paths = listOf(Path("/api/setup/verifyMailConfiguration", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

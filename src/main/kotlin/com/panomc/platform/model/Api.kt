@@ -4,6 +4,7 @@ import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
+import io.vertx.ext.mail.SMTPException
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.*
 import io.vertx.ext.web.validation.ValidationHandler.REQUEST_CONTEXT_KEY
@@ -64,7 +65,13 @@ abstract class Api : Route() {
                 return@launch
             }
 
-            if (!(failure is Result && (failure is Error || failure is Errors))) {
+            if (failure is SMTPException) {
+                sendResult(Error(ErrorCode.INTERNAL_SERVER_ERROR), context)
+
+                return@launch
+            }
+
+            if (failure !is Result) {
                 println("Error on endpoint URL: " + context.request().path())
                 sendResult(Error(ErrorCode.INTERNAL_SERVER_ERROR), context)
 

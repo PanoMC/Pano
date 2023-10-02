@@ -27,11 +27,13 @@ class MailConfigurationTestAPI(private val logger: Logger, setupManager: SetupMa
                 json(
                     objectSchema()
                         .property("useSSL", booleanSchema())
+                        .property("useTLS", booleanSchema())
                         .property("address", stringSchema())
                         .property("host", stringSchema())
                         .property("username", stringSchema())
                         .property("password", stringSchema())
                         .property("port", intSchema())
+                        .optionalProperty("authMethod", stringSchema())
                 )
             )
             .build()
@@ -44,6 +46,8 @@ class MailConfigurationTestAPI(private val logger: Logger, setupManager: SetupMa
         val host = data.getString("host")
         val port = data.getInteger("port")
         val useSSL = data.getBoolean("useSSL")
+        val useTLS = data.getBoolean("useTLS")
+        val authMethod = data.getString("authMethod")
         val username = data.getString("username")
         val password = data.getString("password")
 
@@ -53,16 +57,29 @@ class MailConfigurationTestAPI(private val logger: Logger, setupManager: SetupMa
         mailConfig.port = port
 
         if (useSSL) {
-            mailConfig.starttls = StartTLSOptions.REQUIRED
             mailConfig.isSsl = true
+        }
+
+        if (useTLS) {
+            mailConfig.starttls = StartTLSOptions.REQUIRED
         }
 
         mailConfig.username = username
         mailConfig.password = password
 
-        mailConfig.authMethods = "PLAIN"
+        if (authMethod != null) {
+            mailConfig.authMethods = authMethod
+        }
 
-        val mailClient = MailClient.create(context.vertx(), mailConfig)
+        val mailClient: MailClient
+
+        try {
+            mailClient = MailClient.create(context.vertx(), mailConfig)
+        } catch (e: Exception) {
+            logger.error(e.toString())
+
+            throw Error(ErrorCode.INVALID_DATA, mapOf("mailError" to e.message))
+        }
 
         val message = MailMessage()
 
@@ -76,7 +93,7 @@ class MailConfigurationTestAPI(private val logger: Logger, setupManager: SetupMa
         } catch (e: Exception) {
             logger.error(e.toString())
 
-            throw Error(ErrorCode.INVALID_DATA)
+            throw Error(ErrorCode.INVALID_DATA, mapOf("mailError" to e.message))
         }
 
         mailClient.close()

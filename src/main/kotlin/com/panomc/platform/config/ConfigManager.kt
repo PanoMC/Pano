@@ -23,7 +23,11 @@ import java.util.*
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class ConfigManager(vertx: Vertx, private val logger: Logger, applicationContext: AnnotationConfigApplicationContext) {
+class ConfigManager(
+    vertx: Vertx,
+    private val logger: Logger,
+    applicationContext: AnnotationConfigApplicationContext
+) {
 
     companion object {
         private const val CONFIG_VERSION = 16

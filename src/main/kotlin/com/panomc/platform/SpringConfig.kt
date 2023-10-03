@@ -3,7 +3,7 @@ package com.panomc.platform
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.mail.MailClientProvider
 import com.panomc.platform.route.RouterProvider
-import com.panomc.platform.util.*
+import com.panomc.platform.setup.SetupManager
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClient
@@ -57,8 +57,14 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun router(schemaParser: SchemaParser, configManager: ConfigManager, httpClient: HttpClient) =
-        RouterProvider.create(vertx, applicationContext, schemaParser, configManager, httpClient).provide()
+    open fun router(
+        schemaParser: SchemaParser,
+        configManager: ConfigManager,
+        httpClient: HttpClient,
+        setupManager: SetupManager
+    ) =
+        RouterProvider.create(vertx, applicationContext, schemaParser, configManager, httpClient, setupManager)
+            .provide()
 
     @Bean
     @Lazy

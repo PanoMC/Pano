@@ -4,6 +4,8 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Route
 import com.panomc.platform.model.RouteType
+import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.util.UIHelper
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpMethod
@@ -11,10 +13,7 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.SessionHandler
-import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.ext.web.sstore.LocalSessionStore
-import io.vertx.httpproxy.HttpProxy
-import io.vertx.httpproxy.ProxyOptions
 import io.vertx.json.schema.SchemaParser
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
@@ -23,7 +22,8 @@ class RouterProvider private constructor(
     applicationContext: AnnotationConfigApplicationContext,
     schemaParser: SchemaParser,
     configManager: ConfigManager,
-    httpClient: HttpClient
+    httpClient: HttpClient,
+    setupManager: SetupManager
 ) {
     companion object {
         fun create(
@@ -31,9 +31,14 @@ class RouterProvider private constructor(
             applicationContext: AnnotationConfigApplicationContext,
             schemaParser: SchemaParser,
             configManager: ConfigManager,
-            httpClient: HttpClient
+            httpClient: HttpClient,
+            setupManager: SetupManager
         ) =
-            RouterProvider(vertx, applicationContext, schemaParser, configManager, httpClient)
+            RouterProvider(vertx, applicationContext, schemaParser, configManager, httpClient, setupManager)
+
+        private var isInitialized = false
+
+        fun getIsInitialized() = isInitialized
     }
 
     private val router by lazy {
@@ -77,17 +82,7 @@ class RouterProvider private constructor(
                     .setUploadsDirectory(configManager.getConfig().getString("file-uploads-folder") + "/temp")
             )
 
-        val theme = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
-        val panel = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
-
-        theme.origin(3000, "localhost")
-        panel.origin(3001, "localhost")
-
-        val themeHandler = ProxyHandler.create(theme)
-        val panelHandler = ProxyHandler.create(panel)
-
-        router.route("/*").order(5).handler(themeHandler)
-        router.route("/panel/*").order(4).handler(panelHandler)
+        UIHelper.prepareUI(setupManager, httpClient, router)
 
         routeList.forEach { route ->
             route.paths.forEach { path ->
@@ -114,6 +109,8 @@ class RouterProvider private constructor(
                     .failureHandler(route.getFailureHandler())
             }
         }
+
+        isInitialized = true
     }
 
     fun provide(): Router = router

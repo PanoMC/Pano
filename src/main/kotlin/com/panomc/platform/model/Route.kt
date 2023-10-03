@@ -25,4 +25,10 @@ abstract class Route {
 
         response.end()
     }
+
+    enum class Type {
+        THEME_UI,
+        PANEL_UI,
+        SETUP_UI
+    }
 }

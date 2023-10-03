@@ -49,6 +49,8 @@ class SetupManager(private val mConfigManager: ConfigManager) {
             data.put("username", mailConfig.getString("username"))
             data.put("password", mailConfig.getString("password"))
             data.put("useSSL", mailConfig.getBoolean("SSL"))
+            data.put("useTLS", mailConfig.getBoolean("TLS"))
+            data.put("authMethod", mailConfig.getString("auth-method"))
         }
 
         if (step == 4) {
@@ -68,6 +70,17 @@ class SetupManager(private val mConfigManager: ConfigManager) {
         }
 
         return data
+    }
+
+    fun goAnyBackStep(step: Int) {
+        val currentStep = getStep()
+
+        if (currentStep == step || step > 4 || step > currentStep)
+            return
+        else if (step < 0)
+            setStep(0)
+        else
+            setStep(step)
     }
 
     fun backStep() {

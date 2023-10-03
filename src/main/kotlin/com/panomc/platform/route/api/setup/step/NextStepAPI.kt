@@ -34,6 +34,8 @@ class NextStepAPI(
                         .optionalProperty("password", stringSchema())
                         .optionalProperty("prefix", stringSchema())
                         .optionalProperty("useSSL", booleanSchema())
+                        .optionalProperty("useTLS", booleanSchema())
+                        .optionalProperty("authMethod", stringSchema())
                 )
             )
             .build()
@@ -53,6 +55,8 @@ class NextStepAPI(
         val password = data.getString("password")
         val prefix = data.getString("prefix")
         val useSSL = data.getBoolean("useSSL")
+        val useTLS = data.getBoolean("useTLS")
+        val authMethod = data.getString("authMethod")
 
         if (clientStep == setupManager.getStep()) {
             var passStep = false
@@ -88,7 +92,9 @@ class NextStepAPI(
                 !address.isNullOrEmpty() &&
                 !username.isNullOrEmpty() &&
                 !password.isNullOrEmpty() &&
-                useSSL != null
+                useSSL != null &&
+                useTLS != null &&
+                authMethod != null
             ) {
                 val mailConfiguration = configManager.getConfig().getJsonObject("email")
 
@@ -98,6 +104,8 @@ class NextStepAPI(
                 mailConfiguration.put("username", username)
                 mailConfiguration.put("password", password)
                 mailConfiguration.put("SSL", useSSL)
+                mailConfiguration.put("TLS", useTLS)
+                mailConfiguration.put("auth-method", authMethod)
 
                 passStep = true
             }

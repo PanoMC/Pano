@@ -1,13 +1,16 @@
 package com.panomc.platform.route.api.setup
 
+import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
 import com.panomc.platform.util.UIHelper
+import io.vertx.core.http.Cookie
 import io.vertx.core.http.HttpClient
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
@@ -92,6 +95,22 @@ class FinishAPI(
         setupManager.finishSetup()
 
         UIHelper.prepareUI(setupManager, httpClient, router)
+
+        val response = context.response()
+
+        val csrfToken = CSRFTokenGenerator.nextToken()
+
+        val jwtCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME, token)
+        val csrfTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME, csrfToken)
+
+        jwtCookie.path = "/"
+        jwtCookie.isHttpOnly = true
+
+        csrfTokenCookie.path = "/"
+        csrfTokenCookie.isHttpOnly = true
+
+        response.addCookie(jwtCookie)
+        response.addCookie(csrfTokenCookie)
 
         return Successful(
             mapOf(

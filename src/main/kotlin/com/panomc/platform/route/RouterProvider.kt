@@ -110,6 +110,10 @@ class RouterProvider private constructor(
             }
         }
 
+        router.route("/panel/api/*").order(3).handler {
+            it.reroute(it.request().method(), it.request().uri().replace("/panel/api/", "/api/"))
+        }
+
         isInitialized = true
     }
 

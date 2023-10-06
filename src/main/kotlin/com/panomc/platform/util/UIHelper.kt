@@ -83,7 +83,6 @@ object UIHelper {
 
     fun prepareUI(setupManager: SetupManager, httpClient: HttpClient, router: Router) {
         if (setupManager.isSetupDone()) {
-
             removeUI(router, Route.Type.SETUP_UI)
 
             activateThemeUI(httpClient, router)

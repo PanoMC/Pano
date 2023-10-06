@@ -13,4 +13,6 @@ object AppConstants {
     const val JWT_COOKIE_NAME = "jwt"
 
     val CSRF_HEADER = "X-CSRF-Token".lowercase()
+
+    val AVAILABLE_LOCALES = listOf("tr", "en-us")
 }

@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.setup
 
 import com.panomc.platform.AppConstants
+import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
@@ -18,8 +19,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas.objectSchema
-import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.json.schema.common.dsl.Schemas.*
 import org.springframework.context.annotation.Lazy
 
 @Endpoint
@@ -41,7 +41,10 @@ class FinishAPI(
                         .property("username", stringSchema())
                         .property("email", stringSchema())
                         .property("password", stringSchema())
-                        .property("setupLocale", stringSchema())
+                        .property(
+                            "setupLocale",
+                            enumSchema(*AVAILABLE_LOCALES.toTypedArray())
+                        )
                 )
             )
             .build()

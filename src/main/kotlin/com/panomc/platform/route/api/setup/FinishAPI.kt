@@ -7,6 +7,9 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.RegisterUtil
+import com.panomc.platform.util.UIHelper
+import io.vertx.core.http.HttpClient
+import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
@@ -14,13 +17,16 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import org.springframework.context.annotation.Lazy
 
 @Endpoint
 class FinishAPI(
     private val setupManager: SetupManager,
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val httpClient: HttpClient,
+    @Lazy private val router: Router
 ) : SetupApi(setupManager) {
     override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
@@ -84,6 +90,8 @@ class FinishAPI(
         configManager.saveConfig()
 
         setupManager.finishSetup()
+
+        UIHelper.prepareUI(setupManager, httpClient, router)
 
         return Successful(
             mapOf(

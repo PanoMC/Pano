@@ -73,9 +73,9 @@ class AuthProvider(
     }
 
     suspend fun isLoggedIn(
-        routingContext: RoutingContext,
-        sqlClient: SqlClient
+        routingContext: RoutingContext
     ): Boolean {
+        val sqlClient = databaseManager.getSqlClient()
         val token = getTokenFromRoutingContext(routingContext) ?: return false
 
         val isTokenValid = tokenProvider.isTokenValid(token, TokenType.AUTHENTICATION, sqlClient)
@@ -162,7 +162,7 @@ class AuthProvider(
     }
 
     suspend fun logout(routingContext: RoutingContext, sqlClient: SqlClient) {
-        val isLoggedIn = isLoggedIn(routingContext, sqlClient)
+        val isLoggedIn = isLoggedIn(routingContext)
 
         if (!isLoggedIn) {
             return

@@ -14,10 +14,14 @@ import io.vertx.sqlclient.SqlClient
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.slf4j.Logger
 import org.springframework.beans.factory.annotation.Autowired
 import java.io.IOException
 
 abstract class Api : Route() {
+    @Autowired
+    private lateinit var logger: Logger
+
     @Autowired
     private lateinit var databaseManager: DatabaseManager
 
@@ -72,7 +76,7 @@ abstract class Api : Route() {
             }
 
             if (failure !is Result) {
-                println("Error on endpoint URL: " + context.request().path())
+                logger.error("Error on endpoint URL: {} {}", context.request().method(), context.request().path())
                 sendResult(Error(ErrorCode.INTERNAL_SERVER_ERROR), context)
 
                 throw failure

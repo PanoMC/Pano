@@ -3,8 +3,8 @@ val log4jVersion = "2.20.0"
 
 plugins {
     java
-    kotlin("jvm") version "1.8.20"
-    kotlin("kapt") version "1.8.20"
+    kotlin("jvm") version "1.9.10"
+    kotlin("kapt") version "1.9.10"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     application
 }

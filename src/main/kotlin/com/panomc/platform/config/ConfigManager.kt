@@ -97,6 +97,10 @@ class ConfigManager(
         }
     }
 
+    private val configFilePath by lazy {
+        System.getProperty("pano.configFile", "config.conf")
+    }
+
     fun saveConfig(config: JsonObject = this.config) {
         val renderOptions = ConfigRenderOptions
             .defaults()
@@ -107,38 +111,18 @@ class ConfigManager(
 
         val parsedConfig = ConfigFactory.parseString(config.toString())
 
+        if (configFile.parentFile != null && !configFile.parentFile.exists()) {
+            configFile.parentFile.mkdirs()
+        }
+
         configFile.writeText(parsedConfig.root().render(renderOptions))
-    }
-
-    private fun migrateJsonToHocon() {
-        logger.info("Migrating old Json config file to new Hocon style config file: config.conf")
-
-        val renderOptions = ConfigRenderOptions
-            .defaults()
-            .setJson(true)           // false: HOCON, true: JSON
-            .setOriginComments(false) // true: add comment showing the origin of a value
-            .setComments(true)        // true: keep original comment
-            .setFormatted(true)
-
-        val parsedConfig = ConfigFactory.parseFile(oldJsonConfigFile)
-
-        val parsedJsonObject = JsonObject(parsedConfig.root().render(renderOptions))
-
-        saveConfig(parsedJsonObject)
-
-        oldJsonConfigFile.delete()
-        logger.info("Deleted old Json config file")
     }
 
     fun getConfig() = config
 
     internal suspend fun init() {
         if (!configFile.exists()) {
-            if (oldJsonConfigFile.exists()) {
-                migrateJsonToHocon()
-            } else {
-                saveConfig(DEFAULT_CONFIG)
-            }
+            saveConfig(DEFAULT_CONFIG)
         }
 
         val configValues: Map<String, Any>
@@ -173,13 +157,12 @@ class ConfigManager(
         beans.filter { it.value is ConfigMigration }.map { it.value as ConfigMigration }.sortedBy { it.FROM_VERSION }
     }
 
-    private val configFile = File("config.conf")
-    private val oldJsonConfigFile = File("config.json")
+    private val configFile = File(configFilePath)
 
     private val fileStore = ConfigStoreOptions()
         .setType("file")
         .setFormat("hocon")
-        .setConfig(JsonObject().put("path", "config.conf"))
+        .setConfig(JsonObject().put("path", configFilePath))
 
     private val options = ConfigRetrieverOptions().addStore(fileStore)
 

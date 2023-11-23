@@ -1,14 +1,15 @@
 package com.panomc.platform.route.api.panel.ticket
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
+import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
-import com.panomc.platform.util.TicketStatus
+import com.panomc.platform.util.TicketPageType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -28,7 +29,7 @@ class PanelGetTicketsAPI(
         ValidationHandlerBuilder.create(schemaParser)
             .queryParameter(
                 optionalParam(
-                    "pageType", arraySchema().items(enumSchema(*TicketStatus.values().map { it.status }.toTypedArray()))
+                    "pageType", arraySchema().items(enumSchema(*TicketPageType.entries.map { it.name }.toTypedArray()))
                 )
             )
             .queryParameter(optionalParam("page", numberSchema()))
@@ -41,8 +42,9 @@ class PanelGetTicketsAPI(
         val parameters = getParameters(context)
 
         val pageType =
-            TicketStatus.valueOf(status = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
-                ?: TicketStatus.ALL
+            TicketPageType.valueOf(
+                parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: TicketPageType.ALL.name
+            )
         val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
@@ -57,7 +59,7 @@ class PanelGetTicketsAPI(
             )
 
             if (!exists) {
-                throw Error(ErrorCode.NOT_EXISTS)
+                throw NotExists()
             }
 
             ticketCategory = databaseManager.ticketCategoryDao.getByUrl(categoryUrl, sqlClient)!!
@@ -78,7 +80,7 @@ class PanelGetTicketsAPI(
             totalPage = 1
 
         if (page > totalPage || page < 1) {
-            throw Error(ErrorCode.PAGE_NOT_FOUND)
+            throw PageNotFound()
         }
 
         val tickets = if (ticketCategory != null)
@@ -137,7 +139,7 @@ class PanelGetTicketsAPI(
                     ),
                     "date" to ticket.date,
                     "lastUpdate" to ticket.lastUpdate,
-                    "status" to ticket.status.value
+                    "status" to ticket.status
                 )
             )
         }

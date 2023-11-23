@@ -4,37 +4,37 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Permission
 import io.vertx.sqlclient.SqlClient
 
-interface PermissionDao : Dao<Permission> {
-    suspend fun isTherePermission(
+abstract class PermissionDao : Dao<Permission>(Permission::class.java) {
+    abstract suspend fun isTherePermission(
         permission: Permission,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun isTherePermissionById(
+    abstract suspend fun isTherePermissionById(
         id: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun add(
+    abstract suspend fun add(
         permission: Permission,
         sqlClient: SqlClient
     )
 
-    suspend fun getPermissionId(
+    abstract suspend fun getPermissionId(
         permission: Permission,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getPermissionById(
+    abstract suspend fun getPermissionById(
         id: Long,
         sqlClient: SqlClient
     ): Permission?
 
-    suspend fun getPermissions(
+    abstract suspend fun getPermissions(
         sqlClient: SqlClient
     ): List<Permission>
 
-    suspend fun arePermissionsExist(
+    abstract suspend fun arePermissionsExist(
         idList: List<Long>,
         sqlClient: SqlClient
     ): Boolean

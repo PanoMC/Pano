@@ -5,23 +5,23 @@ import com.panomc.platform.db.model.WebsiteView
 import com.panomc.platform.util.DashboardPeriodType
 import io.vertx.sqlclient.SqlClient
 
-interface WebsiteViewDao : Dao<WebsiteView> {
-    suspend fun isIpAddressExistsByToday(
+abstract class WebsiteViewDao : Dao<WebsiteView>(WebsiteView::class.java) {
+    abstract suspend fun isIpAddressExistsByToday(
         ipAddress: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun add(
+    abstract suspend fun add(
         websiteView: WebsiteView,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun increaseTimesByOne(
+    abstract suspend fun increaseTimesByOne(
         ipAddress: String,
         sqlClient: SqlClient
     )
 
-    suspend fun getWebsiteViewListByPeriod(
+    abstract suspend fun getWebsiteViewListByPeriod(
         dashboardPeriodType: DashboardPeriodType,
         sqlClient: SqlClient
     ): List<WebsiteView>

@@ -1,15 +1,18 @@
 package com.panomc.platform.model
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.model.Result.Companion.encode
+import com.panomc.platform.util.TextUtil.convertToSnakeCase
 
-open class Error(private val errorCode: ErrorCode, private val extras: Map<String, Any?> = mapOf()) :
-    Throwable(errorCode.toString()), Result {
+abstract class Error(
+    private val statusCode: Int = 500,
+    private val statusMessage: String = "",
+    private val extras: Map<String, Any?> = mapOf()
+) : Throwable(), Result {
 
     override fun encode(extras: Map<String, Any?>): String {
         val response = mutableMapOf<String, Any?>(
             "result" to "error",
-            "error" to errorCode
+            "error" to getErrorCode()
         )
 
         response.putAll(this.extras)
@@ -18,7 +21,9 @@ open class Error(private val errorCode: ErrorCode, private val extras: Map<Strin
         return response.encode()
     }
 
-    override fun getStatusCode(): Int = errorCode.statusCode
+    override fun getStatusCode(): Int = statusCode
 
-    override fun getStatusMessage(): String = errorCode.statusMessage
+    override fun getStatusMessage(): String = statusMessage
+
+    fun getErrorCode() = javaClass.simpleName.convertToSnakeCase().uppercase()
 }

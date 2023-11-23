@@ -1,9 +1,11 @@
 package com.panomc.platform.route.api.ticket
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -36,19 +38,19 @@ class GetTicketMessagesAPI(
         val exists = databaseManager.ticketDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val isBelong = databaseManager.ticketDao.isIdBelongToUserId(id, userId, sqlClient)
 
         if (!isBelong) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         val isTicketMessageIdExists = databaseManager.ticketMessageDao.existsById(lastMessageId, sqlClient)
 
         if (!isTicketMessageIdExists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val ticketMessages =
@@ -72,8 +74,8 @@ class GetTicketMessagesAPI(
                 0,
                 mapOf(
                     "id" to ticketMessage.id,
-                    "userID" to ticketMessage.userId,
-                    "ticketID" to ticketMessage.ticketId,
+                    "userId" to ticketMessage.userId,
+                    "ticketId" to ticketMessage.ticketId,
                     "username" to (usernameList[ticketMessage.userId] ?: "-"),
                     "message" to ticketMessage.message,
                     "date" to ticketMessage.date,

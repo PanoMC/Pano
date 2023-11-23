@@ -1,6 +1,5 @@
 package com.panomc.platform.util
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Error
 import io.vertx.ext.web.FileUpload
@@ -27,7 +26,7 @@ object FileUploadUtil {
 
                 if (fieldConfig.size != -1L && fileUpload.size() > fieldConfig.size) {
                     fieldConfig.fileSizeError?.let {
-                        throw Error(it)
+                        throw it
                     }
                 }
 
@@ -91,8 +90,8 @@ object FileUploadUtil {
     class FieldConfig(
         val path: String,
         val acceptedContentTypes: List<String>,
-        val contentTypeError: ErrorCode,
-        val fileSizeError: ErrorCode?,
+        val contentTypeError: Error,
+        val fileSizeError: Error?,
         val withTempName: Boolean = true,
         val size: Long = -1
     )

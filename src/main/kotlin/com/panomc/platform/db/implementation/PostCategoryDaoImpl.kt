@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PostCategoryDao
 import com.panomc.platform.db.model.PostCategory
 import io.vertx.kotlin.coroutines.await
@@ -13,8 +11,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "post_category"),
-    PostCategoryDao {
+class PostCategoryDaoImpl : PostCategoryDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -101,7 +98,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute()
             .await()
 
-        return PostCategory.from(rows).associateBy { it.id }
+        return rows.toEntities().associateBy { it.id }
     }
 
     override suspend fun getAll(
@@ -115,7 +112,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute()
             .await()
 
-        return PostCategory.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getCategories(
@@ -130,7 +127,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
             .execute()
             .await()
 
-        return PostCategory.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun existsByUrl(
@@ -226,7 +223,7 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
         val row = rows.toList()[0]
 
-        return PostCategory.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getByUrl(
@@ -249,6 +246,6 @@ class PostCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
         val row = rows.toList()[0]
 
-        return PostCategory.from(row)
+        return row.toEntity()
     }
 }

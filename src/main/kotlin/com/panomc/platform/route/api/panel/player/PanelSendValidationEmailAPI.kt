@@ -1,10 +1,13 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.EmailAlreadyVerified
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.mails.ActivationMail
 import com.panomc.platform.model.*
@@ -40,11 +43,11 @@ class PanelSendValidationEmailAPI(
         val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
+            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
 
@@ -54,13 +57,13 @@ class PanelSendValidationEmailAPI(
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
         if (userPermissionGroup.name == "admin" && !isAdmin) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
 
         if (isEmailVerified) {
-            throw Error(ErrorCode.EMAIL_ALREADY_VERIFIED)
+            throw EmailAlreadyVerified()
         }
 
         mailManager.sendMail(sqlClient, userId, ActivationMail())

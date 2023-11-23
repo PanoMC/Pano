@@ -1,12 +1,13 @@
 package com.panomc.platform.route.api.ticket
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.db.model.TicketMessage
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -37,13 +38,13 @@ class GetTicketAPI(
         val exists = databaseManager.ticketDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val isBelong = databaseManager.ticketDao.isIdBelongToUserId(id, userId, sqlClient)
 
         if (!isBelong) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         val ticket = databaseManager.ticketDao.getById(id, sqlClient)!!
@@ -111,7 +112,7 @@ class GetTicketAPI(
                             else
                                 mapOf("title" to ticketCategory.title, "url" to ticketCategory.url),
                     "messages" to messages,
-                    "status" to ticket.status.value,
+                    "status" to ticket.status,
                     "date" to ticket.date,
                     "messageCount" to messageCount
                 )

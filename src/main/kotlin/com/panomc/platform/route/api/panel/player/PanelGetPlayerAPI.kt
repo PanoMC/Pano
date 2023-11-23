@@ -1,12 +1,14 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
+import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -42,7 +44,7 @@ class PanelGetPlayerAPI(
         val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val user = databaseManager.userDao.getByUsername(
@@ -88,7 +90,7 @@ class PanelGetPlayerAPI(
             totalPage = 1
 
         if (page > totalPage || page < 1) {
-            throw Error(ErrorCode.PAGE_NOT_FOUND)
+            throw PageNotFound()
         }
 
         result["ticketCount"] = count
@@ -137,7 +139,7 @@ class PanelGetPlayerAPI(
                     ),
                     "date" to ticket.date,
                     "lastUpdate" to ticket.lastUpdate,
-                    "status" to ticket.status.value
+                    "status" to ticket.status
                 )
             )
         }

@@ -1,10 +1,11 @@
 package com.panomc.platform.route.api.server
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.error.InstallationRequired
+import com.panomc.platform.error.InvalidPlatformCode
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
@@ -16,6 +17,7 @@ import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -50,18 +52,19 @@ class ServerConnectNewAPI(
                         .property("startTime", numberSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
         if (!setupManager.isSetupDone()) {
-            throw Error(ErrorCode.INSTALLATION_REQUIRED)
+            throw InstallationRequired()
         }
 
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
         if (data.getString("platformCode", "") != platformCodeManager.getPlatformKey().toString()) {
-            throw Error(ErrorCode.INVALID_PLATFORM_CODE)
+            throw InvalidPlatformCode()
         }
 
         val server = Server(

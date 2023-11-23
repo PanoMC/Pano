@@ -1,7 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.SchemeVersionDao
 import com.panomc.platform.db.model.SchemeVersion
@@ -10,10 +9,12 @@ import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
+import org.springframework.beans.factory.annotation.Autowired
 
 @Dao
-class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "scheme_version"),
-    SchemeVersionDao {
+class SchemeVersionDaoImpl : SchemeVersionDao() {
+    @Autowired
+    private lateinit var databaseManager: DatabaseManager
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -36,8 +37,8 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             add(
                 sqlClient,
                 SchemeVersion(
-                    databaseManager.getLatestMigration().SCHEME_VERSION.toString(),
-                    databaseManager.getLatestMigration().SCHEME_VERSION_INFO
+                    "1",
+                    "Init"
                 )
             )
 
@@ -50,8 +51,8 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             add(
                 sqlClient,
                 SchemeVersion(
-                    databaseManager.getLatestMigration().SCHEME_VERSION.toString(),
-                    databaseManager.getLatestMigration().SCHEME_VERSION_INFO
+                    databaseManager.getLatestMigration()!!.SCHEME_VERSION.toString(),
+                    databaseManager.getLatestMigration()!!.SCHEME_VERSION_INFO
                 )
             )
         }
@@ -75,7 +76,7 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
     override suspend fun getLastSchemeVersion(
         sqlClient: SqlClient
     ): SchemeVersion? {
-        val query = "SELECT `key` FROM `${getTablePrefix() + tableName}`"
+        val query = "SELECT `key`, `extra` FROM `${getTablePrefix() + tableName}`"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -92,6 +93,6 @@ class SchemeVersionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
             return null
         }
 
-        return SchemeVersion(row.getString(0))
+        return row.toEntity()
     }
 }

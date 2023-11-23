@@ -3,158 +3,159 @@ package com.panomc.platform.db.dao
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.util.DashboardPeriodType
+import com.panomc.platform.util.TicketPageType
 import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlClient
 
-interface TicketDao : Dao<Ticket> {
-    suspend fun count(sqlClient: SqlClient): Long
+abstract class TicketDao : Dao<Ticket>(Ticket::class.java) {
+    abstract suspend fun count(sqlClient: SqlClient): Long
 
-    suspend fun countOfOpenTickets(sqlClient: SqlClient): Long
+    abstract suspend fun countOfOpenTickets(sqlClient: SqlClient): Long
 
-    suspend fun getLast5Tickets(
+    abstract suspend fun getLast5Tickets(
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun getAllByPageAndPageType(
+    abstract suspend fun getAllByPageAndPageType(
         page: Long,
-        pageType: TicketStatus,
+        pageType: TicketPageType,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun getAllByPagePageTypeAndUserId(
+    abstract suspend fun getAllByPagePageTypeAndUserId(
         userId: Long,
         page: Long,
-        pageType: TicketStatus,
+        pageType: TicketPageType,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun getAllByPageAndCategoryId(
+    abstract suspend fun getAllByPageAndCategoryId(
         page: Long,
         categoryId: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun getAllByPageCategoryIdAndUserId(
+    abstract suspend fun getAllByPageCategoryIdAndUserId(
         page: Long,
         categoryId: Long,
         userId: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun getAllByUserIdAndPage(
+    abstract suspend fun getAllByUserIdAndPage(
         userId: Long,
         page: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun getCountByPageType(
-        pageType: TicketStatus,
+    abstract suspend fun getCountByPageType(
+        pageType: TicketPageType,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getCountByPageTypeAndUserId(
+    abstract suspend fun getCountByPageTypeAndUserId(
         userId: Long,
-        pageType: TicketStatus,
+        pageType: TicketPageType,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getByCategory(
+    abstract suspend fun getByCategory(
         id: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun closeTickets(
+    abstract suspend fun closeTickets(
         selectedTickets: JsonArray,
         sqlClient: SqlClient
     )
 
-    suspend fun closeTicketById(
+    abstract suspend fun closeTicketById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun countByCategory(
+    abstract suspend fun countByCategory(
         id: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun countByCategoryAndUserId(
+    abstract suspend fun countByCategoryAndUserId(
         id: Long,
         userId: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun delete(
+    abstract suspend fun delete(
         ticketList: JsonArray,
         sqlClient: SqlClient
     )
 
-    suspend fun countByUserId(
+    abstract suspend fun countByUserId(
         id: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getById(
+    abstract suspend fun getById(
         id: Long,
         sqlClient: SqlClient
     ): Ticket?
 
-    suspend fun existsById(
+    abstract suspend fun existsById(
         id: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun isIdBelongToUserId(
+    abstract suspend fun isIdBelongToUserId(
         id: Long,
         userId: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun existsByIdAndUserId(
+    abstract suspend fun existsByIdAndUserId(
         id: Long,
         userId: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun makeStatus(
+    abstract suspend fun makeStatus(
         id: Long,
-        status: Int,
+        status: TicketStatus,
         sqlClient: SqlClient
     )
 
-    suspend fun updateLastUpdateDate(
+    abstract suspend fun updateLastUpdateDate(
         id: Long,
         date: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun add(
+    abstract suspend fun add(
         ticket: Ticket,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getDatesByPeriod(
+    abstract suspend fun getDatesByPeriod(
         dashboardPeriodType: DashboardPeriodType,
         sqlClient: SqlClient
     ): List<Long>
 
-    suspend fun areIdListExist(
+    abstract suspend fun areIdListExist(
         ids: List<Long>,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun removeTicketCategoriesByCategoryId(
+    abstract suspend fun removeTicketCategoriesByCategoryId(
         categoryId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun getByUserId(
+    abstract suspend fun getByUserId(
         userId: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    suspend fun getStatusById(
+    abstract suspend fun getStatusById(
         id: Long,
         sqlClient: SqlClient
     ): TicketStatus?

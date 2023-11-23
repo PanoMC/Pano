@@ -4,56 +4,56 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PermissionGroup
 import io.vertx.sqlclient.SqlClient
 
-interface PermissionGroupDao : Dao<PermissionGroup> {
-    suspend fun isThereByName(
+abstract class PermissionGroupDao : Dao<PermissionGroup>(PermissionGroup::class.java) {
+    abstract suspend fun isThereByName(
         name: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun isThere(
+    abstract suspend fun isThere(
         permissionGroup: PermissionGroup,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun isThereById(
+    abstract suspend fun isThereById(
         id: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun add(
+    abstract suspend fun add(
         permissionGroup: PermissionGroup,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getPermissionGroupById(
+    abstract suspend fun getPermissionGroupById(
         id: Long,
         sqlClient: SqlClient
     ): PermissionGroup?
 
-    suspend fun getPermissionGroupIdByName(
+    abstract suspend fun getPermissionGroupIdByName(
         name: String,
         sqlClient: SqlClient
     ): Long?
 
-    suspend fun getPermissionGroups(
+    abstract suspend fun getPermissionGroups(
         sqlClient: SqlClient
     ): List<PermissionGroup>
 
-    suspend fun getPermissionGroupsByPage(
+    abstract suspend fun getPermissionGroupsByPage(
         page: Long,
         sqlClient: SqlClient
     ): List<PermissionGroup>
 
-    suspend fun countPermissionGroups(
+    abstract suspend fun countPermissionGroups(
         sqlClient: SqlClient
     ): Long
 
-    suspend fun deleteById(
+    abstract suspend fun deleteById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun update(
+    abstract suspend fun update(
         permissionGroup: PermissionGroup,
         sqlClient: SqlClient
     )

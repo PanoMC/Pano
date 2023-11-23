@@ -1,15 +1,17 @@
 package com.panomc.platform.route.api.panel.permission
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.PermissionGroup
+import com.panomc.platform.error.*
 import com.panomc.platform.model.*
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -45,6 +47,7 @@ class PanelUpdatePermissionGroupAPI(
                         )
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -143,7 +146,7 @@ class PanelUpdatePermissionGroupAPI(
             permissionsInDb.filter { permissionInDb -> permissions.find { it.getLong("id") == permissionInDb.id } == null }
 
         if (notExistingPermissions.isNotEmpty()) {
-            throw Error(ErrorCode.SOME_PERMISSIONS_ARENT_EXIST)
+            throw SomePermissionsArentExists()
         }
     }
 
@@ -167,7 +170,7 @@ class PanelUpdatePermissionGroupAPI(
             val areRemovedUsersExists = databaseManager.userDao.areUsernamesExists(removedUsers, sqlClient)
 
             if (!areRemovedUsersExists) {
-                throw Error(ErrorCode.SOME_USERS_ARENT_EXISTS)
+                throw SomeUsersArentExists()
             }
         }
     }
@@ -177,7 +180,7 @@ class PanelUpdatePermissionGroupAPI(
             val areAddedUsersExists = databaseManager.userDao.areUsernamesExists(addedUsers, sqlClient)
 
             if (!areAddedUsersExists) {
-                throw Error(ErrorCode.SOME_USERS_ARENT_EXISTS)
+                throw SomeUsersArentExists()
             }
         }
     }
@@ -204,7 +207,7 @@ class PanelUpdatePermissionGroupAPI(
         }
 
         if (throwError) {
-            throw Error(ErrorCode.CANT_UPDATE_ADMIN_PERMISSION)
+            throw CantUpdateAdminPermission()
         }
     }
 
@@ -218,7 +221,7 @@ class PanelUpdatePermissionGroupAPI(
             val user = databaseManager.userDao.getById(userId, sqlClient)
 
             if (user!!.permissionGroupId != adminPermissionGroupId) {
-                throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_PERM_GROUP)
+                throw NoPermissionToUpdateAdminPermGroup()
             }
         }
     }
@@ -237,7 +240,7 @@ class PanelUpdatePermissionGroupAPI(
 
         admins.forEach { admin ->
             if ((addedUsers.find { it.lowercase() == admin } != null || removedUsers.find { it.lowercase() == admin } != null) && !isAdmin) {
-                throw Error(ErrorCode.NO_PERMISSION_TO_UPDATE_ADMIN_USER)
+                throw NoPermissionToUpdateAdminUser()
             }
         }
     }
@@ -251,7 +254,7 @@ class PanelUpdatePermissionGroupAPI(
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!.lowercase()
 
         if (addedUsers.any { it.lowercase() == username } || removedUsers.any { it.lowercase() == username }) {
-            throw Error(ErrorCode.CANT_UPDATE_PERM_GROUP_YOURSELF)
+            throw CantUpdatePermGroupYourself()
         }
     }
 
@@ -260,7 +263,7 @@ class PanelUpdatePermissionGroupAPI(
             databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlClient)
 
         if (!isTherePermissionGroupById) {
-            throw Error(ErrorCode.PERM_GROUP_NOT_EXISTS)
+            throw PermGroupNotExists()
         }
     }
 

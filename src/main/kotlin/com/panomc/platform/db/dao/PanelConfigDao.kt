@@ -4,25 +4,25 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PanelConfig
 import io.vertx.sqlclient.SqlClient
 
-interface PanelConfigDao : Dao<PanelConfig> {
-    suspend fun byUserIdAndOption(
+abstract class PanelConfigDao : Dao<PanelConfig>(PanelConfig::class.java) {
+    abstract suspend fun byUserIdAndOption(
         userId: Long,
         option: String,
         sqlClient: SqlClient
     ): PanelConfig?
 
-    suspend fun add(
+    abstract suspend fun add(
         panelConfig: PanelConfig,
         sqlClient: SqlClient
     )
 
-    suspend fun updateValueById(
+    abstract suspend fun updateValueById(
         id: Long,
         value: String,
         sqlClient: SqlClient
     )
 
-    suspend fun deleteByUserId(
+    abstract suspend fun deleteByUserId(
         userId: Long,
         sqlClient: SqlClient
     )

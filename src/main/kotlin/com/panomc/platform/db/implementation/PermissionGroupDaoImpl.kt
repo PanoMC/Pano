@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PermissionGroupDao
 import com.panomc.platform.db.model.PermissionGroup
 import io.vertx.kotlin.coroutines.await
@@ -13,8 +11,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "permission_group"),
-    PermissionGroupDao {
+class PermissionGroupDaoImpl : PermissionGroupDao() {
     private val adminPermissionName = "admin"
 
     override suspend fun init(sqlClient: SqlClient) {
@@ -124,7 +121,7 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
 
         val row = rows.toList()[0]
 
-        return PermissionGroup.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getPermissionGroupIdByName(
@@ -153,26 +150,26 @@ class PermissionGroupDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databas
         sqlClient: SqlClient
     ): List<PermissionGroup> {
         val query =
-            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `ID` ASC"
+            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `id` ASC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
 
-        return PermissionGroup.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getPermissionGroupsByPage(page: Long, sqlClient: SqlClient): List<PermissionGroup> {
         val query =
-            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `ID` ASC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `id` ASC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
 
-        return PermissionGroup.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun countPermissionGroups(sqlClient: SqlClient): Long {

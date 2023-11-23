@@ -1,8 +1,9 @@
 package com.panomc.platform.model
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.InstallationRequired
+import com.panomc.platform.error.NotLoggedIn
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import org.springframework.beans.factory.annotation.Autowired
@@ -19,7 +20,7 @@ abstract class LoggedInApi : Api() {
 
     private fun checkSetup() {
         if (!setupManager.isSetupDone()) {
-            throw Error(ErrorCode.INSTALLATION_REQUIRED)
+            throw InstallationRequired()
         }
     }
 
@@ -27,7 +28,7 @@ abstract class LoggedInApi : Api() {
         val isLoggedIn = authProvider.isLoggedIn(context)
 
         if (!isLoggedIn) {
-            throw Error(ErrorCode.NOT_LOGGED_IN)
+            throw NotLoggedIn()
         }
     }
 

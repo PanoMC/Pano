@@ -4,24 +4,24 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.ServerPlayer
 import io.vertx.sqlclient.SqlClient
 
-interface ServerPlayerDao : Dao<ServerPlayer> {
-    suspend fun add(
+abstract class ServerPlayerDao : Dao<ServerPlayer>(ServerPlayer::class.java) {
+    abstract suspend fun add(
         serverPlayer: ServerPlayer,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun deleteByUsernameAndServerId(
+    abstract suspend fun deleteByUsernameAndServerId(
         username: String,
         serverId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun existsByUsername(
+    abstract suspend fun existsByUsername(
         username: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun deleteByServerId(
+    abstract suspend fun deleteByServerId(
         serverId: Long,
         sqlClient: SqlClient
     )

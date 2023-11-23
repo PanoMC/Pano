@@ -1,17 +1,19 @@
 package com.panomc.platform.route.api.panel.ticket
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketMessage
+import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.TicketIsClosed
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
 import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -36,6 +38,7 @@ class PanelSendTicketMessageAPI(
                         .property("message", stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -51,12 +54,12 @@ class PanelSendTicketMessageAPI(
 
         val sqlClient = getSqlClient()
 
-        val ticket = databaseManager.ticketDao.getById(ticketId, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
+        val ticket = databaseManager.ticketDao.getById(ticketId, sqlClient) ?: throw NotExists()
 
         val isTicketClosed = databaseManager.ticketDao.getStatusById(ticketId, sqlClient) == TicketStatus.CLOSED
 
         if (isTicketClosed) {
-            throw Error(ErrorCode.TICKET_IS_CLOSED)
+            throw TicketIsClosed()
         }
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
@@ -65,7 +68,7 @@ class PanelSendTicketMessageAPI(
 
         val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlClient)
 
-        databaseManager.ticketDao.makeStatus(ticketId, 2, sqlClient)
+        databaseManager.ticketDao.makeStatus(ticketId, TicketStatus.REPLIED, sqlClient)
 
         val notificationProperties = JsonObject()
             .put("id", ticketId)
@@ -88,8 +91,8 @@ class PanelSendTicketMessageAPI(
             mapOf(
                 "message" to mapOf(
                     "id" to messageId,
-                    "userID" to ticketMessage.userId,
-                    "ticketID" to ticketMessage.ticketId,
+                    "userId" to ticketMessage.userId,
+                    "ticketId" to ticketMessage.ticketId,
                     "username" to username,
                     "message" to ticketMessage.message,
                     "date" to ticketMessage.date,

@@ -1,12 +1,13 @@
 package com.panomc.platform.route.api.panel.post
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post.Companion.deleteThumbnailFile
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -39,7 +40,7 @@ class PanelDeletePostAPI(
         val exists = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val post = databaseManager.postDao.getById(id, sqlClient)!!

@@ -1,11 +1,12 @@
 package com.panomc.platform.route.api.panel.permission
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
+import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -46,7 +47,7 @@ class PanelGetPermissionGroupsAPI(
             totalPage = 1
 
         if (page != 0L && (page > totalPage || page < 1)) {
-            throw Error(ErrorCode.PAGE_NOT_FOUND)
+            throw PageNotFound()
         }
 
         val permissionGroups = if (page == 0L)

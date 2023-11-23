@@ -1,14 +1,15 @@
 package com.panomc.platform.route.api.ticket
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
-import com.panomc.platform.model.Error
+import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
-import com.panomc.platform.util.TicketStatus
+import com.panomc.platform.util.TicketPageType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestParameters
 import io.vertx.sqlclient.SqlClient
@@ -19,8 +20,9 @@ import kotlin.math.ceil
 class GetTicketsService(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
     suspend fun handle(context: RoutingContext, sqlClient: SqlClient, parameters: RequestParameters): Result {
         val pageType =
-            TicketStatus.valueOf(status = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "all")
-                ?: TicketStatus.ALL
+            TicketPageType.valueOf(
+                parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: TicketPageType.ALL.name
+            )
         val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
@@ -33,7 +35,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
             )
 
             if (!exists) {
-                throw Error(ErrorCode.NOT_EXISTS)
+                throw NotExists()
             }
 
             ticketCategory = databaseManager.ticketCategoryDao.getByUrl(categoryUrl, sqlClient)!!
@@ -56,7 +58,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
             totalPage = 1
 
         if (page > totalPage || page < 1) {
-            throw Error(ErrorCode.PAGE_NOT_FOUND)
+            throw PageNotFound()
         }
 
         val tickets = if (ticketCategory != null)
@@ -113,7 +115,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
                     ),
                     "date" to ticket.date,
                     "lastUpdate" to ticket.lastUpdate,
-                    "status" to ticket.status.value
+                    "status" to ticket.status
                 )
             )
         }

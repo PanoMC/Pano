@@ -4,29 +4,29 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.SystemProperty
 import io.vertx.sqlclient.SqlClient
 
-interface SystemPropertyDao : Dao<SystemProperty> {
-    suspend fun add(
+abstract class SystemPropertyDao : Dao<SystemProperty>(SystemProperty::class.java) {
+    abstract suspend fun add(
         systemProperty: SystemProperty,
         sqlClient: SqlClient
     )
 
-    suspend fun update(
+    abstract suspend fun update(
         option: String,
         value: String,
         sqlClient: SqlClient
     )
 
-    suspend fun existsByOption(
+    abstract suspend fun existsByOption(
         option: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun isUserInstalledSystemByUserId(
+    abstract suspend fun isUserInstalledSystemByUserId(
         userId: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun getByOption(
+    abstract suspend fun getByOption(
         option: String,
         sqlClient: SqlClient
     ): SystemProperty?

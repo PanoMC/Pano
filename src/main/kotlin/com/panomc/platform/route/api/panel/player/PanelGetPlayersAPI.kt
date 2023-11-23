@@ -1,12 +1,15 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.User
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.ext.web.RoutingContext
@@ -57,7 +60,7 @@ class PanelGetPlayersAPI(
                 databaseManager.permissionGroupDao.isThereByName(permissionGroupName, sqlClient)
 
             if (!isTherePermission) {
-                throw Error(ErrorCode.NOT_EXISTS)
+                throw NotExists()
             }
 
             val permissionGroupId =
@@ -82,7 +85,7 @@ class PanelGetPlayersAPI(
             totalPage = 1
 
         if (page > totalPage || page < 1) {
-            throw Error(ErrorCode.PAGE_NOT_FOUND)
+            throw PageNotFound()
         }
 
         val userList =
@@ -146,7 +149,7 @@ class PanelGetPlayersAPI(
             )
 
             if (permissionGroup == null) {
-                throw Error(ErrorCode.FORBIDDEN)
+                throw NoPermission()
             }
 
             addPlayerToList(user, playerList, count, permissionGroup)

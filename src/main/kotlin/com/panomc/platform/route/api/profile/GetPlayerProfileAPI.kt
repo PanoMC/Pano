@@ -1,8 +1,9 @@
 package com.panomc.platform.route.api.profile
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -29,7 +30,7 @@ class GetPlayerProfileAPI(
 
         val sqlClient = getSqlClient()
 
-        val user = databaseManager.userDao.getByUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
+        val user = databaseManager.userDao.getByUsername(username, sqlClient) ?: throw NotExists()
 
         val response = mutableMapOf<String, Any?>()
 

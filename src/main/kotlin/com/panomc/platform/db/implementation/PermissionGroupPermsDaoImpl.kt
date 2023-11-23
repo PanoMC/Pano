@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PermissionGroupPermsDao
 import com.panomc.platform.db.model.PermissionGroupPerms
 import io.vertx.kotlin.coroutines.await
@@ -12,16 +10,15 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
-    DaoImpl(databaseManager, "permission_group_perms"), PermissionGroupPermsDao {
+class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
-                              `permission_id` bigint NOT NULL,
-                              `permission_group_id` bigint NOT NULL,
+                              `permissionId` bigint NOT NULL,
+                              `permissionGroupId` bigint NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Permission Table';
                         """
@@ -34,14 +31,14 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient
     ): List<PermissionGroupPerms> {
         val query =
-            "SELECT `id`, `permission_id`, `permission_group_id` FROM `${getTablePrefix() + tableName}`"
+            "SELECT `id`, `permissionId`, `permissionGroupId` FROM `${getTablePrefix() + tableName}`"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
 
-        return PermissionGroupPerms.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getPermissionGroupPermsByPermissionId(
@@ -49,14 +46,14 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient
     ): List<PermissionGroupPerms> {
         val query =
-            "SELECT `id`, `permission_id`, `permission_group_id` FROM `${getTablePrefix() + tableName}` WHERE `permission_id` = ?"
+            "SELECT `id`, `permissionId`, `permissionGroupId` FROM `${getTablePrefix() + tableName}` WHERE `permissionId` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(permissionId))
             .await()
 
-        return PermissionGroupPerms.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getByPermissionGroupId(
@@ -64,14 +61,14 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient
     ): List<PermissionGroupPerms> {
         val query =
-            "SELECT `id`, `permission_id`, `permission_group_id` FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ?"
+            "SELECT `id`, `permissionId`, `permissionGroupId` FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(permissionGroupId))
             .await()
 
-        return PermissionGroupPerms.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun countPermissionsByPermissionGroupId(
@@ -79,7 +76,7 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ?"
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -95,7 +92,7 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient
     ): Boolean {
         val query =
-            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? AND  `permission_id` = ?"
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ? AND  `permissionId` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -115,7 +112,7 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient
     ) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`permission_id`, `permission_group_id`) VALUES (?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`permissionId`, `permissionGroupId`) VALUES (?, ?)"
 
         sqlClient
             .preparedQuery(query)
@@ -133,7 +130,7 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient
     ) {
         val query =
-            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ? AND `permission_id` = ?"
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ? AND `permissionId` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -150,7 +147,7 @@ class PermissionGroupPermsDaoImpl(databaseManager: DatabaseManager) :
         sqlClient: SqlClient,
     ) {
         val query =
-            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `permission_group_id` = ?"
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ?"
 
         sqlClient
             .preparedQuery(query)

@@ -1,15 +1,17 @@
 package com.panomc.platform.route.api.panel.ticket
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.SomeTicketsArentExists
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
+import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -30,9 +32,10 @@ class PanelUpdateTicketsAPI(
                 json(
                     objectSchema()
                         .property("tickets", arraySchema().items(numberSchema()))
-                        .optionalProperty("status", stringSchema())
+                        .optionalProperty("status", enumSchema(*TicketStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -41,7 +44,8 @@ class PanelUpdateTicketsAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
         val selectedTickets = data.getJsonArray("tickets")
-        val ticketStatus = data.getString("status")
+        val ticketStatus =
+            if (data.getString("status") == null) null else TicketStatus.valueOf(data.getString("status"))
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -49,14 +53,14 @@ class PanelUpdateTicketsAPI(
             return Successful()
         }
 
-        if (ticketStatus != null && ticketStatus == "close") {
+        if (ticketStatus != null && ticketStatus == TicketStatus.CLOSED) {
             val sqlClient = getSqlClient()
 
             val areIdListExist =
                 databaseManager.ticketDao.areIdListExist(selectedTickets.map { it.toString().toLong() }, sqlClient)
 
             if (!areIdListExist) {
-                throw Error(ErrorCode.SOME_TICKETS_ARENT_EXIST)
+                throw SomeTicketsArentExists()
             }
 
             databaseManager.ticketDao.closeTickets(selectedTickets, sqlClient)

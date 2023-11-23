@@ -1,10 +1,11 @@
 package com.panomc.platform.route.api.panel.post
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.PostNotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -37,7 +38,7 @@ class PanelGetPostAPI(
         val exists = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.POST_NOT_FOUND)
+            throw PostNotFound()
         }
 
         val post = databaseManager.postDao.getById(id, sqlClient)!!
@@ -51,7 +52,7 @@ class PanelGetPostAPI(
                     "writerUserId" to post.writerUserId,
                     "text" to post.text,
                     "date" to post.date,
-                    "status" to post.status.value,
+                    "status" to post.status,
                     "thumbnailUrl" to post.thumbnailUrl,
                     "views" to post.views
                 )

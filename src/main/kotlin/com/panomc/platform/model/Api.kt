@@ -1,7 +1,8 @@
 package com.panomc.platform.model
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.BadRequest
+import com.panomc.platform.error.InternalServerError
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
 import io.vertx.ext.mail.SMTPException
@@ -58,26 +59,26 @@ abstract class Api : Route() {
                 failure is BodyProcessorException ||
                 failure is RequestPredicateException
             ) {
-                sendResult(Error(ErrorCode.BAD_REQUEST), context, mapOf("bodyValidationError" to failure.message))
+                sendResult(BadRequest(), context, mapOf("bodyValidationError" to failure.message))
 
                 return@launch
             }
 
             if (failure is IOException) {
-                sendResult(Error(ErrorCode.BAD_REQUEST), context, mapOf("inputError" to failure.message))
+                sendResult(BadRequest(), context, mapOf("inputError" to failure.message))
 
                 return@launch
             }
 
             if (failure is SMTPException) {
-                sendResult(Error(ErrorCode.INTERNAL_SERVER_ERROR), context)
+                sendResult(InternalServerError(), context)
 
                 return@launch
             }
 
             if (failure !is Result) {
                 logger.error("Error on endpoint URL: {} {}", context.request().method(), context.request().path())
-                sendResult(Error(ErrorCode.INTERNAL_SERVER_ERROR), context)
+                sendResult(InternalServerError(), context)
 
                 throw failure
             }

@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PanelNotificationDao
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.notification.NotificationStatus
@@ -13,8 +11,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "panel_notification"),
-    PanelNotificationDao {
+class PanelNotificationDaoImpl : PanelNotificationDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -22,7 +19,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
-                              `user_id` bigint NOT NULL,
+                              `userId` bigint NOT NULL,
                               `type` varchar(255) NOT NULL,
                               `properties` mediumtext NOT NULL,
                               `date` BIGINT(20) NOT NULL,
@@ -40,7 +37,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type`, `properties`, `date`, `status`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `type`, `properties`, `date`, `status`) " +
                     "VALUES (?, ?, ?, ?, ?)"
 
         sqlClient
@@ -74,7 +71,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         }
 
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `type`, `properties`, `date`, `status`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `type`, `properties`, `date`, `status`) " +
                     "VALUES $listText"
 
         sqlClient
@@ -88,7 +85,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND `status` = ? ORDER BY `date` DESC, `id` DESC"
+            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? AND `status` = ? ORDER BY `date` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -107,7 +104,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC"
+            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -125,7 +122,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -135,7 +132,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
                 )
             ).await()
 
-        return PanelNotification.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun get10ByUserIdAndStartFromId(
@@ -144,7 +141,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -155,7 +152,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
                 )
             ).await()
 
-        return PanelNotification.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun markReadLast10(
@@ -163,7 +160,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         sqlClient
             .preparedQuery(query)
@@ -181,7 +178,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `user_id` = ? AND id < ?  ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? AND id < ?  ORDER BY `date` DESC, `id` DESC LIMIT 10"
 
         sqlClient
             .preparedQuery(query)
@@ -199,7 +196,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -209,7 +206,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
                 )
             ).await()
 
-        return PanelNotification.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun markReadLast5ByUserId(
@@ -217,7 +214,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `user_id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         sqlClient
             .preparedQuery(query)
@@ -248,7 +245,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ): PanelNotification? {
         val query =
-            "SELECT `id`, `user_id`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -264,7 +261,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
 
         val row = rows.toList()[0]
 
-        return PanelNotification.from(row)
+        return row.toEntity()
     }
 
     override suspend fun deleteById(
@@ -302,7 +299,7 @@ class PanelNotificationDaoImpl(databaseManager: DatabaseManager) : DaoImpl(datab
         sqlClient: SqlClient
     ) {
         val query =
-            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ?"
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `userId` = ?"
 
         sqlClient
             .preparedQuery(query)

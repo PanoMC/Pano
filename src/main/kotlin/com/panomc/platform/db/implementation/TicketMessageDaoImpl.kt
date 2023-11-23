@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TicketMessageDao
 import com.panomc.platform.db.model.TicketMessage
 import io.vertx.core.json.JsonArray
@@ -14,16 +12,15 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "ticket_message"),
-    TicketMessageDao {
+class TicketMessageDaoImpl : TicketMessageDao() {
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
-                              `user_id` bigint NOT NULL,
-                              `ticket_id` bigint NOT NULL,
+                              `userId` bigint NOT NULL,
+                              `ticketId` bigint NOT NULL,
                               `message` text NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `panel` int NOT NULL,
@@ -40,14 +37,14 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         sqlClient: SqlClient
     ): List<TicketMessage> {
         val query =
-            "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? ORDER BY id DESC LIMIT 5"
+            "SELECT id, userId, ticketId, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? ORDER BY id DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ticketId))
             .await()
 
-        return TicketMessage.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getByTicketIdAndStartFromId(
@@ -56,14 +53,14 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         sqlClient: SqlClient
     ): List<TicketMessage> {
         val query =
-            "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? and id < ? ORDER BY id DESC LIMIT 5"
+            "SELECT id, userId, ticketId, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? and id < ? ORDER BY id DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ticketId, lastMessageId))
             .await()
 
-        return TicketMessage.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getCountByTicketId(
@@ -71,7 +68,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where ticket_id = ?"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where ticketId = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -86,7 +83,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (user_id, ticket_id, message, `date`, panel) VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (userId, ticketId, message, `date`, panel) VALUES (?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -122,7 +119,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         }
 
         val query =
-            "DELETE FROM `${getTablePrefix() + tableName}` WHERE ticket_id IN ($selectedTicketsSQLText)"
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE ticketId IN ($selectedTicketsSQLText)"
 
         sqlClient
             .preparedQuery(query)
@@ -135,7 +132,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
         sqlClient: SqlClient
     ): TicketMessage? {
         val query =
-            "SELECT id, user_id, ticket_id, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticket_id = ? ORDER BY `date` DESC LIMIT 1"
+            "SELECT id, userId, ticketId, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? ORDER BY `date` DESC LIMIT 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -149,7 +146,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
 
         val row = rows.toList()[0]
 
-        return TicketMessage.from(row)
+        return row.toEntity()
     }
 
     override suspend fun existsById(id: Long, sqlClient: SqlClient): Boolean {
@@ -164,7 +161,7 @@ class TicketMessageDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseM
     }
 
     override suspend fun updateUserIdByUserId(userId: Long, newUserId: Long, sqlClient: SqlClient) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `user_id` = ? WHERE `user_id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `userId` = ? WHERE `userId` = ?"
 
         sqlClient
             .preparedQuery(query)

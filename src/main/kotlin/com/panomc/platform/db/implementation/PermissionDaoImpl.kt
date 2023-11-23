@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PermissionDao
 import com.panomc.platform.db.model.Permission
 import io.vertx.kotlin.coroutines.await
@@ -12,7 +10,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "permission"), PermissionDao {
+class PermissionDaoImpl : PermissionDao() {
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
             .query(
@@ -20,7 +18,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `name` varchar(128) NOT NULL UNIQUE,
-                              `icon_name` varchar(128) NOT NULL DEFAULT '',
+                              `iconName` varchar(128) NOT NULL DEFAULT '',
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Table';
                         """
@@ -83,7 +81,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
         permission: Permission,
         sqlClient: SqlClient
     ) {
-        val query = "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `icon_name`) VALUES (?, ?)"
+        val query = "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `iconName`) VALUES (?, ?)"
 
         sqlClient
             .preparedQuery(query)
@@ -118,7 +116,7 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
         sqlClient: SqlClient
     ): Permission? {
         val query =
-            "SELECT `id`, `name`, `icon_name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT `id`, `name`, `iconName` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -134,21 +132,21 @@ class PermissionDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMana
 
         val row = rows.toList()[0]
 
-        return Permission.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getPermissions(
         sqlClient: SqlClient
     ): List<Permission> {
         val query =
-            "SELECT `id`, `name`, `icon_name` FROM `${getTablePrefix() + tableName}`"
+            "SELECT `id`, `name`, `iconName` FROM `${getTablePrefix() + tableName}`"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .await()
 
-        return Permission.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun arePermissionsExist(idList: List<Long>, sqlClient: SqlClient): Boolean {

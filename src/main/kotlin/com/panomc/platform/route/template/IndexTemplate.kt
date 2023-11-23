@@ -28,6 +28,6 @@ class IndexTemplate : Template() {
             return@Handler
         }
 
-        response.end("Hello to Pano web platform!")
+        response.setStatusCode(401).end()
     }
 }

@@ -1,9 +1,10 @@
 package com.panomc.platform.route.api.posts
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PostCategory
+import com.panomc.platform.error.PostNotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -33,7 +34,7 @@ class GetPostPreviewAPI(
         val isPostExistsById = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!isPostExistsById) {
-            throw Error(ErrorCode.POST_NOT_FOUND)
+            throw PostNotFound()
         }
 
         val post = databaseManager.postDao.getById(id, sqlClient)!!
@@ -65,7 +66,7 @@ class GetPostPreviewAPI(
                 ),
                 "text" to post.text,
                 "date" to post.date,
-                "status" to post.status.value,
+                "status" to post.status,
                 "thumbnailUrl" to post.thumbnailUrl,
                 "views" to post.views
             )

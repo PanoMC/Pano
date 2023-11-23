@@ -1,9 +1,11 @@
 package com.panomc.platform.auth
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
-import com.panomc.platform.model.Error
+import com.panomc.platform.error.LoginEmailNotVerified
+import com.panomc.platform.error.LoginIsInvalid
+import com.panomc.platform.error.LoginUserIsBanned
+import com.panomc.platform.error.NoPermission
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.Regexes
@@ -37,7 +39,7 @@ class AuthProvider(
         val isLoginCorrect = databaseManager.userDao.isLoginCorrect(usernameOrEmail, password, sqlClient)
 
         if (!isLoginCorrect) {
-            throw Error(ErrorCode.LOGIN_IS_INVALID)
+            throw LoginIsInvalid()
         }
 
         val userId =
@@ -46,13 +48,13 @@ class AuthProvider(
         val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
 
         if (!isVerified) {
-            throw Error(ErrorCode.LOGIN_EMAIL_NOT_VERIFIED)
+            throw LoginEmailNotVerified()
         }
 
         val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)
 
         if (isBanned) {
-            throw Error(ErrorCode.LOGIN_USER_IS_BANNED)
+            throw LoginUserIsBanned()
         }
     }
 
@@ -97,19 +99,19 @@ class AuthProvider(
         recaptcha: String
     ) {
         if (usernameOrEmail.isEmpty()) {
-            throw Error(ErrorCode.LOGIN_IS_INVALID)
+            throw LoginIsInvalid()
         }
 
         if (!usernameOrEmail.matches(Regex(Regexes.USERNAME)) && !usernameOrEmail.matches(Regex(Regexes.EMAIL))) {
-            throw Error(ErrorCode.LOGIN_IS_INVALID)
+            throw LoginIsInvalid()
         }
 
         if (password.isEmpty()) {
-            throw Error(ErrorCode.LOGIN_IS_INVALID)
+            throw LoginIsInvalid()
         }
 
         if (password.length < 6 || password.length > 128) {
-            throw Error(ErrorCode.LOGIN_IS_INVALID)
+            throw LoginIsInvalid()
         }
 
 //        if (!this.reCaptcha.isValid(reCaptcha)) {
@@ -215,7 +217,7 @@ class AuthProvider(
         val userId = getUserIdFromRoutingContext(context)
 
         if (!hasPermission(userId, panelPermission, context)) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
     }
 

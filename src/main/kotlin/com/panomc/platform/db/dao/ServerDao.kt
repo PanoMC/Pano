@@ -6,81 +6,81 @@ import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.ServerType
 import io.vertx.sqlclient.SqlClient
 
-interface ServerDao : Dao<Server> {
-    suspend fun add(
+abstract class ServerDao : Dao<Server>(Server::class.java) {
+    abstract suspend fun add(
         server: Server,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getById(
+    abstract suspend fun getById(
         id: Long,
         sqlClient: SqlClient
     ): Server?
 
-    suspend fun getAllByPermissionGranted(
+    abstract suspend fun getAllByPermissionGranted(
         sqlClient: SqlClient
     ): List<Server>
 
-    suspend fun countOfPermissionGranted(
+    abstract suspend fun countOfPermissionGranted(
         sqlClient: SqlClient
     ): Long
 
-    suspend fun count(
+    abstract suspend fun count(
         sqlClient: SqlClient
     ): Long
 
-    suspend fun updateStatusById(
+    abstract suspend fun updateStatusById(
         id: Long,
         status: ServerStatus,
         sqlClient: SqlClient
     )
 
-    suspend fun updatePermissionGrantedById(
+    abstract suspend fun updatePermissionGrantedById(
         id: Long,
         permissionGranted: Boolean,
         sqlClient: SqlClient
     )
 
-    suspend fun existsById(
+    abstract suspend fun existsById(
         id: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun deleteById(
+    abstract suspend fun deleteById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun updatePlayerCountById(
+    abstract suspend fun updatePlayerCountById(
         id: Long,
         playerCount: Int,
         sqlClient: SqlClient
     )
 
-    suspend fun updateStartTimeById(
+    abstract suspend fun updateStartTimeById(
         id: Long,
         startTime: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun updateStopTimeById(
+    abstract suspend fun updateStopTimeById(
         id: Long,
         stopTime: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun updateAcceptedTimeById(
+    abstract suspend fun updateAcceptedTimeById(
         id: Long,
         acceptedTime: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun updateServerForOfflineById(
+    abstract suspend fun updateServerForOfflineById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun updateById(
+    abstract suspend fun updateById(
         id: Long,
         name: String,
         motd: String,

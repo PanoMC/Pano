@@ -1,12 +1,15 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -35,6 +38,7 @@ class PanelUpdatePlayerAPI(
                         .property("canCreateTicket", booleanSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -54,7 +58,7 @@ class PanelUpdatePlayerAPI(
         val hasManagePlayerPermission = authProvider.hasPermission(userId, PanelPermission.MANAGE_PLAYERS, context)
 
         if (!hasManagePlayerPermission && id != userId) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         validateForm(username, email, newPassword, newPasswordRepeat)
@@ -64,7 +68,7 @@ class PanelUpdatePlayerAPI(
         val exists = databaseManager.userDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(id, sqlClient)!!
@@ -75,7 +79,7 @@ class PanelUpdatePlayerAPI(
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
         if (userPermissionGroup.name == "admin" && !isAdmin) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         val user = databaseManager.userDao.getById(id, sqlClient)!!

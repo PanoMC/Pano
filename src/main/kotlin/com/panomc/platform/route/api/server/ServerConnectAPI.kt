@@ -1,10 +1,15 @@
 package com.panomc.platform.route.api.server
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
-import com.panomc.platform.model.*
+import com.panomc.platform.error.InstallationRequired
+import com.panomc.platform.error.InvalidToken
+import com.panomc.platform.error.NeedPermission
+import com.panomc.platform.model.Api
+import com.panomc.platform.model.Path
+import com.panomc.platform.model.Result
+import com.panomc.platform.model.RouteType
 import com.panomc.platform.server.ServerAuthProvider
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.ServerStatus
@@ -33,21 +38,21 @@ class ServerConnectAPI(
         request.pause()
 
         if (!setupManager.isSetupDone()) {
-            return Error(ErrorCode.INSTALLATION_REQUIRED)
+            return InstallationRequired()
         }
 
         if (!serverAuthProvider.isAuthenticated(context)) {
-            return Error(ErrorCode.INVALID_TOKEN)
+            return InvalidToken()
         }
 
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
 
         val sqlClient = databaseManager.getSqlClient()
 
-        val server = databaseManager.serverDao.getById(serverId, sqlClient) ?: return Error(ErrorCode.INVALID_TOKEN)
+        val server = databaseManager.serverDao.getById(serverId, sqlClient) ?: return InvalidToken()
 
         if (!server.permissionGranted) {
-            return Error(ErrorCode.NEED_PERMISSION)
+            return NeedPermission()
         }
 
         request.resume()

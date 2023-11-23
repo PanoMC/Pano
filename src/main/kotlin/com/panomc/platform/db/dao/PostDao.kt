@@ -5,160 +5,160 @@ import com.panomc.platform.db.model.Post
 import com.panomc.platform.util.PostStatus
 import io.vertx.sqlclient.SqlClient
 
-interface PostDao : Dao<Post> {
-    suspend fun removePostCategoriesByCategoryId(
+abstract class PostDao : Dao<Post>(Post::class.java) {
+    abstract suspend fun removePostCategoriesByCategoryId(
         categoryId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun existsById(
+    abstract suspend fun existsById(
         id: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun existsByUrl(
+    abstract suspend fun existsByUrl(
         url: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun getById(
+    abstract suspend fun getById(
         id: Long,
         sqlClient: SqlClient
     ): Post?
 
-    suspend fun getByUrl(
+    abstract suspend fun getByUrl(
         url: String,
         sqlClient: SqlClient
     ): Post?
 
-    suspend fun moveTrashById(
+    abstract suspend fun moveTrashById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun moveDraftById(
+    abstract suspend fun moveDraftById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun publishById(
+    abstract suspend fun publishById(
         id: Long,
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun insert(
+    abstract suspend fun insert(
         post: Post,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun update(
+    abstract suspend fun update(
         userId: Long,
         post: Post,
         sqlClient: SqlClient
     )
 
-    suspend fun updatePostUrlByUrl(
+    abstract suspend fun updatePostUrlByUrl(
         url: String,
         newUrl: String,
         sqlClient: SqlClient
     )
 
-    suspend fun count(sqlClient: SqlClient): Long
+    abstract suspend fun count(sqlClient: SqlClient): Long
 
-    suspend fun countByCategory(
+    abstract suspend fun countByCategory(
         id: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun countByPageType(
+    abstract suspend fun countByPageType(
         postStatus: PostStatus,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun countByPageTypeAndCategoryId(
+    abstract suspend fun countByPageTypeAndCategoryId(
         postStatus: PostStatus,
         categoryId: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun delete(id: Long, sqlClient: SqlClient)
+    abstract suspend fun delete(id: Long, sqlClient: SqlClient)
 
-    suspend fun getByCategory(
+    abstract suspend fun getByCategory(
         id: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    suspend fun getByPageAndPageType(
+    abstract suspend fun getByPageAndPageType(
         page: Long,
         postStatus: PostStatus,
         sqlClient: SqlClient
     ): List<Post>
 
-    suspend fun getByPagePageTypeAndCategoryId(
+    abstract suspend fun getByPagePageTypeAndCategoryId(
         page: Long,
         postStatus: PostStatus,
         categoryId: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    suspend fun countOfPublished(
+    abstract suspend fun countOfPublished(
         sqlClient: SqlClient
     ): Long
 
-    suspend fun countOfPublishedByCategoryId(
+    abstract suspend fun countOfPublishedByCategoryId(
         categoryId: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getPublishedListByPage(
+    abstract suspend fun getPublishedListByPage(
         page: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    suspend fun getPublishedListByPageAndCategoryId(
+    abstract suspend fun getPublishedListByPageAndCategoryId(
         categoryId: Long,
         page: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    suspend fun getListByPageAndCategoryId(
+    abstract suspend fun getListByPageAndCategoryId(
         categoryId: Long,
         page: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    suspend fun increaseViewByOne(
+    abstract suspend fun increaseViewByOne(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun increaseViewByOne(
+    abstract suspend fun increaseViewByOne(
         url: String,
         sqlClient: SqlClient
     )
 
-    suspend fun isPreviousPostExistsByDate(
+    abstract suspend fun isPreviousPostExistsByDate(
         date: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun isNextPostExistsByDate(
+    abstract suspend fun isNextPostExistsByDate(
         date: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun getPreviousPostByDate(
+    abstract suspend fun getPreviousPostByDate(
         date: Long,
         sqlClient: SqlClient
     ): Post?
 
-    suspend fun getNextPostByDate(
+    abstract suspend fun getNextPostByDate(
         date: Long,
         sqlClient: SqlClient
     ): Post?
 
-    suspend fun updateUserIdByUserId(
+    abstract suspend fun updateUserIdByUserId(
         userId: Long,
         newUserId: Long,
         sqlClient: SqlClient

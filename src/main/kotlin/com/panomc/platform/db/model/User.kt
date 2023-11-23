@@ -1,7 +1,6 @@
 package com.panomc.platform.db.model
 
-import io.vertx.sqlclient.Row
-import io.vertx.sqlclient.RowSet
+import com.panomc.platform.db.DBEntity
 
 data class User(
     val id: Long = -1,
@@ -16,23 +15,4 @@ data class User(
     val canCreateTicket: Boolean = true,
     val lastActivityTime: Long = System.currentTimeMillis(),
     val lastPanelActivityTime: Long = System.currentTimeMillis(),
-) {
-    companion object {
-        fun from(row: Row) = User(
-            row.getLong(0),
-            row.getString(1),
-            row.getString(2),
-            row.getString(3),
-            row.getLong(4),
-            row.getLong(5),
-            row.getLong(6),
-            row.getInteger(7) == 1,
-            row.getInteger(8) == 1,
-            row.getInteger(9) == 1,
-            row.getLong(10),
-            row.getLong(11)
-        )
-
-        fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }
-    }
-}
+) : DBEntity()

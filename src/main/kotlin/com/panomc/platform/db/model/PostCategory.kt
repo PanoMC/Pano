@@ -1,7 +1,6 @@
 package com.panomc.platform.db.model
 
-import io.vertx.sqlclient.Row
-import io.vertx.sqlclient.RowSet
+import com.panomc.platform.db.DBEntity
 
 data class PostCategory(
     val id: Long = -1,
@@ -9,11 +8,4 @@ data class PostCategory(
     val description: String = "",
     val url: String = "-",
     val color: String = ""
-) {
-    companion object {
-        fun from(row: Row) =
-            PostCategory(row.getLong(0), row.getString(1), row.getString(2), row.getString(3), row.getString(4))
-
-        fun from(rowSet: RowSet<Row>) = rowSet.map { from(it) }
-    }
-}
+) : DBEntity()

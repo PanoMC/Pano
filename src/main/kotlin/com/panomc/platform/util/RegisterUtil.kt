@@ -1,10 +1,9 @@
 package com.panomc.platform.util
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
-import com.panomc.platform.model.Error
+import com.panomc.platform.error.*
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.sqlclient.SqlClient
 import org.apache.commons.codec.digest.DigestUtils
@@ -21,51 +20,51 @@ object RegisterUtil {
         reCaptcha: ReCaptcha? = null
     ) {
         if (username.isEmpty()) {
-            throw Error(ErrorCode.REGISTER_USERNAME_EMPTY)
+            throw RegisterUsernameEmpty()
         }
 
         if (email.isEmpty()) {
-            throw Error(ErrorCode.REGISTER_EMAIL_EMPTY)
+            throw RegisterEmailEmpty()
         }
 
         if (password.isEmpty()) {
-            throw Error(ErrorCode.PASSWORD_EMPTY)
+            throw PasswordEmpty()
         }
 
         if (username.length < 3) {
-            throw Error(ErrorCode.REGISTER_USERNAME_TOO_SHORT)
+            throw RegisterUsernameTooShort()
         }
 
         if (username.length > 16) {
-            throw Error(ErrorCode.REGISTER_USERNAME_TOO_LONG)
+            throw RegisterUsernameTooLong()
         }
 
         if (password.length < 6) {
-            throw Error(ErrorCode.PASSWORD_TOO_SHORT)
+            throw PasswordTooShort()
         }
 
         if (password.length > 128) {
-            throw Error(ErrorCode.PASSWORD_TOO_LONG)
+            throw PasswordTooLong()
         }
 
         if (!username.matches(Regex(Regexes.USERNAME))) {
-            throw Error(ErrorCode.REGISTER_INVALID_USERNAME)
+            throw RegisterInvalidUsername()
         }
 
         if (!email.matches(Regex(Regexes.EMAIL))) {
-            throw Error(ErrorCode.REGISTER_INVALID_EMAIL)
+            throw RegisterInvalidEmail()
         }
 
         if (password != passwordRepeat) {
-            throw Error(ErrorCode.REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME)
+            throw RegisterPasswordAndPasswordRepeatNotSame()
         }
 
         if (!agreement) {
-            throw Error(ErrorCode.REGISTER_NOT_ACCEPTED_AGREEMENT)
+            throw RegisterNotAcceptedAgreement()
         }
 
         if (reCaptcha != null && !reCaptcha.isValid(recaptchaToken)) {
-            throw Error(ErrorCode.REGISTER_CANT_VERIFY_ROBOT)
+            throw RegisterCantVerifyRobot()
         }
     }
 
@@ -85,13 +84,13 @@ object RegisterUtil {
         )
 
         if (isUsernameExists) {
-            throw Error(ErrorCode.REGISTER_USERNAME_NOT_AVAILABLE)
+            throw RegisterUsernameNotAvailable()
         }
 
         val isEmailExists = databaseManager.userDao.isEmailExists(email, sqlClient)
 
         if (isEmailExists) {
-            throw Error(ErrorCode.REGISTER_EMAIL_NOT_AVAILABLE)
+            throw RegisterEmailNotAvailable()
         }
 
         val user = User(username = username, email = email, registeredIp = remoteIP)

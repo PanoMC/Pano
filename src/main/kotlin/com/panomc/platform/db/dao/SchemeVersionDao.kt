@@ -4,13 +4,13 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.SchemeVersion
 import io.vertx.sqlclient.SqlClient
 
-interface SchemeVersionDao : Dao<SchemeVersion> {
-    suspend fun add(
+abstract class SchemeVersionDao : Dao<SchemeVersion>(SchemeVersion::class.java) {
+    abstract suspend fun add(
         sqlClient: SqlClient,
         schemeVersion: SchemeVersion
     )
 
-    suspend fun getLastSchemeVersion(
+    abstract suspend fun getLastSchemeVersion(
         sqlClient: SqlClient
     ): SchemeVersion?
 }

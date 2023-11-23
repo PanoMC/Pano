@@ -1,15 +1,19 @@
 package com.panomc.platform.route.api.ticket
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
+import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Parameters
@@ -31,9 +35,10 @@ class UpdateTicketAPI(
             .body(
                 Bodies.json(
                     objectSchema()
-                        .optionalProperty("status", stringSchema())
+                        .optionalProperty("status", enumSchema(*TicketStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -41,7 +46,8 @@ class UpdateTicketAPI(
         val data = parameters.body().jsonObject
 
         val id = parameters.pathParameter("id").long
-        val ticketStatus = data.getString("status")
+        val ticketStatus =
+            if (data.getString("status") == null) null else TicketStatus.valueOf(data.getString("status"))
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val sqlClient = getSqlClient()
@@ -49,16 +55,16 @@ class UpdateTicketAPI(
         val exists = databaseManager.ticketDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val isBelong = databaseManager.ticketDao.isIdBelongToUserId(id, userId, sqlClient)
 
         if (!isBelong) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
-        if (ticketStatus != null && ticketStatus == "close") {
+        if (ticketStatus != null && ticketStatus == TicketStatus.CLOSED) {
             databaseManager.ticketDao.closeTicketById(id, sqlClient)
 
             val notificationProperties = JsonObject().put("id", id)

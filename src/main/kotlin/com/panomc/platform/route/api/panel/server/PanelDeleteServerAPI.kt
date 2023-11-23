@@ -1,13 +1,15 @@
 package com.panomc.platform.route.api.panel.server
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.CurrentPasswordNotCorrect
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -34,6 +36,7 @@ class PanelDeleteServerAPI(
                         .property("currentPassword", Schemas.stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -51,14 +54,14 @@ class PanelDeleteServerAPI(
         val exists = databaseManager.serverDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val isCurrentPasswordCorrect =
             databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
 
         if (!isCurrentPasswordCorrect) {
-            throw Error(ErrorCode.CURRENT_PASSWORD_NOT_CORRECT)
+            throw CurrentPasswordNotCorrect()
         }
 
         serverManager.getConnectedServers()

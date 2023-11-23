@@ -1,7 +1,6 @@
 package com.panomc.platform.route.api.posts
 
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Api
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
@@ -15,7 +14,6 @@ import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class GetPostsAPI(
-    private val databaseManager: DatabaseManager,
     private val getPostsService: GetPostsService
 ) : Api() {
     override val paths = listOf(Path("/api/posts", RouteType.GET))

@@ -1,10 +1,11 @@
 package com.panomc.platform.route.api.setup
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.error.InvalidData
 import com.panomc.platform.model.*
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -31,6 +32,7 @@ class DBConnectionTestAPI(private val logger: Logger, setupManager: SetupManager
                         .optionalProperty("password", Schemas.stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -71,7 +73,7 @@ class DBConnectionTestAPI(private val logger: Logger, setupManager: SetupManager
         } catch (e: java.lang.Exception) {
             logger.error(e.toString())
 
-            throw Error(ErrorCode.INVALID_DATA)
+            throw InvalidData()
         }
 
         return Successful()

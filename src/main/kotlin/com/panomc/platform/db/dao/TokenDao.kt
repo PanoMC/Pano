@@ -5,24 +5,24 @@ import com.panomc.platform.db.model.Token
 import com.panomc.platform.token.TokenType
 import io.vertx.sqlclient.SqlClient
 
-interface TokenDao : Dao<Token> {
+abstract class TokenDao : Dao<Token>(Token::class.java) {
 
-    suspend fun add(
+    abstract suspend fun add(
         token: Token,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun existsByTokenAndType(
+    abstract suspend fun existsByTokenAndType(
         token: String,
         tokenType: TokenType,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun deleteByToken(token: String, sqlClient: SqlClient)
+    abstract suspend fun deleteByToken(token: String, sqlClient: SqlClient)
 
-    suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlClient: SqlClient)
+    abstract suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlClient: SqlClient)
 
-    suspend fun getLastBySubjectAndType(
+    abstract suspend fun getLastBySubjectAndType(
         subject: String,
         type: TokenType,
         sqlClient: SqlClient

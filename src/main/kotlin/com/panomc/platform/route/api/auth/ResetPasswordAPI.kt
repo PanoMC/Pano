@@ -1,13 +1,15 @@
 package com.panomc.platform.route.api.auth
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.mails.ResetPasswordMail
 import com.panomc.platform.model.*
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -30,6 +32,7 @@ class ResetPasswordAPI(
 //                TODO: Add recaptcha
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -45,13 +48,11 @@ class ResetPasswordAPI(
         val exists = databaseManager.userDao.existsByUsernameOrEmail(usernameOrEmail, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient) ?: throw Error(
-                ErrorCode.NOT_EXISTS
-            )
+            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient) ?: throw NotExists()
 
         mailManager.sendMail(sqlClient, userId, ResetPasswordMail())
 
@@ -60,11 +61,11 @@ class ResetPasswordAPI(
 
     private fun validateInput(usernameOrEmail: String) {
         if (usernameOrEmail.isBlank()) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         if (!usernameOrEmail.matches(Regex(Regexes.USERNAME)) && !usernameOrEmail.matches(Regex(Regexes.EMAIL))) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
     }
 }

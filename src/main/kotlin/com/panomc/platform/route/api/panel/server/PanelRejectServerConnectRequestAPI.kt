@@ -1,10 +1,11 @@
 package com.panomc.platform.route.api.panel.server
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import io.vertx.ext.web.RoutingContext
@@ -38,7 +39,7 @@ class PanelRejectServerConnectRequestAPI(
         val exists = databaseManager.serverDao.existsById(id, sqlClient)
 
         if (!exists) {
-            return Error(ErrorCode.NOT_EXISTS)
+            return NotExists()
         }
 
         if (serverManager.isConnected(id)) {

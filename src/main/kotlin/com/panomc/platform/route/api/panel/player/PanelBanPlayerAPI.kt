@@ -1,16 +1,18 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.*
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.notification.BannedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters
@@ -36,6 +38,7 @@ class PanelBanPlayerAPI(
                         .optionalProperty("sendNotification", booleanSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -53,21 +56,21 @@ class PanelBanPlayerAPI(
         val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
+            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
         if (userId == authUserId) {
-            throw Error(ErrorCode.CANT_BAN_YOURSELF)
+            throw CantBanYourself()
         }
 
         val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)
 
         if (isBanned) {
-            throw Error(ErrorCode.ALREADY_BANNED)
+            throw AlreadyBanned()
         }
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
@@ -80,7 +83,7 @@ class PanelBanPlayerAPI(
                 val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
                 if (!isAdmin) {
-                    throw Error(ErrorCode.NO_PERMISSION)
+                    throw NoPermission()
                 }
 
                 val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(
@@ -89,7 +92,7 @@ class PanelBanPlayerAPI(
                 )
 
                 if (count == 1L) {
-                    throw Error(ErrorCode.LAST_ADMIN)
+                    throw LastAdmin()
                 }
             }
         }

@@ -30,7 +30,7 @@ class ConfigManager(
 ) {
 
     companion object {
-        private const val CONFIG_VERSION = 16
+        private const val CONFIG_VERSION = 1
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKey()

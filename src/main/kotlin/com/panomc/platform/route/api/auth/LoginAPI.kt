@@ -8,6 +8,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.util.CSRFTokenGenerator
 import io.vertx.core.http.Cookie
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -32,6 +33,7 @@ class LoginAPI(
                         .property("recaptcha", Schemas.stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {

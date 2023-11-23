@@ -4,80 +4,80 @@ import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.PanelNotification
 import io.vertx.sqlclient.SqlClient
 
-interface PanelNotificationDao : Dao<PanelNotification> {
-    suspend fun add(
+abstract class PanelNotificationDao : Dao<PanelNotification>(PanelNotification::class.java) {
+    abstract suspend fun add(
         panelNotification: PanelNotification,
         sqlClient: SqlClient
     )
 
-    suspend fun addAll(
+    abstract suspend fun addAll(
         panelNotifications: List<PanelNotification>,
         sqlClient: SqlClient
     )
 
-    suspend fun getCountOfNotReadByUserId(
+    abstract suspend fun getCountOfNotReadByUserId(
         userId: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getCountByUserId(
+    abstract suspend fun getCountByUserId(
         userId: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getLast10ByUserId(
+    abstract suspend fun getLast10ByUserId(
         userId: Long,
         sqlClient: SqlClient
     ): List<PanelNotification>
 
-    suspend fun get10ByUserIdAndStartFromId(
+    abstract suspend fun get10ByUserIdAndStartFromId(
         userId: Long,
         notificationId: Long,
         sqlClient: SqlClient
     ): List<PanelNotification>
 
-    suspend fun markReadLast10(
+    abstract suspend fun markReadLast10(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun markReadLast10StartFromId(
+    abstract suspend fun markReadLast10StartFromId(
         userId: Long,
         notificationId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun getLast5ByUserId(
+    abstract suspend fun getLast5ByUserId(
         userId: Long,
         sqlClient: SqlClient
     ): List<PanelNotification>
 
-    suspend fun markReadLast5ByUserId(
+    abstract suspend fun markReadLast5ByUserId(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun existsById(
+    abstract suspend fun existsById(
         id: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun getById(
+    abstract suspend fun getById(
         id: Long,
         sqlClient: SqlClient
     ): PanelNotification?
 
-    suspend fun deleteById(
+    abstract suspend fun deleteById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun markReadById(
+    abstract suspend fun markReadById(
         id: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun deleteAllByUserId(
+    abstract suspend fun deleteAllByUserId(
         userId: Long,
         sqlClient: SqlClient
     )

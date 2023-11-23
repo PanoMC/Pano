@@ -1,14 +1,18 @@
 package com.panomc.platform.route.api.panel.settings
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.error.FaviconExceedsSize
+import com.panomc.platform.error.FaviconWrongContentType
+import com.panomc.platform.error.WebsiteLogoExceedsSize
+import com.panomc.platform.error.WebsiteLogoWrongContentType
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.UpdatePeriod
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -38,8 +42,8 @@ class PanelUpdateSettingAPI(
                     "image/gif",
                     "image/jpeg"
                 ),
-                contentTypeError = ErrorCode.FAVICON_WRONG_CONTENT_TYPE,
-                fileSizeError = ErrorCode.FAVICON_EXCEEDS_SIZE,
+                contentTypeError = FaviconWrongContentType(),
+                fileSizeError = FaviconExceedsSize(),
                 withTempName = false,
                 size = 1024 * 1024 // 1 MB
             )
@@ -54,8 +58,8 @@ class PanelUpdateSettingAPI(
                     "image/gif",
                     "image/svg+xml",
                 ),
-                contentTypeError = ErrorCode.WEBSITE_LOGO_WRONG_CONTENT_TYPE,
-                fileSizeError = ErrorCode.WEBSITE_LOGO_EXCEEDS_SIZE,
+                contentTypeError = WebsiteLogoWrongContentType(),
+                fileSizeError = WebsiteLogoExceedsSize(),
                 withTempName = false,
                 size = 2 * 1024 * 1024 // 2 MB
             )
@@ -80,6 +84,7 @@ class PanelUpdateSettingAPI(
                         .optionalProperty("keywords", arraySchema().items(stringSchema()))
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {

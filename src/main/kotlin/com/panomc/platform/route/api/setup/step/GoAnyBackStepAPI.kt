@@ -4,6 +4,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -25,6 +26,7 @@ class GoAnyBackStepAPI(
                         .property("step", intSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {

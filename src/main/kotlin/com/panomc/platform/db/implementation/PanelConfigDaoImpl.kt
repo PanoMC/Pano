@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PanelConfigDao
 import com.panomc.platform.db.model.PanelConfig
 import io.vertx.kotlin.coroutines.await
@@ -12,7 +10,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "panel_config"), PanelConfigDao {
+class PanelConfigDaoImpl : PanelConfigDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -20,7 +18,7 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
-                              `user_id` bigint NOT NULL,
+                              `userId` bigint NOT NULL,
                               `option` varchar(255) NOT NULL,
                               `value` varchar(255) NOT NULL,
                               PRIMARY KEY (`id`)
@@ -33,7 +31,7 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
 
     override suspend fun byUserIdAndOption(userId: Long, option: String, sqlClient: SqlClient): PanelConfig? {
         val query =
-            "SELECT `id`, `user_id`, `option`, `value` FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ? AND `option` = ?"
+            "SELECT `id`, `userId`, `option`, `value` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? AND `option` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -46,11 +44,11 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
 
         val row = rows.toList()[0]
 
-        return PanelConfig.from(row)
+        return row.toEntity()
     }
 
     override suspend fun add(panelConfig: PanelConfig, sqlClient: SqlClient) {
-        val query = "INSERT INTO `${getTablePrefix() + tableName}` (`user_id`, `option`, `value`) VALUES (?, ?, ?)"
+        val query = "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `option`, `value`) VALUES (?, ?, ?)"
 
         sqlClient
             .preparedQuery(query)
@@ -80,7 +78,7 @@ class PanelConfigDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMan
     }
 
     override suspend fun deleteByUserId(userId: Long, sqlClient: SqlClient) {
-        val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `user_id` = ?"
+        val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `userId` = ?"
 
         sqlClient
             .preparedQuery(query)

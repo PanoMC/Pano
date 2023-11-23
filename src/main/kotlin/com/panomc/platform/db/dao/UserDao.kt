@@ -8,258 +8,258 @@ import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.sqlclient.SqlClient
 
-interface UserDao : Dao<User> {
+abstract class UserDao : Dao<User>(User::class.java) {
 
-    suspend fun add(
+    abstract suspend fun add(
         user: User,
         hashedPassword: String,
         sqlClient: SqlClient,
         isSetup: Boolean
     ): Long
 
-    suspend fun isEmailExists(
+    abstract suspend fun isEmailExists(
         email: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun getUserIdFromUsername(
+    abstract suspend fun getUserIdFromUsername(
         username: String,
         sqlClient: SqlClient
     ): Long?
 
-    suspend fun getPermissionGroupIdFromUserId(
+    abstract suspend fun getPermissionGroupIdFromUserId(
         userId: Long,
         sqlClient: SqlClient
     ): Long?
 
-    suspend fun getPermissionGroupIdFromUsername(
+    abstract suspend fun getPermissionGroupIdFromUsername(
         username: String,
         sqlClient: SqlClient
     ): Long?
 
-    suspend fun isLoginCorrect(
+    abstract suspend fun isLoginCorrect(
         usernameOrEmail: String,
         password: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun count(sqlClient: SqlClient): Long
+    abstract suspend fun count(sqlClient: SqlClient): Long
 
-    suspend fun countOfRegisterByPeriod(dashboardPeriodType: DashboardPeriodType, sqlClient: SqlClient): Long
+    abstract suspend fun countOfRegisterByPeriod(dashboardPeriodType: DashboardPeriodType, sqlClient: SqlClient): Long
 
-    suspend fun getRegisterDatesByPeriod(
+    abstract suspend fun getRegisterDatesByPeriod(
         dashboardPeriodType: DashboardPeriodType,
         sqlClient: SqlClient
     ): List<Long>
 
-    suspend fun getUsernameFromUserId(
+    abstract suspend fun getUsernameFromUserId(
         userId: Long,
         sqlClient: SqlClient
     ): String?
 
-    suspend fun getById(
+    abstract suspend fun getById(
         userId: Long,
         sqlClient: SqlClient
     ): User?
 
-    suspend fun getByUsername(
+    abstract suspend fun getByUsername(
         username: String,
         sqlClient: SqlClient
     ): User?
 
-    suspend fun countByStatus(
+    abstract suspend fun countByStatus(
         status: PlayerStatus,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun getAllByPageAndStatus(
+    abstract suspend fun getAllByPageAndStatus(
         page: Long,
         status: PlayerStatus,
         sqlClient: SqlClient
     ): List<User>
 
-    suspend fun getAllByPageAndPermissionGroup(
+    abstract suspend fun getAllByPageAndPermissionGroup(
         page: Long,
         permissionGroupId: Long,
         sqlClient: SqlClient
     ): List<User>
 
-    suspend fun getUserIdFromUsernameOrEmail(
+    abstract suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlClient: SqlClient
     ): Long?
 
-    suspend fun getEmailFromUserId(
+    abstract suspend fun getEmailFromUserId(
         userId: Long,
         sqlClient: SqlClient
     ): String?
 
-    suspend fun getUsernameByListOfId(
+    abstract suspend fun getUsernameByListOfId(
         userIdList: List<Long>,
         sqlClient: SqlClient
     ): Map<Long, String>
 
-    suspend fun existsByUsername(
+    abstract suspend fun existsByUsername(
         username: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun areUsernamesExists(
+    abstract suspend fun areUsernamesExists(
         usernames: List<String>,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun existsByUsernameOrEmail(
+    abstract suspend fun existsByUsernameOrEmail(
         usernameOrEmail: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun existsById(
+    abstract suspend fun existsById(
         id: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun getUsernamesByPermissionGroupId(
+    abstract suspend fun getUsernamesByPermissionGroupId(
         permissionGroupId: Long,
         limit: Long,
         sqlClient: SqlClient
     ): List<String>
 
-    suspend fun getCountOfUsersByPermissionGroupId(
+    abstract suspend fun getCountOfUsersByPermissionGroupId(
         permissionGroupId: Long,
         sqlClient: SqlClient
     ): Long
 
-    suspend fun removePermissionGroupByPermissionGroupId(
+    abstract suspend fun removePermissionGroupByPermissionGroupId(
         permissionGroupId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun setPermissionGroupByUsername(
+    abstract suspend fun setPermissionGroupByUsername(
         permissionGroupId: Long,
         username: String,
         sqlClient: SqlClient
     )
 
-    suspend fun setPermissionGroupByUsernames(
+    abstract suspend fun setPermissionGroupByUsernames(
         permissionGroupId: Long,
         usernames: List<String>,
         sqlClient: SqlClient
     )
 
-    suspend fun setUsernameById(
+    abstract suspend fun setUsernameById(
         id: Long,
         username: String,
         sqlClient: SqlClient
     )
 
-    suspend fun setEmailById(
+    abstract suspend fun setEmailById(
         id: Long,
         email: String,
         sqlClient: SqlClient
     )
 
-    suspend fun setPasswordById(
+    abstract suspend fun setPasswordById(
         id: Long,
         password: String,
         sqlClient: SqlClient
     )
 
-    suspend fun isEmailVerifiedById(
+    abstract suspend fun isEmailVerifiedById(
         userId: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun isBanned(
+    abstract suspend fun isBanned(
         userId: Long,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun banPlayer(
+    abstract suspend fun banPlayer(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun unbanPlayer(
+    abstract suspend fun unbanPlayer(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun makeEmailVerifiedById(
+    abstract suspend fun makeEmailVerifiedById(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun getLastUsernames(
+    abstract suspend fun getLastUsernames(
         limit: Long,
         sqlClient: SqlClient
     ): List<String>
 
-    suspend fun updateLastLoginDate(
+    abstract suspend fun updateLastLoginDate(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun updateLastActivityTime(
+    abstract suspend fun updateLastActivityTime(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun updateLastPanelActivityTime(
+    abstract suspend fun updateLastPanelActivityTime(
         userId: Long,
         sqlClient: SqlClient
     )
 
-    suspend fun getOnlineAdmins(
+    abstract suspend fun getOnlineAdmins(
         limit: Long,
         sqlClient: SqlClient
     ): List<User>
 
-    suspend fun getPermissionsById(
+    abstract suspend fun getPermissionsById(
         userId: Long,
         sqlClient: SqlClient
     ): List<Permission>
 
-    suspend fun getPermissionGroupNameById(
+    abstract suspend fun getPermissionGroupNameById(
         userId: Long,
         sqlClient: SqlClient
     ): String?
 
-    suspend fun getIdsByPermission(
+    abstract suspend fun getIdsByPermission(
         panelPermission: PanelPermission,
         sqlClient: SqlClient
     ): List<Long>
 
-    suspend fun updateEmailVerifyStatusById(
+    abstract suspend fun updateEmailVerifyStatusById(
         userId: Long,
         verified: Boolean,
         sqlClient: SqlClient
     )
 
-    suspend fun updateCanCreateTicketStatusById(
+    abstract suspend fun updateCanCreateTicketStatusById(
         userId: Long,
         canCreateTicket: Boolean,
         sqlClient: SqlClient
     )
 
-    suspend fun isPasswordCorrectWithId(
+    abstract suspend fun isPasswordCorrectWithId(
         id: Long,
         hashedPassword: String,
         sqlClient: SqlClient
     ): Boolean
 
-    suspend fun updatePendingEmailById(
+    abstract suspend fun updatePendingEmailById(
         userId: Long,
         pendingEmail: String,
         sqlClient: SqlClient
     )
 
-    suspend fun getPendingEmailById(
+    abstract suspend fun getPendingEmailById(
         id: Long,
         sqlClient: SqlClient
     ): String
 
-    suspend fun countOfOnline(sqlClient: SqlClient): Long
+    abstract suspend fun countOfOnline(sqlClient: SqlClient): Long
 
-    suspend fun deleteById(id: Long, sqlClient: SqlClient)
+    abstract suspend fun deleteById(id: Long, sqlClient: SqlClient)
 }

@@ -1,9 +1,9 @@
 package com.panomc.platform.route.api.profile
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.CantResetPasswordWait15Minutes
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.mails.ResetPasswordMail
 import com.panomc.platform.model.*
@@ -33,7 +33,7 @@ class SendResetPasswordEmailAPI(
             val fifteenMinutesLaterInMillis = lastToken.startDate + 15 * 60 * 1000
 
             if (System.currentTimeMillis() < fifteenMinutesLaterInMillis) {
-                throw Error(ErrorCode.CANT_RESET_PASSWORD_WAIT_15_MINUTES)
+                throw CantResetPasswordWait15Minutes()
             }
         }
 

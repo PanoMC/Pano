@@ -1,15 +1,17 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.*
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Parameters
@@ -36,6 +38,7 @@ class PanelDeletePlayerAPI(
                         .property("currentPassword", stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -50,18 +53,18 @@ class PanelDeletePlayerAPI(
         val sqlClient = getSqlClient()
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
+            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
         if (userId == authUserId) {
-            throw Error(ErrorCode.CANT_DELETE_YOURSELF)
+            throw CantDeleteYourself()
         }
 
         val isCurrentPasswordCorrect =
             databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
 
         if (!isCurrentPasswordCorrect) {
-            throw Error(ErrorCode.CURRENT_PASSWORD_NOT_CORRECT)
+            throw CurrentPasswordNotCorrect()
         }
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
@@ -74,7 +77,7 @@ class PanelDeletePlayerAPI(
                 val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
                 if (!isAdmin) {
-                    throw Error(ErrorCode.NO_PERMISSION)
+                    throw NoPermission()
                 }
 
                 val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(
@@ -83,7 +86,7 @@ class PanelDeletePlayerAPI(
                 )
 
                 if (count == 1L) {
-                    throw Error(ErrorCode.LAST_ADMIN)
+                    throw LastAdmin()
                 }
             }
         }

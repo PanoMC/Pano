@@ -1,12 +1,16 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.CantUpdatePermGroupYourself
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -31,6 +35,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
                         .property("permissionGroup", stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -47,7 +52,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
         val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val userId = databaseManager.userDao.getUserIdFromUsername(username, sqlClient)
@@ -55,7 +60,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
         if (userId == authUserId) {
-            throw Error(ErrorCode.CANT_UPDATE_PERM_GROUP_YOURSELF)
+            throw CantUpdatePermGroupYourself()
         }
 
         var permissionGroupId = -1L
@@ -67,7 +72,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
             )
 
             if (!isTherePermissionGroup) {
-                throw Error(ErrorCode.NOT_EXISTS)
+                throw NotExists()
             }
 
             permissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupIdByName(
@@ -101,7 +106,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
             val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
             if (!isAdmin) {
-                throw Error(ErrorCode.NO_PERMISSION)
+                throw NoPermission()
             }
 
             if (count == 1L) {

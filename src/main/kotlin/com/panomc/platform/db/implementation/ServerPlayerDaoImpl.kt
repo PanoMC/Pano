@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.ServerPlayerDao
 import com.panomc.platform.db.model.ServerPlayer
 import io.vertx.kotlin.coroutines.await
@@ -13,8 +11,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "server_player"),
-    ServerPlayerDao {
+class ServerPlayerDaoImpl : ServerPlayerDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -25,8 +22,8 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
                               `uuid` varchar(255) NOT NULL,
                               `username` varchar(255) NOT NULL,
                               `ping` bigint NOT NULL,
-                              `server_id` bigint NOT NULL,
-                              `login_time` bigint NOT NULL,
+                              `serverId` bigint NOT NULL,
+                              `loginTime` bigint NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Server player table.';
                         """
@@ -40,7 +37,7 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`uuid`, `username`, `ping`, `server_id`, `login_time`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`uuid`, `username`, `ping`, `serverId`, `loginTime`) " +
                     "VALUES (?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
@@ -60,7 +57,7 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun deleteByUsernameAndServerId(username: String, serverId: Long, sqlClient: SqlClient) {
         val query =
-            "DELETE from `${getTablePrefix() + tableName}` WHERE `username` = ? AND `server_id` = ?"
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `username` = ? AND `serverId` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -86,7 +83,7 @@ class ServerPlayerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseMa
 
     override suspend fun deleteByServerId(serverId: Long, sqlClient: SqlClient) {
         val query =
-            "DELETE from `${getTablePrefix() + tableName}` WHERE `server_id` = ?"
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `serverId` = ?"
 
         sqlClient
             .preparedQuery(query)

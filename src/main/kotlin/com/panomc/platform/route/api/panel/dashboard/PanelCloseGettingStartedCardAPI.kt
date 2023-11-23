@@ -1,9 +1,10 @@
 package com.panomc.platform.route.api.panel.dashboard
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaParser
@@ -26,7 +27,7 @@ class PanelCloseGettingStartedCardAPI(
             databaseManager.systemPropertyDao.isUserInstalledSystemByUserId(userId, sqlClient)
 
         if (!isUserInstalledSystem) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         databaseManager.systemPropertyDao.update(

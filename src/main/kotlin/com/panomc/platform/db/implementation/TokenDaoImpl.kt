@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TokenDao
 import com.panomc.platform.db.model.Token
 import com.panomc.platform.token.TokenType
@@ -14,7 +12,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "token"), TokenDao {
+class TokenDaoImpl : TokenDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -25,8 +23,8 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
                           `subject` mediumtext NOT NULL,
                           `token` mediumtext NOT NULL,
                           `type` varchar(32) NOT NULL,
-                          `expire_date` bigint(20) NOT NULL,
-                          `start_date` bigint NOT NULL,
+                          `expireDate` bigint(20) NOT NULL,
+                          `startDate` bigint NOT NULL,
                           PRIMARY KEY (`id`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Valid token table.';
                         """
@@ -37,7 +35,7 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
 
     override suspend fun add(token: Token, sqlClient: SqlClient): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`subject`, `token`, `type`, `expire_date`, `start_date`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`subject`, `token`, `type`, `expireDate`, `startDate`) " +
                     "VALUES (?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
@@ -101,7 +99,7 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
         sqlClient: SqlClient
     ): Token? {
         val query =
-            "SELECT `id`, `subject`, `token`, `type`, `expire_date`, `start_date` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expire_date` DESC limit 1"
+            "SELECT `id`, `subject`, `token`, `type`, `expireDate`, `startDate` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC limit 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -119,6 +117,6 @@ class TokenDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, 
 
         val row = rows.toList()[0]
 
-        return Token.from(row)
+        return row.toEntity()
     }
 }

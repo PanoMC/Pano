@@ -12,8 +12,6 @@ import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
-import io.vertx.ext.web.handler.SessionHandler
-import io.vertx.ext.web.sstore.LocalSessionStore
 import io.vertx.json.schema.SchemaParser
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
@@ -70,7 +68,6 @@ class RouterProvider private constructor(
         val routeList = beans.map { it.value as Route }
 
         router.route()
-            .handler(SessionHandler.create(LocalSessionStore.create(vertx)))
             .handler(
                 CorsHandler.create(".*.")
                     .allowCredentials(true)

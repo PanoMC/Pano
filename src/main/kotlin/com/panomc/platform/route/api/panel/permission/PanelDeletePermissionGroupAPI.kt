@@ -1,10 +1,11 @@
 package com.panomc.platform.route.api.panel.permission
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.CantDeleteAdminPermission
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -38,14 +39,14 @@ class PanelDeletePermissionGroupAPI(
             databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlClient)
 
         if (!isTherePermissionGroup) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val permissionGroup =
             databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlClient)!!
 
         if (permissionGroup.name == "admin") {
-            throw Error(ErrorCode.CANT_DELETE_ADMIN_PERMISSION)
+            throw CantDeleteAdminPermission()
         }
 
         databaseManager.permissionGroupPermsDao.removePermissionGroup(permissionGroupId, sqlClient)

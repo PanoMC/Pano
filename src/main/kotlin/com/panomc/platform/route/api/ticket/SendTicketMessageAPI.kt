@@ -1,17 +1,22 @@
 package com.panomc.platform.route.api.ticket
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketMessage
+import com.panomc.platform.error.MessageCantBeEmpty
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.TicketIsClosed
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
 import com.panomc.platform.util.TicketStatus
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -36,6 +41,7 @@ class SendTicketMessageAPI(
                         .property("message", stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -46,7 +52,7 @@ class SendTicketMessageAPI(
         val message = data.getString("message")
 
         if (message.isBlank()) {
-            throw Error(ErrorCode.MESSAGE_CANT_BE_EMPTY)
+            throw MessageCantBeEmpty()
         }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
@@ -56,19 +62,19 @@ class SendTicketMessageAPI(
         val exists = databaseManager.ticketDao.existsById(ticketId, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val isBelong = databaseManager.ticketDao.isIdBelongToUserId(ticketId, userId, sqlClient)
 
         if (!isBelong) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         val isTicketClosed = databaseManager.ticketDao.getStatusById(ticketId, sqlClient) == TicketStatus.CLOSED
 
         if (isTicketClosed) {
-            throw Error(ErrorCode.TICKET_IS_CLOSED)
+            throw TicketIsClosed()
         }
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
@@ -96,8 +102,8 @@ class SendTicketMessageAPI(
             mapOf(
                 "message" to mapOf(
                     "id" to messageId,
-                    "userID" to ticketMessage.userId,
-                    "ticketID" to ticketMessage.ticketId,
+                    "userId" to ticketMessage.userId,
+                    "ticketId" to ticketMessage.ticketId,
                     "username" to username,
                     "message" to ticketMessage.message,
                     "date" to ticketMessage.date,

@@ -1,10 +1,11 @@
 package com.panomc.platform.route.api.posts
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
-import com.panomc.platform.model.Error
+import com.panomc.platform.error.CategoryNotExists
+import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import io.vertx.ext.web.validation.RequestParameters
@@ -24,7 +25,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
             val isPostCategoryExists = databaseManager.postCategoryDao.existsByUrl(categoryUrl, sqlClient)
 
             if (!isPostCategoryExists) {
-                throw Error(ErrorCode.CATEGORY_NOT_EXISTS)
+                throw CategoryNotExists()
             }
 
             postCategory = databaseManager.postCategoryDao.getByUrl(categoryUrl, sqlClient)!!
@@ -45,7 +46,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
             totalPage = 1
 
         if (page > totalPage || page < 1) {
-            throw Error(ErrorCode.PAGE_NOT_FOUND)
+            throw PageNotFound()
         }
 
         val posts = if (postCategory != null)

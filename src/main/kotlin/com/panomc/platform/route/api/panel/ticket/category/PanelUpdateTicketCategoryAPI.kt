@@ -1,14 +1,16 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -33,6 +35,7 @@ class PanelUpdateTicketCategoryAPI(
                         .property("description", stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -52,7 +55,7 @@ class PanelUpdateTicketCategoryAPI(
         val exists = databaseManager.ticketCategoryDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description), sqlClient)

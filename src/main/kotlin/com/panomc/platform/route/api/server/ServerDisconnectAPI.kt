@@ -1,8 +1,9 @@
 package com.panomc.platform.route.api.server
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.InstallationRequired
+import com.panomc.platform.error.InvalidToken
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerAuthProvider
 import com.panomc.platform.setup.SetupManager
@@ -21,11 +22,11 @@ class ServerDisconnectAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         if (!setupManager.isSetupDone()) {
-            return Error(ErrorCode.INSTALLATION_REQUIRED)
+            return InstallationRequired()
         }
 
         if (!serverAuthProvider.isAuthenticated(context)) {
-            return Error(ErrorCode.INVALID_TOKEN)
+            return InvalidToken()
         }
 
         val serverId = serverAuthProvider.getServerIdFromRoutingContext(context)
@@ -35,7 +36,7 @@ class ServerDisconnectAPI(
         val exists = databaseManager.serverDao.existsById(serverId, sqlClient)
 
         if (!exists) {
-            return Error(ErrorCode.INVALID_TOKEN)
+            return InvalidToken()
         }
 
         val mainServerId = databaseManager.systemPropertyDao.getByOption(

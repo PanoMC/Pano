@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.PostDao
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.util.PostStatus
@@ -14,7 +12,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "post"), PostDao {
+class PostDaoImpl : PostDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -23,13 +21,13 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `title` MEDIUMTEXT NOT NULL,
-                              `category_id` bigint NOT NULL,
-                              `writer_user_id` bigint NOT NULL,
-                              `text` longblob NOT NULL,
+                              `categoryId` bigint NOT NULL,
+                              `writerUserId` bigint NOT NULL,
+                              `text` LONGTEXT NOT NULL,
                               `date` BIGINT(20) NOT NULL,
-                              `move_date` BIGINT(20) NOT NULL,
-                              `status` int(1) NOT NULL,
-                              `thumbnail_url` mediumtext NOT NULL,
+                              `moveDate` BIGINT(20) NOT NULL,
+                              `status` VARCHAR(255) NOT NULL,
+                              `thumbnailUrl` mediumtext NOT NULL,
                               `views` BIGINT(20) NOT NULL,
                               `url` mediumtext NOT NULL,
                               PRIMARY KEY (`id`)
@@ -44,7 +42,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         categoryId: Long,
         sqlClient: SqlClient
     ) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET category_id = ? WHERE category_id = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET categoryId = ? WHERE categoryId = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -95,7 +93,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): Post? {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -112,12 +110,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         val row = rows.toList()[0]
 
-        return Post.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getByUrl(url: String, sqlClient: SqlClient): Post? {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -134,7 +132,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         val row = rows.toList()[0]
 
-        return Post.from(row)
+        return row.toEntity()
     }
 
     override suspend fun moveTrashById(
@@ -142,7 +140,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET move_date = ?, status = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET moveDate = ?, status = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -161,7 +159,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET move_date = ?, status = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET moveDate = ?, status = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -181,7 +179,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET writer_user_id = ?, `date` = ?, move_date = ?, status = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET writerUserId = ?, `date` = ?, moveDate = ?, status = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -199,7 +197,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun insert(post: Post, sqlClient: SqlClient): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -211,7 +209,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     post.text,
                     post.date,
                     post.moveDate,
-                    post.status.value,
+                    post.status.name,
                     post.thumbnailUrl,
                     post.views,
                     post.url
@@ -224,7 +222,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
     override suspend fun update(userId: Long, post: Post, sqlClient: SqlClient) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET title = ?, category_id = ?, writer_user_id = ?, text = ?, `date` = ?, move_date = ?, status = ?, thumbnail_url = ?, `url` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET title = ?, categoryId = ?, writerUserId = ?, text = ?, `date` = ?, moveDate = ?, status = ?, thumbnailUrl = ?, `url` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -236,7 +234,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
                     post.text,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
-                    post.status.value,
+                    post.status.name,
                     post.thumbnailUrl,
                     post.url,
                     post.id
@@ -275,7 +273,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         id: Long,
         sqlClient: SqlClient
     ): Long {
-        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where category_id = ?"
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where categoryId = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -297,7 +295,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(postStatus.value)
+                Tuple.of(postStatus.name)
             )
             .await()
 
@@ -310,12 +308,12 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `category_id` = ?"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `categoryId` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(postStatus.value, categoryId)
+                Tuple.of(postStatus.name, categoryId)
             )
             .await()
 
@@ -342,7 +340,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT id, title, category_id, writer_user_id, text, `date`, move_date, status, thumbnail_url, views, `url` FROM `${getTablePrefix() + tableName}` WHERE category_id = ? ORDER BY `date` DESC LIMIT 5"
+            "SELECT id, title, categoryId, writerUserId, text, `date`, moveDate, status, thumbnailUrl, views, `url` FROM `${getTablePrefix() + tableName}` WHERE categoryId = ? ORDER BY `date` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -353,7 +351,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         val posts = mutableListOf<Post>()
 
-        posts.addAll(Post.from(rows))
+        posts.addAll(rows.toEntities())
 
         return posts
     }
@@ -364,18 +362,18 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(postStatus.value)
+                Tuple.of(postStatus.name)
             )
             .await()
 
         val posts = mutableListOf<Post>()
 
-        posts.addAll(Post.from(rows))
+        posts.addAll(rows.toEntities())
 
         return posts
     }
@@ -387,16 +385,16 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `category_id` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "move_date DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `categoryId` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(postStatus.value, categoryId)
+                Tuple.of(postStatus.name, categoryId)
             )
             .await()
 
-        return Post.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun countOfPublished(
@@ -408,7 +406,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(PostStatus.PUBLISHED.value)
+                Tuple.of(PostStatus.PUBLISHED.name)
             )
             .await()
 
@@ -420,13 +418,13 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `category_id` = ?"
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `categoryId` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.value,
+                    PostStatus.PUBLISHED.name,
                     categoryId
                 )
             )
@@ -440,16 +438,16 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(PostStatus.PUBLISHED.value)
+                Tuple.of(PostStatus.PUBLISHED.name)
             )
             .await()
 
-        return Post.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getPublishedListByPageAndCategoryId(
@@ -458,19 +456,19 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `category_id` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `categoryId` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.value,
+                    PostStatus.PUBLISHED.name,
                     categoryId
                 )
             )
             .await()
 
-        return Post.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getListByPageAndCategoryId(
@@ -479,7 +477,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `category_id` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `categoryId` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -490,7 +488,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             )
             .await()
 
-        return Post.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun increaseViewByOne(
@@ -535,7 +533,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.value,
+                    PostStatus.PUBLISHED.name,
                     date
                 )
             )
@@ -555,7 +553,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.value,
+                    PostStatus.PUBLISHED.name,
                     date
                 )
             )
@@ -569,13 +567,13 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): Post? {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` < ? GROUP BY `id` ) order by `date` DESC limit 1"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` < ? GROUP BY `id` ) order by `date` DESC limit 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.value,
+                    PostStatus.PUBLISHED.name,
                     date
                 )
             )
@@ -587,7 +585,7 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         val row = rows.toList()[0]
 
-        return Post.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getNextPostByDate(
@@ -595,13 +593,13 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
         sqlClient: SqlClient
     ): Post? {
         val query =
-            "SELECT `id`, `title`, `category_id`, `writer_user_id`, `text`, `date`, `move_date`, `status`, `thumbnail_url`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN (SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` > ? GROUP BY `id` ) order by `date` limit 1"
+            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN (SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` > ? GROUP BY `id` ) order by `date` limit 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    PostStatus.PUBLISHED.value,
+                    PostStatus.PUBLISHED.name,
                     date
                 )
             )
@@ -613,11 +611,11 @@ class PostDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "
 
         val row = rows.toList()[0]
 
-        return Post.from(row)
+        return row.toEntity()
     }
 
     override suspend fun updateUserIdByUserId(userId: Long, newUserId: Long, sqlClient: SqlClient) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `writer_user_id` = ? WHERE `writer_user_id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `writerUserId` = ? WHERE `writerUserId` = ?"
 
         sqlClient
             .preparedQuery(query)

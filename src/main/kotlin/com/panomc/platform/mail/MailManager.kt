@@ -1,9 +1,8 @@
 package com.panomc.platform.mail
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.model.Error
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.token.TokenProvider
 import io.vertx.ext.mail.MailMessage
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
@@ -31,7 +30,7 @@ class MailManager(
     suspend fun sendMail(sqlClient: SqlClient, userId: Long, mail: Mail, email: String? = null) {
         val emailAddress =
             email ?: databaseManager.userDao.getEmailFromUserId(userId, sqlClient)
-            ?: throw Error(ErrorCode.NOT_EXISTS)
+            ?: throw NotExists()
 
         val emailConfig = configManager.getConfig().getJsonObject("email")
         val message = MailMessage()

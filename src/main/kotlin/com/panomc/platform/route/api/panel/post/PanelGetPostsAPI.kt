@@ -1,12 +1,14 @@
 package com.panomc.platform.route.api.panel.post
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
+import com.panomc.platform.error.CategoryNotExists
+import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.PostStatus
 import io.vertx.ext.web.RoutingContext
@@ -30,7 +32,7 @@ class PanelGetPostsAPI(
                 optionalParam(
                     "pageType",
                     arraySchema()
-                        .items(enumSchema(*PostStatus.values().map { it.status }.toTypedArray()))
+                        .items(enumSchema(*PostStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
             .queryParameter(optionalParam("page", numberSchema()))
@@ -44,9 +46,8 @@ class PanelGetPostsAPI(
 
         val pageType =
             PostStatus.valueOf(
-                status = parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: "published"
+                parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: PostStatus.PUBLISHED.name
             )
-                ?: PostStatus.PUBLISHED
         val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
@@ -58,7 +59,7 @@ class PanelGetPostsAPI(
             val isPostCategoryExists = databaseManager.postCategoryDao.existsByUrl(categoryUrl, sqlClient)
 
             if (!isPostCategoryExists) {
-                throw Error(ErrorCode.CATEGORY_NOT_EXISTS)
+                throw CategoryNotExists()
             }
 
             postCategory = databaseManager.postCategoryDao.getByUrl(categoryUrl, sqlClient)!!
@@ -79,7 +80,7 @@ class PanelGetPostsAPI(
             totalPage = 1
 
         if (page > totalPage || page < 1) {
-            throw Error(ErrorCode.PAGE_NOT_FOUND)
+            throw PageNotFound()
         }
 
         val posts = if (postCategory != null)
@@ -139,7 +140,7 @@ class PanelGetPostsAPI(
                     ),
                     "date" to post.date,
                     "views" to post.views,
-                    "status" to post.status.value
+                    "status" to post.status
                 )
             )
         }

@@ -1,10 +1,12 @@
 package com.panomc.platform.route.api.panel.player
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotBanned
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -37,16 +39,16 @@ class PanelUnbanPlayerAPI(
         val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw Error(ErrorCode.NOT_EXISTS)
+            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
 
         val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)
 
         if (!isBanned) {
-            throw Error(ErrorCode.NOT_BANNED)
+            throw NotBanned()
         }
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
@@ -57,7 +59,7 @@ class PanelUnbanPlayerAPI(
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
         if (userPermissionGroup.name == "admin" && !isAdmin) {
-            throw Error(ErrorCode.NO_PERMISSION)
+            throw NoPermission()
         }
 
         databaseManager.userDao.unbanPlayer(userId, sqlClient)

@@ -112,7 +112,7 @@ class DatabaseManager(
         databaseInitProcessHandlers.forEach { it.init(sqlClient) }
     }
 
-    internal fun getLatestMigration() = migrations.maxByOrNull { it.SCHEME_VERSION }!!
+    internal fun getLatestMigration() = migrations.maxByOrNull { it.SCHEME_VERSION }
 
     private suspend fun checkMigration() {
         logger.info("Checking available database migrations")

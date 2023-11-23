@@ -1,15 +1,16 @@
 package com.panomc.platform.route.api.auth
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.*
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.notification.PasswordUpdatedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -36,6 +37,7 @@ class RenewPasswordAPI(
 //                TODO: Add recaptcha
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -53,7 +55,7 @@ class RenewPasswordAPI(
         val isTokenValid = tokenProvider.isTokenValid(token, TokenType.RESET_PASSWORD, sqlClient)
 
         if (!isTokenValid) {
-            throw Error(ErrorCode.INVALID_LINK)
+            throw InvalidLink()
         }
 
         val userId = authProvider.getUserIdFromToken(token)
@@ -69,23 +71,23 @@ class RenewPasswordAPI(
 
     private fun validateInput(token: String, newPassword: String, newPasswordRepeat: String) {
         if (token.isBlank()) {
-            throw Error(ErrorCode.INVALID_LINK)
+            throw InvalidLink()
         }
 
         if (newPassword.isBlank()) {
-            throw Error(ErrorCode.NEW_PASSWORD_EMPTY)
+            throw NewPasswordEmpty()
         }
 
         if (newPassword.length < 6) {
-            throw Error(ErrorCode.NEW_PASSWORD_TOO_SHORT)
+            throw NewPasswordTooShort()
         }
 
         if (newPassword.length > 128) {
-            throw Error(ErrorCode.NEW_PASSWORD_TOO_LONG)
+            throw NewPasswordTooLong()
         }
 
         if (newPassword != newPasswordRepeat) {
-            throw Error(ErrorCode.NEW_PASSWORD_REPEAT_DOESNT_MATCH)
+            throw NewPasswordRepeatDoesntMatch()
         }
     }
 }

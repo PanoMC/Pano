@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.SystemPropertyDao
 import com.panomc.platform.db.model.SystemProperty
 import io.vertx.kotlin.coroutines.await
@@ -12,8 +10,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "system_property"),
-    SystemPropertyDao {
+class SystemPropertyDaoImpl : SystemPropertyDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -98,7 +95,7 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    "who_installed_user_id",
+                    "who_installed_userId",
                     userId.toString()
                 )
             )
@@ -128,7 +125,7 @@ class SystemPropertyDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
         val row = rows.toList()[0]
 
-        return SystemProperty.from(row)
+        return row.toEntity()
     }
 
     private suspend fun addShowGettingStartedOption(

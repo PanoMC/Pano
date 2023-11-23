@@ -5,6 +5,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -38,6 +39,7 @@ class NextStepAPI(
                         .optionalProperty("authMethod", stringSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {

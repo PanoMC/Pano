@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.ServerDao
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.server.ServerStatus
@@ -15,7 +13,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "server"), ServerDao {
+class ServerDaoImpl : ServerDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -27,17 +25,17 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                               `motd` text NOT NULL,
                               `host` varchar(255) NOT NULL,
                               `port` int(5) NOT NULL,
-                              `player_count` bigint NOT NULL,
-                              `max_player_count` bigint NOT NULL,
-                              `server_type` varchar(255) NOT NULL,
-                              `server_version` varchar(255) NOT NULL,
+                              `playerCount` bigint NOT NULL,
+                              `maxPlayerCount` bigint NOT NULL,
+                              `serverType` varchar(255) NOT NULL,
+                              `serverVersion` varchar(255) NOT NULL,
                               `favicon` text NOT NULL,
-                              `permission_granted` int(1) default 0,
-                              `status` int(1) NOT NULL,
-                              `added_time` bigint NOT NULL,
-                              `accepted_time` bigint NOT NULL,
-                              `start_time` bigint NOT NULL,
-                              `stop_time` bigint NOT NULL,
+                              `permissionGranted` TINYINT(1) default 0,
+                              `status` VARCHAR(255) NOT NULL,
+                              `addedTime` bigint NOT NULL,
+                              `acceptedTime` bigint NOT NULL,
+                              `startTime` bigint NOT NULL,
+                              `stopTime` bigint NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Server table.';
                         """
@@ -51,7 +49,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `serverType`, `serverVersion`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
@@ -67,7 +65,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                     server.type,
                     server.version,
                     server.favicon,
-                    server.status.value,
+                    server.status.name,
                     server.addedTime,
                     0,
                     server.startTime,
@@ -80,7 +78,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
     override suspend fun getById(id: Long, sqlClient: SqlClient): Server? {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `serverType`, `serverVersion`, `favicon`, `permissionGranted`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -97,12 +95,12 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
 
         val row = rows.toList()[0]
 
-        return Server.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getAllByPermissionGranted(sqlClient: SqlClient): List<Server> {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `player_count`, `max_player_count`, `server_type`, `server_version`, `favicon`, `permission_granted`, `status`, `added_time`, `accepted_time`, `start_time`, `stop_time` FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `serverType`, `serverVersion`, `favicon`, `permissionGranted`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime` FROM `${getTablePrefix() + tableName}` WHERE  `permissionGranted` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -111,11 +109,11 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             )
             .await()
 
-        return Server.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun countOfPermissionGranted(sqlClient: SqlClient): Long {
-        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE  `permission_granted` = ?"
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE  `permissionGranted` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -145,7 +143,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    status.value,
+                    status.name,
                     id
                 )
             )
@@ -157,7 +155,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         permissionGranted: Boolean,
         sqlClient: SqlClient
     ) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `permission_granted` = ? WHERE `id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `permissionGranted` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -198,7 +196,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun updatePlayerCountById(id: Long, playerCount: Int, sqlClient: SqlClient) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `player_count` = ? WHERE `id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `playerCount` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -212,7 +210,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun updateStartTimeById(id: Long, startTime: Long, sqlClient: SqlClient) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `start_time` = ? WHERE `id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `startTime` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -226,7 +224,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun updateStopTimeById(id: Long, stopTime: Long, sqlClient: SqlClient) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `stop_time` = ? WHERE `id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `stopTime` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -240,7 +238,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun updateAcceptedTimeById(id: Long, acceptedTime: Long, sqlClient: SqlClient) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `accepted_time` = ? WHERE `id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `acceptedTime` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -254,13 +252,13 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
     }
 
     override suspend fun updateServerForOfflineById(id: Long, sqlClient: SqlClient) {
-        val query = "UPDATE `${getTablePrefix() + tableName}` SET `status` = ?, `player_count` = ? WHERE `id` = ?"
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `status` = ?, `playerCount` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    ServerStatus.OFFLINE.value,
+                    ServerStatus.OFFLINE.name,
                     0,
                     id
                 )
@@ -284,7 +282,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `player_count` = ?, `max_player_count` = ?, `server_type` = ?, `server_version` = ?, `favicon` = ?, `status` = ?, `start_time` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `playerCount` = ?, `maxPlayerCount` = ?, `serverType` = ?, `serverVersion` = ?, `favicon` = ?, `status` = ?, `startTime` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -299,7 +297,7 @@ class ServerDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager,
                     type,
                     version,
                     favicon,
-                    status.value,
+                    status.name,
                     startTime,
                     id
                 )

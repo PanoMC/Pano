@@ -1,10 +1,10 @@
 package com.panomc.platform.route.api.panel.post.category
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -37,7 +37,7 @@ class PanelDeletePostCategoryAPI(
         val exists = databaseManager.postCategoryDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         databaseManager.postDao.removePostCategoriesByCategoryId(id, sqlClient)

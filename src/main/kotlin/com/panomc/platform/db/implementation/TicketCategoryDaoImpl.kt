@@ -1,8 +1,6 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.DaoImpl
-import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.TicketCategoryDao
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.util.TextUtil
@@ -14,8 +12,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(databaseManager, "ticket_category"),
-    TicketCategoryDao {
+class TicketCategoryDaoImpl : TicketCategoryDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -44,7 +41,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute()
             .await()
 
-        return TicketCategory.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun existsById(
@@ -167,7 +164,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute()
             .await()
 
-        return TicketCategory.from(rows)
+        return rows.toEntities()
     }
 
     override suspend fun getById(
@@ -188,7 +185,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
         val row = rows.toList()[0]
 
-        return TicketCategory.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getByUrl(
@@ -209,7 +206,7 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
 
         val row = rows.toList()[0]
 
-        return TicketCategory.from(row)
+        return row.toEntity()
     }
 
     override suspend fun getByIdList(
@@ -233,6 +230,6 @@ class TicketCategoryDaoImpl(databaseManager: DatabaseManager) : DaoImpl(database
             .execute()
             .await()
 
-        return TicketCategory.from(rows).associateBy { it.id }
+        return rows.toEntities().associateBy { it.id }
     }
 }

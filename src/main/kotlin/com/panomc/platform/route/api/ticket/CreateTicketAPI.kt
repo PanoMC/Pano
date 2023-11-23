@@ -1,17 +1,20 @@
 package com.panomc.platform.route.api.ticket
 
-import com.panomc.platform.ErrorCode
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketMessage
+import com.panomc.platform.error.CategoryNotExists
+import com.panomc.platform.error.MessageCantBeEmpty
+import com.panomc.platform.error.TitleCantBeEmpty
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.Notifications
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -36,6 +39,7 @@ class CreateTicketAPI(
                         .property("categoryId", numberSchema())
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -55,7 +59,7 @@ class CreateTicketAPI(
             val isCategoryExists = databaseManager.ticketCategoryDao.existsById(categoryId, sqlClient)
 
             if (!isCategoryExists) {
-                throw Error(ErrorCode.CATEGORY_NOT_EXISTS)
+                throw CategoryNotExists()
             }
         }
 
@@ -90,11 +94,11 @@ class CreateTicketAPI(
 
     private fun validateInput(title: String, message: String) {
         if (title.isBlank()) {
-            throw Error(ErrorCode.TITLE_CANT_BE_EMPTY)
+            throw TitleCantBeEmpty()
         }
 
         if (message.isBlank()) {
-            throw Error(ErrorCode.MESSAGE_CANT_BE_EMPTY)
+            throw MessageCantBeEmpty()
         }
     }
 }

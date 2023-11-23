@@ -1,12 +1,15 @@
 package com.panomc.platform.route.api.panel.post
 
-import com.panomc.platform.ErrorCode
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
+import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters
@@ -27,9 +30,10 @@ class PanelUpdatePostStatusAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("to", stringSchema())
+                        .property("to", enumSchema(*TicketStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
+            .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -48,7 +52,7 @@ class PanelUpdatePostStatusAPI(
         val exists = databaseManager.postDao.existsById(id, sqlClient)
 
         if (!exists) {
-            throw Error(ErrorCode.NOT_EXISTS)
+            throw NotExists()
         }
 
         if (moveTo == "trash") {

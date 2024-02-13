@@ -4,10 +4,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.InvalidData
 import com.panomc.platform.model.*
 import com.panomc.platform.setup.SetupManager
-import io.vertx.ext.mail.MailClient
-import io.vertx.ext.mail.MailConfig
-import io.vertx.ext.mail.MailMessage
-import io.vertx.ext.mail.StartTLSOptions
+import io.vertx.ext.mail.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -88,6 +85,10 @@ class VerifyMailConfigurationAPI(private val logger: Logger, setupManager: Setup
 
             mailClient.close()
         } catch (e: Exception) {
+            logger.error(e.toString())
+
+            throw InvalidData(extras = mapOf("mailError" to e.message))
+        } catch (e: SMTPException) {
             logger.error(e.toString())
 
             throw InvalidData(extras = mapOf("mailError" to e.message))

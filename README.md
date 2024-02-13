@@ -3,7 +3,7 @@
   Pano is an advanced web platform that comfort your Minecraft server's website needs. 
 </p>
 <p align="center">
-  <img src="https://img.shields.io/maintenance/yes/2023?style=for-the-badge" alt="Maintained">
+  <img src="https://img.shields.io/maintenance/yes/2024?style=for-the-badge" alt="Maintained">
   <a href="https://github.com/panocms/pano/blob/dev/LICENSE"><img src="https://img.shields.io/github/license/panocms/pano?style=for-the-badge" alt="License"></a>
   <a href="https://discord.gg/Qm8bfzJ9HB"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=for-the-badge" alt="Chat"></a>
 </p>

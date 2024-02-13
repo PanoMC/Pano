@@ -53,52 +53,45 @@ class VerifyMailConfigurationAPI(private val logger: Logger, setupManager: Setup
         val username = data.getString("username")
         val password = data.getString("password")
 
-        val mailConfig = MailConfig()
-
-        mailConfig.hostname = host
-        mailConfig.port = port
-
-        if (useSSL) {
-            mailConfig.isSsl = true
-        }
-
-        if (useTLS) {
-            mailConfig.starttls = StartTLSOptions.REQUIRED
-        }
-
-        mailConfig.username = username
-        mailConfig.password = password
-
-        if (authMethod != null) {
-            mailConfig.authMethods = authMethod
-        }
-
-        val mailClient: MailClient
-
         try {
+            val mailConfig = MailConfig()
+
+            mailConfig.hostname = host
+            mailConfig.port = port
+
+            if (useSSL) {
+                mailConfig.isSsl = true
+            }
+
+            if (useTLS) {
+                mailConfig.starttls = StartTLSOptions.REQUIRED
+            }
+
+            mailConfig.username = username
+            mailConfig.password = password
+
+            if (authMethod != null) {
+                mailConfig.authMethods = authMethod
+            }
+
+            val mailClient: MailClient
             mailClient = MailClient.create(context.vertx(), mailConfig)
-        } catch (e: Exception) {
-            logger.error(e.toString())
 
-            throw InvalidData(extras = mapOf("mailError" to e.message))
-        }
+            val message = MailMessage()
 
-        val message = MailMessage()
+            message.from = address
+            message.subject = "Pano Platform E-mail test"
+            message.setTo("no-reply@duruer.dev")
+            message.html = "Hello world!"
 
-        message.from = address
-        message.subject = "Pano Platform E-mail test"
-        message.setTo("no-reply@duruer.dev")
-        message.html = "Hello world!"
-
-        try {
             mailClient.sendMail(message).await()
+
+            mailClient.close()
         } catch (e: Exception) {
             logger.error(e.toString())
 
             throw InvalidData(extras = mapOf("mailError" to e.message))
         }
-
-        mailClient.close()
 
         return Successful()
     }

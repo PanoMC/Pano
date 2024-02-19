@@ -1,2 +1,2 @@
-rootProject.name = "Pano Web Platform"
+rootProject.name = "Pano"
 

@@ -1,0 +1,33 @@
+{
+  "branches": [
+    {
+      "name": "alpha",
+      "prerelease": true
+    },
+    {
+      "name": "beta",
+      "prerelease": true
+    },
+    "main"
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "build/libs/*.jar",
+            "label": false
+          },
+          {
+            "path": "LICENSE",
+            "label": false
+          }
+        ]
+      }
+    ]
+  ],
+  "repositoryUrl": "https://github.com/panocms/pano.git"
+}

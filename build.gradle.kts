@@ -2,19 +2,20 @@ val vertxVersion = "4.5.0"
 val log4jVersion = "2.21.1"
 
 plugins {
-    java
     kotlin("jvm") version "1.9.20"
     kotlin("kapt") version "1.9.20"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     application
+    `maven-publish`
 }
 
-group = "com.panomc.platform"
-version = "1.0.0"
+group = "com.panomc"
+version =
+    (if (project.hasProperty("version") && project.findProperty("version") != "unspecified") project.findProperty("version") else "local-build")!!
 
-val buildType = "alpha"
+val buildType = project.findProperty("buildType") as String? ?: "alpha"
 val timeStamp: String by project
-val fullVersion = if (project.hasProperty("timeStamp")) "$version-$buildType-$timeStamp" else "$version-$buildType"
+val buildDir by extra { file("${rootProject.layout.buildDirectory.get()}/libs") }
 
 repositories {
     mavenCentral()
@@ -64,16 +65,22 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 }
 
+tasks.named("jar").configure {
+    enabled = false
+}
+
 tasks {
     register("copyJar") {
+        dependsOn(shadowJar)
+
         doLast {
-            copy {
-                from(shadowJar.get().archiveFile.get().asFile.absolutePath)
-                into("./")
+            if (shadowJar.get().archiveFile.get().asFile.parentFile.absolutePath != buildDir.absolutePath) {
+                copy {
+                    from(shadowJar.get().archiveFile.get().asFile.absolutePath)
+                    into(buildDir)
+                }
             }
         }
-
-        dependsOn(shadowJar)
     }
 
     build {
@@ -85,22 +92,24 @@ tasks {
     }
 
     shadowJar {
+        dependsOn(distTar, distZip)
+
         manifest {
             val attrMap = mutableMapOf<String, String>()
 
             if (project.gradle.startParameter.taskNames.contains("buildDev"))
                 attrMap["MODE"] = "DEVELOPMENT"
 
-            attrMap["VERSION"] = fullVersion
+            attrMap["VERSION"] = version.toString()
             attrMap["BUILD_TYPE"] = buildType
 
             attributes(attrMap)
         }
 
-        if (project.hasProperty("timeStamp")) {
-            archiveFileName.set("Pano-${timeStamp}.jar")
-        } else {
-            archiveFileName.set("Pano.jar")
+        archiveFileName.set("${rootProject.name}-${version}.jar")
+
+        if (project.gradle.startParameter.taskNames.contains("publish")) {
+            archiveFileName.set(archiveFileName.get().lowercase())
         }
     }
 }
@@ -111,10 +120,32 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
 
 tasks.named<JavaExec>("run") {
     environment("EnvironmentType", "DEVELOPMENT")
-    environment("PanoVersion", fullVersion)
+    environment("PanoVersion", version)
     environment("PanoBuildType", buildType)
 }
 
 application {
     mainClass.set("com.panomc.platform.Main")
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "Pano"
+            url = uri("https://maven.pkg.github.com/panocms/pano")
+            credentials {
+                username = project.findProperty("gpr.user") as String? ?: System.getenv("USERNAME_GITHUB")
+                password = project.findProperty("gpr.token") as String? ?: System.getenv("TOKEN_GITHUB")
+            }
+        }
+    }
+
+    publications {
+        create<MavenPublication>("shadow") {
+            project.extensions.configure<com.github.jengelman.gradle.plugins.shadow.ShadowExtension> {
+                artifactId = "core"
+                component(this@create)
+            }
+        }
+    }
 }

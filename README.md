@@ -23,8 +23,8 @@ Docker & Docker Compose (optional)
 Clone this repository.
 
 ```bash
-git clone --recursive https://gitlab.com/defio-workshop/pano/pano-web-platform.git
-cd pano-web-platform
+git clone --recursive https://github.com/panocms/pano.git
+cd pano
 ```
 
 ##### Compile & Run & Debug

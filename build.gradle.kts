@@ -1,4 +1,4 @@
-val vertxVersion = "4.5.0"
+val vertxVersion = "4.5.3"
 val log4jVersion = "2.21.1"
 
 plugins {
@@ -56,10 +56,10 @@ dependencies {
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.16.0")
+    implementation(group = "commons-codec", name = "commons-codec", version = "1.16.1")
 
     // https://mvnrepository.com/artifact/org.springframework/spring-context
-    implementation("org.springframework:spring-context:5.3.30")
+    implementation("org.springframework:spring-context:5.3.32")
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation("com.google.code.gson:gson:2.10.1")

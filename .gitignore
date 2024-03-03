@@ -12,3 +12,10 @@ config.conf
 .docker
 
 file-uploads
+
+# Ignore everything under plugins/
+plugins/*
+
+# Except the following files
+!plugins/build.gradle.kts
+!plugins/*.jar

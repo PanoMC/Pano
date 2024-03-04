@@ -16,7 +16,7 @@ object UIHelper {
             return
         }
 
-        val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
         setupUI.origin(3002, "localhost")
 
@@ -32,7 +32,7 @@ object UIHelper {
             return
         }
 
-        val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
         themeUI.origin(3000, "localhost")
 
@@ -48,7 +48,7 @@ object UIHelper {
             return
         }
 
-        val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
         panelUI.origin(3001, "localhost")
 

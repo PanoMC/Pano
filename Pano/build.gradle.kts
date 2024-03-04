@@ -62,6 +62,12 @@ dependencies {
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
     implementation(group = "commons-codec", name = "commons-codec", version = "1.16.1")
 
+    // https://mvnrepository.com/artifact/commons-io/commons-io
+    implementation("commons-io:commons-io:2.15.1")
+
+    // https://mvnrepository.com/artifact/org.apache.tika/tika-core
+    implementation("org.apache.tika:tika-core:2.9.1")
+
     // https://mvnrepository.com/artifact/org.springframework/spring-context
     implementation("org.springframework:spring-context:5.3.32")
 
@@ -69,6 +75,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 
     implementation("org.pf4j:pf4j:${pf4jVersion}")
+    kapt("org.pf4j:pf4j:${pf4jVersion}")
 }
 
 tasks {

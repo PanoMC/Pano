@@ -2,6 +2,7 @@ package com.panomc.platform.api
 
 import com.panomc.platform.Main
 import com.panomc.platform.PluginEventManager
+import com.panomc.platform.PluginUiManager
 import com.panomc.platform.ReleaseStage
 import io.vertx.core.Vertx
 import kotlinx.coroutines.runBlocking
@@ -17,6 +18,8 @@ abstract class PanoPlugin : Plugin() {
     lateinit var vertx: Vertx
         internal set
     lateinit var pluginEventManager: PluginEventManager
+        internal set
+    lateinit var pluginUiManager: PluginUiManager
         internal set
     lateinit var environmentType: Main.Companion.EnvironmentType
         internal set
@@ -85,6 +88,7 @@ abstract class PanoPlugin : Plugin() {
         }
 
         pluginEventManager.unregisterPlugin(this)
+        pluginUiManager.unRegisterPlugin(this)
 
         runBlocking {
             onDisable()

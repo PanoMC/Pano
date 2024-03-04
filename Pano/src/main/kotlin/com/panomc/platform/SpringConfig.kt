@@ -16,7 +16,6 @@ import org.slf4j.Logger
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.*
-import java.nio.file.Paths
 
 
 @Configuration
@@ -27,6 +26,9 @@ open class SpringConfig {
 
         internal lateinit var vertx: Vertx
         private lateinit var logger: Logger
+
+        internal val pluginEventManager = PluginEventManager()
+        internal val pluginUiManager = PluginUiManager()
 
         internal fun setDefaults(vertx: Vertx, logger: Logger) {
             SpringConfig.vertx = vertx
@@ -103,5 +105,10 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun pluginManager(): PluginManager = PluginManager(listOf(Paths.get(pluginsDir)))
+    open fun providePluginUiManager(): PluginUiManager = pluginUiManager
+
+    @Bean
+    @Lazy
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun providePluginEventManager(): PluginEventManager = pluginEventManager
 }

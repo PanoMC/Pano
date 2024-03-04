@@ -1,6 +1,5 @@
 package com.panomc.platform
 
-import com.panomc.platform.PluginManager.Companion.pluginEventManager
 import com.panomc.platform.SpringConfig.Companion.vertx
 import com.panomc.platform.api.PanoPlugin
 import kotlinx.coroutines.runBlocking
@@ -10,7 +9,8 @@ import org.pf4j.PluginWrapper
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
-class PluginFactory : DefaultPluginFactory() {
+class PluginFactory(private val pluginEventManager: PluginEventManager, private val pluginUiManager: PluginUiManager) :
+    DefaultPluginFactory() {
     companion object {
         private val logger = LoggerFactory.getLogger(PluginFactory::class.java)
     }
@@ -34,9 +34,12 @@ class PluginFactory : DefaultPluginFactory() {
 
             pluginEventManager.initializePlugin(plugin, pluginBeanContext)
 
+            pluginUiManager.initializePlugin(plugin)
+
             plugin.pluginId = pluginWrapper.pluginId
             plugin.vertx = vertx
             plugin.pluginEventManager = pluginEventManager
+            plugin.pluginUiManager = pluginUiManager
             plugin.environmentType = Main.ENVIRONMENT
             plugin.releaseStage = Main.STAGE
             plugin.pluginBeanContext = pluginBeanContext

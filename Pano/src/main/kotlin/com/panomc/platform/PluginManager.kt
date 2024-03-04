@@ -1,16 +1,15 @@
 package com.panomc.platform
 
+import com.panomc.platform.SpringConfig.Companion.pluginEventManager
+import com.panomc.platform.SpringConfig.Companion.pluginUiManager
 import org.pf4j.*
+import org.springframework.stereotype.Component
 import java.nio.file.Path
+import java.nio.file.Paths
 
-class PluginManager(importPaths: List<Path>) : DefaultPluginManager(importPaths) {
-    companion object {
-        internal val pluginEventManager = PluginEventManager()
-    }
-
-    override fun startPlugins() {
-        super.startPlugins()
-    }
+@Component
+class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getProperty("pf4j.pluginsDir", "./plugins")))) :
+    DefaultPluginManager(importPaths) {
 
     override fun createPluginDescriptorFinder(): CompoundPluginDescriptorFinder {
         return CompoundPluginDescriptorFinder() // Demo is using the Manifest file
@@ -20,15 +19,11 @@ class PluginManager(importPaths: List<Path>) : DefaultPluginManager(importPaths)
     }
 
     override fun createPluginFactory(): PluginFactory {
-        return PluginFactory()
+        return PluginFactory(pluginEventManager, pluginUiManager)
     }
 
     override fun createPluginLoader(): PluginLoader {
         return CompoundPluginLoader()
             .add(PanoPluginLoader(this)) { this.isNotDevelopment }
-    }
-
-    override fun loadPlugins() {
-        super.loadPlugins()
     }
 }

@@ -7,7 +7,7 @@ import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
-import com.panomc.platform.util.TicketStatus
+import com.panomc.platform.util.PostStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -30,7 +30,7 @@ class PanelUpdatePostStatusAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("to", enumSchema(*TicketStatus.entries.map { it.name }.toTypedArray()))
+                        .property("to", enumSchema(*PostStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -43,7 +43,7 @@ class PanelUpdatePostStatusAPI(
         val data = parameters.body().jsonObject
 
         val id = parameters.pathParameter("id").long
-        val moveTo = data.getString("to")
+        val moveTo = PostStatus.valueOf(data.getString("to"))
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -55,15 +55,15 @@ class PanelUpdatePostStatusAPI(
             throw NotExists()
         }
 
-        if (moveTo == "trash") {
+        if (moveTo == PostStatus.TRASH) {
             databaseManager.postDao.moveTrashById(id, sqlClient)
         }
 
-        if (moveTo == "draft") {
+        if (moveTo == PostStatus.DRAFT) {
             databaseManager.postDao.moveDraftById(id, sqlClient)
         }
 
-        if (moveTo == "publish") {
+        if (moveTo == PostStatus.PUBLISHED) {
             databaseManager.postDao.publishById(id, userId, sqlClient)
         }
 

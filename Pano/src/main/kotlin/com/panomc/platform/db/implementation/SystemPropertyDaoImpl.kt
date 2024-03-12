@@ -95,7 +95,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    "who_installed_userId",
+                    "who_installed_user_id",
                     userId.toString()
                 )
             )

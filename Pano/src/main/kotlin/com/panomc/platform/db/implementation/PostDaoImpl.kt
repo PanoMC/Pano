@@ -147,7 +147,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(
                     System.currentTimeMillis(),
-                    0,
+                    PostStatus.TRASH.name,
                     id
                 )
             )
@@ -166,7 +166,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(
                     System.currentTimeMillis(),
-                    2,
+                    PostStatus.DRAFT.name,
                     id
                 )
             )
@@ -188,7 +188,7 @@ class PostDaoImpl : PostDao() {
                     userId,
                     System.currentTimeMillis(),
                     System.currentTimeMillis(),
-                    1,
+                    PostStatus.PUBLISHED.name,
                     id
                 )
             )

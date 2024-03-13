@@ -26,6 +26,7 @@ class GetSiteInfoAPI(
         response["locale"] = config.getString("locale")
         response["websiteName"] = config.getString("website-name")
         response["websiteDescription"] = config.getString("website-description")
+        response["supportEmail"] = config.getString("support-email")
         response["keywords"] = config.getJsonArray("keywords")
         response["panoVersion"] = VERSION
 

@@ -69,7 +69,7 @@ dependencies {
     implementation("org.apache.tika:tika-core:2.9.1")
 
     // https://mvnrepository.com/artifact/org.springframework/spring-context
-    implementation("org.springframework:spring-context:5.3.32")
+    implementation("org.springframework:spring-context:5.3.33")
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation("com.google.code.gson:gson:2.10.1")

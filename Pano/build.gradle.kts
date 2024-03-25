@@ -1,5 +1,6 @@
 val vertxVersion: String by project
 val gsonVersion: String by project
+val springContextVersion: String by project
 val handlebarsVersion: String by project
 val log4jVersion = "2.21.1"
 val appMainClass = "com.panomc.platform.Main"
@@ -69,7 +70,7 @@ dependencies {
     implementation("org.apache.tika:tika-core:2.9.1")
 
     // https://mvnrepository.com/artifact/org.springframework/spring-context
-    implementation("org.springframework:spring-context:5.3.33")
+    implementation("org.springframework:spring-context:$springContextVersion")
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation("com.google.code.gson:gson:2.10.1")

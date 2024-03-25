@@ -16,23 +16,10 @@ class PluginFactory(private val pluginEventManager: PluginEventManager, private 
     }
 
     override fun createInstance(pluginClass: Class<*>, pluginWrapper: PluginWrapper): Plugin? {
-        val pluginBeanContext by lazy {
-            val pluginBeanContext = AnnotationConfigApplicationContext()
-
-            pluginBeanContext.parent = Main.applicationContext
-            pluginBeanContext.classLoader = pluginClass.classLoader
-            pluginBeanContext.scan(pluginClass.`package`.name)
-            pluginBeanContext.refresh()
-
-            pluginBeanContext
-        }
-
         try {
             val constructor = pluginClass.getConstructor()
 
             val plugin = constructor.newInstance() as PanoPlugin
-
-            pluginEventManager.initializePlugin(plugin, pluginBeanContext)
 
             pluginUiManager.initializePlugin(plugin)
 
@@ -42,8 +29,21 @@ class PluginFactory(private val pluginEventManager: PluginEventManager, private 
             plugin.pluginUiManager = pluginUiManager
             plugin.environmentType = Main.ENVIRONMENT
             plugin.releaseStage = Main.STAGE
-            plugin.pluginBeanContext = pluginBeanContext
             plugin.applicationContext = Main.applicationContext
+
+            val pluginBeanContext by lazy {
+                val pluginBeanContext = AnnotationConfigApplicationContext()
+
+                pluginBeanContext.parent = Main.applicationContext
+                pluginBeanContext.classLoader = pluginClass.classLoader
+                pluginBeanContext.scan(pluginClass.`package`.name)
+                pluginBeanContext.refresh()
+
+                pluginBeanContext
+            }
+            plugin.pluginBeanContext = pluginBeanContext
+
+            pluginEventManager.initializePlugin(plugin, pluginBeanContext)
 
             runBlocking {
                 plugin.onLoad()

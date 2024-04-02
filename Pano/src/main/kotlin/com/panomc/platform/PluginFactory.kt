@@ -29,18 +29,27 @@ class PluginFactory(private val pluginEventManager: PluginEventManager, private 
             plugin.pluginUiManager = pluginUiManager
             plugin.environmentType = Main.ENVIRONMENT
             plugin.releaseStage = Main.STAGE
+            plugin.pluginGlobalBeanContext = PluginManager.pluginGlobalBeanContext
             plugin.applicationContext = Main.applicationContext
 
             val pluginBeanContext by lazy {
                 val pluginBeanContext = AnnotationConfigApplicationContext()
 
-                pluginBeanContext.parent = Main.applicationContext
+                pluginBeanContext.setAllowBeanDefinitionOverriding(true)
+
+                pluginBeanContext.parent = PluginManager.pluginGlobalBeanContext
                 pluginBeanContext.classLoader = pluginClass.classLoader
                 pluginBeanContext.scan(pluginClass.`package`.name)
+
+                pluginBeanContext.beanFactory.registerSingleton(plugin.logger.javaClass.name, plugin.logger)
+                pluginBeanContext.beanFactory.registerSingleton(pluginEventManager.javaClass.name, pluginEventManager)
+                pluginBeanContext.beanFactory.registerSingleton(plugin.javaClass.name, plugin)
+
                 pluginBeanContext.refresh()
 
                 pluginBeanContext
             }
+
             plugin.pluginBeanContext = pluginBeanContext
 
             pluginEventManager.initializePlugin(plugin, pluginBeanContext)

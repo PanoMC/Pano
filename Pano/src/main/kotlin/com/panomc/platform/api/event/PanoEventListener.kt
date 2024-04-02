@@ -1,3 +1,3 @@
-package com.panomc.platform.api
+package com.panomc.platform.api.event
 
 interface PanoEventListener : EventListener

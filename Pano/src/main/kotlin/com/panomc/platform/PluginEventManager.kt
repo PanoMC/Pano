@@ -1,9 +1,9 @@
 package com.panomc.platform
 
-import com.panomc.platform.api.EventListener
-import com.panomc.platform.api.PanoEventListener
 import com.panomc.platform.api.PanoPlugin
-import com.panomc.platform.api.PluginEventListener
+import com.panomc.platform.api.event.EventListener
+import com.panomc.platform.api.event.PanoEventListener
+import com.panomc.platform.api.event.PluginEventListener
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
 class PluginEventManager {

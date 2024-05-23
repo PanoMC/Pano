@@ -2,7 +2,6 @@ package com.panomc.platform.route
 
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Route
 import com.panomc.platform.model.RouteType
@@ -15,7 +14,6 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.json.schema.SchemaParser
-import org.pf4j.PluginWrapper
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
 class RouterProvider private constructor(
@@ -79,10 +77,8 @@ class RouterProvider private constructor(
         val routeList = mutableListOf<Route>()
 
         routeList.addAll(applicationContext.getBeansWithAnnotation(Endpoint::class.java).map { it.value as Route })
-        routeList.addAll(pluginManager.plugins.map {
-            ((it as PluginWrapper).plugin as PanoPlugin).pluginBeanContext.getBeansWithAnnotation(
-                Endpoint::class.java
-            )
+        routeList.addAll(pluginManager.getPanoPlugins().map {
+            it.pluginBeanContext.getBeansWithAnnotation(Endpoint::class.java)
         }.flatMap { it.values }.map { it as Route })
 
         router.route()

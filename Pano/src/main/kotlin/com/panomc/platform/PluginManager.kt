@@ -2,6 +2,7 @@ package com.panomc.platform
 
 import com.panomc.platform.SpringConfig.Companion.pluginEventManager
 import com.panomc.platform.SpringConfig.Companion.pluginUiManager
+import com.panomc.platform.api.PanoPlugin
 import org.pf4j.*
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.stereotype.Component
@@ -39,5 +40,12 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     override fun createPluginLoader(): PluginLoader {
         return CompoundPluginLoader()
             .add(PanoPluginLoader(this)) { this.isNotDevelopment }
+    }
+
+    fun getPanoPlugins(): List<PanoPlugin> = plugins.mapNotNull { plugin ->
+        runCatching {
+            val pluginWrapper = plugin as PluginWrapper
+            pluginWrapper.plugin as PanoPlugin
+        }.getOrNull()
     }
 }

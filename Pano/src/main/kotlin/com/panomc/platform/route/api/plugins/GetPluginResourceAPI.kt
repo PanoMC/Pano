@@ -11,14 +11,14 @@ import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.FileResourceUtil.getResource
-import io.vertx.core.buffer.Buffer
+import com.panomc.platform.util.FileResourceUtil.writeToResponse
+import com.panomc.platform.util.MimeTypeUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import org.apache.tika.Tika
 import java.io.InputStream
 
 @Endpoint
@@ -28,10 +28,6 @@ class GetPluginResourceAPI(
     private val pluginUiManager: PluginUiManager
 ) : Api() {
     override val paths = listOf(Path("/api/plugins/:pluginId/resources/*", RouteType.GET))
-
-    private val tika by lazy {
-        Tika()
-    }
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
@@ -59,34 +55,16 @@ class GetPluginResourceAPI(
         val resource: InputStream = plugin.getResource(fileName) ?: throw NotFound()
 
         val response = context.response()
-        val mimeType = getMimeTypeFromFileName(fileName.replace("plugin-ui/", ""))
+        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(fileName.replace("plugin-ui/", ""))
 
         response.putHeader("Content-Type", mimeType)
 
         response.isChunked = true
 
-        resource.use {
-            val buffer = ByteArray(1024)
-            var bytesRead: Int
-            while (it.read(buffer).also { bytesRead = it } != -1) {
-                response.write(Buffer.buffer(buffer.copyOfRange(0, bytesRead)))
-            }
-        }
+        resource.writeToResponse(response)
 
         response.end()
 
         return null
-    }
-
-    private fun getMimeTypeFromFileName(fileName: String): String {
-        val split = fileName.split(".")
-
-        val extension = split[split.size - 1]
-
-        if (extension == "mjs" || extension == "js") {
-            return "text/javascript"
-        }
-
-        return tika.detect(fileName)
     }
 }

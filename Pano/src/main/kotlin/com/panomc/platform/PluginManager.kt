@@ -42,10 +42,24 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             .add(PanoPluginLoader(this)) { this.isNotDevelopment }
     }
 
-    fun getPanoPlugins(): List<PanoPlugin> = plugins.mapNotNull { plugin ->
+    fun getActivePanoPlugins(): List<PanoPlugin> = getPlugins(PluginState.STARTED).mapNotNull { plugin ->
         runCatching {
-            val pluginWrapper = plugin.value as PluginWrapper
+            val pluginWrapper = plugin as PanoPluginWrapper
             pluginWrapper.plugin as PanoPlugin
         }.getOrNull()
+    }
+
+    fun getPluginWrappers() = plugins.values.map { it as PanoPluginWrapper }
+
+    override fun createPluginWrapper(
+        pluginDescriptor: PluginDescriptor,
+        pluginPath: Path,
+        pluginClassLoader: ClassLoader
+    ): PluginWrapper {
+        val pluginWrapper = PanoPluginWrapper(this, pluginDescriptor, pluginPath, pluginClassLoader)
+
+        pluginWrapper.setPluginFactory(getPluginFactory())
+
+        return pluginWrapper
     }
 }

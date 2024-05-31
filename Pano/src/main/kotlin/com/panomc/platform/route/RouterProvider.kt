@@ -77,7 +77,7 @@ class RouterProvider private constructor(
         val routeList = mutableListOf<Route>()
 
         routeList.addAll(applicationContext.getBeansWithAnnotation(Endpoint::class.java).map { it.value as Route })
-        routeList.addAll(pluginManager.getPanoPlugins().map {
+        routeList.addAll(pluginManager.getActivePanoPlugins().map {
             it.pluginBeanContext.getBeansWithAnnotation(Endpoint::class.java)
         }.flatMap { it.values }.map { it as Route })
 

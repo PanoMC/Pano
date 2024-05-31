@@ -1,10 +1,8 @@
 package com.panomc.platform.route.api.plugins
 
 import com.panomc.platform.AppConstants
-import com.panomc.platform.PluginManager
 import com.panomc.platform.PluginUiManager
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.Api
 import com.panomc.platform.model.Path
@@ -23,8 +21,6 @@ import java.io.InputStream
 
 @Endpoint
 class GetPluginResourceAPI(
-    private val configManager: ConfigManager,
-    private val pluginManager: PluginManager,
     private val pluginUiManager: PluginUiManager
 ) : Api() {
     override val paths = listOf(Path("/api/plugins/:pluginId/resources/*", RouteType.GET))

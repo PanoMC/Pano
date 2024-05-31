@@ -44,7 +44,7 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
     fun getPanoPlugins(): List<PanoPlugin> = plugins.mapNotNull { plugin ->
         runCatching {
-            val pluginWrapper = plugin as PluginWrapper
+            val pluginWrapper = plugin.value as PluginWrapper
             pluginWrapper.plugin as PanoPlugin
         }.getOrNull()
     }

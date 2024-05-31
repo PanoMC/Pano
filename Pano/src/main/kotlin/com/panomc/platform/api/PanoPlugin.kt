@@ -5,6 +5,8 @@ import com.panomc.platform.PluginEventManager
 import com.panomc.platform.PluginUiManager
 import com.panomc.platform.ReleaseStage
 import com.panomc.platform.api.event.PluginEventListener
+import com.panomc.platform.util.FileResourceUtil.getResource
+import com.typesafe.config.ConfigFactory
 import io.vertx.core.Vertx
 import kotlinx.coroutines.runBlocking
 import org.pf4j.Plugin
@@ -32,6 +34,14 @@ abstract class PanoPlugin : Plugin() {
         internal set
 
     internal lateinit var applicationContext: AnnotationConfigApplicationContext
+
+    internal val config by lazy {
+        val configResource = this.getResource("config.conf") ?: return@lazy null
+
+        val rawConfig = configResource.bufferedReader().readText()
+
+        return@lazy ConfigFactory.parseString(rawConfig)
+    }
 
     val logger: Logger = LoggerFactory.getLogger(this::class.java)
 

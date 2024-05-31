@@ -77,6 +77,8 @@ dependencies {
 
     implementation("org.pf4j:pf4j:${pf4jVersion}")
     kapt("org.pf4j:pf4j:${pf4jVersion}")
+
+    implementation("com.typesafe:config:1.4.3")
 }
 
 tasks {

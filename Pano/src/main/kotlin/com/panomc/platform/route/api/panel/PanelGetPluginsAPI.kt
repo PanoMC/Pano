@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel
 
+import com.panomc.platform.PanoPluginDescriptor
 import com.panomc.platform.PanoPluginWrapper
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
@@ -46,15 +47,18 @@ class PanelGetPluginsAPI(
 
         val result = mutableMapOf(
             "plugins" to plugins.map { it as PanoPluginWrapper }.map {
+                val panoPluginDescriptor = it.descriptor as PanoPluginDescriptor
+
                 mapOf(
                     "id" to it.pluginId,
-                    "author" to it.descriptor.provider,
-                    "version" to it.descriptor.version,
+                    "author" to panoPluginDescriptor.provider,
+                    "version" to panoPluginDescriptor.version,
                     "status" to it.pluginState,
-                    "dependencies" to it.descriptor.dependencies,
-                    "license" to it.descriptor.license,
+                    "dependencies" to panoPluginDescriptor.dependencies,
+                    "license" to panoPluginDescriptor.license,
                     "error" to if (it.failedException == null) null else getStackTraceAsString(it.failedException),
-                    "hash" to it.hash
+                    "hash" to it.hash,
+                    "sourceUrl" to panoPluginDescriptor.sourceUrl
                 )
             }
         )

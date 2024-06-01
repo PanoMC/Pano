@@ -64,7 +64,7 @@ class PanelGetPluginsAPI(
                     "version" to panoPluginDescriptor.version,
                     "status" to plugin.pluginState,
                     "dependencies" to panoPluginDescriptor.dependencies,
-                    "dependents" to plugins.filter { it.descriptor.dependencies.any { it.pluginId == plugin.pluginId } }
+                    "dependents" to plugins.filter { it.pluginState == PluginState.STARTED && it.descriptor.dependencies.any { it.pluginId == plugin.pluginId && !it.isOptional } }
                         .map { it.pluginId },
                     "license" to panoPluginDescriptor.license,
                     "error" to if (plugin.failedException == null) null else TextUtil.getStackTraceAsString(plugin.failedException),

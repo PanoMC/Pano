@@ -4,7 +4,9 @@ import com.panomc.platform.PanoPluginDescriptor
 import com.panomc.platform.PanoPluginWrapper
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.AddonHashStatus
 import com.panomc.platform.util.AddonStatusType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -19,6 +21,7 @@ import java.io.StringWriter
 
 @Endpoint
 class PanelGetPluginsAPI(
+    private val databaseManager: DatabaseManager,
     private val pluginManager: PluginManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/plugins", RouteType.GET))
@@ -43,10 +46,16 @@ class PanelGetPluginsAPI(
             AddonStatusType.ACTIVE -> pluginManager.plugins.filter { it.pluginState == PluginState.STARTED }
             AddonStatusType.DISABLED -> pluginManager.plugins.filter { it.pluginState != PluginState.STARTED }
             else -> pluginManager.plugins
-        }
+        }.map { it as PanoPluginWrapper }
+
+        val hashList = plugins.map { it.hash }
+
+        val sqlClient = getSqlClient()
+
+        val addonHashes = databaseManager.addonHashDao.byListOfHash(hashList, sqlClient)
 
         val result = mutableMapOf(
-            "plugins" to plugins.map { it as PanoPluginWrapper }.map {
+            "plugins" to plugins.map {
                 val panoPluginDescriptor = it.descriptor as PanoPluginDescriptor
 
                 mapOf(
@@ -59,6 +68,7 @@ class PanelGetPluginsAPI(
                     "license" to panoPluginDescriptor.license,
                     "error" to if (it.failedException == null) null else getStackTraceAsString(it.failedException),
                     "hash" to it.hash,
+                    "verifyStatus" to if (addonHashes[it.hash] == null) AddonHashStatus.UNKNOWN else addonHashes[it.hash]!!.status,
                     "sourceUrl" to panoPluginDescriptor.sourceUrl
                 )
             }

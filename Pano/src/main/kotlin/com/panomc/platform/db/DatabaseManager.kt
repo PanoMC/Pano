@@ -36,7 +36,8 @@ class DatabaseManager(
     @Lazy val websiteViewDao: WebsiteViewDao,
     @Lazy val tokenDao: TokenDao,
     @Lazy val notificationDao: NotificationDao,
-    @Lazy val serverPlayerDao: ServerPlayerDao
+    @Lazy val serverPlayerDao: ServerPlayerDao,
+    @Lazy val addonHashDao: AddonHashDao
 ) {
 
     @Autowired

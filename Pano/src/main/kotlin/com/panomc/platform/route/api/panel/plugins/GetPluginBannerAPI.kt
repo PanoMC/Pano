@@ -1,9 +1,9 @@
-package com.panomc.platform.route.api.plugins
+package com.panomc.platform.route.api.panel.plugins
 
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.NotFound
-import com.panomc.platform.model.Api
+import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
@@ -19,10 +19,10 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.InputStream
 
 @Endpoint
-class GetPluginLogoAPI(
+class GetPluginBannerAPI(
     private val pluginManager: PluginManager
-) : Api() {
-    override val paths = listOf(Path("/api/plugins/:pluginId/logo", RouteType.GET))
+) : PanelApi() {
+    override val paths = listOf(Path("/api/panel/plugins/:pluginId/banner", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
@@ -42,12 +42,12 @@ class GetPluginLogoAPI(
 
         val pluginConfig = pluginWrapper.config ?: throw NotFound()
 
-        val logoFileName = pluginConfig.getString("logo-file")
+        val bannerFileName = pluginConfig.getString("banner-file")
 
-        val resource: InputStream = pluginWrapper.getResource(logoFileName) ?: throw NotFound()
+        val resource: InputStream = pluginWrapper.getResource(bannerFileName) ?: throw NotFound()
 
         val response = context.response()
-        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(logoFileName)
+        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(bannerFileName)
 
         response.putHeader("Content-Type", mimeType)
 

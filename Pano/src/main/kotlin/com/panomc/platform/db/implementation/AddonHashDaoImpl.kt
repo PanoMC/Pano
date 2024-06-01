@@ -55,6 +55,10 @@ class AddonHashDaoImpl : AddonHashDao() {
     ): Map<String, AddonHash> {
         var listText = ""
 
+        if (hashList.isEmpty()) {
+            return mapOf()
+        }
+
         hashList.forEach { hash ->
             if (listText == "")
                 listText = "'$hash'"

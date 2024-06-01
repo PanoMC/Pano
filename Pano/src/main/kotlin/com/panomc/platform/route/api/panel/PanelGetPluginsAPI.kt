@@ -8,6 +8,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.AddonHashStatus
 import com.panomc.platform.util.AddonStatusType
+import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -16,8 +17,6 @@ import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 import org.pf4j.PluginState
-import java.io.PrintWriter
-import java.io.StringWriter
 
 @Endpoint
 class PanelGetPluginsAPI(
@@ -66,7 +65,7 @@ class PanelGetPluginsAPI(
                     "status" to it.pluginState,
                     "dependencies" to panoPluginDescriptor.dependencies,
                     "license" to panoPluginDescriptor.license,
-                    "error" to if (it.failedException == null) null else getStackTraceAsString(it.failedException),
+                    "error" to if (it.failedException == null) null else TextUtil.getStackTraceAsString(it.failedException),
                     "hash" to it.hash,
                     "verifyStatus" to if (addonHashes[it.hash] == null) AddonHashStatus.UNKNOWN else addonHashes[it.hash]!!.status,
                     "sourceUrl" to panoPluginDescriptor.sourceUrl
@@ -75,12 +74,5 @@ class PanelGetPluginsAPI(
         )
 
         return Successful(result)
-    }
-
-    private fun getStackTraceAsString(exception: Throwable): String {
-        val stringWriter = StringWriter()
-        val printWriter = PrintWriter(stringWriter)
-        exception.printStackTrace(printWriter)
-        return stringWriter.toString()
     }
 }

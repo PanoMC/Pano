@@ -1,5 +1,8 @@
 package com.panomc.platform.util
 
+import java.io.PrintWriter
+import java.io.StringWriter
+
 object TextUtil {
     fun convertStringToUrl(string: String, limit: Int = 200) =
         string
@@ -14,5 +17,12 @@ object TextUtil {
             "${matchResult.groupValues[1]}_${matchResult.groupValues[2].lowercase()}"
         }
         return result
+    }
+
+    fun getStackTraceAsString(exception: Throwable): String {
+        val stringWriter = StringWriter()
+        val printWriter = PrintWriter(stringWriter)
+        exception.printStackTrace(printWriter)
+        return stringWriter.toString()
     }
 }

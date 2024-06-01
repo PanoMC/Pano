@@ -20,7 +20,7 @@ import java.io.StringWriter
 @Endpoint
 class PanelGetPluginsAPI(
     private val pluginManager: PluginManager
-) : Api() {
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/plugins", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

@@ -27,10 +27,8 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     }
 
     override fun createPluginDescriptorFinder(): CompoundPluginDescriptorFinder {
-        return CompoundPluginDescriptorFinder() // Demo is using the Manifest file
-            // PropertiesPluginDescriptorFinder is commented out just to avoid error log
-            //.add(PropertiesPluginDescriptorFinder())
-            .add(ManifestPluginDescriptorFinder())
+        return CompoundPluginDescriptorFinder()
+            .add(PanoManifestPluginDescriptorFinder())
     }
 
     override fun createPluginFactory(): PluginFactory {

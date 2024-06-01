@@ -68,11 +68,13 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
         val plugin = getPlugin(pluginId)?.plugin as PanoPlugin?
 
-        plugin?.let {
-            runBlocking {
-                it.load()
-                it.onEnable()
-                it.onStart()
+        if (result) {
+            plugin?.let {
+                runBlocking {
+                    it.load()
+                    it.onEnable()
+                    it.onStart()
+                }
             }
         }
 

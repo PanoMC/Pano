@@ -10,7 +10,7 @@ import kotlinx.coroutines.runBlocking
 import org.pf4j.Plugin
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.support.BeanDefinitionRegistry
+import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
 abstract class PanoPlugin : Plugin() {
@@ -42,6 +42,12 @@ abstract class PanoPlugin : Plugin() {
             return
         }
 
+        println()
+        println(pluginId)
+        println(bean.javaClass.name)
+
+        println()
+
         pluginGlobalBeanContext.beanFactory.registerSingleton(bean.javaClass.name, bean)
 
         registeredBeans.add(bean)
@@ -56,9 +62,9 @@ abstract class PanoPlugin : Plugin() {
             return
         }
 
-        val registry = pluginGlobalBeanContext.beanFactory as BeanDefinitionRegistry
+        val registry = pluginGlobalBeanContext.beanFactory as DefaultListableBeanFactory
 
-        registry.removeBeanDefinition(bean.javaClass.name)
+        registry.destroySingleton(bean.javaClass.name)
 
         registeredBeans.remove(bean)
     }
@@ -81,7 +87,11 @@ abstract class PanoPlugin : Plugin() {
         val copyOfRegisteredBeans = registeredBeans.toList()
 
         copyOfRegisteredBeans.forEach {
-            unRegisterGlobal(it)
+            try {
+                unRegisterGlobal(it)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         pluginEventManager.unregisterPlugin(this)

@@ -1,12 +1,8 @@
 package com.panomc.platform.api
 
-import com.panomc.platform.Main
-import com.panomc.platform.PluginEventManager
-import com.panomc.platform.PluginUiManager
-import com.panomc.platform.ReleaseStage
+import com.panomc.platform.*
 import com.panomc.platform.api.event.PluginEventListener
 import io.vertx.core.Vertx
-import kotlinx.coroutines.runBlocking
 import org.pf4j.Plugin
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -42,12 +38,6 @@ abstract class PanoPlugin : Plugin() {
             return
         }
 
-        println()
-        println(pluginId)
-        println(bean.javaClass.name)
-
-        println()
-
         pluginGlobalBeanContext.beanFactory.registerSingleton(bean.javaClass.name, bean)
 
         registeredBeans.add(bean)
@@ -73,17 +63,40 @@ abstract class PanoPlugin : Plugin() {
         pluginEventManager.unRegister(this, eventListener)
     }
 
-    @Deprecated("Use onEnable method.")
+    @Deprecated("Use onStart method.")
     override fun start() {
-        runBlocking {
-            onEnable()
-        }
     }
 
-    @Deprecated("Use onDisable method.")
+    @Deprecated("Use onStop method.")
     override fun stop() {
-        pluginBeanContext.close()
+    }
 
+    internal fun load() {
+        val pluginBeanContext by lazy {
+            val pluginBeanContext = AnnotationConfigApplicationContext()
+
+            pluginBeanContext.setAllowBeanDefinitionOverriding(true)
+
+            pluginBeanContext.parent = PluginManager.pluginGlobalBeanContext
+            pluginBeanContext.classLoader = this.javaClass.classLoader
+            pluginBeanContext.scan(this.javaClass.`package`.name)
+
+            pluginBeanContext.beanFactory.registerSingleton(this.logger.javaClass.name, this.logger)
+            pluginBeanContext.beanFactory.registerSingleton(pluginEventManager.javaClass.name, pluginEventManager)
+            pluginBeanContext.beanFactory.registerSingleton(this.javaClass.name, this)
+
+            pluginBeanContext.refresh()
+
+            pluginBeanContext
+        }
+
+        this.pluginBeanContext = pluginBeanContext
+
+        pluginEventManager.initializePlugin(this, pluginBeanContext)
+        pluginUiManager.initializePlugin(this)
+    }
+
+    internal fun unload() {
         val copyOfRegisteredBeans = registeredBeans.toList()
 
         copyOfRegisteredBeans.forEach {
@@ -96,14 +109,11 @@ abstract class PanoPlugin : Plugin() {
 
         pluginEventManager.unregisterPlugin(this)
         pluginUiManager.unRegisterPlugin(this)
-
-        runBlocking {
-            onDisable()
-        }
     }
 
-    open suspend fun onLoad() {}
-
+    open suspend fun onCreate() {}
     open suspend fun onEnable() {}
     open suspend fun onDisable() {}
+    open suspend fun onStart() {}
+    open suspend fun onStop() {}
 }

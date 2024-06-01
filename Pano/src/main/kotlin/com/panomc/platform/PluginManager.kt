@@ -3,6 +3,7 @@ package com.panomc.platform
 import com.panomc.platform.SpringConfig.Companion.pluginEventManager
 import com.panomc.platform.SpringConfig.Companion.pluginUiManager
 import com.panomc.platform.api.PanoPlugin
+import kotlinx.coroutines.runBlocking
 import org.pf4j.*
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.stereotype.Component
@@ -59,5 +60,32 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
         pluginWrapper.setPluginFactory(getPluginFactory())
 
         return pluginWrapper
+    }
+
+
+    override fun enablePlugin(pluginId: String): Boolean {
+        val result = super.enablePlugin(pluginId)
+
+        val plugin = getPlugin(pluginId).plugin as PanoPlugin
+
+        runBlocking {
+            plugin.load()
+            plugin.onEnable()
+            plugin.onStart()
+        }
+
+        return result
+    }
+
+    override fun disablePlugin(pluginId: String): Boolean {
+        val plugin = getPlugin(pluginId).plugin as PanoPlugin
+
+        runBlocking {
+            plugin.onStop()
+            plugin.onDisable()
+            plugin.unload()
+        }
+
+        return super.disablePlugin(pluginId)
     }
 }

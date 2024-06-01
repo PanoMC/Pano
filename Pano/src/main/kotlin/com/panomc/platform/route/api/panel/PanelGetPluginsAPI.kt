@@ -52,6 +52,7 @@ class PanelGetPluginsAPI(
                 mapOf(
                     "id" to it.pluginId,
                     "author" to panoPluginDescriptor.provider,
+                    "description" to panoPluginDescriptor.pluginDescription,
                     "version" to panoPluginDescriptor.version,
                     "status" to it.pluginState,
                     "dependencies" to panoPluginDescriptor.dependencies,

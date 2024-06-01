@@ -54,20 +54,22 @@ class PanelGetPluginsAPI(
         val addonHashes = databaseManager.addonHashDao.byListOfHash(hashList, sqlClient)
 
         val result = mutableMapOf(
-            "plugins" to plugins.map {
-                val panoPluginDescriptor = it.descriptor as PanoPluginDescriptor
+            "plugins" to plugins.map { plugin ->
+                val panoPluginDescriptor = plugin.descriptor as PanoPluginDescriptor
 
                 mapOf(
-                    "id" to it.pluginId,
+                    "id" to plugin.pluginId,
                     "author" to panoPluginDescriptor.provider,
                     "description" to panoPluginDescriptor.pluginDescription,
                     "version" to panoPluginDescriptor.version,
-                    "status" to it.pluginState,
+                    "status" to plugin.pluginState,
                     "dependencies" to panoPluginDescriptor.dependencies,
+                    "dependents" to plugins.filter { it.descriptor.dependencies.any { it.pluginId == plugin.pluginId } }
+                        .map { it.pluginId },
                     "license" to panoPluginDescriptor.license,
-                    "error" to if (it.failedException == null) null else TextUtil.getStackTraceAsString(it.failedException),
-                    "hash" to it.hash,
-                    "verifyStatus" to if (addonHashes[it.hash] == null) AddonHashStatus.UNKNOWN else addonHashes[it.hash]!!.status,
+                    "error" to if (plugin.failedException == null) null else TextUtil.getStackTraceAsString(plugin.failedException),
+                    "hash" to plugin.hash,
+                    "verifyStatus" to if (addonHashes[plugin.hash] == null) AddonHashStatus.UNKNOWN else addonHashes[plugin.hash]!!.status,
                     "sourceUrl" to panoPluginDescriptor.sourceUrl
                 )
             }

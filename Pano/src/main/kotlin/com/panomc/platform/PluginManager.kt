@@ -66,12 +66,14 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     override fun enablePlugin(pluginId: String): Boolean {
         val result = super.enablePlugin(pluginId)
 
-        val plugin = getPlugin(pluginId).plugin as PanoPlugin
+        val plugin = getPlugin(pluginId)?.plugin as PanoPlugin?
 
-        runBlocking {
-            plugin.load()
-            plugin.onEnable()
-            plugin.onStart()
+        plugin?.let {
+            runBlocking {
+                it.load()
+                it.onEnable()
+                it.onStart()
+            }
         }
 
         return result

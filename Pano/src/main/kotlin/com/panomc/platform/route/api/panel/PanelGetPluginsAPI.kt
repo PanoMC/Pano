@@ -64,6 +64,8 @@ class PanelGetPluginsAPI(
                     "version" to panoPluginDescriptor.version,
                     "status" to plugin.pluginState,
                     "dependencies" to panoPluginDescriptor.dependencies,
+                    "notStartedDependencies" to panoPluginDescriptor.dependencies.filter { dependency -> !dependency.isOptional && plugins.any { it.pluginId == dependency.pluginId && it.pluginState != PluginState.STARTED } }
+                        .map { it.pluginId },
                     "dependents" to plugins.filter { it.pluginState == PluginState.STARTED && it.descriptor.dependencies.any { it.pluginId == plugin.pluginId && !it.isOptional } }
                         .map { it.pluginId },
                     "license" to panoPluginDescriptor.license,

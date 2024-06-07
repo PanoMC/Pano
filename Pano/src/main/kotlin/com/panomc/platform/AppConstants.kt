@@ -8,9 +8,9 @@ object AppConstants {
 
     const val COOKIE_PREFIX = "pano_"
 
-    const val CSRF_TOKEN_COOKIE_NAME = "CSRFToken"
+    const val CSRF_TOKEN_COOKIE_NAME = "csrfToken"
 
-    const val JWT_COOKIE_NAME = "jwt"
+    const val JWT_COOKIE_NAME = "auth_token"
 
     val CSRF_HEADER = "X-CSRF-Token".lowercase()
 

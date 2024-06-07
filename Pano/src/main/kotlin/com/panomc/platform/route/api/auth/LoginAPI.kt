@@ -75,7 +75,7 @@ class LoginAPI(
 
         return Successful(
             mapOf(
-                "CSRFToken" to csrfToken
+                "csrfToken" to csrfToken
             )
         )
     }

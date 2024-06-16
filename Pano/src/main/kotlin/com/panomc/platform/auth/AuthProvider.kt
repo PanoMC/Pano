@@ -1,5 +1,6 @@
 package com.panomc.platform.auth
 
+import com.panomc.platform.AppConstants
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.error.LoginEmailNotVerified
@@ -136,7 +137,7 @@ class AuthProvider(
     fun getTokenFromRoutingContext(routingContext: RoutingContext): String? {
         val request = routingContext.request()
 
-        val jwtCookie = request.getCookie("pano_jwt")
+        val jwtCookie = request.getCookie(AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME)
 
         if (jwtCookie != null) {
             return jwtCookie.value

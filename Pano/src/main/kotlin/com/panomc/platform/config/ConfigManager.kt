@@ -88,7 +88,7 @@ class ConfigManager(
                     "file-uploads-folder" to "file-uploads",
                     "file-paths" to mapOf<String, String>(),
 
-                    "pano-api-url" to "https://api.panomc.com"
+                    "pano-api-url" to "api.panomc.com"
                 )
             )
         }

@@ -7,6 +7,6 @@ import com.panomc.platform.config.ConfigMigration
 @Migration
 class ConfigMigration2To3 : ConfigMigration(2, 3, "Add Pano API url") {
     override fun migrate(configManager: ConfigManager) {
-        configManager.getConfig().put("pano-api-url", "https://api.panomc.com")
+        configManager.getConfig().put("pano-api-url", "api.panomc.com")
     }
 }

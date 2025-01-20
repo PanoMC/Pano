@@ -30,7 +30,7 @@ class ConfigManager(
 ) {
 
     companion object {
-        private const val CONFIG_VERSION = 3
+        private const val CONFIG_VERSION = 4
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKey()
@@ -63,7 +63,8 @@ class ConfigManager(
                     "pano-account" to mapOf(
                         "username" to "",
                         "email" to "",
-                        "access-token" to ""
+                        "access-token" to "",
+                        "platform-id" to ""
                     ),
 
                     "current-theme" to "Vanilla",

@@ -30,7 +30,7 @@ class ConfigManager(
 ) {
 
     companion object {
-        private const val CONFIG_VERSION = 2
+        private const val CONFIG_VERSION = 3
 
         private val DEFAULT_CONFIG by lazy {
             val key = KeyGeneratorUtil.generateJWTKey()
@@ -85,7 +85,9 @@ class ConfigManager(
 
                     "ui-address" to "http://localhost:3000",
                     "file-uploads-folder" to "file-uploads",
-                    "file-paths" to mapOf<String, String>()
+                    "file-paths" to mapOf<String, String>(),
+
+                    "pano-api-url" to "https://api.panomc.com"
                 )
             )
         }

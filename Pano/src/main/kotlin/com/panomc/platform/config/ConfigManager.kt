@@ -154,7 +154,7 @@ class ConfigManager(
     private val migrations by lazy {
         val beans = applicationContext.getBeansWithAnnotation(Migration::class.java)
 
-        beans.filter { it.value is ConfigMigration }.map { it.value as ConfigMigration }.sortedBy { it.FROM_VERSION }
+        beans.filter { it.value is ConfigMigration }.map { it.value as ConfigMigration }.sortedBy { it.from }
     }
 
     private val configFile = File(configFilePath)
@@ -172,13 +172,13 @@ class ConfigManager(
         migrations
             .find { configMigration -> configMigration.isMigratable(configVersion) }
             ?.let { migration ->
-                logger.info("Migration Found! Migrating config from version ${migration.FROM_VERSION} to ${migration.VERSION}: ${migration.VERSION_INFO}")
+                logger.info("Migration Found! Migrating config from version ${migration.from} to ${migration.to}: ${migration.versionInfo}")
 
-                config.put("config-version", migration.VERSION)
+                config.put("config-version", migration.to)
 
                 migration.migrate(this)
 
-                migrate(migration.VERSION, false)
+                migrate(migration.to, false)
             }
 
         if (saveConfig) {

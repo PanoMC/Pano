@@ -1,11 +1,12 @@
 package com.panomc.platform.config
 
-abstract class ConfigMigration {
-    abstract val FROM_VERSION: Int
-    abstract val VERSION: Int
-    abstract val VERSION_INFO: String
+abstract class ConfigMigration(
+    val from: Int,
+    val to: Int,
+    val versionInfo: String
+) {
 
-    fun isMigratable(version: Int) = version == FROM_VERSION
+    fun isMigratable(version: Int) = version == from
 
     abstract fun migrate(configManager: ConfigManager)
 }

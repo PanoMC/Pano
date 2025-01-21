@@ -5,6 +5,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -38,6 +39,17 @@ class PanelGetSettingsAPI(
         val result = mutableMapOf<String, Any?>()
 
         if (settingType == SettingType.GENERAL) {
+            val panoAccountConfig = configManager.getConfig().getJsonObject("pano-account")
+
+            if (!panoAccountConfig.getString("access-token").isNullOrBlank()) {
+                val panoAccount = JsonObject()
+                panoAccount.put("platformId", panoAccountConfig.getString("platform-id"))
+                panoAccount.put("username", panoAccountConfig.getString("username"))
+                panoAccount.put("email", panoAccountConfig.getString("email"))
+
+                result["panoAccount"] = panoAccount
+            }
+
             result["updatePeriod"] = configManager.getConfig().getString("update-period")
             result["locale"] = configManager.getConfig().getString("locale")
         }

@@ -28,71 +28,70 @@ class ConfigManager(
     private val logger: Logger,
     applicationContext: AnnotationConfigApplicationContext
 ) {
+    private val defaultConfig by lazy {
+        val latestVersion = migrations.maxByOrNull { it.to }?.to ?: 1
+
+        val key = KeyGeneratorUtil.generateJWTKey()
+
+        JsonObject(
+            mapOf(
+                "config-version" to latestVersion,
+                "development-mode" to true,
+                "locale" to "en-US",
+
+                "website-name" to "",
+                "website-description" to "",
+                "support-email" to "",
+                "server-ip-address" to "play.ipadress.com",
+                "server-game-version" to "1.8.x",
+                "keywords" to listOf<String>(),
+
+                "setup" to mapOf(
+                    "step" to 0
+                ),
+
+                "database" to mapOf(
+                    "host" to "",
+                    "name" to "",
+                    "username" to "",
+                    "password" to "",
+                    "prefix" to "pano_"
+                ),
+
+                "pano-account" to mapOf(
+                    "username" to "",
+                    "email" to "",
+                    "access-token" to "",
+                    "platform-id" to ""
+                ),
+
+                "current-theme" to "Vanilla",
+
+                "email" to mapOf(
+                    "address" to "",
+                    "host" to "",
+                    "port" to 465,
+                    "username" to "",
+                    "password" to "",
+                    "SSL" to true,
+                    "TLS" to true,
+                    "auth-method" to ""
+                ),
+
+                "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),
+
+                "update-period" to UpdatePeriod.ONCE_PER_DAY.period,
+
+                "ui-address" to "http://localhost:3000",
+                "file-uploads-folder" to "file-uploads",
+                "file-paths" to mapOf<String, String>(),
+
+                "pano-api-url" to "api.panomc.com"
+            )
+        )
+    }
 
     companion object {
-        private const val CONFIG_VERSION = 4
-
-        private val DEFAULT_CONFIG by lazy {
-            val key = KeyGeneratorUtil.generateJWTKey()
-
-            JsonObject(
-                mapOf(
-                    "config-version" to CONFIG_VERSION,
-                    "development-mode" to true,
-                    "locale" to "en-US",
-
-                    "website-name" to "",
-                    "website-description" to "",
-                    "support-email" to "",
-                    "server-ip-address" to "play.ipadress.com",
-                    "server-game-version" to "1.8.x",
-                    "keywords" to listOf<String>(),
-
-                    "setup" to mapOf(
-                        "step" to 0
-                    ),
-
-                    "database" to mapOf(
-                        "host" to "",
-                        "name" to "",
-                        "username" to "",
-                        "password" to "",
-                        "prefix" to "pano_"
-                    ),
-
-                    "pano-account" to mapOf(
-                        "username" to "",
-                        "email" to "",
-                        "access-token" to "",
-                        "platform-id" to ""
-                    ),
-
-                    "current-theme" to "Vanilla",
-
-                    "email" to mapOf(
-                        "address" to "",
-                        "host" to "",
-                        "port" to 465,
-                        "username" to "",
-                        "password" to "",
-                        "SSL" to true,
-                        "TLS" to true,
-                        "auth-method" to ""
-                    ),
-
-                    "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),
-
-                    "update-period" to UpdatePeriod.ONCE_PER_DAY.period,
-
-                    "ui-address" to "http://localhost:3000",
-                    "file-uploads-folder" to "file-uploads",
-                    "file-paths" to mapOf<String, String>(),
-
-                    "pano-api-url" to "api.panomc.com"
-                )
-            )
-        }
-
         fun JsonObject.putAll(jsonObject: Map<String, Any>) {
             jsonObject.forEach {
                 this.put(it.key, it.value)
@@ -125,7 +124,7 @@ class ConfigManager(
 
     internal suspend fun init() {
         if (!configFile.exists()) {
-            saveConfig(DEFAULT_CONFIG)
+            saveConfig(defaultConfig)
         }
 
         val configValues: Map<String, Any>
@@ -136,7 +135,7 @@ class ConfigManager(
             logger.error("Error occurred while loading config file! Error: $e")
             logger.info("Using default config!")
 
-            config.putAll(DEFAULT_CONFIG.map)
+            config.putAll(defaultConfig.map)
 
             return
         }

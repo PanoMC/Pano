@@ -4,6 +4,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.token.TokenProvider
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.mail.MailMessage
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 import io.vertx.kotlin.coroutines.await
@@ -52,5 +53,9 @@ class MailManager(
         ).await().toString()
 
         mailClient.sendMail(message).await()
+    }
+
+    suspend fun verifyConfiguration(configuration: JsonObject) {
+
     }
 }

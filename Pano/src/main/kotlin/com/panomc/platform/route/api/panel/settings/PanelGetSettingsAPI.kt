@@ -52,6 +52,20 @@ class PanelGetSettingsAPI(
 
             result["updatePeriod"] = configManager.getConfig().getString("update-period")
             result["locale"] = configManager.getConfig().getString("locale")
+
+            val emailConfig = configManager.getConfig().getJsonObject("email")
+
+            val email = JsonObject()
+
+            email.put("ssl", emailConfig.getBoolean("SSL"))
+            email.put("tls", emailConfig.getBoolean("TLS"))
+            email.put("address", emailConfig.getString("address"))
+            email.put("authMethod", emailConfig.getString("auth-method"))
+            email.put("host", emailConfig.getString("host"))
+            email.put("port", emailConfig.getString("port"))
+            email.put("username", emailConfig.getString("username"))
+
+            result["email"] = email
         }
 
         if (settingType == SettingType.WEBSITE) {

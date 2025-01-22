@@ -37,13 +37,13 @@ class ConnectPlatformAPI(
         val encodedData = data.getString("encodedData")
         val state = data.getString("state")
 
-        val (platformId, username, email) = panoApiManager.connectPlatform(encodedData, state)
+        val (username, email, platformId) = panoApiManager.connectPlatform(encodedData, state)
 
         return Successful(
             mapOf(
-                "platformId" to platformId,
                 "username" to username,
-                "email" to email
+                "email" to email,
+                "platformId" to platformId,
             )
         )
     }

@@ -24,7 +24,7 @@ class PanelGetSettingsAPI(
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
             .queryParameter(
-                param("type", arraySchema().items(enumSchema(*SettingType.values().map { it.type }.toTypedArray())))
+                param("type", arraySchema().items(enumSchema(*SettingType.entries.map { it.type }.toTypedArray())))
             )
             .build()
 
@@ -55,15 +55,9 @@ class PanelGetSettingsAPI(
 
             val emailConfig = configManager.getConfig().getJsonObject("email")
 
-            val email = JsonObject()
+            val email = JsonObject(emailConfig.map)
 
-            email.put("ssl", emailConfig.getBoolean("SSL"))
-            email.put("tls", emailConfig.getBoolean("TLS"))
-            email.put("address", emailConfig.getString("address"))
-            email.put("authMethod", emailConfig.getString("auth-method"))
-            email.put("host", emailConfig.getString("host"))
-            email.put("port", emailConfig.getString("port"))
-            email.put("username", emailConfig.getString("username"))
+            email.remove("password")
 
             result["email"] = email
         }

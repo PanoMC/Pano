@@ -12,7 +12,7 @@ import java.net.InetAddress
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class SetupManager(private val mConfigManager: ConfigManager, private val panoApiManager: PanoApiManager) {
+class SetupManager(private val configManager: ConfigManager, private val panoApiManager: PanoApiManager) {
 
     fun isSetupDone() = getCurrentStep() == 5
 
@@ -23,12 +23,12 @@ class SetupManager(private val mConfigManager: ConfigManager, private val panoAp
         data.put("step", step)
 
         if (step == 1 || step == 4) {
-            data.put("websiteName", mConfigManager.getConfig().getString("website-name"))
-            data.put("websiteDescription", mConfigManager.getConfig().getString("website-description"))
+            data.put("websiteName", configManager.getConfig().getString("website-name"))
+            data.put("websiteDescription", configManager.getConfig().getString("website-description"))
         }
 
         if (step == 2) {
-            val databaseConfig = mConfigManager.getConfig().getJsonObject("database")
+            val databaseConfig = configManager.getConfig().getJsonObject("database")
 
             data.put(
                 "database", mapOf(
@@ -42,14 +42,14 @@ class SetupManager(private val mConfigManager: ConfigManager, private val panoAp
         }
 
         if (step == 3) {
-            val mailConfig = mConfigManager.getConfig().getJsonObject("email")
+            val mailConfig = configManager.getConfig().getJsonObject("email")
 
             data.put("email", mailConfig)
         }
 
         if (step == 4) {
             val localHost = InetAddress.getLocalHost()
-            val panoAccountConfig = mConfigManager.getConfig().getJsonObject("pano-account")
+            val panoAccountConfig = configManager.getConfig().getJsonObject("pano-account")
 
             data.put("host", localHost.hostName)
             data.put("ip", localHost.hostAddress)
@@ -100,11 +100,11 @@ class SetupManager(private val mConfigManager: ConfigManager, private val panoAp
         updateStep(5)
     }
 
-    fun getCurrentStep() = mConfigManager.getConfig().getJsonObject("setup").getInteger("step")
+    fun getCurrentStep() = configManager.getConfig().getJsonObject("setup").getInteger("step")
 
     private fun updateStep(step: Int) {
-        mConfigManager.getConfig().getJsonObject("setup").put("step", step)
+        configManager.getConfig().getJsonObject("setup").put("step", step)
 
-        mConfigManager.saveConfig()
+        configManager.saveConfig()
     }
 }

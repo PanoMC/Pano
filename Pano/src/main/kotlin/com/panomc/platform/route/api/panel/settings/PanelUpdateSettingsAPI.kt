@@ -11,6 +11,7 @@ import com.panomc.platform.error.WebsiteLogoWrongContentType
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.UpdatePeriod
+import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -21,7 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 import java.io.File
 
 @Endpoint
-class PanelUpdateSettingAPI(
+class PanelUpdateSettingsAPI(
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
@@ -82,6 +83,21 @@ class PanelUpdateSettingAPI(
                         .optionalProperty("serverIpAddress", stringSchema())
                         .optionalProperty("serverGameVersion", stringSchema())
                         .optionalProperty("keywords", arraySchema().items(stringSchema()))
+                        .optionalProperty(
+                            "email",
+                            objectSchema()
+                                .requiredProperty("hostname", stringSchema())
+                                .requiredProperty("port", intSchema())
+                                .requiredProperty("ssl", booleanSchema())
+                                .requiredProperty(
+                                    "starttls",
+                                    enumSchema(*StartTLSOptions.entries.map { it.name }.toTypedArray())
+                                )
+                                .requiredProperty("username", stringSchema())
+                                .requiredProperty("password", stringSchema())
+                                .requiredProperty("sender", stringSchema())
+                                .optionalProperty("authMethods", stringSchema())
+                        )
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -104,7 +120,9 @@ class PanelUpdateSettingAPI(
         val serverGameVersion = data.getString("serverGameVersion")
         val keywords = data.getJsonArray("keywords")
 
-        if (fileUploads.size > 0) {
+        val email = data.getJsonObject("email")
+
+        if (fileUploads.isNotEmpty()) {
             val savedFiles = FileUploadUtil.saveFiles(fileUploads, acceptedFileFields, configManager)
 
             savedFiles.forEach { savedFile ->
@@ -161,6 +179,19 @@ class PanelUpdateSettingAPI(
 
         if (updatePeriod != null || websiteName != null || websiteDescription != null || keywords != null) {
             configManager.saveConfig()
+        }
+
+        if (email != null) {
+            val mailConfiguration = configManager.getConfig().getJsonObject("email")
+
+            mailConfiguration.put("sender", email.getString("sender"))
+            mailConfiguration.put("hostname", email.getString("hostname"))
+            mailConfiguration.put("port", email.getInteger("port"))
+            mailConfiguration.put("username", email.getString("username"))
+            mailConfiguration.put("password", email.getString("password"))
+            mailConfiguration.put("ssl", email.getBoolean("ssl"))
+            mailConfiguration.put("starttls", email.getString("starttls"))
+            mailConfiguration.put("authMethods", email.getString("authMethods"))
         }
 
         return Successful()

@@ -42,9 +42,9 @@ class PanelCreateOrUpdatePostAPI(
             .body(
                 multipartFormData(
                     objectSchema()
-                        .property("title", stringSchema())
-                        .property("category", numberSchema())
-                        .property("text", stringSchema())
+                        .requiredProperty("title", stringSchema())
+                        .requiredProperty("category", numberSchema())
+                        .requiredProperty("text", stringSchema())
                         .optionalProperty("publish", booleanSchema())
                         .optionalProperty("removeThumbnail", booleanSchema())
                 )

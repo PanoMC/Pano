@@ -28,7 +28,7 @@ class ResetPasswordAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("usernameOrEmail", Schemas.stringSchema())
+                        .requiredProperty("usernameOrEmail", Schemas.stringSchema())
 //                TODO: Add recaptcha
                 )
             )

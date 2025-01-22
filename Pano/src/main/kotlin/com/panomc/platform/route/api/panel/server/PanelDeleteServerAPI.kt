@@ -33,7 +33,7 @@ class PanelDeleteServerAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("currentPassword", Schemas.stringSchema())
+                        .requiredProperty("currentPassword", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

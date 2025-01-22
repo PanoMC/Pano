@@ -32,7 +32,7 @@ class PanelUpdatePlayerPermissionGroupAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("permissionGroup", stringSchema())
+                        .requiredProperty("permissionGroup", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

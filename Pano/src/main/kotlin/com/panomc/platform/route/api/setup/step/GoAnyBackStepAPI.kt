@@ -23,7 +23,7 @@ class GoAnyBackStepAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("step", intSchema())
+                        .requiredProperty("step", intSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

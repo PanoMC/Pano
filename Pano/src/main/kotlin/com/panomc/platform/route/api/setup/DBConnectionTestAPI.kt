@@ -26,9 +26,9 @@ class DBConnectionTestAPI(private val logger: Logger, setupManager: SetupManager
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("host", Schemas.stringSchema())
-                        .property("dbName", Schemas.stringSchema())
-                        .property("username", Schemas.stringSchema())
+                        .requiredProperty("host", Schemas.stringSchema())
+                        .requiredProperty("dbName", Schemas.stringSchema())
+                        .requiredProperty("username", Schemas.stringSchema())
                         .optionalProperty("password", Schemas.stringSchema())
                 )
             )

@@ -38,7 +38,7 @@ class SendTicketMessageAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("message", stringSchema())
+                        .requiredProperty("message", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

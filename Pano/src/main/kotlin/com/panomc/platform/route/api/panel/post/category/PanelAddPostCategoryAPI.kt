@@ -27,9 +27,9 @@ class PanelAddPostCategoryAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("title", stringSchema())
-                        .property("description", stringSchema())
-                        .property("url", stringSchema())
+                        .requiredProperty("title", stringSchema())
+                        .requiredProperty("description", stringSchema())
+                        .requiredProperty("url", stringSchema())
                         .optionalProperty("color", stringSchema())
                 )
             )

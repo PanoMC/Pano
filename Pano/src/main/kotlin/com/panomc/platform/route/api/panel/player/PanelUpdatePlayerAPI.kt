@@ -30,12 +30,12 @@ class PanelUpdatePlayerAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("username", stringSchema())
-                        .property("email", stringSchema())
-                        .property("newPassword", stringSchema())
-                        .property("newPasswordRepeat", stringSchema())
-                        .property("isEmailVerified", booleanSchema())
-                        .property("canCreateTicket", booleanSchema())
+                        .requiredProperty("username", stringSchema())
+                        .requiredProperty("email", stringSchema())
+                        .requiredProperty("newPassword", stringSchema())
+                        .requiredProperty("newPasswordRepeat", stringSchema())
+                        .requiredProperty("isEmailVerified", booleanSchema())
+                        .requiredProperty("canCreateTicket", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

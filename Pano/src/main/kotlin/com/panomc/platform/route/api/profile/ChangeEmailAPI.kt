@@ -35,8 +35,8 @@ class ChangeEmailAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("currentPassword", stringSchema())
-                        .property("newEmail", stringSchema())
+                        .requiredProperty("currentPassword", stringSchema())
+                        .requiredProperty("newEmail", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

@@ -28,12 +28,12 @@ class RegisterAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("username", Schemas.stringSchema())
-                        .property("email", Schemas.stringSchema())
-                        .property("password", Schemas.stringSchema())
-                        .property("passwordRepeat", Schemas.stringSchema())
-                        .property("agreement", Schemas.booleanSchema())
-                        .property("recaptcha", Schemas.stringSchema())
+                        .requiredProperty("username", Schemas.stringSchema())
+                        .requiredProperty("email", Schemas.stringSchema())
+                        .requiredProperty("password", Schemas.stringSchema())
+                        .requiredProperty("passwordRepeat", Schemas.stringSchema())
+                        .requiredProperty("agreement", Schemas.booleanSchema())
+                        .requiredProperty("recaptcha", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

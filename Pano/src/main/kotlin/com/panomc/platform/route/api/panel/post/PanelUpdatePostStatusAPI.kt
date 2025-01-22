@@ -30,7 +30,7 @@ class PanelUpdatePostStatusAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("to", enumSchema(*PostStatus.entries.map { it.name }.toTypedArray()))
+                        .requiredProperty("to", enumSchema(*PostStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

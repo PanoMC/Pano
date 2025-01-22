@@ -28,8 +28,8 @@ class PanelAddTicketCategoryAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("title", stringSchema())
-                        .property("description", stringSchema())
+                        .requiredProperty("title", stringSchema())
+                        .requiredProperty("description", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

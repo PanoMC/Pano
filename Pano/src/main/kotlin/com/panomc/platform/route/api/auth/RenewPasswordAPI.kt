@@ -31,9 +31,9 @@ class RenewPasswordAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("token", Schemas.stringSchema())
-                        .property("newPassword", Schemas.stringSchema())
-                        .property("newPasswordRepeat", Schemas.stringSchema())
+                        .requiredProperty("token", Schemas.stringSchema())
+                        .requiredProperty("newPassword", Schemas.stringSchema())
+                        .requiredProperty("newPasswordRepeat", Schemas.stringSchema())
 //                TODO: Add recaptcha
                 )
             )

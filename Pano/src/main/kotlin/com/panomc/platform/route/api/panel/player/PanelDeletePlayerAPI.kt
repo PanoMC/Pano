@@ -35,7 +35,7 @@ class PanelDeletePlayerAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("currentPassword", stringSchema())
+                        .requiredProperty("currentPassword", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

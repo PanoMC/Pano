@@ -34,9 +34,9 @@ class PanelAddPermissionGroupAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("name", stringSchema())
-                        .property("addedUsers", arraySchema().items(stringSchema()))
-                        .property(
+                        .requiredProperty("name", stringSchema())
+                        .requiredProperty("addedUsers", arraySchema().items(stringSchema()))
+                        .requiredProperty(
                             "permissions",
                             arraySchema()
                                 .items(

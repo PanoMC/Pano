@@ -34,9 +34,9 @@ class CreateTicketAPI(
             .body(
                 Bodies.json(
                     objectSchema()
-                        .property("title", stringSchema())
-                        .property("message", stringSchema())
-                        .property("categoryId", numberSchema())
+                        .requiredProperty("title", stringSchema())
+                        .requiredProperty("message", stringSchema())
+                        .requiredProperty("categoryId", numberSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

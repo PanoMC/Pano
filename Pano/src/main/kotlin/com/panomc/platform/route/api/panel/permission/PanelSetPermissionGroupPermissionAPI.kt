@@ -32,7 +32,7 @@ class PanelSetPermissionGroupPermissionAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("mode", Schemas.stringSchema())
+                        .requiredProperty("mode", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

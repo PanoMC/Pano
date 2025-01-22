@@ -31,7 +31,7 @@ class PanelUpdateTicketsAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("tickets", arraySchema().items(numberSchema()))
+                        .requiredProperty("tickets", arraySchema().items(numberSchema()))
                         .optionalProperty("status", enumSchema(*TicketStatus.entries.map { it.name }.toTypedArray()))
                 )
             )

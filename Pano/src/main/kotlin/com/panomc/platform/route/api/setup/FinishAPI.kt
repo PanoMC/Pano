@@ -39,10 +39,10 @@ class FinishAPI(
             .body(
                 Bodies.json(
                     objectSchema()
-                        .property("username", stringSchema())
-                        .property("email", stringSchema())
-                        .property("password", stringSchema())
-                        .property(
+                        .requiredProperty("username", stringSchema())
+                        .requiredProperty("email", stringSchema())
+                        .requiredProperty("password", stringSchema())
+                        .requiredProperty(
                             "setupLocale",
                             enumSchema(*AVAILABLE_LOCALES.toTypedArray())
                         )

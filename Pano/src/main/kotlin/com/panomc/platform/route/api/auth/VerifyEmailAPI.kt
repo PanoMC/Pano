@@ -28,7 +28,7 @@ class VerifyEmailAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("token", Schemas.stringSchema())
+                        .requiredProperty("token", Schemas.stringSchema())
 //                TODO: Add recaptcha
                 )
             )

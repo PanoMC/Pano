@@ -30,10 +30,10 @@ class PanelUpdatePostCategoryAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("title", stringSchema())
-                        .property("description", stringSchema())
-                        .property("url", stringSchema())
-                        .property("color", stringSchema())
+                        .requiredProperty("title", stringSchema())
+                        .requiredProperty("description", stringSchema())
+                        .requiredProperty("url", stringSchema())
+                        .requiredProperty("color", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

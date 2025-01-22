@@ -24,7 +24,7 @@ class NextStepAPI(
             .body(
                 json(
                     objectSchema()
-                        .property("step", intSchema())
+                        .requiredProperty("step", intSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("host", stringSchema())

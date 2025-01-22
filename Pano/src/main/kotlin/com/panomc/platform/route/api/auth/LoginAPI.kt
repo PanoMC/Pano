@@ -27,10 +27,10 @@ class LoginAPI(
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
-                        .property("usernameOrEmail", Schemas.stringSchema())
-                        .property("password", Schemas.stringSchema())
-                        .property("rememberMe", Schemas.booleanSchema())
-                        .property("recaptcha", Schemas.stringSchema())
+                        .requiredProperty("usernameOrEmail", Schemas.stringSchema())
+                        .requiredProperty("password", Schemas.stringSchema())
+                        .requiredProperty("rememberMe", Schemas.booleanSchema())
+                        .requiredProperty("recaptcha", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)

@@ -2,10 +2,8 @@ package com.panomc.platform.route.api.panel.platform
 
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
@@ -16,8 +14,6 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class ConnectPlatformAPI(
-    private val configManager: ConfigManager,
-    private val webClient: WebClient,
     private val panoApiManager: PanoApiManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/platform/connect", RouteType.POST))

@@ -73,7 +73,7 @@ class ConfigManager(
                     "port" to 465,
                     "username" to "",
                     "password" to "",
-                    "isSsl" to true,
+                    "ssl" to true,
                     "starttls" to "",
                     "authMethods" to ""
                 ),

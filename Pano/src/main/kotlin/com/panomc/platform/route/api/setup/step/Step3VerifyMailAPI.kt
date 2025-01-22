@@ -3,7 +3,6 @@ package com.panomc.platform.route.api.setup.step
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -15,9 +14,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class Step3VerifyMailAPI(
-    setupManager: SetupManager,
     private val mailManager: MailManager
-) : SetupApi(setupManager) {
+) : SetupApi() {
     override val paths = listOf(Path("/api/setup/steps/3/verify", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

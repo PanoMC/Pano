@@ -3,7 +3,6 @@ package com.panomc.platform.route.api.setup.step
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.InvalidData
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -18,7 +17,7 @@ import io.vertx.sqlclient.PoolOptions
 import org.slf4j.Logger
 
 @Endpoint
-class Step2VerifyDBAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
+class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
     override val paths = listOf(Path("/api/setup/steps/2/verify", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

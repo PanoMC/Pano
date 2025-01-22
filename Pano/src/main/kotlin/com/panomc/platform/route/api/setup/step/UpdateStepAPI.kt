@@ -3,7 +3,6 @@ package com.panomc.platform.route.api.setup.step
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
@@ -16,9 +15,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class UpdateStepAPI(
-    private val configManager: ConfigManager,
-    private val setupManager: SetupManager
-) : SetupApi(setupManager) {
+    private val configManager: ConfigManager
+) : SetupApi() {
     override val paths = listOf(Path("/api/setup/step", RouteType.PUT))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

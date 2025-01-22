@@ -7,7 +7,6 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
 import com.panomc.platform.util.UIHelper
@@ -25,13 +24,12 @@ import org.springframework.context.annotation.Lazy
 
 @Endpoint
 class FinishAPI(
-    private val setupManager: SetupManager,
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager,
     private val httpClient: HttpClient,
     @Lazy private val router: Router
-) : SetupApi(setupManager) {
+) : SetupApi() {
     override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =

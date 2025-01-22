@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.PanoApiManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
@@ -17,7 +18,8 @@ import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 @Endpoint
 class PanelGetSettingsAPI(
     private val configManager: ConfigManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val panoApiManager: PanoApiManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.GET))
 
@@ -41,7 +43,7 @@ class PanelGetSettingsAPI(
         if (settingType == SettingType.GENERAL) {
             val panoAccountConfig = configManager.getConfig().getJsonObject("pano-account")
 
-            if (!panoAccountConfig.getString("access-token").isNullOrBlank()) {
+            if (panoApiManager.isConnected()) {
                 val panoAccount = JsonObject()
                 panoAccount.put("platformId", panoAccountConfig.getString("platform-id"))
                 panoAccount.put("username", panoAccountConfig.getString("username"))

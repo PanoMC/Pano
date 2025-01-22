@@ -1,5 +1,6 @@
 package com.panomc.platform.setup
 
+import com.panomc.platform.PanoApiManager
 import com.panomc.platform.config.ConfigManager
 import io.vertx.core.json.JsonObject
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -11,7 +12,7 @@ import java.net.InetAddress
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class SetupManager(private val mConfigManager: ConfigManager) {
+class SetupManager(private val mConfigManager: ConfigManager, private val panoApiManager: PanoApiManager) {
 
     fun isSetupDone() = getCurrentStep() == 5
 
@@ -53,13 +54,14 @@ class SetupManager(private val mConfigManager: ConfigManager) {
             data.put("host", localHost.hostName)
             data.put("ip", localHost.hostAddress)
 
-            data.put(
-                "panoAccount", mapOf(
-                    "username" to panoAccountConfig.getString("username"),
-                    "email" to panoAccountConfig.getString("email"),
-                    "accessToken" to panoAccountConfig.getString("access-token")
-                )
-            )
+            if (panoApiManager.isConnected()) {
+                val panoAccount = JsonObject()
+                panoAccount.put("platformId", panoAccountConfig.getString("platform-id"))
+                panoAccount.put("username", panoAccountConfig.getString("username"))
+                panoAccount.put("email", panoAccountConfig.getString("email"))
+
+                data.put("panoAccount", panoAccount)
+            }
         }
 
         return data

@@ -68,14 +68,14 @@ class ConfigManager(
                 "current-theme" to "Vanilla",
 
                 "email" to mapOf(
-                    "address" to "",
-                    "host" to "",
+                    "sender" to "",
+                    "hostname" to "",
                     "port" to 465,
                     "username" to "",
                     "password" to "",
-                    "SSL" to true,
-                    "TLS" to true,
-                    "auth-method" to ""
+                    "isSsl" to true,
+                    "starttls" to "",
+                    "authMethods" to ""
                 ),
 
                 "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),

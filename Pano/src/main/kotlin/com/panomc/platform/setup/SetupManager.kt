@@ -13,11 +13,11 @@ import java.net.InetAddress
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class SetupManager(private val mConfigManager: ConfigManager) {
 
-    fun isSetupDone() = getStep() == 5
+    fun isSetupDone() = getCurrentStep() == 5
 
     fun getCurrentStepData(): JsonObject {
         val data = JsonObject()
-        val step = getStep()
+        val step = getCurrentStep()
 
         data.put("step", step)
 
@@ -30,7 +30,7 @@ class SetupManager(private val mConfigManager: ConfigManager) {
             val databaseConfig = mConfigManager.getConfig().getJsonObject("database")
 
             data.put(
-                "db", mapOf(
+                "database", mapOf(
                     "host" to databaseConfig.getString("host"),
                     "dbName" to databaseConfig.getString("name"),
                     "username" to databaseConfig.getString("username"),
@@ -43,14 +43,7 @@ class SetupManager(private val mConfigManager: ConfigManager) {
         if (step == 3) {
             val mailConfig = mConfigManager.getConfig().getJsonObject("email")
 
-            data.put("address", mailConfig.getString("address"))
-            data.put("host", mailConfig.getString("host"))
-            data.put("port", mailConfig.getInteger("port"))
-            data.put("username", mailConfig.getString("username"))
-            data.put("password", mailConfig.getString("password"))
-            data.put("useSSL", mailConfig.getBoolean("SSL"))
-            data.put("useTLS", mailConfig.getBoolean("TLS"))
-            data.put("authMethod", mailConfig.getString("auth-method"))
+            data.put("email", mailConfig)
         }
 
         if (step == 4) {
@@ -72,42 +65,42 @@ class SetupManager(private val mConfigManager: ConfigManager) {
         return data
     }
 
-    fun goAnyBackStep(step: Int) {
-        val currentStep = getStep()
+    fun goStep(step: Int) {
+        val currentStep = getCurrentStep()
 
         if (currentStep == step || step > 4 || step > currentStep)
             return
         else if (step < 0)
-            setStep(0)
+            updateStep(0)
         else
-            setStep(step)
+            updateStep(step)
     }
 
     fun backStep() {
-        val currentStep = getStep()
+        val currentStep = getCurrentStep()
 
         if (currentStep - 1 < 0)
-            setStep(0)
+            updateStep(0)
         else
-            setStep(currentStep - 1)
+            updateStep(currentStep - 1)
     }
 
     fun nextStep() {
-        val currentStep = getStep()
+        val currentStep = getCurrentStep()
 
         if (currentStep + 1 > 4)
-            setStep(4)
+            updateStep(4)
         else
-            setStep(currentStep + 1)
+            updateStep(currentStep + 1)
     }
 
     fun finishSetup() {
-        setStep(5)
+        updateStep(5)
     }
 
-    fun getStep() = mConfigManager.getConfig().getJsonObject("setup").getInteger("step")
+    fun getCurrentStep() = mConfigManager.getConfig().getJsonObject("setup").getInteger("step")
 
-    private fun setStep(step: Int) {
+    private fun updateStep(step: Int) {
         mConfigManager.getConfig().getJsonObject("setup").put("step", step)
 
         mConfigManager.saveConfig()

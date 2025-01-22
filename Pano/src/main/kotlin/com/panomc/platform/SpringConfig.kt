@@ -1,7 +1,6 @@
 package com.panomc.platform
 
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.mail.MailClientProvider
 import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.setup.SetupManager
 import de.triology.recaptchav2java.ReCaptcha
@@ -52,12 +51,6 @@ open class SpringConfig {
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun recaptcha() = ReCaptcha(SECRET_KEY)
-
-    @Bean
-    @Lazy
-    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun mailClientProvider(configManager: ConfigManager) = MailClientProvider.create(vertx, configManager)
-
 
     @Bean
     @Lazy

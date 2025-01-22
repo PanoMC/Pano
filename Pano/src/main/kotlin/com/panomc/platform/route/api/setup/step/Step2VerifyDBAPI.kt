@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.setup
+package com.panomc.platform.route.api.setup.step
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.InvalidData
@@ -18,8 +18,8 @@ import io.vertx.sqlclient.PoolOptions
 import org.slf4j.Logger
 
 @Endpoint
-class DBConnectionTestAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
-    override val paths = listOf(Path("/api/setup/dbConnectionTest", RouteType.POST))
+class Step2VerifyDBAPI(private val logger: Logger, setupManager: SetupManager) : SetupApi(setupManager) {
+    override val paths = listOf(Path("/api/setup/steps/2/verify", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

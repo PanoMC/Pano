@@ -52,7 +52,7 @@ class FinishAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        if (setupManager.getStep() != 4) {
+        if (setupManager.getCurrentStep() != 4) {
             return Successful(setupManager.getCurrentStepData().map)
         }
 

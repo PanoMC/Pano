@@ -46,7 +46,7 @@ class MailManager(
         val emailConfig = configManager.getConfig().getJsonObject("email")
         val message = MailMessage()
 
-        message.from = emailConfig.getString("address")
+        message.from = emailConfig.getString("sender")
         message.subject = mail.subject
         message.setTo(emailAddress)
 

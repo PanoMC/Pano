@@ -27,7 +27,7 @@ class Step3VerifyMailAPI(
                     objectSchema()
                         .requiredProperty("hostname", stringSchema())
                         .requiredProperty("port", intSchema())
-                        .optionalProperty("isSsl", booleanSchema())
+                        .optionalProperty("ssl", booleanSchema())
                         .requiredProperty(
                             "starttls",
                             enumSchema(*StartTLSOptions.entries.map { it.name }.toTypedArray())

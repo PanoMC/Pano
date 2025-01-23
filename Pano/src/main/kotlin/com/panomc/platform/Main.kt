@@ -5,6 +5,8 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.util.Architecture
+import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.TimeUtil
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
@@ -72,6 +74,22 @@ class Main : CoroutineVerticle() {
                     System.getenv("PanoBuildType").toString()
                 }
             )!!
+        }
+
+        val OPERATING_SYSTEM by lazy {
+            when (System.getProperty("os.name").lowercase()) {
+                in listOf("win", "windows") -> OperatingSystem.WINDOWS
+                in listOf("mac", "darwin", "osx") -> OperatingSystem.DARWIN
+                else -> OperatingSystem.LINUX
+            }
+        }
+
+        val ARCHITECTURE by lazy {
+            when (System.getProperty("os.arch").lowercase()) {
+                "amd64", "x86_64" -> Architecture.X64
+                "aarch64" -> Architecture.AARCH64
+                else -> Architecture.X64 // Default fallback
+            }
         }
 
         @JvmStatic

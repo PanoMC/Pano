@@ -1,5 +1,7 @@
 package com.panomc.platform.config
 
+import com.panomc.platform.Main
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
@@ -86,7 +88,7 @@ class ConfigManager(
                 "file-uploads-folder" to "file-uploads",
                 "file-paths" to mapOf<String, String>(),
 
-                "pano-api-url" to "api.panomc.com"
+                "pano-api-url" to "api" + if (Main.STAGE == ReleaseStage.ALPHA || Main.STAGE == ReleaseStage.BETA) "-dev" else "" + ".panomc.com"
             )
         )
     }

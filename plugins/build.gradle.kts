@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.incremental.createDirectory
-
 plugins {
     kotlin("jvm")
 }
@@ -10,7 +8,7 @@ tasks.register("copyJars") {
     pluginsDir?.let {
         doLast {
             if (!it.exists()) {
-                it.createDirectory()
+                it.mkdir()
             }
 
             file(System.getProperty("user.dir") + "/plugins")

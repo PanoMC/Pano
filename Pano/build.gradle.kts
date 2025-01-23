@@ -2,15 +2,15 @@ val vertxVersion: String by project
 val gsonVersion: String by project
 val springContextVersion: String by project
 val handlebarsVersion: String by project
-val log4jVersion = "2.21.1"
+val log4jVersion = "2.24.3"
 val appMainClass = "com.panomc.platform.Main"
 val pf4jVersion: String by project
 val pluginsDir: File? by rootProject.extra
 
 plugins {
-    kotlin("jvm") version "2.0.0"
-    kotlin("kapt") version "2.0.0"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    kotlin("jvm") version "2.1.0"
+    kotlin("kapt") version "2.1.0"
+    id("com.gradleup.shadow") version "8.3.5"
     application
     `maven-publish`
 }
@@ -33,8 +33,8 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation(kotlin("reflect"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -61,10 +61,10 @@ dependencies {
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.17.0")
+    implementation(group = "commons-codec", name = "commons-codec", version = "1.17.2")
 
     // https://mvnrepository.com/artifact/commons-io/commons-io
-    implementation("commons-io:commons-io:2.16.1")
+    implementation("commons-io:commons-io:2.18.0")
 
     // https://mvnrepository.com/artifact/org.apache.tika/tika-core
     implementation("org.apache.tika:tika-core:2.9.2")
@@ -73,7 +73,7 @@ dependencies {
     implementation("org.springframework:spring-context:$springContextVersion")
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.google.code.gson:gson:$gsonVersion")
 
     implementation("org.pf4j:pf4j:${pf4jVersion}")
     kapt("org.pf4j:pf4j:${pf4jVersion}")

@@ -194,6 +194,10 @@ class ConfigManager(
         configRetriever.listen { change ->
             config.clear()
 
+            if (change.previousConfiguration.encode() != change.newConfiguration.encode()) {
+                logger.info("Config is updated, reloading...")
+            }
+
             updateConfig(change.newConfiguration)
         }
     }

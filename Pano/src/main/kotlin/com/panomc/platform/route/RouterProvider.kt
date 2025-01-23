@@ -9,10 +9,7 @@ import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.UIHelper
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClient
-import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.Router
-import io.vertx.ext.web.handler.BodyHandler
-import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.json.schema.SchemaParser
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
@@ -54,25 +51,6 @@ class RouterProvider private constructor(
         Router.router(vertx)
     }
 
-    private val allowedHeaders = setOf(
-        "x-requested-with",
-        "Access-Control-Allow-Origin",
-        "origin",
-        "Content-Type",
-        "accept",
-        "X-PINGARUNER",
-        "x-csrf-token"
-    )
-
-    private val allowedMethods = setOf<HttpMethod>(
-        HttpMethod.GET,
-        HttpMethod.POST,
-        HttpMethod.OPTIONS,
-        HttpMethod.DELETE,
-        HttpMethod.PATCH,
-        HttpMethod.PUT
-    )
-
     init {
         val routeList = mutableListOf<Route>()
 
@@ -81,23 +59,11 @@ class RouterProvider private constructor(
             it.pluginBeanContext.getBeansWithAnnotation(Endpoint::class.java)
         }.flatMap { it.values }.map { it as Route })
 
-        router.route()
-            .handler(
-                CorsHandler.create(".*.")
-                    .allowCredentials(true)
-                    .allowedHeaders(allowedHeaders)
-                    .allowedMethods(allowedMethods)
-            )
-            .handler(
-                BodyHandler.create().setDeleteUploadedFilesOnEnd(true)
-                    .setUploadsDirectory(configManager.getConfig().getString("file-uploads-folder") + "/temp")
-            )
-
         UIHelper.prepareUI(setupManager, httpClient, router)
 
         routeList.forEach { route ->
             route.paths.forEach { path ->
-                val endpoint = when (path.routeType) {
+                val routedRoute = when (path.routeType) {
                     RouteType.ROUTE -> router.route(path.url)
                     RouteType.GET -> router.get(path.url)
                     RouteType.POST -> router.post(path.url)
@@ -105,17 +71,29 @@ class RouterProvider private constructor(
                     RouteType.PUT -> router.put(path.url)
                 }
 
-                endpoint
+                routedRoute
                     .order(route.order)
+
+                val corsHandler = route.corsHandler()
+
+                if (corsHandler != null) {
+                    routedRoute.handler(corsHandler)
+                }
+
+                val bodyHandler = route.bodyHandler()
+
+                if (bodyHandler != null) {
+                    routedRoute.handler(bodyHandler)
+                }
 
                 val validationHandler = route.getValidationHandler(schemaParser)
 
                 if (validationHandler != null) {
-                    endpoint
+                    routedRoute
                         .handler(validationHandler)
                 }
 
-                endpoint
+                routedRoute
                     .handler(route.getHandler())
                     .failureHandler(route.getFailureHandler())
             }

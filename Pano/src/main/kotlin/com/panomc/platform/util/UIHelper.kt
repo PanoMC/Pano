@@ -23,6 +23,7 @@ object UIHelper {
         val setupUIHandler = ProxyHandler.create(setupUI)
 
         router.route("/*").order(5).putMetadata("type", Route.Type.SETUP_UI).handler(setupUIHandler)
+            .failureHandler { it.failure().printStackTrace() }
 
         activatedUIList.add(Route.Type.SETUP_UI)
     }
@@ -39,6 +40,7 @@ object UIHelper {
         val themeUIHandler = ProxyHandler.create(themeUI)
 
         router.route("/*").order(5).putMetadata("type", Route.Type.THEME_UI).handler(themeUIHandler)
+            .failureHandler { it.failure().printStackTrace() }
 
         activatedUIList.add(Route.Type.THEME_UI)
     }
@@ -55,6 +57,7 @@ object UIHelper {
         val panelUIHandler = ProxyHandler.create(panelUI)
 
         router.route("/panel/*").order(4).putMetadata("type", Route.Type.PANEL_UI).handler(panelUIHandler)
+            .failureHandler { it.failure().printStackTrace() }
 
         activatedUIList.add(Route.Type.PANEL_UI)
     }

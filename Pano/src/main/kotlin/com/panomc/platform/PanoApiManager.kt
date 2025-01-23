@@ -147,8 +147,10 @@ class PanoApiManager(
                 .coAwait()
 
             val responseBody = response.bodyAsJsonObject()
+            val result = responseBody.getString("result")
+            val error = responseBody.getString("error")
 
-            if (responseBody.getString("result") != "ok") {
+            if (result != "ok" && error != "UNAUTHORIZED") {
                 throw PanoDisconnectFailed()
             }
         } catch (e: Exception) {

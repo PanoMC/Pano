@@ -132,6 +132,8 @@ class Main : CoroutineVerticle() {
     private suspend fun init() {
         initDependencyInjection()
 
+        initThemeManager()
+
         initPlugins()
 
         initConfigManager()
@@ -216,6 +218,14 @@ class Main : CoroutineVerticle() {
         SpringConfig.setDefaults(vertx, logger)
 
         applicationContext = AnnotationConfigApplicationContext(SpringConfig::class.java)
+    }
+
+    private fun initThemeManager() {
+        logger.info("Initializing theme manager")
+
+        val themeManager = applicationContext.getBean(ThemeManager::class.java)
+
+        themeManager.init()
     }
 
     private suspend fun initConfigManager() {

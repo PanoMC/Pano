@@ -161,6 +161,10 @@ class UpdateStepAPI(
             return true
         }
 
+        if (clientStep == 3) {
+            return true
+        }
+
         return false
     }
 }

@@ -29,7 +29,6 @@ class LoginAPI(
                     Schemas.objectSchema()
                         .requiredProperty("usernameOrEmail", Schemas.stringSchema())
                         .requiredProperty("password", Schemas.stringSchema())
-                        .requiredProperty("rememberMe", Schemas.booleanSchema())
                         .requiredProperty("recaptcha", Schemas.stringSchema())
                 )
             )
@@ -42,7 +41,6 @@ class LoginAPI(
 
         val usernameOrEmail = data.getString("usernameOrEmail")
         val password = data.getString("password")
-        val rememberMe = data.getBoolean("rememberMe")
         val recaptcha = data.getString("recaptcha")
 
         authProvider.validateInput(usernameOrEmail, password, recaptcha)

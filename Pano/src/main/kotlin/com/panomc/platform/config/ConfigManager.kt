@@ -90,7 +90,7 @@ class ConfigManager(
                 "file-uploads-folder" to "file-uploads",
                 "file-paths" to mapOf<String, String>(),
 
-                "pano-api-url" to "api" + if (Main.STAGE == ReleaseStage.ALPHA || Main.STAGE == ReleaseStage.BETA) "-dev" else "" + ".panomc.com"
+                "pano-api-url" to "api" + (if (Main.STAGE == ReleaseStage.ALPHA || Main.STAGE == ReleaseStage.BETA) "-dev" else "") + ".panomc.com"
             )
         )
     }

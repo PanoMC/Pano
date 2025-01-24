@@ -79,17 +79,19 @@ class Main : CoroutineVerticle() {
         }
 
         val OPERATING_SYSTEM by lazy {
-            when (System.getProperty("os.name").lowercase()) {
-                in listOf("win", "windows") -> OperatingSystem.WINDOWS
-                in listOf("mac", "darwin", "osx") -> OperatingSystem.DARWIN
+            val osName = System.getProperty("os.name").lowercase()
+            when {
+                osName.contains("win") || osName.contains("windows") -> OperatingSystem.WINDOWS
+                osName.contains("mac") || osName.contains("darwin") || osName.contains("osx") -> OperatingSystem.DARWIN
                 else -> OperatingSystem.LINUX
             }
         }
 
         val ARCHITECTURE by lazy {
-            when (System.getProperty("os.arch").lowercase()) {
-                "amd64", "x86_64" -> Architecture.X64
-                "aarch64" -> Architecture.AARCH64
+            val osArch = System.getProperty("os.arch").lowercase()
+            when {
+                osArch.contains("amd64") || osArch.contains("x86_64") -> Architecture.X64
+                osArch.contains("aarch64") -> Architecture.AARCH64
                 else -> Architecture.X64 // Default fallback
             }
         }

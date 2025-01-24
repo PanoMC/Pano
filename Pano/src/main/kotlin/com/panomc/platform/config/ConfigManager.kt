@@ -12,7 +12,7 @@ import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import org.slf4j.Logger
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
@@ -132,7 +132,7 @@ class ConfigManager(
         val configValues: Map<String, Any>
 
         try {
-            configValues = configRetriever.config.await().map
+            configValues = configRetriever.config.coAwait().map
         } catch (e: Exception) {
             logger.error("Error occurred while loading config file! Error: $e")
             logger.info("Using default config!")

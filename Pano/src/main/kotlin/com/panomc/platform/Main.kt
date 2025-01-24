@@ -12,6 +12,7 @@ import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
+import io.vertx.kotlin.coroutines.coAwait
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.io.File
@@ -132,7 +133,9 @@ class Main : CoroutineVerticle() {
     private suspend fun init() {
         initDependencyInjection()
 
-        initThemeManager()
+        vertx.executeBlocking { ->
+            initUiManager()
+        }.coAwait()
 
         initPlugins()
 
@@ -193,7 +196,7 @@ class Main : CoroutineVerticle() {
         applicationContext = AnnotationConfigApplicationContext(SpringConfig::class.java)
     }
 
-    private fun initThemeManager() {
+    private fun initUiManager() {
         logger.info("Initializing UI manager")
 
         val uiManager = applicationContext.getBean(UIManager::class.java)

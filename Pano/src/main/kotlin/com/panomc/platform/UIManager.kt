@@ -21,9 +21,15 @@ class UIManager(
 ) {
     private val themesFolderPath = System.getProperty("pano.themesFolder", "themes")
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
+    private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
+    private val panelUIFolderPath = System.getProperty("pano.panelUIFolder", "panel-ui")
+    private val defaultThemeFolderPath = themesFolderPath + File.separator + "vanilla-theme"
 
     private val themesFolder = File(themesFolderPath)
     private val librariesFolder = File(librariesFolderPath)
+    private val setupUIFolder = File(setupUIFolderPath)
+    private val panelUIFolder = File(panelUIFolderPath)
+    private val defaultThemeFolder = File(defaultThemeFolderPath)
 
     private val githubUrl = "https://github.com"
 
@@ -98,9 +104,42 @@ class UIManager(
         }
     }
 
-    internal fun init() {
-        logger.info("Verifying Bun runtime...")
+    private fun unzipUIFiles(uiName: String, targetDir: File) {
+        // Source folder: resources under UIFiles
+        val resourceDir = File("src/main/resources/UIFiles")
 
+        // Find the ZIP file matching the pattern setup-ui-*.zip
+        val zipFile = resourceDir.listFiles { _, name ->
+            name.startsWith("$uiName-") && name.endsWith(".zip")
+        }?.firstOrNull()
+
+        if (zipFile == null) {
+            logger.error("No file matching $uiName-*.zip was found!")
+
+            exitProcess(1)
+        }
+
+        logger.info("Found file: ${zipFile.name}")
+
+        // Extract the ZIP file
+        ZipFile(zipFile).use { zip ->
+            zip.entries().asSequence().forEach { entry ->
+                val outFile = File(targetDir, entry.name)
+                if (entry.isDirectory) {
+                    outFile.mkdirs()
+                } else {
+                    outFile.parentFile.mkdirs()
+                    zip.getInputStream(entry).use { input ->
+                        Files.copy(input, outFile.toPath())
+                    }
+                }
+            }
+        }
+
+        logger.info("File successfully extracted to: ${targetDir.absolutePath}")
+    }
+
+    internal fun init() {
         if (!themesFolder.exists()) {
             themesFolder.mkdirs()
         }
@@ -108,6 +147,32 @@ class UIManager(
         if (!librariesFolder.exists()) {
             librariesFolder.mkdirs()
         }
+
+        if (!setupUIFolder.exists()) {
+            setupUIFolder.mkdirs()
+
+            logger.warn("Setup UI not found, installing...")
+
+            unzipUIFiles("setup-ui", setupUIFolder)
+        }
+
+        if (!panelUIFolder.exists()) {
+            panelUIFolder.mkdirs()
+
+            logger.warn("Panel UI not found, installing...")
+
+            unzipUIFiles("panel-ui", panelUIFolder)
+        }
+
+        if (!defaultThemeFolder.exists()) {
+            defaultThemeFolder.mkdirs()
+
+            logger.warn("Default Vanilla Theme not found, installing...")
+
+            unzipUIFiles("vanilla-theme", defaultThemeFolder)
+        }
+
+        logger.info("Verifying Bun runtime...")
 
         if (!File(bunFilePath).exists()) {
             logger.warn("Required Bun runtime is not found.")

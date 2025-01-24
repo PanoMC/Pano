@@ -1,3 +1,8 @@
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import java.net.HttpURLConnection
+import java.net.URL
+
 val vertxVersion: String by project
 val gsonVersion: String by project
 val springContextVersion: String by project
@@ -81,7 +86,80 @@ dependencies {
     implementation("com.typesafe:config:1.4.3")
 }
 
+val organization = "PanoMC"
+val repositories = listOf("$organization/panel-ui", "$organization/setup-ui", "$organization/vanilla-theme")
+val outputDir = file("src/main/resources/UIFiles")
+
 tasks {
+    register("downloadUIReleases") {
+        doFirst {
+            println("Fetching latest releases for repositories...")
+
+            // Create the assets directory (if exists, delete old zip files)
+            if (outputDir.exists()) {
+                outputDir.listFiles()?.forEach { file ->
+                    if (file.extension == "zip") {
+                        println("Deleting existing zip file: ${file.name}")
+                        file.delete()
+                    }
+                }
+            } else {
+                outputDir.mkdirs() // Create the directory if it doesn't exist
+            }
+
+//            val isDevBuild = project.gradle.startParameter.taskNames.contains("buildDev")
+            val isDevBuild = true
+
+            repositories.forEach { repo ->
+                println("Processing repository: $repo")
+
+                // GitHub API URL
+                val apiUrl = "https://api.github.com/repos/$repo/releases"
+
+                // Send API request
+                val connection = URL(apiUrl).openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+
+                // Read the response
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val releases = JsonParser.parseString(response).asJsonArray
+
+                // Get the release that fits the condition (non-prerelease or prerelease based on buildDev task)
+                val releaseFilter = if (isDevBuild) {
+                    { release: JsonObject -> release["prerelease"].asBoolean }
+                } else {
+                    { release: JsonObject -> !release["prerelease"].asBoolean }
+                }
+
+                val latestRelease = releases.firstOrNull { release ->
+                    releaseFilter(release.asJsonObject)
+                } ?: throw IllegalStateException("No matching release found in repository: $repo")
+
+                // Check asset files and get `repo-name-version.zip` file
+                val repoName = repo.substringAfter("/")
+                val assets = latestRelease.asJsonObject["assets"].asJsonArray
+                val asset = assets.firstOrNull { asset ->
+                    val name = asset.asJsonObject["name"].asString
+                    name.startsWith(repoName) && name.endsWith(".zip")
+                }
+                    ?: throw IllegalStateException("No matching ${repoName}-*.zip file found in the latest release of $repo")
+
+                // Get the download URL
+                val downloadUrl = asset.asJsonObject["browser_download_url"].asString
+                println("Downloading asset from: $downloadUrl")
+
+                // Download & save the file
+                val outputFile = File(outputDir, asset.asJsonObject["name"].asString)
+                URL(downloadUrl).openStream().use { input ->
+                    outputFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                println("Downloaded asset saved to: ${outputFile.absolutePath}")
+            }
+        }
+    }
+
     register("copyJar") {
         if (shadowJar.get().archiveFile.get().asFile.parentFile.absolutePath != buildDir.absolutePath) {
             doLast {
@@ -125,6 +203,10 @@ tasks {
         dependsOn(shadowJar)
         dependsOn("copyJar")
     }
+}
+
+tasks.named("build") {
+    dependsOn("downloadUIReleases")
 }
 
 tasks.named<JavaExec>("run") {

@@ -21,3 +21,5 @@ plugins/*
 !plugins/*.jar
 
 Pano/libraries
+
+Pano/src/main/resources/UIFiles

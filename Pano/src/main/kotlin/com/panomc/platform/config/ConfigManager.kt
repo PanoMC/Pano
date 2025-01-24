@@ -80,6 +80,8 @@ class ConfigManager(
                     "authMethods" to ""
                 ),
 
+                "init-ui" to true,
+
                 "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),
 
                 "update-period" to UpdatePeriod.ONCE_PER_DAY.period,

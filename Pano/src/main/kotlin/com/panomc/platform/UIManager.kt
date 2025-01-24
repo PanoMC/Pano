@@ -1,14 +1,28 @@
 package com.panomc.platform
 
+import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.model.Route
+import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.OperatingSystem
+import io.vertx.core.http.HttpClient
+import io.vertx.ext.web.Router
+import io.vertx.ext.web.proxy.handler.ProxyHandler
+import io.vertx.httpproxy.HttpProxy
+import io.vertx.httpproxy.ProxyOptions
 import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.net.ServerSocket
 import java.net.URL
 import java.nio.file.*
+import java.util.concurrent.Executors
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import kotlin.io.path.name
@@ -18,13 +32,17 @@ import kotlin.system.exitProcess
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class UIManager(
-    private val logger: Logger
+    private val logger: Logger,
+    private val configManager: ConfigManager,
+    private val setupManager: SetupManager,
+    private val httpClient: HttpClient
 ) {
     private val themesFolderPath = System.getProperty("pano.themesFolder", "themes")
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
     private val panelUIFolderPath = System.getProperty("pano.panelUIFolder", "panel-ui")
-    private val defaultThemeFolderPath = themesFolderPath + File.separator + "vanilla-theme"
+    private val defaultThemeName = "Vanilla"
+    private val defaultThemeFolderPath = themesFolderPath + File.separator + defaultThemeName
 
     private val themesFolder = File(themesFolderPath)
     private val librariesFolder = File(librariesFolderPath)
@@ -45,6 +63,17 @@ class UIManager(
     }
     private val bunFilePath by lazy {
         librariesFolder.absolutePath + File.separator + bunFileName
+    }
+
+    private val startedUIList = mutableListOf<LoadedUI>()
+    private var activatedUIList = mutableListOf<Route.Type>()
+
+    private var activeTheme = ""
+
+    private fun findAvailablePort(): Int {
+        ServerSocket(0).use { socket ->
+            return socket.localPort
+        }
     }
 
     private fun deleteOldBunRuntimes() {
@@ -152,7 +181,51 @@ class UIManager(
         logger.info("File successfully extracted to: ${targetDir.absolutePath}")
     }
 
+    private fun redirectStreamToConsole(uiName: String, inputStream: InputStream) {
+        val logger = LoggerFactory.getLogger("UI | $uiName")
+        val executor = Executors.newSingleThreadExecutor()
+
+        executor.submit {
+            BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                reader.lines().forEach { logger.info(it) }
+            }
+        }
+    }
+
+    private fun startUI(uiName: String, uiFolder: String, port: Int = findAvailablePort()) {
+        val processBuilder = ProcessBuilder()
+
+        processBuilder.redirectErrorStream(true)
+        processBuilder.command(bunFilePath, "run", uiFolder + File.separator + "index.js")
+
+        val environment = processBuilder.environment()
+
+        environment["PORT"] = port.toString()
+        environment["HOST"] = "127.0.0.1"
+        environment["API_URL"] = "http://localhost:${Main.PORT}/api"
+
+        val process = processBuilder.start()
+
+        while (!process.isAlive) {
+            Thread.sleep(100)
+        }
+
+        redirectStreamToConsole(uiName, process.inputStream)
+
+        val startedUI = LoadedUI(uiName, port, process)
+
+        startedUIList.add(startedUI)
+
+        logger.info("\"$uiName\" started at port: {}", port)
+    }
+
     internal fun init() {
+        val config = configManager.getConfig()
+
+        if (!config.getBoolean("init-ui")) {
+            return
+        }
+
         if (!librariesFolder.exists()) {
             librariesFolder.mkdirs()
         }
@@ -170,7 +243,7 @@ class UIManager(
         }
 
         if (!defaultThemeFolder.exists()) {
-            logger.warn("Default Vanilla Theme not found, installing...")
+            logger.warn("Default Vanilla theme not found, installing...")
 
             unzipUIFiles("vanilla-theme", defaultThemeFolder)
         }
@@ -185,5 +258,149 @@ class UIManager(
 
             downloadBunRuntime()
         }
+
+        val currentTheme = config.getString("current-theme")
+        val currentThemeFolder = File(themesFolder.absolutePath + File.separator + currentTheme)
+
+        val currentThemeValid = currentThemeFolder.exists() && currentThemeFolder.isDirectory
+
+        if (!currentThemeValid) {
+            logger.error("Current theme is not valid, defaulting to \"$defaultThemeName\"")
+        }
+
+        val themeFolder = if (currentThemeValid) currentThemeFolder.absolutePath else defaultThemeFolder.absolutePath
+
+        val theme = if (currentThemeValid) currentTheme else defaultThemeName
+
+        activeTheme = theme
+
+        try {
+            startUI("setup-ui", setupUIFolder.absolutePath)
+            startUI("panel-ui", panelUIFolder.absolutePath)
+            startUI(theme, themeFolder)
+        } catch (e: Exception) {
+            logger.error("Failed to start UI.", e)
+
+            exitProcess(1)
+        }
+    }
+
+    fun activateSetupUI(router: Router) {
+        if (activatedUIList.indexOf(Route.Type.SETUP_UI) != -1) {
+            return
+        }
+
+        val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
+
+        val startedSetupUI = startedUIList.find { it.name == "setup-ui" }
+
+        setupUI.origin(startedSetupUI?.port ?: 3002, "127.0.0.1")
+
+        val setupUIHandler = ProxyHandler.create(setupUI)
+
+        router.route("/*")
+            .order(5)
+            .putMetadata("type", Route.Type.SETUP_UI)
+            .handler(setupUIHandler)
+            .failureHandler { it.failure().printStackTrace() }
+
+        activatedUIList.add(Route.Type.SETUP_UI)
+    }
+
+    fun activatePanelUI(router: Router) {
+        if (activatedUIList.indexOf(Route.Type.PANEL_UI) != -1) {
+            return
+        }
+
+        val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
+
+        val startedPanelUI = startedUIList.find { it.name == "panel-ui" }
+
+        panelUI.origin(startedPanelUI?.port ?: 3001, "127.0.0.1")
+
+        val panelUIHandler = ProxyHandler.create(panelUI)
+
+        router.route("/panel/*")
+            .order(4)
+            .putMetadata("type", Route.Type.PANEL_UI)
+            .handler(panelUIHandler)
+            .failureHandler { it.failure().printStackTrace() }
+
+        activatedUIList.add(Route.Type.PANEL_UI)
+    }
+
+    fun activateThemeUI(router: Router) {
+        if (activatedUIList.indexOf(Route.Type.THEME_UI) != -1) {
+            return
+        }
+
+        val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
+
+        val startedThemeUI = startedUIList.find { it.name == activeTheme }
+
+        themeUI.origin(startedThemeUI?.port ?: 3000, "127.0.0.1")
+
+        val themeUIHandler = ProxyHandler.create(themeUI)
+
+        router.route("/*")
+            .order(5)
+            .putMetadata("type", Route.Type.THEME_UI)
+            .handler(themeUIHandler)
+            .failureHandler { it.failure().printStackTrace() }
+
+        activatedUIList.add(Route.Type.THEME_UI)
+    }
+
+    fun disableUIOnRoute(router: Router, UI: Route.Type) {
+        val foundUI = router.routes.firstOrNull {
+            val metadata = it.metadata() ?: mapOf()
+
+            val type = metadata.getOrDefault("type", null)
+
+            type != null && (type as Route.Type) == UI
+        }
+
+        foundUI?.let {
+            it.disable()
+            it.remove()
+        }
+
+        if (activatedUIList.indexOf(UI) == -1) {
+            return
+        }
+
+        activatedUIList.remove(UI)
+    }
+
+    fun prepareUI(router: Router) {
+        if (setupManager.isSetupDone()) {
+            disableUIOnRoute(router, Route.Type.SETUP_UI)
+
+            activateThemeUI(router)
+            activatePanelUI(router)
+
+            return
+        }
+
+        disableUIOnRoute(router, Route.Type.THEME_UI)
+        disableUIOnRoute(router, Route.Type.PANEL_UI)
+
+        activateSetupUI(router)
+    }
+
+    internal fun shutdown() {
+        startedUIList.forEach {
+            it.process.destroyForcibly()
+
+            startedUIList.remove(it)
+        }
+    }
+
+    companion object {
+        class LoadedUI(
+            val name: String,
+            val port: Int,
+            val process: Process
+        )
     }
 }

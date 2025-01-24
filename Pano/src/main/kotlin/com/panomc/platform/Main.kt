@@ -13,6 +13,7 @@ import io.vertx.core.VertxOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.coAwait
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.io.File
@@ -112,8 +113,23 @@ class Main : CoroutineVerticle() {
     private lateinit var router: Router
     private lateinit var configManager: ConfigManager
     private lateinit var pluginManager: PluginManager
+    private lateinit var uiManager: UIManager
+
+    private fun hookShutdown() {
+        Runtime.getRuntime().addShutdownHook(Thread {
+            try {
+                runBlocking {
+                    vertx.close().coAwait()
+                }
+            } catch (e: Exception) {
+                logger.error("Pano graceful shutdown failed", e)
+            }
+        })
+    }
 
     override suspend fun start() {
+        hookShutdown()
+
         println(
             "\n" +
                     " ______   ______     __   __     ______    \n" +
@@ -130,14 +146,14 @@ class Main : CoroutineVerticle() {
         startWebServer()
     }
 
+    override suspend fun stop() {
+        if (::uiManager.isInitialized) {
+            uiManager.shutdown()
+        }
+    }
+
     private suspend fun init() {
         initDependencyInjection()
-
-        vertx.executeBlocking { ->
-            initUiManager()
-        }.onFailure {
-            it.printStackTrace()
-        }.coAwait()
 
         initPlugins()
 
@@ -146,6 +162,12 @@ class Main : CoroutineVerticle() {
         clearTempFiles()
 
         val isPlatformInstalled = initSetupManager()
+
+        vertx.executeBlocking { ->
+            initUiManager()
+        }.onFailure {
+            it.printStackTrace()
+        }.coAwait()
 
         if (isPlatformInstalled) {
             initDatabaseManager()

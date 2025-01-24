@@ -60,16 +60,15 @@ open class SpringConfig {
         configManager: ConfigManager,
         httpClient: HttpClient,
         setupManager: SetupManager,
-        pluginManager: PluginManager
+        pluginManager: PluginManager,
+        uiManager: UIManager
     ) =
         RouterProvider.create(
             vertx,
             applicationContext,
             schemaParser,
-            configManager,
-            httpClient,
-            setupManager,
-            pluginManager
+            pluginManager,
+            uiManager
         )
             .provide()
 

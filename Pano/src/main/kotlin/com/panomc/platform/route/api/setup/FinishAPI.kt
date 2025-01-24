@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.setup
 
 import com.panomc.platform.AppConstants
 import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
+import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
@@ -9,9 +10,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
-import com.panomc.platform.util.UIHelper
 import io.vertx.core.http.Cookie
-import io.vertx.core.http.HttpClient
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -27,8 +26,8 @@ class FinishAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager,
-    private val httpClient: HttpClient,
-    @Lazy private val router: Router
+    @Lazy private val router: Router,
+    private val uiManager: UIManager
 ) : SetupApi() {
     override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
@@ -97,7 +96,7 @@ class FinishAPI(
 
         setupManager.finishSetup()
 
-        UIHelper.prepareUI(setupManager, httpClient, router)
+        uiManager.prepareUI(router)
 
         val response = context.response()
 

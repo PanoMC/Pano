@@ -1,14 +1,11 @@
 package com.panomc.platform.route
 
 import com.panomc.platform.PluginManager
+import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Route
 import com.panomc.platform.model.RouteType
-import com.panomc.platform.setup.SetupManager
-import com.panomc.platform.util.UIHelper
 import io.vertx.core.Vertx
-import io.vertx.core.http.HttpClient
 import io.vertx.ext.web.Router
 import io.vertx.json.schema.SchemaParser
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
@@ -17,29 +14,23 @@ class RouterProvider private constructor(
     vertx: Vertx,
     applicationContext: AnnotationConfigApplicationContext,
     schemaParser: SchemaParser,
-    configManager: ConfigManager,
-    httpClient: HttpClient,
-    setupManager: SetupManager,
-    pluginManager: PluginManager
+    pluginManager: PluginManager,
+    uiManager: UIManager
 ) {
     companion object {
         fun create(
             vertx: Vertx,
             applicationContext: AnnotationConfigApplicationContext,
             schemaParser: SchemaParser,
-            configManager: ConfigManager,
-            httpClient: HttpClient,
-            setupManager: SetupManager,
-            pluginManager: PluginManager
+            pluginManager: PluginManager,
+            uiManager: UIManager
         ) =
             RouterProvider(
                 vertx,
                 applicationContext,
                 schemaParser,
-                configManager,
-                httpClient,
-                setupManager,
-                pluginManager
+                pluginManager,
+                uiManager
             )
 
         private var isInitialized = false
@@ -59,7 +50,7 @@ class RouterProvider private constructor(
             it.pluginBeanContext.getBeansWithAnnotation(Endpoint::class.java)
         }.flatMap { it.values }.map { it as Route })
 
-        UIHelper.prepareUI(setupManager, httpClient, router)
+        uiManager.prepareUI(router)
 
         routeList.forEach { route ->
             route.paths.forEach { path ->

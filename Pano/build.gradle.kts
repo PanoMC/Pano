@@ -196,6 +196,8 @@ tasks {
         if (project.gradle.startParameter.taskNames.contains("publish")) {
             archiveFileName.set(archiveFileName.get().lowercase())
         }
+
+        from("src/main/resources")
     }
 
     jar {

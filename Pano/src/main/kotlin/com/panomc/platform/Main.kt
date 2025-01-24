@@ -135,6 +135,8 @@ class Main : CoroutineVerticle() {
 
         vertx.executeBlocking { ->
             initUiManager()
+        }.onFailure {
+            it.printStackTrace()
         }.coAwait()
 
         initPlugins()

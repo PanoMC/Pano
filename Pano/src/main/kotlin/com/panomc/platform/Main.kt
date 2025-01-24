@@ -160,36 +160,9 @@ class Main : CoroutineVerticle() {
 
         pluginManager.loadPlugins()
 
-
-//        pluginManager.plugins
-
         logger.info("Enabling plugins")
 
         pluginManager.startPlugins()
-//        try {
-//
-//            // Iterate through each plugin
-//            for (plugin in pluginManager.plugins) {
-//                // Get the main class of the plugin
-//                val mainClass = plugin.pluginClassLoader.loadClass(plugin.descriptor.pluginClass)
-//
-//                // Get the package of the main class
-//                val mainPackage = mainClass.`package`
-//
-//                // Print the base package of the main class
-//                if (mainPackage != null) {
-//                    println("Base package of main class of plugin ${plugin.descriptor.pluginId}: ${mainPackage.name}")
-////                    applicationContext.scan(mainPackage.name)
-//                } else {
-//                    println("Main class package not found for plugin ${plugin.descriptor.pluginId}")
-//                }
-//            }
-////            pluginManager.plugins.map {(it.plugin as PanoPlugin).context.pluginBeanContext.getBeansWithAnnotation(Endpoint::class.java)}
-//        } catch (e: Exception) {
-//            logger.error(e.toString())
-//        }
-
-
     }
 
     private fun clearTempFiles() {

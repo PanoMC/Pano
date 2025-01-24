@@ -221,11 +221,11 @@ class Main : CoroutineVerticle() {
     }
 
     private fun initThemeManager() {
-        logger.info("Initializing theme manager")
+        logger.info("Initializing UI manager")
 
-        val themeManager = applicationContext.getBean(ThemeManager::class.java)
+        val uiManager = applicationContext.getBean(UIManager::class.java)
 
-        themeManager.init()
+        uiManager.init()
     }
 
     private suspend fun initConfigManager() {

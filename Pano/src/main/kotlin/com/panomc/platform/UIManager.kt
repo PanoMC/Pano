@@ -16,7 +16,7 @@ import kotlin.system.exitProcess
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class ThemeManager(
+class UIManager(
     private val logger: Logger
 ) {
     private val themesFolderPath = System.getProperty("pano.themesFolder", "themes")

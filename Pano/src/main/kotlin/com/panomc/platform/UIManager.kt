@@ -8,9 +8,10 @@ import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.io.File
 import java.net.URL
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
+import java.nio.file.*
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import kotlin.io.path.name
 import kotlin.system.exitProcess
 
 @Lazy
@@ -105,38 +106,46 @@ class UIManager(
     }
 
     private fun unzipUIFiles(uiName: String, targetDir: File) {
-        if (!targetDir.exists()) {
-            setupUIFolder.mkdirs()
+        val resourceDirUri = ClassLoader.getSystemClassLoader().getResource("UIFiles")?.toURI()
+        val dirPath = try {
+            Paths.get(resourceDirUri)
+        } catch (e: FileSystemNotFoundException) {
+            // If this is thrown, then it means that we are running the JAR directly (example: not from an IDE)
+            val env = mutableMapOf<String, String>()
+            FileSystems.newFileSystem(resourceDirUri, env).getPath("UIFiles")
         }
 
-        // Source folder: resources under UIFiles
-        val resourceDir = javaClass.getResource("/UIFiles")?.toURI()?.let { File(it) }
-
         // Find the ZIP file matching the pattern setup-ui-*.zip
-        val zipFile = resourceDir?.listFiles { _, name ->
-            name.startsWith("$uiName-") && name.endsWith(".zip")
-        }?.firstOrNull()
+        val optionalZipFile = Files.list(dirPath).filter { file ->
+            file.name.startsWith("$uiName-") && file.name.endsWith(".zip")
+        }.findFirst()
 
-        if (zipFile == null) {
+        if (!optionalZipFile.isPresent) {
             logger.error("No file matching $uiName-*.zip was found!")
 
             exitProcess(1)
         }
 
-        logger.info("Found file: ${zipFile.name}")
+        val zipFile =
+            ClassLoader.getSystemClassLoader().getResource("UIFiles/" + optionalZipFile.get().name).openStream()
+
+        logger.info("Found file: ${optionalZipFile.get().name}")
 
         // Extract the ZIP file
-        ZipFile(zipFile).use { zip ->
-            zip.entries().asSequence().forEach { entry ->
+        ZipInputStream(zipFile).use { zipStream ->
+            var entry = zipStream.nextEntry
+            while (entry != null) {
                 val outFile = File(targetDir, entry.name)
                 if (entry.isDirectory) {
                     outFile.mkdirs()
                 } else {
                     outFile.parentFile.mkdirs()
-                    zip.getInputStream(entry).use { input ->
-                        Files.copy(input, outFile.toPath())
+                    outFile.outputStream().use { output ->
+                        zipStream.copyTo(output)
                     }
                 }
+                zipStream.closeEntry()
+                entry = zipStream.nextEntry
             }
         }
 

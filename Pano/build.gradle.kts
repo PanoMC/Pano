@@ -179,6 +179,9 @@ tasks {
     }
 
     shadowJar {
+        from("src/main/resources")
+        mustRunAfter("downloadUIReleases")
+
         manifest {
             val attrMap = mutableMapOf<String, String>()
 
@@ -196,8 +199,6 @@ tasks {
         if (project.gradle.startParameter.taskNames.contains("publish")) {
             archiveFileName.set(archiveFileName.get().lowercase())
         }
-
-        from("src/main/resources")
     }
 
     jar {

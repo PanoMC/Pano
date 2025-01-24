@@ -105,11 +105,15 @@ class UIManager(
     }
 
     private fun unzipUIFiles(uiName: String, targetDir: File) {
+        if (!targetDir.exists()) {
+            setupUIFolder.mkdirs()
+        }
+
         // Source folder: resources under UIFiles
-        val resourceDir = File("src/main/resources/UIFiles")
+        val resourceDir = javaClass.getResource("/UIFiles")?.toURI()?.let { File(it) }
 
         // Find the ZIP file matching the pattern setup-ui-*.zip
-        val zipFile = resourceDir.listFiles { _, name ->
+        val zipFile = resourceDir?.listFiles { _, name ->
             name.startsWith("$uiName-") && name.endsWith(".zip")
         }?.firstOrNull()
 
@@ -140,33 +144,23 @@ class UIManager(
     }
 
     internal fun init() {
-        if (!themesFolder.exists()) {
-            themesFolder.mkdirs()
-        }
-
         if (!librariesFolder.exists()) {
             librariesFolder.mkdirs()
         }
 
         if (!setupUIFolder.exists()) {
-            setupUIFolder.mkdirs()
-
             logger.warn("Setup UI not found, installing...")
 
             unzipUIFiles("setup-ui", setupUIFolder)
         }
 
         if (!panelUIFolder.exists()) {
-            panelUIFolder.mkdirs()
-
             logger.warn("Panel UI not found, installing...")
 
             unzipUIFiles("panel-ui", panelUIFolder)
         }
 
         if (!defaultThemeFolder.exists()) {
-            defaultThemeFolder.mkdirs()
-
             logger.warn("Default Vanilla Theme not found, installing...")
 
             unzipUIFiles("vanilla-theme", defaultThemeFolder)

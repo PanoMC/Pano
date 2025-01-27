@@ -33,12 +33,16 @@ class Main : CoroutineVerticle() {
             Vertx.vertx(options)
         }
 
+        private val urlClassLoader = ClassLoader.getSystemClassLoader()
+
+        private val manifest by lazy {
+            val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
+
+            Manifest(manifestUrl)
+        }
+
         private val mode by lazy {
             try {
-                val urlClassLoader = ClassLoader.getSystemClassLoader()
-                val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
-                val manifest = Manifest(manifestUrl)
-
                 manifest.mainAttributes.getValue("MODE").toString()
             } catch (e: Exception) {
                 "RELEASE"
@@ -53,10 +57,6 @@ class Main : CoroutineVerticle() {
 
         val VERSION by lazy {
             try {
-                val urlClassLoader = ClassLoader.getSystemClassLoader()
-                val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
-                val manifest = Manifest(manifestUrl)
-
                 manifest.mainAttributes.getValue("VERSION").toString()
             } catch (e: Exception) {
                 System.getenv("PanoVersion").toString()
@@ -67,10 +67,6 @@ class Main : CoroutineVerticle() {
             ReleaseStage.valueOf(
                 stage =
                 try {
-                    val urlClassLoader = ClassLoader.getSystemClassLoader()
-                    val manifestUrl = urlClassLoader.getResourceAsStream("META-INF/MANIFEST.MF")
-                    val manifest = Manifest(manifestUrl)
-
                     manifest.mainAttributes.getValue("BUILD_TYPE").toString()
                 } catch (e: Exception) {
                     System.getenv("PanoBuildType").toString()

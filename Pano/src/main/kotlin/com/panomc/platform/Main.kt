@@ -23,8 +23,6 @@ import java.util.jar.Manifest
 @Boot
 class Main : CoroutineVerticle() {
     companion object {
-        const val PORT = 8088
-
         private val options by lazy {
             VertxOptions()
         }
@@ -279,14 +277,18 @@ class Main : CoroutineVerticle() {
     private fun startWebServer() {
         logger.info("Creating HTTP server")
 
+        val serverConfig = configManager.getConfig().getJsonObject("server")
+        val host = serverConfig.getString("host")
+        val port = serverConfig.getInteger("port")
+
         vertx
             .createHttpServer()
             .requestHandler(router)
-            .listen(PORT) { result ->
+            .listen(port, host) { result ->
                 if (result.succeeded()) {
-                    logger.info("Started listening on port $PORT, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+                    logger.info("Started listening on port $port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
                 } else {
-                    logger.error("Failed to listen on port $PORT, reason: " + result.cause().toString())
+                    logger.error("Failed to listen on port $port, reason: " + result.cause().toString())
                 }
             }
     }

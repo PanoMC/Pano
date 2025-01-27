@@ -80,6 +80,11 @@ class ConfigManager(
                     "authMethods" to ""
                 ),
 
+                "server" to mapOf(
+                    "host" to "0.0.0.0",
+                    "port" to 8088
+                ),
+
                 "init-ui" to true,
 
                 "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),

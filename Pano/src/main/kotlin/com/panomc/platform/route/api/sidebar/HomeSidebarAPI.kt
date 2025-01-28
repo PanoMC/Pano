@@ -18,8 +18,8 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
     override suspend fun handle(context: RoutingContext): Result {
         val response = mutableMapOf<String, Any?>()
 
-        response["ipAddress"] = configManager.getConfig().getString("server-ip-address")
-        response["serverGameVersion"] = configManager.getConfig().getString("server-game-version")
+        response["ipAddress"] = configManager.config.serverIpAddress
+        response["serverGameVersion"] = configManager.config.serverGameVersion
 
         val sqlClient = getSqlClient()
 

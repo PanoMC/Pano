@@ -1,10 +1,6 @@
 package com.panomc.platform.config
 
-import com.panomc.platform.Main
-import com.panomc.platform.ReleaseStage
 import com.panomc.platform.annotation.Migration
-import com.panomc.platform.util.KeyGeneratorUtil
-import com.panomc.platform.util.UpdatePeriod
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
 import io.vertx.config.ConfigRetriever
@@ -20,7 +16,8 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.io.File
-import java.util.*
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @Lazy
 @Component
@@ -33,86 +30,14 @@ class ConfigManager(
     private val defaultConfig by lazy {
         val latestVersion = migrations.maxByOrNull { it.to }?.to ?: 1
 
-        val key = KeyGeneratorUtil.generateJWTKey()
-
-        JsonObject(
-            mapOf(
-                "config-version" to latestVersion,
-                "development-mode" to true,
-                "locale" to "en-US",
-
-                "website-name" to "",
-                "website-description" to "",
-                "support-email" to "",
-                "server-ip-address" to "play.ipadress.com",
-                "server-game-version" to "1.8.x",
-                "keywords" to listOf<String>(),
-
-                "setup" to mapOf(
-                    "step" to 0
-                ),
-
-                "database" to mapOf(
-                    "host" to "",
-                    "name" to "",
-                    "username" to "",
-                    "password" to "",
-                    "prefix" to "pano_"
-                ),
-
-                "pano-account" to mapOf(
-                    "username" to "",
-                    "email" to "",
-                    "access-token" to "",
-                    "platform-id" to ""
-                ),
-
-                "current-theme" to "Vanilla",
-
-                "email" to mapOf(
-                    "sender" to "",
-                    "hostname" to "",
-                    "port" to 465,
-                    "username" to "",
-                    "password" to "",
-                    "ssl" to true,
-                    "starttls" to "",
-                    "authMethods" to ""
-                ),
-
-                "server" to mapOf(
-                    "host" to "0.0.0.0",
-                    "port" to 8088
-                ),
-
-                "init-ui" to true,
-
-                "jwt-key" to Base64.getEncoder().encode(key.toByteArray()),
-
-                "update-period" to UpdatePeriod.ONCE_PER_DAY.period,
-
-                "ui-address" to "http://localhost:3000",
-                "file-uploads-folder" to "file-uploads",
-                "file-paths" to mapOf<String, String>(),
-
-                "pano-api-url" to "api" + (if (Main.STAGE == ReleaseStage.ALPHA || Main.STAGE == ReleaseStage.BETA) "-dev" else "") + ".panomc.com"
-            )
-        )
-    }
-
-    companion object {
-        fun JsonObject.putAll(jsonObject: Map<String, Any>) {
-            jsonObject.forEach {
-                this.put(it.key, it.value)
-            }
-        }
+        PanoConfig(latestVersion)
     }
 
     private val configFilePath by lazy {
         System.getProperty("pano.configFile", "config.conf")
     }
 
-    fun saveConfig(config: JsonObject = this.config) {
+    fun saveConfig() {
         val renderOptions = ConfigRenderOptions
             .defaults()
             .setJson(false)           // false: HOCON, true: JSON
@@ -129,27 +54,36 @@ class ConfigManager(
         configFile.writeText(parsedConfig.root().render(renderOptions))
     }
 
-    fun getConfig() = config
-
     internal suspend fun init() {
         if (!configFile.exists()) {
-            saveConfig(defaultConfig)
-        }
+            logger.warn("Config file not found, creating one...")
 
-        val configValues: Map<String, Any>
-
-        try {
-            configValues = configRetriever.config.coAwait().map
-        } catch (e: Exception) {
-            logger.error("Error occurred while loading config file! Error: $e")
-            logger.info("Using default config!")
-
-            config.putAll(defaultConfig.map)
+            updateConfig(JsonObject(defaultConfig.toString()))
+            saveConfig()
+            listenConfigFile()
 
             return
         }
 
-        config.putAll(configValues)
+        try {
+            val configValues = configRetriever.config.coAwait()
+
+            updateConfig(configValues)
+
+            logger.info("Loaded config file.")
+        } catch (e: Exception) {
+            logger.error("Config file is invalid! Error: $e")
+
+            backupConfigFile()
+
+            logger.info("Saving & using default config!")
+
+            updateConfig(JsonObject(defaultConfig.toString()))
+            saveConfig()
+            listenConfigFile()
+
+            return
+        }
 
         logger.info("Checking available config migrations")
 
@@ -158,9 +92,10 @@ class ConfigManager(
         listenConfigFile()
     }
 
-    private fun getConfigVersion(): Int = config.getInteger("config-version")
+    lateinit var config: PanoConfig
+        private set
 
-    private val config = JsonObject()
+    private lateinit var configJsonObject: JsonObject
 
     private val migrations by lazy {
         val beans = applicationContext.getBeansWithAnnotation(Migration::class.java)
@@ -179,28 +114,32 @@ class ConfigManager(
 
     private val configRetriever = ConfigRetriever.create(vertx, options)
 
-    private fun migrate(configVersion: Int = getConfigVersion(), saveConfig: Boolean = true) {
+    private fun migrate(
+        configVersion: Int = configJsonObject.getInteger("config-version"),
+        saveConfig: Boolean = true
+    ) {
         migrations
             .find { configMigration -> configMigration.isMigratable(configVersion) }
             ?.let { migration ->
                 logger.info("Migration Found! Migrating config from version ${migration.from} to ${migration.to}: ${migration.versionInfo}")
 
-                config.put("config-version", migration.to)
+                configJsonObject.put("config-version", migration.to)
 
-                migration.migrate(this)
+                migration.migrate(configJsonObject)
 
                 migrate(migration.to, false)
             }
 
         if (saveConfig) {
+            updateConfig(configJsonObject)
             saveConfig()
         }
     }
 
     private fun listenConfigFile() {
-        configRetriever.listen { change ->
-            config.clear()
+        logger.info("Started to listen config file changes.")
 
+        configRetriever.listen { change ->
             if (change.previousConfiguration.encode() != change.newConfiguration.encode()) {
                 logger.info("Config is updated, reloading...")
             }
@@ -209,9 +148,22 @@ class ConfigManager(
         }
     }
 
+    private fun backupConfigFile() {
+        logger.warn("Backing up config file...")
+
+        val now = LocalDateTime.now()
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss") // Exp: 2025-01-28_15-45-30
+        val formattedDate = now.format(formatter)
+
+        val filePath = configFile.parentFile.absolutePath + File.separator + "config-backup-$formattedDate.conf"
+
+        configFile.copyTo(File(filePath))
+
+        logger.info("Config file backed up to: $filePath")
+    }
+
     private fun updateConfig(newConfig: JsonObject) {
-        newConfig.map.forEach {
-            config.put(it.key, it.value)
-        }
+        config = PanoConfig.from(newConfig)
+        configJsonObject = newConfig.copy()
     }
 }

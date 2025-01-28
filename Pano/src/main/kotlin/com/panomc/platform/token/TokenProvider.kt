@@ -21,7 +21,7 @@ class TokenProvider(
     private val configManager: ConfigManager
 ) {
     fun getAlgorithm(): Algorithm {
-        val secretKey = String(Base64.getDecoder().decode(configManager.getConfig().getString("jwt-key")))
+        val secretKey = String(Base64.getDecoder().decode(configManager.config.jwtKey))
 
         return Algorithm.HMAC512(secretKey)
     }

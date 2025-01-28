@@ -74,7 +74,7 @@ class PanelUpdateSettingsAPI(
                     objectSchema()
                         .optionalProperty(
                             "updatePeriod",
-                            enumSchema(*UpdatePeriod.values().map { it.period }.toTypedArray())
+                            enumSchema(*UpdatePeriod.entries.map { it.name }.toTypedArray())
                         )
                         .optionalProperty("locale", stringSchema())
                         .optionalProperty("websiteName", stringSchema())
@@ -111,7 +111,8 @@ class PanelUpdateSettingsAPI(
 
         val fileUploads = context.fileUploads()
 
-        val updatePeriod = UpdatePeriod.valueOf(period = data.getString("updatePeriod"))
+        val updatePeriod =
+            if (data.getString("updatePeriod") == null) null else UpdatePeriod.valueOf(data.getString("updatePeriod"))
         val locale = data.getString("locale")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
@@ -126,14 +127,12 @@ class PanelUpdateSettingsAPI(
             val savedFiles = FileUploadUtil.saveFiles(fileUploads, acceptedFileFields, configManager)
 
             savedFiles.forEach { savedFile ->
-                val filePathsInConfig = configManager.getConfig().getJsonObject("file-paths")
+                val filePathsInConfig = configManager.config.filePaths
 
-                if (filePathsInConfig.getString(savedFile.field.name) != savedFile.path) {
+                if (filePathsInConfig[savedFile.field.name] != savedFile.path) {
                     val oldFile = File(
-                        configManager.getConfig()
-                            .getString("file-uploads-folder") + File.separator + filePathsInConfig.getString(
-                            savedFile.field.name
-                        )
+                        configManager.config
+                            .fileUploadsFolder + File.separator + filePathsInConfig[savedFile.field.name]
                     )
 
                     if (oldFile.exists()) {
@@ -141,57 +140,57 @@ class PanelUpdateSettingsAPI(
                     }
                 }
 
-                filePathsInConfig.put(savedFile.field.name, savedFile.path)
+                filePathsInConfig[savedFile.field.name] = savedFile.path
             }
         }
 
         if (updatePeriod != null) {
-            configManager.getConfig().put("update-period", updatePeriod.period)
+            configManager.config.updatePeriod = updatePeriod
         }
 
         if (locale != null) {
-            configManager.getConfig().put("locale", locale)
+            configManager.config.locale = locale
         }
 
         if (websiteName != null) {
-            configManager.getConfig().put("website-name", websiteName)
+            configManager.config.websiteName = websiteName
         }
 
         if (websiteDescription != null) {
-            configManager.getConfig().put("website-description", websiteDescription)
+            configManager.config.websiteDescription = websiteDescription
         }
 
         if (supportEmail != null) {
-            configManager.getConfig().put("support-email", supportEmail)
+            configManager.config.supportEmail = supportEmail
         }
 
         if (serverIpAddress != null) {
-            configManager.getConfig().put("server-ip-address", serverIpAddress)
+            configManager.config.serverIpAddress = serverIpAddress
         }
 
         if (serverGameVersion != null) {
-            configManager.getConfig().put("server-game-version", serverGameVersion)
+            configManager.config.serverGameVersion = serverGameVersion
         }
 
         if (keywords != null) {
-            configManager.getConfig().put("keywords", keywords)
-        }
-
-        if (updatePeriod != null || websiteName != null || websiteDescription != null || keywords != null) {
-            configManager.saveConfig()
+            configManager.config.keywords = keywords.toList() as List<String>
         }
 
         if (email != null) {
-            val mailConfiguration = configManager.getConfig().getJsonObject("email")
+            val mailConfiguration = configManager.config.email
 
-            mailConfiguration.put("sender", email.getString("sender"))
-            mailConfiguration.put("hostname", email.getString("hostname"))
-            mailConfiguration.put("port", email.getInteger("port"))
-            mailConfiguration.put("username", email.getString("username"))
-            mailConfiguration.put("password", email.getString("password"))
-            mailConfiguration.put("ssl", email.getBoolean("ssl"))
-            mailConfiguration.put("starttls", email.getString("starttls"))
-            mailConfiguration.put("authMethods", email.getString("authMethods"))
+            mailConfiguration.sender = email.getString("sender")
+            mailConfiguration.hostname = email.getString("hostname")
+            mailConfiguration.port = email.getInteger("port")
+            mailConfiguration.username = email.getString("username")
+            mailConfiguration.password = email.getString("password")
+            mailConfiguration.ssl = email.getBoolean("ssl")
+            mailConfiguration.starttls = email.getString("starttls")
+            mailConfiguration.authMethods = email.getString("authMethods")
+        }
+
+        if (updatePeriod != null || websiteName != null || websiteDescription != null || keywords != null || email != null) {
+            configManager.saveConfig()
         }
 
         return Successful()

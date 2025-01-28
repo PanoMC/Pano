@@ -10,6 +10,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import org.springframework.beans.factory.annotation.Autowired
+import java.io.File
 
 abstract class Route {
     @Autowired
@@ -49,7 +50,7 @@ abstract class Route {
 
     open fun bodyHandler(): Handler<RoutingContext>? = BodyHandler.create()
         .setDeleteUploadedFilesOnEnd(true)
-        .setUploadsDirectory(configManager.getConfig().getString("file-uploads-folder") + "/temp")
+        .setUploadsDirectory(configManager.config.fileUploadsFolder + File.separator + "temp")
 
     open fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler? =
         ValidationHandlerBuilder.create(schemaParser).build()

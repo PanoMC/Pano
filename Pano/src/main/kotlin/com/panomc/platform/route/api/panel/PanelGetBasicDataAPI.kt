@@ -40,7 +40,7 @@ class PanelGetBasicDataAPI(
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
         val permissions = context.get<List<Permission>>("permissions") ?: listOf()
 
-        val result = mutableMapOf(
+        val result: MutableMap<String, Any?> = mutableMapOf(
             "user" to mapOf(
                 "username" to user.username,
                 "email" to user.email,
@@ -48,11 +48,11 @@ class PanelGetBasicDataAPI(
                 "admin" to isAdmin
             ),
             "website" to mapOf(
-                "name" to configManager.getConfig().getString("website-name"),
-                "description" to configManager.getConfig().getString("website-description")
+                "name" to configManager.config.websiteName,
+                "description" to configManager.config.websiteDescription
             ),
             "notificationCount" to count,
-            "locale" to configManager.getConfig().getString("locale"),
+            "locale" to configManager.config.locale,
             "connectedServerCount" to connectedServerCount
         )
 
@@ -79,7 +79,7 @@ class PanelGetBasicDataAPI(
 
             result["platformServerMatchKey"] = platformCodeManager.getPlatformKey()
             result["platformServerMatchKeyTimeStarted"] = platformCodeManager.getTimeStarted()
-            result["platformHostAddress"] = context.request().host()
+            result["platformHostAddress"] = context.request().authority().host()
 
             result["mainServer"] = mainServer
             result["selectedServer"] = selectedServer

@@ -32,8 +32,8 @@ class MailManager(
     private val vertx: Vertx
 ) {
     val mailClient by lazy {
-        val emailConfig = configManager.getConfig().getJsonObject("email")
-        val mailClientConfig = MailConfig(emailConfig)
+        val emailConfig = configManager.config.email
+        val mailClientConfig = MailConfig(JsonObject.mapFrom(emailConfig))
 
         MailClient.createShared(vertx, mailClientConfig, "mailClient")
     }
@@ -43,10 +43,10 @@ class MailManager(
             email ?: databaseManager.userDao.getEmailFromUserId(userId, sqlClient)
             ?: throw NotExists()
 
-        val emailConfig = configManager.getConfig().getJsonObject("email")
+        val emailConfig = configManager.config.email
         val message = MailMessage()
 
-        message.from = emailConfig.getString("sender")
+        message.from = emailConfig.sender
         message.subject = mail.subject
         message.setTo(emailAddress)
 
@@ -54,7 +54,7 @@ class MailManager(
             mail.parameterGenerator(
                 emailAddress,
                 userId,
-                configManager.getConfig().getString("ui-address"),
+                configManager.config.uiAddress,
                 databaseManager,
                 sqlClient,
                 tokenProvider

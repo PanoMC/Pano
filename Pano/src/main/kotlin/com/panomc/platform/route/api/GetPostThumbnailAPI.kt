@@ -29,8 +29,8 @@ class GetPostThumbnailAPI(private val configManager: ConfigManager) : Api() {
 
         val filename = parameters.pathParameter("filename").string
 
-        val path = configManager.getConfig()
-            .getString("file-uploads-folder") + "/${AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH}/" +
+        val path = configManager.config
+            .fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator +
                 filename
 
         val file = File(path)

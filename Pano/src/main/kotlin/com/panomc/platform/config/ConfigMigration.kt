@@ -1,5 +1,7 @@
 package com.panomc.platform.config
 
+import io.vertx.core.json.JsonObject
+
 abstract class ConfigMigration(
     val from: Int,
     val to: Int,
@@ -8,5 +10,5 @@ abstract class ConfigMigration(
 
     fun isMigratable(version: Int) = version == from
 
-    abstract fun migrate(configManager: ConfigManager)
+    abstract fun migrate(config: JsonObject)
 }

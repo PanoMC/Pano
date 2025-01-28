@@ -17,7 +17,7 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 
     override suspend fun handle(context: RoutingContext): Result? {
-        val faviconPath = configManager.getConfig().getJsonObject("file-paths").getString("favicon")
+        val faviconPath = configManager.config.filePaths["favicon"]
 
         if (faviconPath == null) {
             sendDefault(context)
@@ -25,7 +25,7 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
             return null
         }
 
-        val path = configManager.getConfig().getString("file-uploads-folder") + File.separator +
+        val path = configManager.config.fileUploadsFolder + File.separator +
                 faviconPath
 
         val file = File(path)

@@ -21,13 +21,13 @@ class GetSiteInfoAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         val response = mutableMapOf<String, Any>()
-        val config = configManager.getConfig()
+        val config = configManager.config
 
-        response["locale"] = config.getString("locale")
-        response["websiteName"] = config.getString("website-name")
-        response["websiteDescription"] = config.getString("website-description")
-        response["supportEmail"] = config.getString("support-email")
-        response["keywords"] = config.getJsonArray("keywords")
+        response["locale"] = config.locale
+        response["websiteName"] = config.websiteName
+        response["websiteDescription"] = config.websiteDescription
+        response["supportEmail"] = config.supportEmail
+        response["keywords"] = config.keywords
         response["panoVersion"] = VERSION
 
         response["plugins"] = pluginUiManager.getRegisteredPlugins().toList().associate {

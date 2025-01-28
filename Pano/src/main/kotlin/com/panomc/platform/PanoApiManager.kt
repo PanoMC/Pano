@@ -1,6 +1,7 @@
 package com.panomc.platform
 
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.error.AlreadyConnectedToPano
 import com.panomc.platform.error.PanoConnectFailed
 import com.panomc.platform.error.PanoDisconnectFailed
@@ -26,22 +27,22 @@ class PanoApiManager(
         private const val HEADER_PREFIX = "Bearer "
     }
 
-    private fun getPanoAccountConfig() = configManager.getConfig().getJsonObject("pano-account")
+    private fun getPanoAccountConfig() = configManager.config.panoAccount
 
     fun isConnected(): Boolean {
         val panoAccountConfig = getPanoAccountConfig()
 
-        return !panoAccountConfig.getString("access-token").isNullOrBlank()
+        return panoAccountConfig.accessToken.isNotBlank()
     }
 
     fun isConnecting(): Boolean {
         val panoAccountConfig = getPanoAccountConfig()
 
-        return panoAccountConfig.getJsonObject("connect") != null
+        return panoAccountConfig.connect != null
     }
 
     fun createRequest(httpMethod: HttpMethod, uri: String): HttpRequest<Buffer> {
-        val panoApiUrl = configManager.getConfig().getString("pano-api-url")
+        val panoApiUrl = configManager.config.panoApiUrl
 
         val request = webClient
             .request(httpMethod, 443, panoApiUrl, uri)
@@ -50,7 +51,7 @@ class PanoApiManager(
         if (isConnected()) {
             val panoAccountConfig = getPanoAccountConfig()
 
-            request.putHeader("Authorization", HEADER_PREFIX + panoAccountConfig.getString("access-token"))
+            request.putHeader("Authorization", HEADER_PREFIX + panoAccountConfig.accessToken)
         }
 
         return request
@@ -67,8 +68,8 @@ class PanoApiManager(
 
         val panoAccountConfig = getPanoAccountConfig()
 
-        val connectJsonObject = panoAccountConfig.getJsonObject("connect")
-        val connectState = connectJsonObject.getString("state")
+        val connectJsonObject = panoAccountConfig.connect!!
+        val connectState = connectJsonObject.state
 
         if (state != connectState) {
             throw PanoConnectFailed()
@@ -76,7 +77,7 @@ class PanoApiManager(
 
         val decoder = Base64.getDecoder()
 
-        val encodedPrivateKey = connectJsonObject.getString("private-key")
+        val encodedPrivateKey = connectJsonObject.privateKey
         val decodedPrivateKey = decoder.decode(encodedPrivateKey)
 
         val keySpec = PKCS8EncodedKeySpec(decodedPrivateKey)
@@ -120,12 +121,12 @@ class PanoApiManager(
             username = responseData.getString("username")
             email = responseData.getString("email")
 
-            panoAccountConfig.put("access-token", jwt)
-            panoAccountConfig.put("platform-id", platformId)
-            panoAccountConfig.put("username", username)
-            panoAccountConfig.put("email", email)
+            panoAccountConfig.accessToken = jwt
+            panoAccountConfig.platformId = platformId
+            panoAccountConfig.username = username
+            panoAccountConfig.email = email
 
-            panoAccountConfig.remove("connect")
+            panoAccountConfig.connect = null
 
             configManager.saveConfig()
 
@@ -159,12 +160,12 @@ class PanoApiManager(
 
         val panoAccountConfig = getPanoAccountConfig()
 
-        panoAccountConfig.put("access-token", "")
-        panoAccountConfig.put("platform-id", "")
-        panoAccountConfig.put("username", "")
-        panoAccountConfig.put("email", "")
+        panoAccountConfig.accessToken = ""
+        panoAccountConfig.platformId = ""
+        panoAccountConfig.username = ""
+        panoAccountConfig.email = ""
 
-        panoAccountConfig.remove("connect")
+        panoAccountConfig.connect = null
 
         configManager.saveConfig()
     }
@@ -174,8 +175,6 @@ class PanoApiManager(
             throw AlreadyConnectedToPano()
         }
 
-        val connectJsonObject = JsonObject()
-
         val keyPair = KeyGeneratorUtil.generateKeyPair()
         val base64Encoder = Base64.getEncoder()
 
@@ -184,13 +183,11 @@ class PanoApiManager(
 
         val state = UUID.randomUUID()
 
-        connectJsonObject.put("public-key", publicKey)
-        connectJsonObject.put("private-key", privateKey)
-        connectJsonObject.put("state", state)
-
         val panoAccountConfig = getPanoAccountConfig()
 
-        panoAccountConfig.put("connect", connectJsonObject)
+        val connectConfig = PanoConfig.Companion.PanoAccountConnectConfig(publicKey, privateKey, state.toString())
+
+        panoAccountConfig.connect = connectConfig
 
         configManager.saveConfig()
 

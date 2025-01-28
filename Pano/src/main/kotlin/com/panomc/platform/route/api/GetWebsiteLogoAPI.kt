@@ -17,7 +17,7 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 
     override suspend fun handle(context: RoutingContext): Result? {
-        val websiteLogoPath = configManager.getConfig().getJsonObject("file-paths").getString("websiteLogo")
+        val websiteLogoPath = configManager.config.filePaths["websiteLogo"]
 
         if (websiteLogoPath == null) {
             sendDefault(context)
@@ -25,7 +25,7 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
             return null
         }
 
-        val path = configManager.getConfig().getString("file-uploads-folder") + File.separator +
+        val path = configManager.config.fileUploadsFolder + File.separator +
                 websiteLogoPath
 
         val file = File(path)

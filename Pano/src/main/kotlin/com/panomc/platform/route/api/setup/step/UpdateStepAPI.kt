@@ -114,9 +114,10 @@ class UpdateStepAPI(
             !websiteName.isNullOrEmpty() &&
             !websiteDescription.isNullOrEmpty()
         ) {
-            configManager.getConfig().put("website-name", websiteName)
-            configManager.getConfig().put("website-description", websiteDescription)
+            configManager.config.websiteName = websiteName
+            configManager.config.websiteDescription = websiteDescription
 
+            configManager.saveConfig()
             return true
         }
 
@@ -126,13 +127,14 @@ class UpdateStepAPI(
             !dbName.isNullOrEmpty() &&
             !username.isNullOrEmpty()
         ) {
-            val databaseOptions = configManager.getConfig().getJsonObject("database")
+            val databaseOptions = configManager.config.database
 
-            databaseOptions.put("host", host)
-            databaseOptions.put("name", dbName)
-            databaseOptions.put("username", username)
-            databaseOptions.put("password", if (password.isNullOrEmpty()) "" else password)
-            databaseOptions.put("prefix", if (prefix.isNullOrEmpty()) "" else prefix)
+            databaseOptions.host = host
+            databaseOptions.name = dbName
+            databaseOptions.username = username
+            databaseOptions.password = if (password.isNullOrEmpty()) "" else password
+            databaseOptions.prefix = if (prefix.isNullOrEmpty()) "" else prefix
+            configManager.saveConfig()
 
             return true
         }
@@ -147,16 +149,17 @@ class UpdateStepAPI(
             starttls != null &&
             authMethods != null
         ) {
-            val mailConfiguration = configManager.getConfig().getJsonObject("email")
+            val mailConfiguration = configManager.config.email
 
-            mailConfiguration.put("sender", sender)
-            mailConfiguration.put("hostname", hostname)
-            mailConfiguration.put("port", port)
-            mailConfiguration.put("username", username)
-            mailConfiguration.put("password", password)
-            mailConfiguration.put("ssl", ssl)
-            mailConfiguration.put("starttls", starttls)
-            mailConfiguration.put("authMethods", authMethods)
+            mailConfiguration.sender = sender
+            mailConfiguration.hostname = hostname
+            mailConfiguration.port = port
+            mailConfiguration.username = username
+            mailConfiguration.password = password
+            mailConfiguration.ssl = ssl
+            mailConfiguration.starttls = starttls
+            mailConfiguration.authMethods = authMethods
+            configManager.saveConfig()
 
             return true
         }

@@ -200,9 +200,14 @@ class UIManager(
 
         val environment = processBuilder.environment()
 
+        val config = configManager.config
+        val serverConfig = config.server
+        val serverHost = serverConfig.host
+        val serverPort = serverConfig.port
+
         environment["PORT"] = port.toString()
         environment["HOST"] = "127.0.0.1"
-        environment["API_URL"] = "http://localhost:${Main.PORT}/api"
+        environment["API_URL"] = "http://${serverHost}:${serverPort}/api"
 
         val process = processBuilder.start()
 
@@ -220,9 +225,9 @@ class UIManager(
     }
 
     internal fun init() {
-        val config = configManager.getConfig()
+        val config = configManager.config
 
-        if (!config.getBoolean("init-ui")) {
+        if (!config.initUi) {
             return
         }
 
@@ -259,7 +264,7 @@ class UIManager(
             downloadBunRuntime()
         }
 
-        val currentTheme = config.getString("current-theme")
+        val currentTheme = config.currentTheme
         val currentThemeFolder = File(themesFolder.absolutePath + File.separator + currentTheme)
 
         val currentThemeValid = currentThemeFolder.exists() && currentThemeFolder.isDirectory

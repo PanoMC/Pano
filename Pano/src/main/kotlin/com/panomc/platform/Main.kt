@@ -189,7 +189,7 @@ class Main : CoroutineVerticle() {
     }
 
     private fun clearTempFiles() {
-        val tempFolder = File(configManager.getConfig().getString("file-uploads-folder") + "/temp")
+        val tempFolder = File(configManager.config.fileUploadsFolder + File.separator + "temp")
 
         if (tempFolder.exists()) {
             deleteDirectory(tempFolder)
@@ -277,18 +277,18 @@ class Main : CoroutineVerticle() {
     private fun startWebServer() {
         logger.info("Creating HTTP server")
 
-        val serverConfig = configManager.getConfig().getJsonObject("server")
-        val host = serverConfig.getString("host")
-        val port = serverConfig.getInteger("port")
+        val serverConfig = configManager.config.server
+        val host = serverConfig.host
+        val port = serverConfig.port
 
         vertx
             .createHttpServer()
             .requestHandler(router)
             .listen(port, host) { result ->
                 if (result.succeeded()) {
-                    logger.info("Started listening on port $port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+                    logger.info("Started listening on http://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
                 } else {
-                    logger.error("Failed to listen on port $port, reason: " + result.cause().toString())
+                    logger.error("Failed to listen on http://$host:$port, reason: " + result.cause().toString())
                 }
             }
     }

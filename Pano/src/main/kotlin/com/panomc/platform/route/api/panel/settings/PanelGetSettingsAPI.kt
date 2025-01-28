@@ -41,23 +41,23 @@ class PanelGetSettingsAPI(
         val result = mutableMapOf<String, Any?>()
 
         if (settingType == SettingType.GENERAL) {
-            val panoAccountConfig = configManager.getConfig().getJsonObject("pano-account")
+            val panoAccountConfig = configManager.config.panoAccount
 
             if (panoApiManager.isConnected()) {
                 val panoAccount = JsonObject()
-                panoAccount.put("platformId", panoAccountConfig.getString("platform-id"))
-                panoAccount.put("username", panoAccountConfig.getString("username"))
-                panoAccount.put("email", panoAccountConfig.getString("email"))
+                panoAccount.put("platformId", panoAccountConfig.platformId)
+                panoAccount.put("username", panoAccountConfig.username)
+                panoAccount.put("email", panoAccountConfig.email)
 
                 result["panoAccount"] = panoAccount
             }
 
-            result["updatePeriod"] = configManager.getConfig().getString("update-period")
-            result["locale"] = configManager.getConfig().getString("locale")
+            result["updatePeriod"] = configManager.config.updatePeriod.name
+            result["locale"] = configManager.config.locale
 
-            val emailConfig = configManager.getConfig().getJsonObject("email")
+            val emailConfig = configManager.config.email
 
-            val email = JsonObject(emailConfig.map)
+            val email = JsonObject.mapFrom(emailConfig)
 
             email.remove("password")
 
@@ -65,12 +65,12 @@ class PanelGetSettingsAPI(
         }
 
         if (settingType == SettingType.WEBSITE) {
-            result["websiteName"] = configManager.getConfig().getString("website-name")
-            result["websiteDescription"] = configManager.getConfig().getString("website-description")
-            result["supportEmail"] = configManager.getConfig().getString("support-email")
-            result["serverIpAddress"] = configManager.getConfig().getString("server-ip-address")
-            result["serverGameVersion"] = configManager.getConfig().getString("server-game-version")
-            result["keywords"] = configManager.getConfig().getJsonArray("keywords")
+            result["websiteName"] = configManager.config.websiteName
+            result["websiteDescription"] = configManager.config.websiteDescription
+            result["supportEmail"] = configManager.config.supportEmail
+            result["serverIpAddress"] = configManager.config.serverIpAddress
+            result["serverGameVersion"] = configManager.config.serverGameVersion
+            result["keywords"] = configManager.config.keywords
         }
 
         return Successful(result)

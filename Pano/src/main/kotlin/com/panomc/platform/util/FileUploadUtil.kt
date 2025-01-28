@@ -30,7 +30,7 @@ object FileUploadUtil {
                     }
                 }
 
-                val newPath = configManager.getConfig().getString("file-uploads-folder") + File.separator +
+                val newPath = configManager.config.fileUploadsFolder + File.separator +
                         fieldConfig.path +
                         (if (fieldConfig.withTempName)
                             File.separator + fileUpload.uploadedFileName().split(File.separator).last()
@@ -58,7 +58,7 @@ object FileUploadUtil {
         this.getFieldNameFilteredFiles(acceptedFileFields).size == acceptedFileFields.size
 
     private fun String.removeUploadFolderPath(configManager: ConfigManager) =
-        this.replaceFirst(configManager.getConfig().getString("file-uploads-folder") + File.separator, "")
+        this.replaceFirst(configManager.config.fileUploadsFolder + File.separator, "")
 
     private fun List<FileUpload>.getFieldNameFilteredFiles(acceptedFileFields: List<Field>) =
         this.filter { fileUpload ->

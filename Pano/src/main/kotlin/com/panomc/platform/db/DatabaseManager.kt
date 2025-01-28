@@ -62,14 +62,14 @@ class DatabaseManager(
             .sortedBy { it.FROM_SCHEME_VERSION }
     }
 
-    fun getTablePrefix(): String = configManager.getConfig().getJsonObject("database").getString("prefix")
+    fun getTablePrefix(): String = configManager.config.database.prefix
 
     fun getSqlClient(): SqlClient {
         if (!::sqlClient.isInitialized) {
-            val databaseConfig = configManager.getConfig().getJsonObject("database")
+            val databaseConfig = configManager.config.database
 
             var port = 3306
-            var host = databaseConfig.getString("host")
+            var host = databaseConfig.host
 
             if (host.contains(":")) {
                 val splitHost = host.split(":")
@@ -82,11 +82,11 @@ class DatabaseManager(
             val connectOptions = MySQLConnectOptions()
                 .setPort(port)
                 .setHost(host)
-                .setDatabase(databaseConfig.getString("name"))
-                .setUser(databaseConfig.getString("username"))
+                .setDatabase(databaseConfig.name)
+                .setUser(databaseConfig.username)
 
-            if (databaseConfig.getString("password") != "")
-                connectOptions.password = databaseConfig.getString("password")
+            if (databaseConfig.password != "")
+                connectOptions.password = databaseConfig.password
 
             val poolOptions = PoolOptions()
                 .setMaxSize(100)

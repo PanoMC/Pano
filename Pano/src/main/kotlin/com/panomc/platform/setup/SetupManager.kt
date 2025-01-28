@@ -23,42 +23,42 @@ class SetupManager(private val configManager: ConfigManager, private val panoApi
         data.put("step", step)
 
         if (step == 1 || step == 4) {
-            data.put("websiteName", configManager.getConfig().getString("website-name"))
-            data.put("websiteDescription", configManager.getConfig().getString("website-description"))
+            data.put("websiteName", configManager.config.websiteName)
+            data.put("websiteDescription", configManager.config.websiteDescription)
         }
 
         if (step == 2) {
-            val databaseConfig = configManager.getConfig().getJsonObject("database")
+            val databaseConfig = configManager.config.database
 
             data.put(
                 "database", mapOf(
-                    "host" to databaseConfig.getString("host"),
-                    "dbName" to databaseConfig.getString("name"),
-                    "username" to databaseConfig.getString("username"),
-                    "password" to databaseConfig.getString("password"),
-                    "prefix" to databaseConfig.getString("prefix")
+                    "host" to databaseConfig.host,
+                    "dbName" to databaseConfig.name,
+                    "username" to databaseConfig.username,
+                    "password" to databaseConfig.password,
+                    "prefix" to databaseConfig.prefix
                 )
             )
         }
 
         if (step == 3) {
-            val mailConfig = configManager.getConfig().getJsonObject("email")
+            val mailConfig = configManager.config.email
 
             data.put("email", mailConfig)
         }
 
         if (step == 4) {
             val localHost = InetAddress.getLocalHost()
-            val panoAccountConfig = configManager.getConfig().getJsonObject("pano-account")
+            val panoAccountConfig = configManager.config.panoAccount
 
             data.put("host", localHost.hostName)
             data.put("ip", localHost.hostAddress)
 
             if (panoApiManager.isConnected()) {
                 val panoAccount = JsonObject()
-                panoAccount.put("platformId", panoAccountConfig.getString("platform-id"))
-                panoAccount.put("username", panoAccountConfig.getString("username"))
-                panoAccount.put("email", panoAccountConfig.getString("email"))
+                panoAccount.put("platformId", panoAccountConfig.platformId)
+                panoAccount.put("username", panoAccountConfig.username)
+                panoAccount.put("email", panoAccountConfig.email)
 
                 data.put("panoAccount", panoAccount)
             }
@@ -100,10 +100,10 @@ class SetupManager(private val configManager: ConfigManager, private val panoApi
         updateStep(5)
     }
 
-    fun getCurrentStep() = configManager.getConfig().getJsonObject("setup").getInteger("step")
+    fun getCurrentStep() = configManager.config.setup.step
 
     private fun updateStep(step: Int) {
-        configManager.getConfig().getJsonObject("setup").put("step", step)
+        configManager.config.setup.step = step
 
         configManager.saveConfig()
     }

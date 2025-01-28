@@ -45,8 +45,7 @@ data class Post(
 
         fun Post.deleteThumbnailFile(configManager: ConfigManager) {
             val oldThumbnailFile = File(
-                configManager.getConfig()
-                    .getString("file-uploads-folder") + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + thumbnailUrl.split(
+                configManager.config.fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + thumbnailUrl.split(
                     File.separator
                 ).last()
             )

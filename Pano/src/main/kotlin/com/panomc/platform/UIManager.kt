@@ -334,6 +334,9 @@ class UIManager(
             .order(4)
             .putMetadata("type", Route.Type.PANEL_UI)
             .handler { context ->
+                val request = context.request()
+                request.pause()
+
                 CoroutineScope(context.vertx().dispatcher()).launch {
                     val isLoggedIn = authProvider.isLoggedIn(context)
 
@@ -341,12 +344,14 @@ class UIManager(
                         val hasAccessPanel = authProvider.hasAccessPanel(context)
 
                         if (hasAccessPanel) {
+                            request.resume()
                             panelUIHandler.handle(context)
 
                             return@launch
                         }
                     }
 
+                    request.resume()
                     activatedUIList[Route.Type.THEME_UI]!!.handle(context)
                 }
             }

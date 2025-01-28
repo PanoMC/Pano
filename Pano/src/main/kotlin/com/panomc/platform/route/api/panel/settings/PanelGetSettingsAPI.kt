@@ -26,7 +26,7 @@ class PanelGetSettingsAPI(
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
             .queryParameter(
-                param("type", arraySchema().items(enumSchema(*SettingType.entries.map { it.type }.toTypedArray())))
+                param("type", arraySchema().items(enumSchema(*SettingType.entries.map { it.name }.toTypedArray())))
             )
             .build()
 
@@ -35,8 +35,8 @@ class PanelGetSettingsAPI(
 
         val parameters = getParameters(context)
 
-        val settingType =
-            SettingType.valueOf(type = parameters.queryParameter("type")?.jsonArray?.first() as String?)
+        val settingTypeQuery = parameters.queryParameter("type")?.jsonArray?.first() as String?
+        val settingType = if (settingTypeQuery == null) null else SettingType.valueOf(settingTypeQuery)
 
         val result = mutableMapOf<String, Any?>()
 
@@ -76,17 +76,8 @@ class PanelGetSettingsAPI(
         return Successful(result)
     }
 
-    enum class SettingType(val type: String, val value: Int) {
-        GENERAL("general", 0),
-        WEBSITE("website", 1);
-
-        override fun toString(): String {
-            return type
-        }
-
-        companion object {
-            fun valueOf(type: String?) = values().find { it.type == type }
-            fun valueOf(value: Int) = values().find { it.value == value }
-        }
+    enum class SettingType {
+        GENERAL,
+        WEBSITE;
     }
 }

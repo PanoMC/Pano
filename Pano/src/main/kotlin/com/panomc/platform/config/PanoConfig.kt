@@ -90,7 +90,7 @@ data class PanoConfig(
         private fun generateJwtKey(): String {
             val key = KeyGeneratorUtil.generateJWTKey()
 
-            return Base64.getEncoder().encode(key.toByteArray()).toString()
+            return String(Base64.getEncoder().encode(key.toByteArray()))
         }
 
         private fun getPanoApiUrl() =

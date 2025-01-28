@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class AuthProvider(
+open class AuthProvider(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider
 ) {

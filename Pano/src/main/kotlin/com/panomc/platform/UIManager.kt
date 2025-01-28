@@ -35,12 +35,12 @@ import kotlin.system.exitProcess
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class UIManager(
+open class UIManager(
     private val logger: Logger,
     private val configManager: ConfigManager,
     private val setupManager: SetupManager,
     private val httpClient: HttpClient,
-    private val authProvider: AuthProvider
+    @Lazy private val authProvider: AuthProvider
 ) {
     private val themesFolderPath = System.getProperty("pano.themesFolder", "themes")
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
@@ -71,7 +71,7 @@ class UIManager(
     }
 
     private val startedUIList = mutableListOf<LoadedUI>()
-    private var activatedUIList = mutableListOf<Route.Type>()
+    private var activatedUIList = mutableMapOf<Route.Type, ProxyHandler>()
 
     private var activeTheme = ""
 
@@ -296,7 +296,7 @@ class UIManager(
     }
 
     fun activateSetupUI(router: Router) {
-        if (activatedUIList.indexOf(Route.Type.SETUP_UI) != -1) {
+        if (!activatedUIList.containsKey(Route.Type.SETUP_UI)) {
             return
         }
 
@@ -314,11 +314,11 @@ class UIManager(
             .handler(setupUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        activatedUIList.add(Route.Type.SETUP_UI)
+        activatedUIList[Route.Type.SETUP_UI] = setupUIHandler
     }
 
-    fun activatePanelUI(router: Router, themeUiHandler: ProxyHandler) {
-        if (activatedUIList.indexOf(Route.Type.PANEL_UI) != -1) {
+    fun activatePanelUI(router: Router) {
+        if (!activatedUIList.containsKey(Route.Type.PANEL_UI)) {
             return
         }
 
@@ -343,20 +343,18 @@ class UIManager(
                         return@launch
                     }
 
-                    themeUiHandler.handle(context)
+                    activatedUIList[Route.Type.THEME_UI]!!.handle(context)
                 }
             }
             .handler(panelUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        activatedUIList.add(Route.Type.PANEL_UI)
+        activatedUIList[Route.Type.PANEL_UI] = panelUIHandler
     }
 
-    fun activateThemeUI(router: Router): ProxyHandler {
-        val startedUI = startedUIList.find { it.name == activeTheme }
-
-        if (activatedUIList.indexOf(Route.Type.THEME_UI) != -1) {
-            return startedUI!!.proxyHandler!!
+    fun activateThemeUI(router: Router) {
+        if (!activatedUIList.containsKey(Route.Type.THEME_UI)) {
+            return
         }
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
@@ -373,10 +371,7 @@ class UIManager(
             .handler(themeUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        activatedUIList.add(Route.Type.THEME_UI)
-        startedUI!!.proxyHandler = themeUIHandler
-
-        return themeUIHandler
+        activatedUIList[Route.Type.THEME_UI] = themeUIHandler
     }
 
     fun disableUIOnRoute(router: Router, UI: Route.Type) {
@@ -393,7 +388,7 @@ class UIManager(
             it.remove()
         }
 
-        if (activatedUIList.indexOf(UI) == -1) {
+        if (!activatedUIList.containsKey(UI)) {
             return
         }
 
@@ -404,8 +399,8 @@ class UIManager(
         if (setupManager.isSetupDone()) {
             disableUIOnRoute(router, Route.Type.SETUP_UI)
 
-            val themeUiHandler = activateThemeUI(router)
-            activatePanelUI(router, themeUiHandler)
+            activateThemeUI(router)
+            activatePanelUI(router)
 
             return
         }
@@ -428,8 +423,7 @@ class UIManager(
         class LoadedUI(
             val name: String,
             val port: Int,
-            val process: Process,
-            var proxyHandler: ProxyHandler? = null
+            val process: Process
         )
     }
 }

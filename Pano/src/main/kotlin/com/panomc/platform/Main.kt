@@ -271,7 +271,11 @@ class Main : CoroutineVerticle() {
     private fun initRoutes() {
         logger.info("Initializing routes")
 
-        router = applicationContext.getBean(Router::class.java)
+        try {
+            router = applicationContext.getBean(Router::class.java)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun startWebServer() {

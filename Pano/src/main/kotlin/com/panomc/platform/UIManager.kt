@@ -335,9 +335,9 @@ class UIManager(
             .putMetadata("type", Route.Type.PANEL_UI)
             .handler { context ->
                 CoroutineScope(context.vertx().dispatcher()).launch {
-                    val isLoggedIn = authProvider.isLoggedIn(context)
+                    val hasAccessPanel = authProvider.hasAccessPanel(context)
 
-                    if (isLoggedIn) {
+                    if (hasAccessPanel) {
                         context.next()
 
                         return@launch

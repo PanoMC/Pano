@@ -197,7 +197,7 @@ class AuthProvider(
             return existingPermissionsList.hasPermission(panelPermission)
         }
 
-        val sqlClient = context.get<SqlClient>("sqlClient")
+        val sqlClient = databaseManager.getSqlClient()
 
         val permissionGroupName = databaseManager.userDao.getPermissionGroupNameById(userId, sqlClient)
 

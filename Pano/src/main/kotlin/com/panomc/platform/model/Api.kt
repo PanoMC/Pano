@@ -34,10 +34,6 @@ abstract class Api : Route() {
     }
 
     override fun getHandler() = Handler<RoutingContext> { context ->
-        if (setupManager.isSetupDone()) {
-            context.put("sqlClient", databaseManager.getSqlClient())
-        }
-
         CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
             onBeforeHandle(context)
 

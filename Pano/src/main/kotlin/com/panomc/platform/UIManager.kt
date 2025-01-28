@@ -296,7 +296,7 @@ open class UIManager(
     }
 
     fun activateSetupUI(router: Router) {
-        if (!activatedUIList.containsKey(Route.Type.SETUP_UI)) {
+        if (activatedUIList.containsKey(Route.Type.SETUP_UI)) {
             return
         }
 
@@ -318,7 +318,7 @@ open class UIManager(
     }
 
     fun activatePanelUI(router: Router) {
-        if (!activatedUIList.containsKey(Route.Type.PANEL_UI)) {
+        if (activatedUIList.containsKey(Route.Type.PANEL_UI)) {
             return
         }
 
@@ -353,7 +353,7 @@ open class UIManager(
     }
 
     fun activateThemeUI(router: Router) {
-        if (!activatedUIList.containsKey(Route.Type.THEME_UI)) {
+        if (activatedUIList.containsKey(Route.Type.THEME_UI)) {
             return
         }
 

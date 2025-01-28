@@ -35,12 +35,12 @@ import kotlin.system.exitProcess
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-open class UIManager(
+class UIManager(
     private val logger: Logger,
     private val configManager: ConfigManager,
     private val setupManager: SetupManager,
     private val httpClient: HttpClient,
-    @Lazy private val authProvider: AuthProvider
+    private val authProvider: AuthProvider
 ) {
     private val themesFolderPath = System.getProperty("pano.themesFolder", "themes")
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
@@ -335,18 +335,21 @@ open class UIManager(
             .putMetadata("type", Route.Type.PANEL_UI)
             .handler { context ->
                 CoroutineScope(context.vertx().dispatcher()).launch {
-                    val hasAccessPanel = authProvider.hasAccessPanel(context)
+                    val isLoggedIn = authProvider.isLoggedIn(context)
 
-                    if (hasAccessPanel) {
-                        context.next()
+                    if (isLoggedIn) {
+                        val hasAccessPanel = authProvider.hasAccessPanel(context)
 
-                        return@launch
+                        if (hasAccessPanel) {
+                            panelUIHandler.handle(context)
+
+                            return@launch
+                        }
                     }
 
                     activatedUIList[Route.Type.THEME_UI]!!.handle(context)
                 }
             }
-            .handler(panelUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
         activatedUIList[Route.Type.PANEL_UI] = panelUIHandler

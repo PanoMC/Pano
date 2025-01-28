@@ -159,17 +159,17 @@ class Main : CoroutineVerticle() {
 
         val isPlatformInstalled = initSetupManager()
 
-        vertx.executeBlocking { ->
-            initUiManager()
-        }.onFailure {
-            it.printStackTrace()
-        }.coAwait()
-
         if (isPlatformInstalled) {
             initDatabaseManager()
 
             initServerManager()
         }
+
+        vertx.executeBlocking { ->
+            initUiManager()
+        }.onFailure {
+            it.printStackTrace()
+        }.coAwait()
 
         initRoutes()
     }

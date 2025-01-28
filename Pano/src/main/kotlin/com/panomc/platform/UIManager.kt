@@ -1,5 +1,6 @@
 package com.panomc.platform
 
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Route
 import com.panomc.platform.setup.SetupManager
@@ -9,6 +10,9 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
 import io.vertx.httpproxy.ProxyOptions
+import io.vertx.kotlin.coroutines.dispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -35,7 +39,8 @@ class UIManager(
     private val logger: Logger,
     private val configManager: ConfigManager,
     private val setupManager: SetupManager,
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
+    private val authProvider: AuthProvider
 ) {
     private val themesFolderPath = System.getProperty("pano.themesFolder", "themes")
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
@@ -312,7 +317,7 @@ class UIManager(
         activatedUIList.add(Route.Type.SETUP_UI)
     }
 
-    fun activatePanelUI(router: Router) {
+    fun activatePanelUI(router: Router, themeUiHandler: ProxyHandler) {
         if (activatedUIList.indexOf(Route.Type.PANEL_UI) != -1) {
             return
         }
@@ -328,15 +333,30 @@ class UIManager(
         router.route("/panel/*")
             .order(4)
             .putMetadata("type", Route.Type.PANEL_UI)
+            .handler { context ->
+                CoroutineScope(context.vertx().dispatcher()).launch {
+                    val isLoggedIn = authProvider.isLoggedIn(context)
+
+                    if (isLoggedIn) {
+                        context.next()
+
+                        return@launch
+                    }
+
+                    themeUiHandler.handle(context)
+                }
+            }
             .handler(panelUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
         activatedUIList.add(Route.Type.PANEL_UI)
     }
 
-    fun activateThemeUI(router: Router) {
+    fun activateThemeUI(router: Router): ProxyHandler {
+        val startedUI = startedUIList.find { it.name == activeTheme }
+
         if (activatedUIList.indexOf(Route.Type.THEME_UI) != -1) {
-            return
+            return startedUI!!.proxyHandler!!
         }
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
@@ -354,6 +374,9 @@ class UIManager(
             .failureHandler { it.failure().printStackTrace() }
 
         activatedUIList.add(Route.Type.THEME_UI)
+        startedUI!!.proxyHandler = themeUIHandler
+
+        return themeUIHandler
     }
 
     fun disableUIOnRoute(router: Router, UI: Route.Type) {
@@ -381,8 +404,8 @@ class UIManager(
         if (setupManager.isSetupDone()) {
             disableUIOnRoute(router, Route.Type.SETUP_UI)
 
-            activateThemeUI(router)
-            activatePanelUI(router)
+            val themeUiHandler = activateThemeUI(router)
+            activatePanelUI(router, themeUiHandler)
 
             return
         }
@@ -405,7 +428,8 @@ class UIManager(
         class LoadedUI(
             val name: String,
             val port: Int,
-            val process: Process
+            val process: Process,
+            var proxyHandler: ProxyHandler? = null
         )
     }
 }

@@ -202,7 +202,8 @@ tasks {
     }
 
     jar {
-        enabled = false
+        enabled = true
+        archiveClassifier.set("")
         dependsOn(shadowJar)
         dependsOn("copyJar")
     }

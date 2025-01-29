@@ -43,7 +43,9 @@ tasks {
 }
 
 project(":Pano") {
-    tasks.jar {
-        enabled = true
+    afterEvaluate {
+        tasks.findByName("jar")?.apply {
+            enabled = true
+        }
     }
 }

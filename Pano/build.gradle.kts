@@ -214,6 +214,10 @@ tasks.named("startShadowScripts") {
     dependsOn(tasks.named("jar"))
 }
 
+tasks.named("generateMetadataFileForShadowPublication") {
+    dependsOn(tasks.named("jar"))
+}
+
 tasks.named("build") {
     dependsOn("downloadUIReleases")
 }

@@ -242,5 +242,15 @@ publishing {
                 component(this@create)
             }
         }
+
+        create<MavenPublication>("release") {
+            artifactId = "pano"
+
+            from(components["java"])
+
+            artifact(tasks.shadowJar.get()) {
+                classifier = null
+            }
+        }
     }
 }

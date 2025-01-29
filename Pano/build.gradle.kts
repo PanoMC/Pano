@@ -214,10 +214,6 @@ tasks.named("startShadowScripts") {
     dependsOn(tasks.named("jar"))
 }
 
-tasks.named("generateMetadataFileForShadowPublication") {
-    dependsOn(tasks.named("jar"))
-}
-
 tasks.named("build") {
     dependsOn("downloadUIReleases")
 }
@@ -247,10 +243,9 @@ publishing {
 
     publications {
         create<MavenPublication>("shadow") {
-            project.extensions.configure<com.github.jengelman.gradle.plugins.shadow.ShadowExtension> {
-                artifactId = "pano"
-                component(this@create)
-            }
+            artifactId = "pano"
+
+            artifact(tasks["shadowJar"])
         }
     }
 }

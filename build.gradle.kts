@@ -10,7 +10,6 @@ plugins {
     kotlin("jvm") version "2.1.0"
     kotlin("kapt") version "2.1.0"
     application
-    `maven-publish`
 }
 
 allprojects {
@@ -39,11 +38,10 @@ tasks {
     }
 
     jar {
-        enabled = true
+        enabled = false
     }
-}
 
-java {
-    withJavadocJar()
-    withSourcesJar()
+    register("publishPano") {
+        dependsOn(":Pano:publishToMavenLocal")
+    }
 }

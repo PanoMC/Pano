@@ -202,10 +202,16 @@ tasks {
     }
 
     jar {
-        enabled = true
         dependsOn(shadowJar)
         dependsOn("copyJar")
+
+        enabled = true
+        archiveClassifier.set("")
     }
+}
+
+tasks.named("startShadowScripts") {
+    dependsOn(tasks.named("jar"))
 }
 
 tasks.named("build") {

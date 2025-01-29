@@ -3,7 +3,6 @@ val pluginsDir by extra { file("${layout.buildDirectory.get()}/plugins") }
 buildscript {
     repositories {
         mavenCentral()
-        jcenter()
     }
 }
 

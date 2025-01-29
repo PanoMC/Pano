@@ -18,14 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "lts/*"
+      - uses: oven-sh/setup-bun@v2
 
       - name: Dry run to get next release version
         id: get-next-version
         run: |
-          export NEXT_TAG_VERSION=$(npx semantic-release --dry-run | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
+          export NEXT_TAG_VERSION=$(bunx semantic-release --dry-run | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
           echo "new_tag_version=${NEXT_TAG_VERSION}" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
@@ -76,12 +74,9 @@ jobs:
             -Pversion=${{ needs.get-next-version.outputs.new_tag_version }}
             -PtimeStamp=${{ steps.time.outputs.time }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "lts/*"
+      - uses: oven-sh/setup-bun@v2
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
-        run: npx semantic-release
+        run: bunx semantic-release

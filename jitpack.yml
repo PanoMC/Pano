@@ -1,2 +1,5 @@
 jdk:
   - openjdk21
+build:
+  commands:
+    - ./gradlew :Pano:build

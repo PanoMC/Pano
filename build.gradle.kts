@@ -41,3 +41,9 @@ tasks {
         enabled = false
     }
 }
+
+project(":Pano") {
+    tasks.jar {
+        enabled = true
+    }
+}

@@ -38,14 +38,6 @@ tasks {
     }
 
     jar {
-        enabled = false
-    }
-}
-
-project(":Pano") {
-    afterEvaluate {
-        tasks.findByName("jar")?.apply {
-            enabled = true
-        }
+        enabled = true
     }
 }

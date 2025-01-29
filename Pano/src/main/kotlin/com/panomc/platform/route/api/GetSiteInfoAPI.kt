@@ -33,7 +33,7 @@ class GetSiteInfoAPI(
         response["plugins"] = pluginUiManager.getRegisteredPlugins().toList().associate {
             it.first.pluginId to mapOf(
                 "version" to pluginManager.getPlugin(it.first.pluginId).descriptor.version,
-                "uiHashes" to it.second
+                "uiHash" to it.second
             )
         }
 

@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.plugins
 
-import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginUiManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.NotFound
@@ -17,29 +16,24 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import java.io.InputStream
+import io.vertx.kotlin.coroutines.dispatcher
+import kotlinx.coroutines.withContext
 
 @Endpoint
-class GetPluginResourceAPI(
+class GetPluginUiZipAPI(
     private val pluginUiManager: PluginUiManager
 ) : Api() {
-    override val paths = listOf(Path("/api/plugins/:pluginId/resources/*", RouteType.GET))
+    override val paths = listOf(Path("/api/plugins/:pluginId/resources/plugin-ui.zip", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
             .pathParameter(param("pluginId", stringSchema()))
-            .pathParameter(param("*", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
         val parameters = getParameters(context)
 
-        val fileName = parameters.pathParameter("*").string
         val pluginId = parameters.pathParameter("pluginId").string
-
-        if (!fileName.startsWith(AppConstants.pluginUiFolder)) {
-            throw NotFound()
-        }
 
         val plugin =
             pluginUiManager.getRegisteredPlugins().toList().firstOrNull { it.first.pluginId == pluginId }?.first
@@ -48,16 +42,22 @@ class GetPluginResourceAPI(
             throw NotFound()
         }
 
-        val resource: InputStream = plugin.getResource(fileName) ?: throw NotFound()
+        val pluginUiZipFileName = "plugin-ui.zip"
+
+        val resource = plugin.getResource(pluginUiZipFileName) ?: throw NotFound()
 
         val response = context.response()
-        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(fileName.replace("plugin-ui/", ""))
+        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(pluginUiZipFileName)
 
         response.putHeader("Content-Type", mimeType)
 
         response.isChunked = true
 
         resource.writeToResponse(response)
+
+        withContext(context.vertx().dispatcher()) {
+            resource.close()
+        }
 
         response.end()
 

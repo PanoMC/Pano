@@ -179,6 +179,8 @@ tasks {
     }
 
     shadowJar {
+        archiveClassifier.set("")
+
         from("src/main/resources")
         mustRunAfter("downloadUIReleases")
 

@@ -70,10 +70,11 @@ jobs:
 
       - name: Build
         run: |
-          ./gradlew ${{ steps.extract_branch.outputs.branch == 'main' && 'build' || 'buildDev' }}
-          -PbuildType=${{ steps.extract_branch.outputs.branch == 'main' && 'release' || steps.extract_branch.outputs.branch }}
-          -Pversion=${{ needs.get-next-version.outputs.new_tag_version }}
-          -PtimeStamp=${{ steps.time.outputs.time }}
+          ./gradlew ${{ steps.extract_branch.outputs.branch == 'main' && 'build' || 'buildDev' }} \
+            -PbuildType=${{ steps.extract_branch.outputs.branch == 'main' && 'release' || steps.extract_branch.outputs.branch }} \
+            -Pversion=${{ needs.get-next-version.outputs.new_tag_version }} \
+            -PtimeStamp=${{ steps.time.outputs.time }}
+
 
       - uses: oven-sh/setup-bun@v2
 

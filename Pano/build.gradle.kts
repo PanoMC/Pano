@@ -183,7 +183,6 @@ tasks {
         archiveClassifier.set("")
 
         from("src/main/resources")
-        mustRunAfter("downloadUIReleases")
 
         manifest {
             val attrMap = mutableMapOf<String, String>()
@@ -210,10 +209,6 @@ tasks {
 
         enabled = false
     }
-}
-
-tasks.named("build") {
-    dependsOn("downloadUIReleases")
 }
 
 tasks.named<JavaExec>("run") {

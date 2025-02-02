@@ -22,7 +22,6 @@ plugins/*
 
 Pano/libraries
 
-Pano/src/main/resources/UIFiles
 Pano/setup-ui
 Pano/panel-ui
 Pano/themes

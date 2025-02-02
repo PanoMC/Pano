@@ -8,8 +8,38 @@ permissions:
   contents: read
 
 jobs:
+  get-next-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to be able to publish a GitHub release
+      issues: write # to be able to comment on released issues
+      pull-requests: write # to be able to comment on released pull requests
+      id-token: write # to enable use of OIDC for npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Dry run to get next release version
+        id: get-next-version
+        run: |
+          export NEXT_TAG_VERSION=$(bunx semantic-release --dry-run | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
+          echo "new_tag_version=${NEXT_TAG_VERSION}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+
+      - name: Echo new_tag_version
+        run: |
+          echo "Extracted Tag Version: ${{ steps.get-next-version.outputs.new_tag_version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+    outputs:
+      new_tag_version: ${{ steps.get-next-version.outputs.new_tag_version }}
+
   build-and-release:
     runs-on: ubuntu-latest
+    needs: get-next-version
+    if: ${{needs.get-next-version.outputs.new_tag_version != ''}}
     permissions:
       contents: write # to be able to publish a GitHub release
       issues: write # to be able to comment on released issues
@@ -30,16 +60,6 @@ jobs:
           timeZone: 8
           format: 'YYYYMMDDHHmmss'
 
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Dry run to get next release version
-        id: get-next-version
-        run: |
-          export NEXT_TAG_VERSION=$(bunx semantic-release --dry-run --force | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
-          echo "new_tag_version=${NEXT_TAG_VERSION}" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -52,10 +72,13 @@ jobs:
         run: |
           ./gradlew ${{ steps.extract_branch.outputs.branch == 'main' && 'build' || 'buildDev' }} \
             -PbuildType=${{ steps.extract_branch.outputs.branch == 'main' && 'release' || steps.extract_branch.outputs.branch }} \
-            -Pversion=${{ steps.get-next-version.outputs.new_tag_version }} \
+            -Pversion=${{ needs.get-next-version.outputs.new_tag_version }} \
             -PtimeStamp=${{ steps.time.outputs.time }}
+
+
+      - uses: oven-sh/setup-bun@v2
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
-        run: bunx semantic-release --force
+        run: bunx semantic-release

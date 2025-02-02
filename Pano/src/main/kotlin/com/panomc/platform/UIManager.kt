@@ -4,8 +4,10 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Route
 import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import io.vertx.core.http.HttpClient
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
@@ -26,6 +28,7 @@ import java.io.InputStreamReader
 import java.net.ServerSocket
 import java.net.URL
 import java.nio.file.*
+import java.util.*
 import java.util.concurrent.Executors
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
@@ -74,6 +77,8 @@ class UIManager(
     private var activatedUIList = mutableMapOf<Route.Type, ProxyHandler>()
 
     private var activeTheme = ""
+
+    private val systemClassLoader = ClassLoader.getSystemClassLoader()
 
     private fun findAvailablePort(): Int {
         ServerSocket(0).use { socket ->
@@ -139,8 +144,8 @@ class UIManager(
         }
     }
 
-    private fun unzipUIFiles(uiName: String, targetDir: File) {
-        val resourceDirUri = ClassLoader.getSystemClassLoader().getResource("UIFiles")?.toURI()
+    private fun getZipFile(uiName: String): Optional<Path> {
+        val resourceDirUri = systemClassLoader.getResource("UIFiles")?.toURI()
         val dirPath = try {
             Paths.get(resourceDirUri)
         } catch (e: FileSystemNotFoundException) {
@@ -160,13 +165,22 @@ class UIManager(
             exitProcess(1)
         }
 
-        val zipFile =
-            ClassLoader.getSystemClassLoader().getResource("UIFiles/" + optionalZipFile.get().name).openStream()
+        return optionalZipFile
+    }
+
+    private fun getZipAsStream(optionalZipFile: Optional<Path>): InputStream {
+        return systemClassLoader.getResourceAsStream("UIFiles/" + optionalZipFile.get().name)!!
+    }
+
+    private fun unzipUIFiles(uiName: String, targetDir: File) {
+        val optionalZipFile = getZipFile(uiName)
 
         logger.info("Found file: ${optionalZipFile.get().name}")
 
+        val zipAsStream = getZipAsStream(optionalZipFile)
+
         // Extract the ZIP file
-        ZipInputStream(zipFile).use { zipStream ->
+        ZipInputStream(zipAsStream).use { zipStream ->
             var entry = zipStream.nextEntry
             while (entry != null) {
                 val outFile = File(targetDir, entry.name)
@@ -183,7 +197,19 @@ class UIManager(
             }
         }
 
+        zipAsStream.close()
+
         logger.info("File successfully extracted to: ${targetDir.absolutePath}")
+
+        val zipAsStreamForHash = getZipAsStream(optionalZipFile)
+        val hash = zipAsStreamForHash.hash()
+        zipAsStreamForHash.close()
+
+        // Create manifest.json
+        val manifestFile = File(targetDir, "manifest.json")
+        val manifestContent = JsonObject().put("hash", hash)
+
+        manifestFile.writeText(manifestContent.encodePrettily())
     }
 
     private fun redirectStreamToConsole(uiName: String, inputStream: InputStream) {
@@ -229,17 +255,7 @@ class UIManager(
         logger.info("\"$uiName\" started at port: {}", port)
     }
 
-    internal fun init() {
-        val config = configManager.config
-
-        if (!config.initUi) {
-            return
-        }
-
-        if (!librariesFolder.exists()) {
-            librariesFolder.mkdirs()
-        }
-
+    private fun initUiFolders() {
         if (!setupUIFolder.exists()) {
             logger.warn("Setup UI not found, installing...")
 
@@ -257,6 +273,68 @@ class UIManager(
 
             unzipUIFiles("vanilla-theme", defaultThemeFolder)
         }
+    }
+
+    private fun upgradeUi(uiName: String, targetDir: File) {
+        targetDir.deleteRecursively()
+
+        logger.warn("Upgrading found for: {}", uiName)
+
+        unzipUIFiles(uiName, targetDir)
+    }
+
+    private fun checkUpgrade(uiName: String, targetDir: File) {
+        val manifestFile = File(targetDir, "manifest.json")
+
+        if (!manifestFile.exists()) {
+            upgradeUi(uiName, targetDir)
+
+            return
+        }
+
+        val manifest: JsonObject
+
+        try {
+            manifest = JsonObject(manifestFile.readText())
+        } catch (e: Exception) {
+            upgradeUi(uiName, targetDir)
+
+            return
+        }
+
+        val optionalZipFile = getZipFile(uiName)
+        val zipFileAsStream = getZipAsStream(optionalZipFile)
+        val hash = zipFileAsStream.hash()
+
+        zipFileAsStream.close()
+
+        if (manifest.getString("hash") == hash) {
+            return
+        }
+
+        upgradeUi(uiName, targetDir)
+    }
+
+    private fun checkUiUpgrades() {
+        checkUpgrade("setup-ui", setupUIFolder)
+        checkUpgrade("panel-ui", panelUIFolder)
+        checkUpgrade("vanilla-theme", defaultThemeFolder)
+    }
+
+    internal fun init() {
+        val config = configManager.config
+
+        if (!config.initUi) {
+            return
+        }
+
+        if (!librariesFolder.exists()) {
+            librariesFolder.mkdirs()
+        }
+
+        initUiFolders()
+
+        checkUiUpgrades()
 
         logger.info("Verifying Bun runtime...")
 

@@ -151,6 +151,7 @@ class UpdateStepAPI(
         ) {
             val mailConfiguration = configManager.config.email
 
+            mailConfiguration.enabled = true
             mailConfiguration.sender = sender
             mailConfiguration.hostname = hostname
             mailConfiguration.port = port

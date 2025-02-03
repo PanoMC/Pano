@@ -179,6 +179,7 @@ class PanelUpdateSettingsAPI(
         if (email != null) {
             val mailConfiguration = configManager.config.email
 
+            mailConfiguration.enabled = true
             mailConfiguration.sender = email.getString("sender")
             mailConfiguration.hostname = email.getString("hostname")
             mailConfiguration.port = email.getInteger("port")

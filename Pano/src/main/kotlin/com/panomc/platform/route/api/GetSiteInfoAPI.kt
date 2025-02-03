@@ -37,6 +37,8 @@ class GetSiteInfoAPI(
             )
         }
 
+        response["emailEnabled"] = config.email.enabled
+
         return Successful(response)
     }
 }

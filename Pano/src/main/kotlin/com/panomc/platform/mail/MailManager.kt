@@ -31,7 +31,7 @@ class MailManager(
     private val logger: Logger,
     private val vertx: Vertx
 ) {
-    val mailClient by lazy {
+    private val mailClient: MailClient by lazy {
         val emailConfig = configManager.config.email
         val mailClientConfig = MailConfig(JsonObject.mapFrom(emailConfig))
 

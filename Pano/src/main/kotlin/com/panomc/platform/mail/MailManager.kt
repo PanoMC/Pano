@@ -39,11 +39,16 @@ class MailManager(
     }
 
     suspend fun sendMail(sqlClient: SqlClient, userId: Long, mail: Mail, email: String? = null) {
+        val emailConfig = configManager.config.email
+
+        if (!emailConfig.enabled) {
+            return
+        }
+
         val emailAddress =
             email ?: databaseManager.userDao.getEmailFromUserId(userId, sqlClient)
             ?: throw NotExists()
 
-        val emailConfig = configManager.config.email
         val message = MailMessage()
 
         message.from = emailConfig.sender

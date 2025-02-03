@@ -72,6 +72,7 @@ data class PanoConfig(
         )
 
         data class EmailConfig(
+            var enabled: Boolean = false,
             var sender: String = "",
             var hostname: String = "",
             var port: Int = 465,

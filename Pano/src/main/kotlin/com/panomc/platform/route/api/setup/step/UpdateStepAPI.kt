@@ -165,6 +165,11 @@ class UpdateStepAPI(
         }
 
         if (clientStep == 3) {
+            val mailConfiguration = configManager.config.email
+
+            mailConfiguration.enabled = false
+
+            configManager.saveConfig()
             return true
         }
 

@@ -86,6 +86,7 @@ class PanelUpdateSettingsAPI(
                         .optionalProperty(
                             "email",
                             objectSchema()
+                                .requiredProperty("enabled", booleanSchema())
                                 .requiredProperty("hostname", stringSchema())
                                 .requiredProperty("port", intSchema())
                                 .requiredProperty("ssl", booleanSchema())
@@ -179,15 +180,18 @@ class PanelUpdateSettingsAPI(
         if (email != null) {
             val mailConfiguration = configManager.config.email
 
-            mailConfiguration.enabled = true
-            mailConfiguration.sender = email.getString("sender")
-            mailConfiguration.hostname = email.getString("hostname")
-            mailConfiguration.port = email.getInteger("port")
-            mailConfiguration.username = email.getString("username")
-            mailConfiguration.password = email.getString("password")
-            mailConfiguration.ssl = email.getBoolean("ssl")
-            mailConfiguration.starttls = email.getString("starttls")
-            mailConfiguration.authMethods = email.getString("authMethods")
+            mailConfiguration.enabled = email.getBoolean("enabled")
+
+            if (email.getBoolean("enabled")) {
+                mailConfiguration.sender = email.getString("sender")
+                mailConfiguration.hostname = email.getString("hostname")
+                mailConfiguration.port = email.getInteger("port")
+                mailConfiguration.username = email.getString("username")
+                mailConfiguration.password = email.getString("password")
+                mailConfiguration.ssl = email.getBoolean("ssl")
+                mailConfiguration.starttls = email.getString("starttls")
+                mailConfiguration.authMethods = email.getString("authMethods")
+            }
         }
 
         if (updatePeriod != null || websiteName != null || websiteDescription != null || keywords != null || email != null) {

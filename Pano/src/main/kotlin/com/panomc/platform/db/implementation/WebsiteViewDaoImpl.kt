@@ -6,7 +6,7 @@ import com.panomc.platform.db.model.WebsiteView
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.DateUtil
 import com.panomc.platform.util.TimeUtil
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -30,7 +30,7 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun isIpAddressExistsByToday(
@@ -42,7 +42,7 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ipAddress, DateUtil.getTodayInMillis()))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -61,7 +61,7 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
                     websiteView.ipAddress
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -77,7 +77,7 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
                     ipAddress, DateUtil.getTodayInMillis()
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getWebsiteViewListByPeriod(
@@ -90,7 +90,7 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }

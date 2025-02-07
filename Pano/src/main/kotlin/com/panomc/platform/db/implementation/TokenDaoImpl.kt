@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.TokenDao
 import com.panomc.platform.db.model.Token
 import com.panomc.platform.token.TokenType
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -30,7 +30,7 @@ class TokenDaoImpl : TokenDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(token: Token, sqlClient: SqlClient): Long {
@@ -49,7 +49,7 @@ class TokenDaoImpl : TokenDao() {
                     token.startDate
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -64,7 +64,7 @@ class TokenDaoImpl : TokenDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(token, tokenType.name))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -78,7 +78,7 @@ class TokenDaoImpl : TokenDao() {
             .execute(
                 Tuple.of(token)
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlClient: SqlClient) {
@@ -90,7 +90,7 @@ class TokenDaoImpl : TokenDao() {
             .execute(
                 Tuple.of(subject, type.name)
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getLastBySubjectAndType(
@@ -109,7 +109,7 @@ class TokenDaoImpl : TokenDao() {
                     type.name
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null

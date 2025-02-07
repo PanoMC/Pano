@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.SystemPropertyDao
 import com.panomc.platform.db.model.SystemProperty
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -25,7 +25,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
                     """
             )
             .execute()
-            .await()
+            .coAwait()
 
         addShowGettingStartedOption(sqlClient)
         addMainServerOption(sqlClient)
@@ -45,7 +45,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
                     systemProperty.value
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun update(
@@ -64,7 +64,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
                     option
                 )
             )
-            .await()
+            .coAwait()
     }
 
 
@@ -79,7 +79,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
             .execute(
                 Tuple.of(option)
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -99,7 +99,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
                     userId.toString()
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -117,7 +117,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
                     option
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null

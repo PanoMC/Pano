@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PermissionDao
 import com.panomc.platform.db.model.Permission
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -24,7 +24,7 @@ class PermissionDaoImpl : PermissionDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
 
         val permissions = listOf(
             Permission(name = "access_panel", iconName = "fa-cubes"),
@@ -54,7 +54,7 @@ class PermissionDaoImpl : PermissionDao() {
                 Tuple.of(
                     permission.name
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -72,7 +72,7 @@ class PermissionDaoImpl : PermissionDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -90,7 +90,7 @@ class PermissionDaoImpl : PermissionDao() {
                     permission.name,
                     permission.iconName
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun getPermissionId(
@@ -106,7 +106,7 @@ class PermissionDaoImpl : PermissionDao() {
                 Tuple.of(
                     permission.name
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -124,7 +124,7 @@ class PermissionDaoImpl : PermissionDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -144,7 +144,7 @@ class PermissionDaoImpl : PermissionDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -165,7 +165,7 @@ class PermissionDaoImpl : PermissionDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == idList.size.toLong()
     }

@@ -3,7 +3,7 @@ package com.panomc.platform.db.migration
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.SqlClient
 
 @Migration
@@ -33,7 +33,7 @@ class DatabaseMigration2to3(databaseManager: DatabaseManager) : DatabaseMigratio
                 """.trimIndent()
                 )
                 .execute()
-                .await()
+                .coAwait()
         }
 
 }

@@ -5,7 +5,7 @@ import com.panomc.platform.db.dao.ServerDao
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.ServerType
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -41,7 +41,7 @@ class ServerDaoImpl : ServerDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(
@@ -71,7 +71,7 @@ class ServerDaoImpl : ServerDao() {
                     server.startTime,
                     0,
                 )
-            ).await()
+            ).coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -87,7 +87,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -107,7 +107,7 @@ class ServerDaoImpl : ServerDao() {
             .execute(
                 Tuple.of(1)
             )
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -120,7 +120,7 @@ class ServerDaoImpl : ServerDao() {
             .execute(
                 Tuple.of(1)
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -131,7 +131,7 @@ class ServerDaoImpl : ServerDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -147,7 +147,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updatePermissionGrantedById(
@@ -165,7 +165,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun existsById(id: Long, sqlClient: SqlClient): Boolean {
@@ -178,7 +178,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -192,7 +192,7 @@ class ServerDaoImpl : ServerDao() {
             .execute(
                 Tuple.of(id)
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updatePlayerCountById(id: Long, playerCount: Int, sqlClient: SqlClient) {
@@ -206,7 +206,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateStartTimeById(id: Long, startTime: Long, sqlClient: SqlClient) {
@@ -220,7 +220,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateStopTimeById(id: Long, stopTime: Long, sqlClient: SqlClient) {
@@ -234,7 +234,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateAcceptedTimeById(id: Long, acceptedTime: Long, sqlClient: SqlClient) {
@@ -248,7 +248,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateServerForOfflineById(id: Long, sqlClient: SqlClient) {
@@ -263,7 +263,7 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateById(
@@ -302,6 +302,6 @@ class ServerDaoImpl : ServerDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 }

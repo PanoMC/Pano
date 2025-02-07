@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PermissionGroupPermsDao
 import com.panomc.platform.db.model.PermissionGroupPerms
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -24,7 +24,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun getPermissionGroupPerms(
@@ -36,7 +36,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -51,7 +51,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(permissionId))
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -66,7 +66,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(permissionGroupId))
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -81,7 +81,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(permissionGroupId))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -101,7 +101,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
                     permissionGroupId,
                     permissionId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -121,7 +121,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
                     permissionId,
                     permissionGroupId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun removePermission(
@@ -139,7 +139,7 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
                     permissionGroupId,
                     permissionId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun removePermissionGroup(
@@ -155,6 +155,6 @@ class PermissionGroupPermsDaoImpl : PermissionGroupPermsDao() {
                 Tuple.of(
                     permissionGroupId
                 )
-            ).await()
+            ).coAwait()
     }
 }

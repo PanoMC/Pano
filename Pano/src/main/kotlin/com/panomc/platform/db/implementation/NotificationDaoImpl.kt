@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.NotificationDao
 import com.panomc.platform.db.model.Notification
 import com.panomc.platform.notification.NotificationStatus
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -29,7 +29,7 @@ class NotificationDaoImpl : NotificationDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(
@@ -50,7 +50,7 @@ class NotificationDaoImpl : NotificationDao() {
                     notification.date,
                     notification.status
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun addAll(notifications: List<Notification>, sqlClient: SqlClient) {
@@ -77,7 +77,7 @@ class NotificationDaoImpl : NotificationDao() {
         sqlClient
             .preparedQuery(query)
             .execute(tuple)
-            .await()
+            .coAwait()
     }
 
     override suspend fun getCountOfNotReadByUserId(
@@ -94,7 +94,7 @@ class NotificationDaoImpl : NotificationDao() {
                     userId,
                     NotificationStatus.NOT_READ,
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -112,7 +112,7 @@ class NotificationDaoImpl : NotificationDao() {
                 Tuple.of(
                     userId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -130,7 +130,7 @@ class NotificationDaoImpl : NotificationDao() {
                 Tuple.of(
                     userId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toEntities()
     }
@@ -150,7 +150,7 @@ class NotificationDaoImpl : NotificationDao() {
                     userId,
                     notificationId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toEntities()
     }
@@ -169,7 +169,7 @@ class NotificationDaoImpl : NotificationDao() {
                     NotificationStatus.READ,
                     userId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun markReadLast10StartFromId(
@@ -188,7 +188,7 @@ class NotificationDaoImpl : NotificationDao() {
                     userId,
                     notificationId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun getLast5ByUserId(
@@ -204,7 +204,7 @@ class NotificationDaoImpl : NotificationDao() {
                 Tuple.of(
                     userId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toEntities()
     }
@@ -223,7 +223,7 @@ class NotificationDaoImpl : NotificationDao() {
                     NotificationStatus.READ,
                     userId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun existsById(
@@ -235,7 +235,7 @@ class NotificationDaoImpl : NotificationDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -253,7 +253,7 @@ class NotificationDaoImpl : NotificationDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -277,7 +277,7 @@ class NotificationDaoImpl : NotificationDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun markReadById(id: Long, sqlClient: SqlClient) {
@@ -291,7 +291,7 @@ class NotificationDaoImpl : NotificationDao() {
                     NotificationStatus.READ,
                     id
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun deleteAllByUserId(
@@ -308,6 +308,6 @@ class NotificationDaoImpl : NotificationDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 }

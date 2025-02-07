@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PermissionGroupDao
 import com.panomc.platform.db.model.PermissionGroup
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -26,7 +26,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
 
         createAdminPermission(sqlClient)
     }
@@ -44,7 +44,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                 Tuple.of(
                     name
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -60,7 +60,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                     permissionGroup.id,
                     permissionGroup.name
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -78,7 +78,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0) != 0L
     }
@@ -95,7 +95,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                 Tuple.of(
                     permissionGroup.name
                 )
-            ).await()
+            ).coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -113,7 +113,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -137,7 +137,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                 Tuple.of(
                     name
                 )
-            ).await()
+            ).coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -155,7 +155,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -167,7 +167,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -179,7 +179,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -198,7 +198,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun update(
@@ -216,7 +216,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                     permissionGroup.id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     private suspend fun createAdminPermission(

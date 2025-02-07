@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PanelNotificationDao
 import com.panomc.platform.db.model.PanelNotification
 import com.panomc.platform.notification.NotificationStatus
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -29,7 +29,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(
@@ -50,7 +50,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     panelNotification.date,
                     panelNotification.status
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun addAll(panelNotifications: List<PanelNotification>, sqlClient: SqlClient) {
@@ -77,7 +77,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient
             .preparedQuery(query)
             .execute(tuple)
-            .await()
+            .coAwait()
     }
 
     override suspend fun getCountOfNotReadByUserId(
@@ -94,7 +94,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     userId,
                     NotificationStatus.NOT_READ,
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -112,7 +112,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                 Tuple.of(
                     userId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -130,7 +130,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                 Tuple.of(
                     userId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toEntities()
     }
@@ -150,7 +150,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     userId,
                     notificationId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toEntities()
     }
@@ -169,7 +169,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     NotificationStatus.READ,
                     userId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun markReadLast10StartFromId(
@@ -188,7 +188,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     userId,
                     notificationId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun getLast5ByUserId(
@@ -204,7 +204,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                 Tuple.of(
                     userId
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toEntities()
     }
@@ -223,7 +223,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     NotificationStatus.READ,
                     userId
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun existsById(
@@ -235,7 +235,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -253,7 +253,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -277,7 +277,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun markReadById(id: Long, sqlClient: SqlClient) {
@@ -291,7 +291,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     NotificationStatus.READ,
                     id
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun deleteAllByUserId(
@@ -308,6 +308,6 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 }

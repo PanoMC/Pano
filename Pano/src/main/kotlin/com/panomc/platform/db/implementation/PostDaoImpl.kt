@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PostDao
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.util.PostStatus
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -35,7 +35,7 @@ class PostDaoImpl : PostDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun removePostCategoriesByCategoryId(
@@ -52,7 +52,7 @@ class PostDaoImpl : PostDao() {
                     categoryId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun existsById(
@@ -68,7 +68,7 @@ class PostDaoImpl : PostDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -83,7 +83,7 @@ class PostDaoImpl : PostDao() {
                     url
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -102,7 +102,7 @@ class PostDaoImpl : PostDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -124,7 +124,7 @@ class PostDaoImpl : PostDao() {
                     url
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -151,7 +151,7 @@ class PostDaoImpl : PostDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun moveDraftById(
@@ -170,7 +170,7 @@ class PostDaoImpl : PostDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun publishById(
@@ -192,7 +192,7 @@ class PostDaoImpl : PostDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun insert(post: Post, sqlClient: SqlClient): Long {
@@ -215,7 +215,7 @@ class PostDaoImpl : PostDao() {
                     post.url
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -240,7 +240,7 @@ class PostDaoImpl : PostDao() {
                     post.id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updatePostUrlByUrl(url: String, newUrl: String, sqlClient: SqlClient) {
@@ -255,7 +255,7 @@ class PostDaoImpl : PostDao() {
                     url
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun count(sqlClient: SqlClient): Long {
@@ -264,7 +264,7 @@ class PostDaoImpl : PostDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -280,7 +280,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(id)
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -297,7 +297,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(postStatus.name)
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -315,7 +315,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(postStatus.name, categoryId)
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -332,7 +332,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(id)
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getByCategory(
@@ -347,7 +347,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(id)
             )
-            .await()
+            .coAwait()
 
         val posts = mutableListOf<Post>()
 
@@ -369,7 +369,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(postStatus.name)
             )
-            .await()
+            .coAwait()
 
         val posts = mutableListOf<Post>()
 
@@ -392,7 +392,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(postStatus.name, categoryId)
             )
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -408,7 +408,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(PostStatus.PUBLISHED.name)
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -428,7 +428,7 @@ class PostDaoImpl : PostDao() {
                     categoryId
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -445,7 +445,7 @@ class PostDaoImpl : PostDao() {
             .execute(
                 Tuple.of(PostStatus.PUBLISHED.name)
             )
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -466,7 +466,7 @@ class PostDaoImpl : PostDao() {
                     categoryId
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -486,7 +486,7 @@ class PostDaoImpl : PostDao() {
                     categoryId
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -505,7 +505,7 @@ class PostDaoImpl : PostDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun increaseViewByOne(url: String, sqlClient: SqlClient) {
@@ -519,7 +519,7 @@ class PostDaoImpl : PostDao() {
                     url
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun isPreviousPostExistsByDate(
@@ -537,7 +537,7 @@ class PostDaoImpl : PostDao() {
                     date
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) > 0L
     }
@@ -557,7 +557,7 @@ class PostDaoImpl : PostDao() {
                     date
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) > 0L
     }
@@ -577,7 +577,7 @@ class PostDaoImpl : PostDao() {
                     date
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -603,7 +603,7 @@ class PostDaoImpl : PostDao() {
                     date
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -625,6 +625,6 @@ class PostDaoImpl : PostDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 }

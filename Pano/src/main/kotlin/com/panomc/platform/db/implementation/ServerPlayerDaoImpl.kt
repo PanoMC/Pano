@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.ServerPlayerDao
 import com.panomc.platform.db.model.ServerPlayer
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -29,7 +29,7 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(
@@ -50,7 +50,7 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
                     serverPlayer.serverId,
                     serverPlayer.loginTime
                 )
-            ).await()
+            ).coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -64,7 +64,7 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
             .execute(
                 Tuple.of(username, serverId)
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun existsByUsername(
@@ -76,7 +76,7 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(username))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) > 0
     }
@@ -90,7 +90,7 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
             .execute(
                 Tuple.of(serverId)
             )
-            .await()
+            .coAwait()
     }
 
 }

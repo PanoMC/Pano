@@ -10,7 +10,7 @@ import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLConnectOptions
 import io.vertx.mysqlclient.MySQLPool
 import io.vertx.sqlclient.PoolOptions
@@ -64,11 +64,11 @@ class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
         val mySQLPool = MySQLPool.pool(context.vertx(), connectOptions, poolOptions)
 
         try {
-            val connection = mySQLPool.connection.await()
+            val connection = mySQLPool.connection.coAwait()
 
-            connection.close().await()
+            connection.close().coAwait()
 
-            mySQLPool.close().await()
+            mySQLPool.close().coAwait()
         } catch (e: java.lang.Exception) {
             logger.error(e.toString())
 

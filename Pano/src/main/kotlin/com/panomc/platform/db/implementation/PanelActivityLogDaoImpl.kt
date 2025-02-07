@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PanelActivityLogDao
 import com.panomc.platform.db.model.PanelActivityLog
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -34,7 +34,7 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(
@@ -55,7 +55,7 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
                     panelActivityLog.createdAt,
                     panelActivityLog.updatedAt,
                 )
-            ).await()
+            ).coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }

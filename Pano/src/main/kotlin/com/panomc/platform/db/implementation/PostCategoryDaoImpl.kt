@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PostCategoryDao
 import com.panomc.platform.db.model.PostCategory
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -28,7 +28,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun existsById(
@@ -44,7 +44,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -62,7 +62,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
                 Tuple.of(
                     id
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun getCount(sqlClient: SqlClient): Long {
@@ -72,7 +72,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -96,7 +96,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities().associateBy { it.id }
     }
@@ -110,7 +110,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -125,7 +125,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -140,7 +140,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(url))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -156,7 +156,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(url, id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -178,7 +178,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
                     postCategory.color.replace("#", "")
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -200,7 +200,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
                     postCategory.color.replace("#", ""),
                     postCategory.id
                 )
-            ).await()
+            ).coAwait()
     }
 
     override suspend fun getById(
@@ -215,7 +215,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
             .execute(
                 Tuple.of(id)
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -238,7 +238,7 @@ class PostCategoryDaoImpl : PostCategoryDao() {
             .execute(
                 Tuple.of(url)
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null

@@ -8,7 +8,7 @@ import com.panomc.platform.util.TicketPageType
 import com.panomc.platform.util.TicketStatus
 import com.panomc.platform.util.TimeUtil
 import io.vertx.core.json.JsonArray
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -35,7 +35,7 @@ class TicketDaoImpl : TicketDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun count(sqlClient: SqlClient): Long {
@@ -44,7 +44,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -57,7 +57,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(TicketStatus.CLOSED))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -71,7 +71,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -92,7 +92,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -116,7 +116,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -136,7 +136,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -158,7 +158,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -178,7 +178,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -198,7 +198,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -221,7 +221,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -236,7 +236,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -266,7 +266,7 @@ class TicketDaoImpl : TicketDao() {
         sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
     }
 
     override suspend fun closeTicketById(id: Long, sqlClient: SqlClient) {
@@ -281,7 +281,7 @@ class TicketDaoImpl : TicketDao() {
         sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
     }
 
     override suspend fun countByCategory(
@@ -293,7 +293,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -304,7 +304,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id, userId))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -333,7 +333,7 @@ class TicketDaoImpl : TicketDao() {
         sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
     }
 
     override suspend fun countByUserId(
@@ -346,7 +346,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -361,7 +361,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -381,7 +381,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -392,7 +392,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id, userId))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -403,7 +403,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id, userId))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -423,7 +423,7 @@ class TicketDaoImpl : TicketDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateLastUpdateDate(
@@ -441,7 +441,7 @@ class TicketDaoImpl : TicketDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(ticket: Ticket, sqlClient: SqlClient): Long {
@@ -460,7 +460,7 @@ class TicketDaoImpl : TicketDao() {
                     ticket.status.name
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -474,7 +474,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
-            .await()
+            .coAwait()
 
         return rows.toList().map { it.getLong(0) }
     }
@@ -494,7 +494,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == ids.size.toLong()
     }
@@ -510,7 +510,7 @@ class TicketDaoImpl : TicketDao() {
                     categoryId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getByUserId(
@@ -527,7 +527,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -543,7 +543,7 @@ class TicketDaoImpl : TicketDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null

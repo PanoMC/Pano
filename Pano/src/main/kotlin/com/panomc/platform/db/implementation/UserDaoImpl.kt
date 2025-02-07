@@ -9,7 +9,7 @@ import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
 import com.panomc.platform.util.TimeUtil
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -45,7 +45,7 @@ class UserDaoImpl : UserDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(
@@ -73,7 +73,7 @@ class UserDaoImpl : UserDao() {
                     user.lastActivityTime
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -92,7 +92,7 @@ class UserDaoImpl : UserDao() {
                     email
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -111,7 +111,7 @@ class UserDaoImpl : UserDao() {
                     username
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -134,7 +134,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -157,7 +157,7 @@ class UserDaoImpl : UserDao() {
                     username
                 )
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -183,7 +183,7 @@ class UserDaoImpl : UserDao() {
                     DigestUtils.md5Hex(password)
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -194,7 +194,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -208,7 +208,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -222,7 +222,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
-            .await()
+            .coAwait()
 
         return rows.toList().map { it.getLong(0) }
     }
@@ -237,7 +237,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(userId))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -256,7 +256,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(userId))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -277,7 +277,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(username))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -306,7 +306,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -330,7 +330,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -350,7 +350,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -365,7 +365,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(usernameOrEmail, usernameOrEmail))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -381,7 +381,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(userId))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -409,7 +409,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         val listOfUsers = mutableMapOf<Long, String>()
 
@@ -429,7 +429,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(username))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -449,7 +449,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == usernames.size.toLong()
     }
@@ -460,7 +460,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(usernameOrEmail, usernameOrEmail))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -474,7 +474,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -490,7 +490,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(permissionGroupId))
-            .await()
+            .coAwait()
 
         val listOfUsernames = mutableListOf<String>()
 
@@ -511,7 +511,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(permissionGroupId))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -531,7 +531,7 @@ class UserDaoImpl : UserDao() {
                     permissionGroupId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun setPermissionGroupByUsername(
@@ -550,7 +550,7 @@ class UserDaoImpl : UserDao() {
                     username
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun setPermissionGroupByUsernames(
@@ -577,7 +577,7 @@ class UserDaoImpl : UserDao() {
                     permissionGroupId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun setUsernameById(
@@ -596,7 +596,7 @@ class UserDaoImpl : UserDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun setEmailById(
@@ -615,7 +615,7 @@ class UserDaoImpl : UserDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun setPasswordById(
@@ -634,7 +634,7 @@ class UserDaoImpl : UserDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun isEmailVerifiedById(
@@ -652,7 +652,7 @@ class UserDaoImpl : UserDao() {
                     1
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -669,7 +669,7 @@ class UserDaoImpl : UserDao() {
                     1
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -686,7 +686,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun unbanPlayer(userId: Long, sqlClient: SqlClient) {
@@ -701,7 +701,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun makeEmailVerifiedById(userId: Long, sqlClient: SqlClient) {
@@ -716,7 +716,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getLastUsernames(limit: Long, sqlClient: SqlClient): List<String> {
@@ -726,7 +726,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         val usernames = mutableListOf<String>()
 
@@ -749,7 +749,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateLastActivityTime(userId: Long, sqlClient: SqlClient) {
@@ -764,7 +764,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateLastPanelActivityTime(userId: Long, sqlClient: SqlClient) {
@@ -779,7 +779,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getOnlineAdmins(limit: Long, sqlClient: SqlClient): List<User> {
@@ -793,7 +793,7 @@ class UserDaoImpl : UserDao() {
             .execute(
                 Tuple.of(fiveMinutesAgoInMillis)
             )
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -811,7 +811,7 @@ class UserDaoImpl : UserDao() {
             .execute(
                 Tuple.of(userId)
             )
-            .await()
+            .coAwait()
 
         return Permission::class.java.from(rows)
     }
@@ -827,7 +827,7 @@ class UserDaoImpl : UserDao() {
             .execute(
                 Tuple.of(userId)
             )
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -852,7 +852,7 @@ class UserDaoImpl : UserDao() {
             .execute(
                 Tuple.of(panelPermission.toString())
             )
-            .await()
+            .coAwait()
 
         val listOfUsernames = mutableListOf<Long>()
 
@@ -875,7 +875,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateCanCreateTicketStatusById(
@@ -894,7 +894,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun isPasswordCorrectWithId(
@@ -913,7 +913,7 @@ class UserDaoImpl : UserDao() {
                     hashedPassword
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -934,7 +934,7 @@ class UserDaoImpl : UserDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getPendingEmailById(
@@ -947,7 +947,7 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getString(0)
     }
@@ -962,7 +962,7 @@ class UserDaoImpl : UserDao() {
             .execute(
                 Tuple.of(fiveMinutesAgoInMillis)
             )
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -977,6 +977,6 @@ class UserDaoImpl : UserDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 }

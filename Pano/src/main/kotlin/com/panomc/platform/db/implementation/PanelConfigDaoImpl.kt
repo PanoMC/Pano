@@ -3,7 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PanelConfigDao
 import com.panomc.platform.db.model.PanelConfig
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -26,7 +26,7 @@ class PanelConfigDaoImpl : PanelConfigDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun byUserIdAndOption(userId: Long, option: String, sqlClient: SqlClient): PanelConfig? {
@@ -36,7 +36,7 @@ class PanelConfigDaoImpl : PanelConfigDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(userId, option))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -59,7 +59,7 @@ class PanelConfigDaoImpl : PanelConfigDao() {
                     panelConfig.value
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun updateValueById(id: Long, value: String, sqlClient: SqlClient) {
@@ -74,7 +74,7 @@ class PanelConfigDaoImpl : PanelConfigDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun deleteByUserId(userId: Long, sqlClient: SqlClient) {
@@ -87,6 +87,6 @@ class PanelConfigDaoImpl : PanelConfigDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 }

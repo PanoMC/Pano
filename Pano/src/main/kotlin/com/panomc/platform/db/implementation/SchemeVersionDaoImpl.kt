@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.SchemeVersionDao
 import com.panomc.platform.db.model.SchemeVersion
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -29,7 +29,7 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
 
         val lastSchemeVersion = getLastSchemeVersion(sqlClient)
 
@@ -70,7 +70,7 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
                     schemeVersion.extra
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun getLastSchemeVersion(
@@ -81,7 +81,7 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null

@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.TicketCategoryDao
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.util.TextUtil
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -28,7 +28,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun getAll(
@@ -39,7 +39,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -53,7 +53,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -67,7 +67,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(url))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -81,7 +81,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
     }
 
     override suspend fun add(
@@ -100,7 +100,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
                     TextUtil.convertStringToUrl(ticketCategory.title)
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -117,7 +117,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
                     id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun update(
@@ -137,7 +137,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
                     ticketCategory.id
                 )
             )
-            .await()
+            .coAwait()
     }
 
     override suspend fun count(sqlClient: SqlClient): Long {
@@ -147,7 +147,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -162,7 +162,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -177,7 +177,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -198,7 +198,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(url))
-            .await()
+            .coAwait()
 
         if (rows.size() == 0) {
             return null
@@ -228,7 +228,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
-            .await()
+            .coAwait()
 
         return rows.toEntities().associateBy { it.id }
     }

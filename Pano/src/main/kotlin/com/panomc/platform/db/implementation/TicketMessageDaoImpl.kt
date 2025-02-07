@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.TicketMessageDao
 import com.panomc.platform.db.model.TicketMessage
 import io.vertx.core.json.JsonArray
-import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -29,7 +29,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
                         """
             )
             .execute()
-            .await()
+            .coAwait()
     }
 
     override suspend fun getByTicketId(
@@ -42,7 +42,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ticketId))
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -58,7 +58,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ticketId, lastMessageId))
-            .await()
+            .coAwait()
 
         return rows.toEntities()
     }
@@ -73,7 +73,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ticketId))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
@@ -96,7 +96,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
                     ticketMessage.panel,
                 )
             )
-            .await()
+            .coAwait()
 
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
@@ -124,7 +124,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         sqlClient
             .preparedQuery(query)
             .execute(parameters)
-            .await()
+            .coAwait()
     }
 
     override suspend fun getLastMessageByTicketId(
@@ -137,7 +137,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(ticketId))
-            .await()
+            .coAwait()
 
 
         if (rows.size() == 0) {
@@ -155,7 +155,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(id))
-            .await()
+            .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
     }
@@ -171,6 +171,6 @@ class TicketMessageDaoImpl : TicketMessageDao() {
                     userId
                 )
             )
-            .await()
+            .coAwait()
     }
 }

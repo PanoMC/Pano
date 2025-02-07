@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.permission
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.UpdatedPermissionGroupPermLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.CantUpdateAdminPermission
 import com.panomc.platform.error.NoPermission
@@ -54,15 +55,8 @@ class PanelSetPermissionGroupPermissionAPI(
 
         val sqlClient = getSqlClient()
 
-        val isTherePermissionGroup =
-            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlClient)
-
-        if (!isTherePermissionGroup) {
-            throw NotExists()
-        }
-
         val permissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlClient)!!
+            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlClient) ?: throw NotExists()
 
         if (permissionGroup.name == "admin") {
             throw CantUpdateAdminPermission()
@@ -89,6 +83,14 @@ class PanelSetPermissionGroupPermissionAPI(
         val body = mutableMapOf<String, Any?>()
 
         body["mode"] = if (mode == "ADD" && !doesPermissionGroupHavePermission) "ADD" else "DELETE"
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            UpdatedPermissionGroupPermLog(userId, username, permissionGroup.name),
+            sqlClient
+        )
 
         return Successful(body)
     }

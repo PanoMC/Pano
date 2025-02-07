@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.post.category
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.DeletedPostCategoryLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
@@ -34,15 +35,16 @@ class PanelDeletePostCategoryAPI(
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.postCategoryDao.existsById(id, sqlClient)
-
-        if (!exists) {
-            throw NotExists()
-        }
+        val postCategory = databaseManager.postCategoryDao.getById(id, sqlClient) ?: throw NotExists()
 
         databaseManager.postDao.removePostCategoriesByCategoryId(id, sqlClient)
 
         databaseManager.postCategoryDao.deleteById(id, sqlClient)
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(DeletedPostCategoryLog(userId, username, postCategory.title), sqlClient)
 
         return Successful()
     }

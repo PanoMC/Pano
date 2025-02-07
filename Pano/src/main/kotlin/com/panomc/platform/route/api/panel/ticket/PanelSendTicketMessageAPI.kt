@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.ticket
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.RepliedTicketLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.error.NotExists
@@ -62,7 +63,7 @@ class PanelSendTicketMessageAPI(
             throw TicketIsClosed()
         }
 
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
         val ticketMessage = TicketMessage(userId = userId, ticketId = ticketId, message = message, panel = 1)
 
@@ -86,6 +87,8 @@ class PanelSendTicketMessageAPI(
             System.currentTimeMillis(),
             sqlClient
         )
+
+        databaseManager.panelActivityLogDao.add(RepliedTicketLog(userId, username, ticketId), sqlClient)
 
         return Successful(
             mapOf(

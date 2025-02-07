@@ -4,6 +4,7 @@ package com.panomc.platform.route.api.panel.permission
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.CreatedPermissionGroupLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.PermissionGroup
@@ -95,6 +96,10 @@ class PanelAddPermissionGroupAPI(
         if (addedUsers.isNotEmpty()) {
             databaseManager.userDao.setPermissionGroupByUsernames(id, addedUsers, sqlClient)
         }
+
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(CreatedPermissionGroupLog(userId, username, name), sqlClient)
 
         return Successful(mapOf("id" to id))
     }

@@ -1,9 +1,10 @@
-package com.panomc.platform.route.api.panel.player
+package com.panomc.platform.route.api.panel.players
 
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.UpdatedPlayerLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
@@ -45,7 +46,7 @@ class PanelUpdatePlayerAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val id = parameters.pathParameter("id").long
+        val playerId = parameters.pathParameter("id").long
         val username = data.getString("username")
         val email = data.getString("email")
         val newPassword = data.getString("newPassword")
@@ -57,7 +58,7 @@ class PanelUpdatePlayerAPI(
 
         val hasManagePlayerPermission = authProvider.hasPermission(userId, PanelPermission.MANAGE_PLAYERS, context)
 
-        if (!hasManagePlayerPermission && id != userId) {
+        if (!hasManagePlayerPermission && playerId != userId) {
             throw NoPermission()
         }
 
@@ -65,13 +66,13 @@ class PanelUpdatePlayerAPI(
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsById(id, sqlClient)
+        val exists = databaseManager.userDao.existsById(playerId, sqlClient)
 
         if (!exists) {
             throw NotExists()
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(id, sqlClient)!!
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)!!
 
         val userPermissionGroup =
             databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
@@ -82,7 +83,7 @@ class PanelUpdatePlayerAPI(
             throw NoPermission()
         }
 
-        val user = databaseManager.userDao.getById(id, sqlClient)!!
+        val user = databaseManager.userDao.getById(playerId, sqlClient)!!
 
         if (username != user.username) {
             val usernameExists = databaseManager.userDao.existsByUsername(username, sqlClient)
@@ -90,8 +91,6 @@ class PanelUpdatePlayerAPI(
             if (usernameExists) {
                 throw Errors(mapOf("username" to "EXISTS"))
             }
-
-            databaseManager.userDao.setUsernameById(user.id, username, sqlClient)
         }
 
         if (email != user.email) {
@@ -100,7 +99,13 @@ class PanelUpdatePlayerAPI(
             if (emailExists) {
                 throw Errors(mapOf("username" to "EXISTS"))
             }
+        }
 
+        if (username != user.username) {
+            databaseManager.userDao.setUsernameById(user.id, username, sqlClient)
+        }
+
+        if (email != user.email) {
             databaseManager.userDao.setEmailById(user.id, username, sqlClient)
         }
 
@@ -108,10 +113,14 @@ class PanelUpdatePlayerAPI(
             databaseManager.userDao.setPasswordById(user.id, newPassword, sqlClient)
         }
 
-        if (id != userId) {
-            databaseManager.userDao.updateEmailVerifyStatusById(id, isEmailVerified, sqlClient)
-            databaseManager.userDao.updateCanCreateTicketStatusById(id, canCreateTicket, sqlClient)
+        if (playerId != userId) {
+            databaseManager.userDao.updateEmailVerifyStatusById(playerId, isEmailVerified, sqlClient)
+            databaseManager.userDao.updateCanCreateTicketStatusById(playerId, canCreateTicket, sqlClient)
         }
+
+        val authUsername = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(UpdatedPlayerLog(userId, authUsername, user.username), sqlClient)
 
         return Successful()
     }

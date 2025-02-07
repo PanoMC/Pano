@@ -1,41 +1,42 @@
-package com.panomc.platform.route.api.panel.player
+package com.panomc.platform.route.api.panel.players
 
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.BannedPlayerLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.notification.BannedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
-import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
+import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
-import io.vertx.json.schema.common.dsl.Schemas
-import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import org.apache.commons.codec.digest.DigestUtils
+import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
-class PanelDeletePlayerAPI(
+class PanelBanPlayerAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
+    private val mailManager: MailManager,
     private val tokenProvider: TokenProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/players/:username/delete", RouteType.POST))
+    override val paths = listOf(Path("/api/panel/players/:username/ban", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
             .pathParameter(Parameters.param("username", stringSchema()))
             .body(
-                Bodies.json(
-                    Schemas.objectSchema()
-                        .requiredProperty("currentPassword", stringSchema())
+                json(
+                    objectSchema()
+                        .optionalProperty("sendNotification", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -48,23 +49,29 @@ class PanelDeletePlayerAPI(
         val data = parameters.body().jsonObject
 
         val username = parameters.pathParameter("username").string
-        val currentPassword = data.getString("currentPassword")
+
+        val sendNotification = data.getBoolean("sendNotification") ?: false
 
         val sqlClient = getSqlClient()
+
+        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
+
+        if (!exists) {
+            throw NotExists()
+        }
 
         val userId =
             databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
         val authUserId = authProvider.getUserIdFromRoutingContext(context)
 
         if (userId == authUserId) {
-            throw CantDeleteYourself()
+            throw CantBanYourself()
         }
 
-        val isCurrentPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
+        val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)
 
-        if (!isCurrentPasswordCorrect) {
-            throw CurrentPasswordNotCorrect()
+        if (isBanned) {
+            throw AlreadyBanned()
         }
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
@@ -91,26 +98,17 @@ class PanelDeletePlayerAPI(
             }
         }
 
-        databaseManager.notificationDao.deleteAllByUserId(userId, sqlClient)
-        databaseManager.panelConfigDao.deleteByUserId(userId, sqlClient)
-        databaseManager.panelNotificationDao.deleteAllByUserId(userId, sqlClient)
-        databaseManager.postDao.updateUserIdByUserId(userId, -1, sqlClient)
+        databaseManager.userDao.banPlayer(userId, sqlClient)
 
-        val tickets = databaseManager.ticketDao.getByUserId(userId, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
 
-        val ticketIdList = JsonArray(tickets.map { it.id })
-
-        if (ticketIdList.size() != 0) {
-            databaseManager.ticketMessageDao.deleteByTicketIdList(ticketIdList, sqlClient)
+        if (sendNotification) {
+            mailManager.sendMail(sqlClient, userId, BannedMail())
         }
 
-        databaseManager.ticketMessageDao.updateUserIdByUserId(userId, -1, sqlClient)
+        val authUsername = databaseManager.userDao.getUsernameFromUserId(authUserId, sqlClient)!!
 
-        TokenType.values().forEach { tokenType ->
-            tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), tokenType, sqlClient)
-        }
-
-        databaseManager.userDao.deleteById(userId, sqlClient)
+        databaseManager.panelActivityLogDao.add(BannedPlayerLog(authUserId, authUsername, username), sqlClient)
 
         return Successful()
     }

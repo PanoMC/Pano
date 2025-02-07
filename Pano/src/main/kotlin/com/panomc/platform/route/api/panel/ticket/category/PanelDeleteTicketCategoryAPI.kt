@@ -4,6 +4,7 @@ package com.panomc.platform.route.api.panel.ticket.category
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.DeletedTicketCategoryLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
@@ -34,15 +35,19 @@ class PanelDeleteTicketCategoryAPI(
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketCategoryDao.existsById(id, sqlClient)
-
-        if (!exists) {
-            throw NotExists()
-        }
+        val ticketCategory = databaseManager.ticketCategoryDao.getById(id, sqlClient) ?: throw NotExists()
 
         databaseManager.ticketDao.removeTicketCategoriesByCategoryId(id, sqlClient)
 
         databaseManager.ticketCategoryDao.deleteById(id, sqlClient)
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            DeletedTicketCategoryLog(userId, username, ticketCategory.title),
+            sqlClient
+        )
 
         return Successful()
     }

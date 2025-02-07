@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.panel.player
+package com.panomc.platform.route.api.panel.players
 
 
 import com.panomc.platform.annotation.Endpoint

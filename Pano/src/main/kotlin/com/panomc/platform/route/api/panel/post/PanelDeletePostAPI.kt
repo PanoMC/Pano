@@ -4,6 +4,7 @@ package com.panomc.platform.route.api.panel.post
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.DeletedPostLog
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post.Companion.deleteThumbnailFile
@@ -48,6 +49,11 @@ class PanelDeletePostAPI(
         post.deleteThumbnailFile(configManager)
 
         databaseManager.postDao.delete(id, sqlClient)
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(DeletedPostLog(userId, username, post.title), sqlClient)
 
         return Successful()
     }

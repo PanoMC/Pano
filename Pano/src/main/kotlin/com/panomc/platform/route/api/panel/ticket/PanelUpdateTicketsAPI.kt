@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.ticket
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.ClosedTicketsLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.SomeTicketsArentExists
 import com.panomc.platform.model.*
@@ -65,7 +66,7 @@ class PanelUpdateTicketsAPI(
 
             databaseManager.ticketDao.closeTickets(selectedTickets, sqlClient)
 
-            val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
+            val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
             selectedTickets.map { it.toString().toLong() }.forEach {
                 val ticket = databaseManager.ticketDao.getById(it, sqlClient)!!
@@ -81,6 +82,14 @@ class PanelUpdateTicketsAPI(
                     sqlClient
                 )
             }
+
+            databaseManager.panelActivityLogDao.add(
+                ClosedTicketsLog(
+                    userId,
+                    username,
+                    selectedTickets.joinToString(separator = ", ") { "#$it" }
+                ), sqlClient
+            )
         }
 
         return Successful()

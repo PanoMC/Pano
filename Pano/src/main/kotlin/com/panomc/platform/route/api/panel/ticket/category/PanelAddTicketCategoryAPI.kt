@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.ticket.category
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.CreatedTicketCategoryLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
@@ -56,6 +57,11 @@ class PanelAddTicketCategoryAPI(
         val url = TextUtil.convertStringToUrl(title, 32)
 
         databaseManager.ticketCategoryDao.updateUrlById(categoryId, "$url-$categoryId", sqlClient)
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(CreatedTicketCategoryLog(userId, username, title), sqlClient)
 
         return Successful()
     }

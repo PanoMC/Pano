@@ -1,9 +1,10 @@
-package com.panomc.platform.route.api.panel.player
+package com.panomc.platform.route.api.panel.players
 
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.SentManualValidationEmailLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.EmailAlreadyVerified
 import com.panomc.platform.error.NoPermission
@@ -36,20 +37,20 @@ class PanelSendValidationEmailAPI(
 
         val parameters = getParameters(context)
 
-        val username = parameters.pathParameter("username").string
+        val player = parameters.pathParameter("username").string
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
+        val exists = databaseManager.userDao.existsByUsername(player, sqlClient)
 
         if (!exists) {
             throw NotExists()
         }
 
-        val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
+        val playerId =
+            databaseManager.userDao.getUserIdFromUsername(player, sqlClient) ?: throw NotExists()
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)!!
 
         val userPermissionGroup =
             databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
@@ -60,13 +61,20 @@ class PanelSendValidationEmailAPI(
             throw NoPermission()
         }
 
-        val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
+        val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(playerId, sqlClient)
 
         if (isEmailVerified) {
             throw EmailAlreadyVerified()
         }
 
-        mailManager.sendMail(sqlClient, userId, ActivationMail())
+        val email = databaseManager.userDao.getEmailFromUserId(playerId, sqlClient)!!
+
+        mailManager.sendMail(sqlClient, playerId, ActivationMail(), email)
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(SentManualValidationEmailLog(playerId, username, email), sqlClient)
 
         return Successful()
     }

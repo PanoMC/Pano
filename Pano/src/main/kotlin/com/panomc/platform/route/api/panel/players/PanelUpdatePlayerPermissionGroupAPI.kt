@@ -1,9 +1,10 @@
-package com.panomc.platform.route.api.panel.player
+package com.panomc.platform.route.api.panel.players
 
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.UpdatedPlayerPermissionGroupLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.CantUpdatePermGroupYourself
 import com.panomc.platform.error.NoPermission
@@ -18,6 +19,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaParser
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.sqlclient.SqlClient
 
 @Endpoint
 class PanelUpdatePlayerPermissionGroupAPI(
@@ -44,22 +46,23 @@ class PanelUpdatePlayerPermissionGroupAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val username = parameters.pathParameter("username").string
+        val player = parameters.pathParameter("username").string
         val permissionGroup = data.getString("permissionGroup")
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
+        val exists = databaseManager.userDao.existsByUsername(player, sqlClient)
 
         if (!exists) {
             throw NotExists()
         }
 
-        val userId = databaseManager.userDao.getUserIdFromUsername(username, sqlClient)
+        val playerId = databaseManager.userDao.getUserIdFromUsername(player, sqlClient)
 
-        val authUserId = authProvider.getUserIdFromRoutingContext(context)
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
-        if (userId == authUserId) {
+        if (playerId == userId) {
             throw CantUpdatePermGroupYourself()
         }
 
@@ -82,14 +85,16 @@ class PanelUpdatePlayerPermissionGroupAPI(
         }
 
         val userPermissionGroupId =
-            databaseManager.userDao.getPermissionGroupIdFromUsername(username, sqlClient)!!
+            databaseManager.userDao.getPermissionGroupIdFromUsername(player, sqlClient)!!
 
         if (userPermissionGroupId == -1L) {
             databaseManager.userDao.setPermissionGroupByUsername(
                 permissionGroupId,
-                username,
+                player,
                 sqlClient
             )
+
+            addPanelActivityLog(userId, username, player, permissionGroup, sqlClient)
 
             return Successful()
         }
@@ -116,10 +121,29 @@ class PanelUpdatePlayerPermissionGroupAPI(
 
         databaseManager.userDao.setPermissionGroupByUsername(
             permissionGroupId,
-            username,
+            player,
             sqlClient
         )
 
+        addPanelActivityLog(userId, username, player, permissionGroup, sqlClient)
+
         return Successful()
+    }
+
+    private suspend fun addPanelActivityLog(
+        userId: Long,
+        username: String,
+        player: String,
+        permissionGroupName: String,
+        sqlClient: SqlClient
+    ) {
+        databaseManager.panelActivityLogDao.add(
+            UpdatedPlayerPermissionGroupLog(
+                userId,
+                username,
+                player,
+                permissionGroupName
+            ), sqlClient
+        )
     }
 }

@@ -4,6 +4,7 @@ package com.panomc.platform.route.api.panel.post.category
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.UpdatedPostCategoryLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.error.NoPermission
@@ -69,6 +70,11 @@ class PanelUpdatePostCategoryAPI(
             PostCategory(id, title, description, url, color),
             sqlClient
         )
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(UpdatedPostCategoryLog(userId, username, title), sqlClient)
 
         return Successful()
     }

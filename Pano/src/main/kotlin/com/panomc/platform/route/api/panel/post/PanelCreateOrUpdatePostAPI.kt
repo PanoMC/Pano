@@ -1,10 +1,11 @@
 package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.AppConstants
-
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.PublishedPostLog
+import com.panomc.platform.auth.panel.log.UpdatedPostLog
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
@@ -109,14 +110,21 @@ class PanelCreateOrUpdatePostAPI(
             url = if (id == null) url else "$url-$id"
         )
 
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
         if (id == null) {
             val postId = databaseManager.postDao.insert(post, sqlClient)
 
             databaseManager.postDao.updatePostUrlByUrl(url, "$url-$postId", sqlClient)
 
             body["id"] = postId
+
+
+            databaseManager.panelActivityLogDao.add(PublishedPostLog(userId, username, title), sqlClient)
         } else {
             databaseManager.postDao.update(userId, post, sqlClient)
+
+            databaseManager.panelActivityLogDao.add(UpdatedPostLog(userId, username, title), sqlClient)
         }
 
         return Successful(body)

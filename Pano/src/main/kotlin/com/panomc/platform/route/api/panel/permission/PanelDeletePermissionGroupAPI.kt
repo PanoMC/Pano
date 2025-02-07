@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.permission
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.log.DeletedPermissionGroupLog
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.CantDeleteAdminPermission
 import com.panomc.platform.error.NotExists
@@ -35,15 +36,8 @@ class PanelDeletePermissionGroupAPI(
 
         val sqlClient = getSqlClient()
 
-        val isTherePermissionGroup =
-            databaseManager.permissionGroupDao.isThereById(permissionGroupId, sqlClient)
-
-        if (!isTherePermissionGroup) {
-            throw NotExists()
-        }
-
         val permissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlClient)!!
+            databaseManager.permissionGroupDao.getPermissionGroupById(permissionGroupId, sqlClient) ?: throw NotExists()
 
         if (permissionGroup.name == "admin") {
             throw CantDeleteAdminPermission()
@@ -54,6 +48,14 @@ class PanelDeletePermissionGroupAPI(
         databaseManager.userDao.removePermissionGroupByPermissionGroupId(permissionGroupId, sqlClient)
 
         databaseManager.permissionGroupDao.deleteById(permissionGroupId, sqlClient)
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            DeletedPermissionGroupLog(userId, username, permissionGroup.name),
+            sqlClient
+        )
 
         return Successful()
     }

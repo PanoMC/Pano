@@ -1,11 +1,7 @@
 package com.panomc.platform.db
 
-import com.google.gson.GsonBuilder
 import com.panomc.platform.annotation.Ignore
 import com.panomc.platform.util.TextUtil.convertToSnakeCase
-import com.panomc.platform.util.deserializer.BooleanDeserializer
-import com.panomc.platform.util.deserializer.JsonObjectDeserializer
-import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
@@ -16,17 +12,10 @@ abstract class Dao<T : DBEntity>(private val entityClass: Class<T>) {
     private lateinit var databaseManager: DatabaseManager
 
     companion object {
-        private val gson by lazy {
-            GsonBuilder()
-                .registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
-                .registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
-                .create()
-        }
-
         inline fun <reified T : Dao<*>> get(tableList: List<Dao<*>>): T = tableList.find { it is T } as T
     }
 
-    fun Row.toEntity(): T = gson.fromJson(this.toJson().toString(), entityClass)
+    fun Row.toEntity(): T = DBEntity.gson.fromJson(this.toJson().toString(), entityClass)
 
     fun RowSet<Row>.toEntities() = this.map { it.toEntity() }
 

@@ -5,6 +5,7 @@ import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.InstalledPlatformLog
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
@@ -77,7 +78,7 @@ class FinishAPI(
 
         databaseManager.initDatabase(sqlClient)
 
-        RegisterUtil.register(
+        val userId = RegisterUtil.register(
             databaseManager,
             sqlClient,
             username,
@@ -93,6 +94,8 @@ class FinishAPI(
         configManager.config.locale = setupLocale
 
         configManager.saveConfig()
+
+        databaseManager.panelActivityLogDao.add(InstalledPlatformLog(userId, username), sqlClient)
 
         setupManager.finishSetup()
 

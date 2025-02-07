@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.panel.post
+package com.panomc.platform.route.api.panel.post.category
 
 
 import com.panomc.platform.annotation.Endpoint

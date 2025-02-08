@@ -10,7 +10,7 @@ import io.vertx.json.schema.SchemaParser
 @Endpoint
 class ProfileSidebarAPI(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) :
     LoggedInApi() {
-    override val paths = listOf(Path("/api/sidebar/profile", RouteType.GET))
+    override val paths = listOf(Path("/api/sidebars/profile", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 

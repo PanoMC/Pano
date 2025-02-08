@@ -10,7 +10,7 @@ import io.vertx.json.schema.SchemaParser
 
 @Endpoint
 class HomeSidebarAPI(private val configManager: ConfigManager, private val databaseManager: DatabaseManager) : Api() {
-    override val paths = listOf(Path("/api/sidebar/home", RouteType.GET))
+    override val paths = listOf(Path("/api/sidebars/home", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 

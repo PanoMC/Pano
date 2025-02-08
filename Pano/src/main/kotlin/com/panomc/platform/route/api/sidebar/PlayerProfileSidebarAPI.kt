@@ -14,7 +14,7 @@ import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class PlayerProfileSidebarAPI(private val databaseManager: DatabaseManager) : Api() {
-    override val paths = listOf(Path("/api/sidebar/profile/:username", RouteType.GET))
+    override val paths = listOf(Path("/api/sidebars/profile/:username", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

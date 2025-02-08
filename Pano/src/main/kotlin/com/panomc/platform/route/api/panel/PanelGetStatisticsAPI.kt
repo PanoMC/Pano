@@ -30,7 +30,7 @@ class PanelGetStatisticsAPI(
                 param(
                     "period",
                     arraySchema()
-                        .items(enumSchema(*DashboardPeriodType.values().map { it.period }.toTypedArray()))
+                        .items(enumSchema(*DashboardPeriodType.entries.map { it.name }.toTypedArray()))
                 )
             )
             .build()
@@ -39,9 +39,12 @@ class PanelGetStatisticsAPI(
         val parameters = getParameters(context)
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val period = DashboardPeriodType.valueOf(
-            period = parameters.queryParameter("period")?.jsonArray?.first() as String? ?: "week"
-        ) ?: DashboardPeriodType.WEEK
+        val periodQueryParam = parameters.queryParameter("period")?.jsonArray?.first() as String?
+        val period = if (periodQueryParam == null) {
+            DashboardPeriodType.WEEK
+        } else {
+            DashboardPeriodType.valueOf(parameters.queryParameter("period")?.jsonArray?.first() as String)
+        }
 
         val result = mutableMapOf<String, Any?>(
             "onlinePlayerCount" to 0,
@@ -50,7 +53,7 @@ class PanelGetStatisticsAPI(
             "adminCount" to 0,
             "connectedServerCount" to 0,
             "newRegisterCount" to 0,
-            "period" to period.period,
+            "period" to period,
             "websiteActivityDataList" to mutableMapOf<String, Any?>(),
             "ticketCount" to 0
         )

@@ -28,7 +28,7 @@ class PanelSendTicketMessageAPI(
     private val databaseManager: DatabaseManager,
     private val notificationManager: NotificationManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/tickets/:id/message", RouteType.POST))
+    override val paths = listOf(Path("/api/panel/tickets/:id/messages", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

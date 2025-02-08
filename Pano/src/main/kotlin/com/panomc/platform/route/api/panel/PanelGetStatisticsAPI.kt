@@ -39,12 +39,10 @@ class PanelGetStatisticsAPI(
         val parameters = getParameters(context)
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val periodQueryParam = parameters.queryParameter("period")?.jsonArray?.first() as String?
-        val period = if (periodQueryParam == null) {
-            DashboardPeriodType.WEEK
-        } else {
-            DashboardPeriodType.valueOf(parameters.queryParameter("period")?.jsonArray?.first() as String)
-        }
+        val periodQueryParam =
+            parameters.queryParameter("period")?.jsonArray?.first() as String? ?: DashboardPeriodType.WEEK.name
+
+        val period = DashboardPeriodType.valueOf(periodQueryParam)
 
         val result = mutableMapOf<String, Any?>(
             "onlinePlayerCount" to 0,

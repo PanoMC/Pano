@@ -16,7 +16,7 @@ import io.vertx.json.schema.common.dsl.Schemas
 class GetPlayerProfileAPI(
     private val databaseManager: DatabaseManager
 ) : Api() {
-    override val paths = listOf(Path("/api/profile/:username", RouteType.GET))
+    override val paths = listOf(Path("/api/profiles/:username", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

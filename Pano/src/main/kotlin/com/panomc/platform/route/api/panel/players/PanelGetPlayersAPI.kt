@@ -33,7 +33,7 @@ class PanelGetPlayersAPI(
                 optionalParam(
                     "status",
                     arraySchema()
-                        .items(enumSchema(*PlayerStatus.values().map { it.type }.toTypedArray()))
+                        .items(enumSchema(*PlayerStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
             .queryParameter(optionalParam("permissionGroup", stringSchema()))
@@ -45,9 +45,11 @@ class PanelGetPlayersAPI(
 
         val parameters = getParameters(context)
 
-        val playerStatus =
-            PlayerStatus.valueOf(type = parameters.queryParameter("status")?.jsonArray?.first() as String? ?: "all")
-                ?: PlayerStatus.ALL
+        val statusQueryParam =
+            parameters.queryParameter("status")?.jsonArray?.first() as String? ?: PlayerStatus.ALL.name
+
+        val playerStatus = PlayerStatus.valueOf(statusQueryParam)
+
         val page = parameters.queryParameter("page")?.long ?: 1L
         val permissionGroupName = parameters.queryParameter("permissionGroup")?.string
 

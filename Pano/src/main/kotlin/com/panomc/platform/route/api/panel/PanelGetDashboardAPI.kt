@@ -25,6 +25,7 @@ class PanelGetDashboardAPI(
             "gettingStartedBlocks" to mapOf(
                 "welcomeBoard" to false
             ),
+            "tickets" to emptyList<Any?>()
         )
 
         val sqlClient = getSqlClient()

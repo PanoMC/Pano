@@ -21,7 +21,7 @@ class PanelAddPostCategoryAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/post/category", RouteType.POST))
+    override val paths = listOf(Path("/api/panel/post/categories", RouteType.POST))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)

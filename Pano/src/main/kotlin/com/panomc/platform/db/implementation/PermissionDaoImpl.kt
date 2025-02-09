@@ -10,11 +10,9 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.context.annotation.Lazy
 
 @Dao
 class PermissionDaoImpl : PermissionDao() {
-    @Lazy
     @Autowired
     private lateinit var authProvider: AuthProvider
 

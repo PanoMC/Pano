@@ -7,7 +7,7 @@ import io.vertx.core.json.JsonObject
 open class PanelActivityLog(
     val id: Long = -1,
     val userId: Long? = null,
-    val type: String = this::class.java.simpleName.replace("Log", "").convertToSnakeCase().lowercase(),
+    val type: String = this::class.java.simpleName.replace("Log", "").convertToSnakeCase().uppercase(),
     val details: JsonObject = JsonObject(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),

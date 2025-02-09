@@ -13,10 +13,10 @@ class DatabaseMigration1to2(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION_INFO = "Add addon_hash table"
 
     override val handlers: List<suspend (SqlClient) -> Unit> = listOf(
-        deleteSecretKeyColumn()
+        createAddonHashTable()
     )
 
-    private fun deleteSecretKeyColumn(): suspend (sqlClient: SqlClient) -> Unit =
+    private fun createAddonHashTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
             sqlClient
                 .query(

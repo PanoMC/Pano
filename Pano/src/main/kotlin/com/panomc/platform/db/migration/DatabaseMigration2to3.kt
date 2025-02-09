@@ -13,10 +13,10 @@ class DatabaseMigration2to3(databaseManager: DatabaseManager) : DatabaseMigratio
     override val SCHEME_VERSION_INFO = "Add panel activity log table."
 
     override val handlers: List<suspend (SqlClient) -> Unit> = listOf(
-        deleteSecretKeyColumn()
+        createPanelActivityLogTable()
     )
 
-    private fun deleteSecretKeyColumn(): suspend (sqlClient: SqlClient) -> Unit =
+    private fun createPanelActivityLogTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
             sqlClient
                 .query(

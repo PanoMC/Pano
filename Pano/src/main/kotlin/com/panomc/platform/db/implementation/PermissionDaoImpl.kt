@@ -1,6 +1,7 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.dao.PermissionDao
 import com.panomc.platform.db.model.Permission
 import io.vertx.kotlin.coroutines.coAwait
@@ -8,9 +9,15 @@ import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Lazy
 
 @Dao
 class PermissionDaoImpl : PermissionDao() {
+    @Lazy
+    @Autowired
+    private lateinit var authProvider: AuthProvider
+
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
             .query(
@@ -26,17 +33,7 @@ class PermissionDaoImpl : PermissionDao() {
             .execute()
             .coAwait()
 
-        val permissions = listOf(
-            Permission(name = "ACCESS_PANEL", iconName = "fa-cubes"),
-            Permission(name = "MANAGE_SERVERS", iconName = "fa-cubes"),
-            Permission(name = "MANAGE_POSTS", iconName = "fa-sticky-note"),
-            Permission(name = "MANAGE_TICKETS", iconName = "fa-ticket-alt"),
-            Permission(name = "MANAGE_PLAYERS", iconName = "fa-users"),
-            Permission(name = "MANAGE_VIEW", iconName = "fa-palette"),
-            Permission(name = "MANAGE_ADDONS", iconName = "fa-puzzle-piece"),
-            Permission(name = "MANAGE_PLATFORM_SETTINGS", iconName = "fa-cog"),
-            Permission(name = "MANAGE_PERMISSION_GROUPS", iconName = "fa-lock-open")
-        )
+        val permissions = authProvider.getPermissions().map { Permission(name = it.toString(), iconName = it.iconName) }
 
         permissions.forEach { add(it, sqlClient) }
     }

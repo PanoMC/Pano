@@ -14,6 +14,7 @@ import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
@@ -23,11 +24,20 @@ import org.springframework.stereotype.Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class AuthProvider(
     private val databaseManager: DatabaseManager,
-    private val tokenProvider: TokenProvider
+    private val tokenProvider: TokenProvider,
+    applicationContext: AnnotationConfigApplicationContext
 ) {
     companion object {
         const val HEADER_PREFIX = "Bearer "
     }
+
+    private val permissions = mutableListOf<PanelPermission>()
+
+    init {
+        permissions.addAll(applicationContext.getBeansOfType(PanelPermission::class.java).map { it.value })
+    }
+
+    fun getPermissions() = permissions.toList()
 
     /**
      * authenticate method validates input and login

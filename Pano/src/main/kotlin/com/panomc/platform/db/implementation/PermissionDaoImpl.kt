@@ -27,15 +27,15 @@ class PermissionDaoImpl : PermissionDao() {
             .coAwait()
 
         val permissions = listOf(
-            Permission(name = "access_panel", iconName = "fa-cubes"),
-            Permission(name = "manage_servers", iconName = "fa-cubes"),
-            Permission(name = "manage_posts", iconName = "fa-sticky-note"),
-            Permission(name = "manage_tickets", iconName = "fa-ticket-alt"),
-            Permission(name = "manage_players", iconName = "fa-users"),
-            Permission(name = "manage_view", iconName = "fa-palette"),
-            Permission(name = "manage_addons", iconName = "fa-puzzle-piece"),
-            Permission(name = "manage_platform_settings", iconName = "fa-cog"),
-            Permission(name = "manage_permission_groups", iconName = "fa-lock-open")
+            Permission(name = "ACCESS_PANEL", iconName = "fa-cubes"),
+            Permission(name = "MANAGE_SERVERS", iconName = "fa-cubes"),
+            Permission(name = "MANAGE_POSTS", iconName = "fa-sticky-note"),
+            Permission(name = "MANAGE_TICKETS", iconName = "fa-ticket-alt"),
+            Permission(name = "MANAGE_PLAYERS", iconName = "fa-users"),
+            Permission(name = "MANAGE_VIEW", iconName = "fa-palette"),
+            Permission(name = "MANAGE_ADDONS", iconName = "fa-puzzle-piece"),
+            Permission(name = "MANAGE_PLATFORM_SETTINGS", iconName = "fa-cog"),
+            Permission(name = "MANAGE_PERMISSION_GROUPS", iconName = "fa-lock-open")
         )
 
         permissions.forEach { add(it, sqlClient) }

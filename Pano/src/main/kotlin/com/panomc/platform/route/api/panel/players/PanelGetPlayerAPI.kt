@@ -3,7 +3,7 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
@@ -78,7 +78,7 @@ class PanelGetPlayerAPI(
             (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
         }
 
-        if (!authProvider.hasPermission(user.id, PanelPermission.MANAGE_TICKETS, context)) {
+        if (!authProvider.hasPermission(user.id, ManageTicketsPermission(), context)) {
             return Successful(result)
         }
 

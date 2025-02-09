@@ -2,7 +2,7 @@ package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
@@ -56,7 +56,7 @@ class PanelGetBasicDataAPI(
             "connectedServerCount" to connectedServerCount
         )
 
-        if (authProvider.hasPermission(userId, PanelPermission.MANAGE_SERVERS, context)) {
+        if (authProvider.hasPermission(userId, ManageServersPermission(), context)) {
             val mainServerId = databaseManager.systemPropertyDao.getByOption(
                 "main_server",
                 sqlClient

@@ -2,7 +2,7 @@ package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketMessage
@@ -81,7 +81,7 @@ class CreateTicketAPI(
         notificationManager.sendNotificationToAllWithPermission(
             Notifications.PanelNotificationType.NEW_TICKET,
             notificationProperties,
-            PanelPermission.MANAGE_TICKETS,
+            ManageTicketsPermission(),
             sqlClient
         )
 

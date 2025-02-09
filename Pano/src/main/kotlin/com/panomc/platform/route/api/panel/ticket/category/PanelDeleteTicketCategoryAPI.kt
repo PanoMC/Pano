@@ -3,8 +3,8 @@ package com.panomc.platform.route.api.panel.ticket.category
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.auth.panel.log.DeletedTicketCategoryLog
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
@@ -28,7 +28,7 @@ class PanelDeleteTicketCategoryAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_TICKETS, context)
+        authProvider.requirePermission(ManageTicketsPermission(), context)
 
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long

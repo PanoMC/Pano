@@ -3,7 +3,7 @@ package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
@@ -72,7 +72,7 @@ class UpdateTicketAPI(
             notificationManager.sendNotificationToAllWithPermission(
                 Notifications.PanelNotificationType.TICKET_CLOSED_BY_USER,
                 notificationProperties,
-                PanelPermission.MANAGE_TICKETS,
+                ManageTicketsPermission(),
                 sqlClient
             )
         }

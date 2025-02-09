@@ -3,8 +3,8 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.auth.panel.log.SentManualValidationEmailLog
+import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.EmailAlreadyVerified
 import com.panomc.platform.error.NoPermission
@@ -33,7 +33,7 @@ class PanelSendValidationEmailAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_PLAYERS, context)
+        authProvider.requirePermission(ManagePlayersPermission(), context)
 
         val parameters = getParameters(context)
 

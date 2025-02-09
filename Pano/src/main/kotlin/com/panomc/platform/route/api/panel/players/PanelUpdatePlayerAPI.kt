@@ -3,8 +3,8 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.auth.panel.log.UpdatedPlayerLog
+import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
@@ -56,7 +56,7 @@ class PanelUpdatePlayerAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val hasManagePlayerPermission = authProvider.hasPermission(userId, PanelPermission.MANAGE_PLAYERS, context)
+        val hasManagePlayerPermission = authProvider.hasPermission(userId, ManagePlayersPermission(), context)
 
         if (!hasManagePlayerPermission && playerId != userId) {
             throw NoPermission()

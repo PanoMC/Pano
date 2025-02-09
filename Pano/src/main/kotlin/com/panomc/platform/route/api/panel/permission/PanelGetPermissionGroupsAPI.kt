@@ -3,7 +3,7 @@ package com.panomc.platform.route.api.panel.permission
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManagePermissionGroupsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.error.PageNotFound
@@ -29,7 +29,7 @@ class PanelGetPermissionGroupsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_PERMISSION_GROUPS, context)
+        authProvider.requirePermission(ManagePermissionGroupsPermission(), context)
 
         val parameters = getParameters(context)
         val page = parameters.queryParameter("page")?.long ?: 0L

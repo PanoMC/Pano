@@ -3,7 +3,7 @@ package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
@@ -40,7 +40,7 @@ class PanelGetPostsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_POSTS, context)
+        authProvider.requirePermission(ManagePostsPermission(), context)
 
         val parameters = getParameters(context)
 

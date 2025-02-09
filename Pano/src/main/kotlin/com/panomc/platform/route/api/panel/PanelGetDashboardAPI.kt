@@ -2,7 +2,7 @@ package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission.MANAGE_TICKETS
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
@@ -46,7 +46,7 @@ class PanelGetDashboardAPI(
 
         val ticketCount = databaseManager.ticketDao.count(sqlClient)
 
-        if (authProvider.hasPermission(userId, MANAGE_TICKETS, context) && ticketCount != 0L) {
+        if (authProvider.hasPermission(userId, ManageTicketsPermission(), context) && ticketCount != 0L) {
             val tickets = databaseManager.ticketDao.getLast5Tickets(sqlClient)
 
             val userIdList = tickets.distinctBy { it.userId }.map { it.userId }

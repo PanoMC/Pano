@@ -1,6 +1,7 @@
 package com.panomc.platform.auth
 
 import com.panomc.platform.AppConstants
+import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.error.LoginEmailNotVerified
@@ -91,7 +92,7 @@ class AuthProvider(
     ): Boolean {
         val userId = getUserIdFromRoutingContext(routingContext)
 
-        return hasPermission(userId, PanelPermission.ACCESS_PANEL, routingContext)
+        return hasPermission(userId, AccessPanelPermission(), routingContext)
     }
 
     fun validateInput(

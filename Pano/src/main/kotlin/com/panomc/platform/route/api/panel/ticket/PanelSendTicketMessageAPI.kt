@@ -2,8 +2,8 @@ package com.panomc.platform.route.api.panel.ticket
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.auth.panel.log.RepliedTicketLog
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.error.NotExists
@@ -43,7 +43,7 @@ class PanelSendTicketMessageAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_TICKETS, context)
+        authProvider.requirePermission(ManageTicketsPermission(), context)
 
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject

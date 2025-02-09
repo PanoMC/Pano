@@ -3,8 +3,8 @@ package com.panomc.platform.route.api.panel.post.category
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.auth.panel.log.UpdatedPostCategoryLog
+import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.error.NoPermission
@@ -41,7 +41,7 @@ class PanelUpdatePostCategoryAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_POSTS, context)
+        authProvider.requirePermission(ManagePostsPermission(), context)
 
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject

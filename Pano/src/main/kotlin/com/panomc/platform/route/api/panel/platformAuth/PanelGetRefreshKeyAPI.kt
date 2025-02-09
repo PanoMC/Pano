@@ -2,7 +2,7 @@ package com.panomc.platform.route.api.panel.platformAuth
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.model.*
 import com.panomc.platform.server.PlatformCodeManager
 import io.vertx.ext.web.RoutingContext
@@ -18,7 +18,7 @@ class PanelGetRefreshKeyAPI(
     override fun getValidationHandler(schemaParser: SchemaParser) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_SERVERS, context)
+        authProvider.requirePermission(ManageServersPermission(), context)
 
         return Successful(
             mapOf(

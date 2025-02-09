@@ -1,7 +1,7 @@
 package com.panomc.platform.route.api.server
 
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.error.InstallationRequired
@@ -97,7 +97,7 @@ class ServerConnectNewAPI(
         notificationManager.sendNotificationToAllWithPermission(
             Notifications.PanelNotificationType.SERVER_CONNECT_REQUEST,
             notificationProperties,
-            PanelPermission.MANAGE_SERVERS,
+            ManageServersPermission(),
             sqlClient
         )
 

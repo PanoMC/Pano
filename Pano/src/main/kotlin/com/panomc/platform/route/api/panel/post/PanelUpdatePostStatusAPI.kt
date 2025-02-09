@@ -3,8 +3,8 @@ package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.auth.panel.log.UpdatedPostStatusLog
+import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
@@ -38,7 +38,7 @@ class PanelUpdatePostStatusAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(PanelPermission.MANAGE_POSTS, context)
+        authProvider.requirePermission(ManagePostsPermission(), context)
 
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject

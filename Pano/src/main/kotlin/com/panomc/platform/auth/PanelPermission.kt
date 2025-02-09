@@ -1,17 +1,19 @@
 package com.panomc.platform.auth
 
-enum class PanelPermission {
-    ACCESS_PANEL,
-    MANAGE_SERVERS,
-    MANAGE_POSTS,
-    MANAGE_TICKETS,
-    MANAGE_PLAYERS,
-    MANAGE_VIEW,
-    MANAGE_ADDONS,
-    MANAGE_PLATFORM_SETTINGS,
-    MANAGE_PERMISSION_GROUPS;
+import com.panomc.platform.util.TextUtil.convertToSnakeCase
+
+open class PanelPermission(val iconName: String = "") {
+    private fun String.replaceLastUsingReverse(
+        oldValue: String,
+        newValue: String,
+        ignoreCase: Boolean = false
+    ): String {
+        return this.reversed()
+            .replaceFirst(oldValue.reversed(), newValue.reversed(), ignoreCase)
+            .reversed()
+    }
 
     override fun toString(): String {
-        return super.toString().lowercase()
+        return this::class.java.simpleName.replaceLastUsingReverse("Permission", "").convertToSnakeCase().uppercase()
     }
 }

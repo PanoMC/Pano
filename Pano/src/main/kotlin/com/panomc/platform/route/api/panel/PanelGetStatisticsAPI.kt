@@ -2,8 +2,8 @@ package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission.ACCESS_PANEL
-import com.panomc.platform.auth.PanelPermission.MANAGE_TICKETS
+import com.panomc.platform.auth.panel.permission.AccessPanelPermission
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Permission
 import com.panomc.platform.model.*
@@ -64,7 +64,7 @@ class PanelGetStatisticsAPI(
 
         result["postCount"] = databaseManager.postDao.count(sqlClient)
 
-        if (authProvider.hasPermission(userId, MANAGE_TICKETS, context)) {
+        if (authProvider.hasPermission(userId, ManageTicketsPermission(), context)) {
             val ticketCount = databaseManager.ticketDao.count(sqlClient)
 
             result["ticketCount"] = ticketCount
@@ -77,7 +77,7 @@ class PanelGetStatisticsAPI(
         }
 
         val permissionId = databaseManager.permissionDao.getPermissionId(
-            Permission(name = ACCESS_PANEL.toString(), iconName = ""),
+            Permission(name = AccessPanelPermission().toString(), iconName = ""),
             sqlClient
         )
         val permissionGroupsByPermissionId =

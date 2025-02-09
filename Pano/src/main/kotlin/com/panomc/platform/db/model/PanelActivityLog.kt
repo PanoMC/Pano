@@ -7,8 +7,14 @@ import io.vertx.core.json.JsonObject
 open class PanelActivityLog(
     val id: Long = -1,
     val userId: Long? = null,
-    val type: String = this::class.java.simpleName.replace("Log", "").convertToSnakeCase().uppercase(),
+    var type: String? = null,
     val details: JsonObject = JsonObject(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-) : DBEntity()
+) : DBEntity() {
+    init {
+        if (type == null) {
+            type = this::class.simpleName!!.replace("Log", "").convertToSnakeCase().uppercase()
+        }
+    }
+}

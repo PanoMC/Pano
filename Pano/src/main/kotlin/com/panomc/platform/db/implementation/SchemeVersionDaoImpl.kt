@@ -51,8 +51,8 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
             add(
                 sqlClient,
                 SchemeVersion(
-                    databaseManager.getLatestMigration()!!.SCHEME_VERSION.toString(),
-                    databaseManager.getLatestMigration()!!.SCHEME_VERSION_INFO
+                    databaseManager.getLatestMigration()!!.to.toString(),
+                    databaseManager.getLatestMigration()!!.info
                 )
             )
         }

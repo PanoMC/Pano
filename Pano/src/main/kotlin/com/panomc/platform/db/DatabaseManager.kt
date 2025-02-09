@@ -60,7 +60,7 @@ class DatabaseManager(
 
         beans.filter { it.value is DatabaseMigration }
             .map { it.value as DatabaseMigration }
-            .sortedBy { it.FROM_SCHEME_VERSION }
+            .sortedBy { it.from }
     }
 
     fun getTablePrefix(): String = configManager.config.database.prefix
@@ -114,7 +114,7 @@ class DatabaseManager(
         databaseInitProcessHandlers.forEach { it.init(sqlClient) }
     }
 
-    internal fun getLatestMigration() = migrations.maxByOrNull { it.SCHEME_VERSION }
+    internal fun getLatestMigration() = migrations.maxByOrNull { it.to }
 
     private suspend fun checkMigration() {
         logger.info("Checking available database migrations")
@@ -153,19 +153,19 @@ class DatabaseManager(
         migrations
             .find { it.isMigratable(databaseVersion) }
             ?.let {
-                logger.info("Migration Found! Migrating database from version ${it.FROM_SCHEME_VERSION} to ${it.SCHEME_VERSION}: ${it.SCHEME_VERSION_INFO}")
+                logger.info("Migration Found! Migrating database from version ${it.from} to ${it.to}: ${it.info}")
 
                 try {
                     it.migrate(sqlClient)
 
                     it.updateSchemeVersion(sqlClient)
                 } catch (e: Exception) {
-                    logger.error("Database Error: Migration failed from version ${it.FROM_SCHEME_VERSION} to ${it.SCHEME_VERSION}, error: " + e)
+                    logger.error("Database Error: Migration failed from version ${it.from} to ${it.to}, error: " + e)
 
                     return
                 }
 
-                migrate(sqlClient, it.SCHEME_VERSION)
+                migrate(sqlClient, it.to)
             }
     }
 

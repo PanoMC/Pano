@@ -32,12 +32,13 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
             .coAwait()
 
         val lastSchemeVersion = getLastSchemeVersion(sqlClient)
+        val latestMigration = databaseManager.getLatestMigration()
 
         if (lastSchemeVersion == null) {
             add(
                 sqlClient,
                 SchemeVersion(
-                    "1",
+                    (latestMigration?.to ?: 1).toString(),
                     "Init"
                 )
             )
@@ -51,8 +52,8 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
             add(
                 sqlClient,
                 SchemeVersion(
-                    databaseManager.getLatestMigration()!!.to.toString(),
-                    databaseManager.getLatestMigration()!!.info
+                    latestMigration!!.to.toString(),
+                    latestMigration.info
                 )
             )
         }

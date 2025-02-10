@@ -65,16 +65,16 @@ class RouterProvider private constructor(
                 routedRoute
                     .order(route.order)
 
-                val corsHandler = route.corsHandler()
-
-                if (corsHandler != null) {
-                    routedRoute.handler(corsHandler)
-                }
-
                 val bodyHandler = route.bodyHandler()
 
                 if (bodyHandler != null) {
                     routedRoute.handler(bodyHandler)
+                }
+
+                val corsHandler = route.corsHandler()
+
+                if (corsHandler != null) {
+                    routedRoute.handler(corsHandler)
                 }
 
                 val validationHandler = route.getValidationHandler(schemaParser)

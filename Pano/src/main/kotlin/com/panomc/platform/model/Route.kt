@@ -1,5 +1,6 @@
 package com.panomc.platform.model
 
+import com.panomc.platform.Main
 import com.panomc.platform.config.ConfigManager
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
@@ -23,7 +24,7 @@ abstract class Route {
     abstract fun getHandler(): Handler<RoutingContext>
 
     companion object {
-        private val allowedHeaders = setOf(
+        val allowedHeaders = setOf(
             "x-requested-with",
             "Access-Control-Allow-Origin",
             "origin",
@@ -33,7 +34,7 @@ abstract class Route {
             "x-csrf-token"
         )
 
-        private val allowedMethods = setOf<HttpMethod>(
+        val allowedMethods = setOf<HttpMethod>(
             HttpMethod.GET,
             HttpMethod.POST,
             HttpMethod.OPTIONS,
@@ -43,10 +44,13 @@ abstract class Route {
         )
     }
 
-    open fun corsHandler(): Handler<RoutingContext>? = CorsHandler.create(".*.")
-        .allowCredentials(true)
-        .allowedHeaders(allowedHeaders)
-        .allowedMethods(allowedMethods)
+    open fun corsHandler(): Handler<RoutingContext>? =
+        if (Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT)
+            CorsHandler.create("http://(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)(:[0-9]+)?")
+                .allowCredentials(false)
+                .allowedHeaders(allowedHeaders)
+                .allowedMethods(allowedMethods)
+        else null
 
     open fun bodyHandler(): Handler<RoutingContext>? = BodyHandler.create()
         .setDeleteUploadedFilesOnEnd(true)

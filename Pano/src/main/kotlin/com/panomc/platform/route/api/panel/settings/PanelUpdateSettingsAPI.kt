@@ -120,7 +120,7 @@ class PanelUpdateSettingsAPI(
         val supportEmail = data.getString("supportEmail")
         val serverIpAddress = data.getString("serverIpAddress")
         val serverGameVersion = data.getString("serverGameVersion")
-        val keywords = data.getJsonArray("keywords")
+        val keywords = context.request().getFormAttribute("keywords")?.split(",")
 
         val email = data.getJsonObject("email")
 
@@ -174,7 +174,7 @@ class PanelUpdateSettingsAPI(
         }
 
         if (keywords != null) {
-            configManager.config.keywords = keywords.toList() as List<String>
+            configManager.config.keywords = keywords
         }
 
         if (email != null) {

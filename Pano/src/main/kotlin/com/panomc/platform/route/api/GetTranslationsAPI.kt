@@ -4,11 +4,11 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.JsonObjectUtil
 import io.vertx.ext.web.RoutingContext
@@ -22,19 +22,20 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 class GetTranslationsAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val configManager: ConfigManager,
     private val pluginManager: PluginManager
 ) : Api() {
-    override val paths = listOf(Path("/api/translations/types/:type", RouteType.GET))
+    override val paths = listOf(Path("/api/locales/:code/translations/types/:type", RouteType.GET))
 
     override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
         ValidationHandlerBuilder.create(schemaParser)
+            .pathParameter(param("code", stringSchema()))
             .pathParameter(param("type", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
+        val code = parameters.pathParameter("code").string
         val type = try {
             TranslationType.valueOf(parameters.pathParameter("type").string)
         } catch (e: Exception) {
@@ -51,8 +52,9 @@ class GetTranslationsAPI(
             throw NoPermission()
         }
 
-        val config = configManager.config
-        val code = config.locale
+        if (!databaseManager.localeDao.existsByCode(code, sqlClient)) {
+            throw NotFound()
+        }
 
         var localeId = databaseManager.localeDao.getIdByCode(code, sqlClient)
 

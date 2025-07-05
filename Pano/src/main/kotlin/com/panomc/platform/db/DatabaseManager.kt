@@ -38,7 +38,9 @@ class DatabaseManager(
     @Lazy val notificationDao: NotificationDao,
     @Lazy val serverPlayerDao: ServerPlayerDao,
     @Lazy val addonHashDao: AddonHashDao,
-    @Lazy val panelActivityLogDao: PanelActivityLogDao
+    @Lazy val panelActivityLogDao: PanelActivityLogDao,
+    @Lazy val localeDao: LocaleDao,
+    @Lazy val translationDao: TranslationDao
 ) {
 
     @Autowired

@@ -4,10 +4,8 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.error.FaviconExceedsSize
-import com.panomc.platform.error.FaviconWrongContentType
-import com.panomc.platform.error.WebsiteLogoExceedsSize
-import com.panomc.platform.error.WebsiteLogoWrongContentType
+import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.*
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.UpdatePeriod
@@ -24,7 +22,8 @@ import java.io.File
 @Endpoint
 class PanelUpdateSettingsAPI(
     private val configManager: ConfigManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
@@ -145,11 +144,17 @@ class PanelUpdateSettingsAPI(
             }
         }
 
+        val sqlClient = getSqlClient()
+
         if (updatePeriod != null) {
             configManager.config.updatePeriod = updatePeriod
         }
 
         if (locale != null) {
+            if (!databaseManager.localeDao.existsByCode(locale, sqlClient)) {
+                throw InvalidLocaleCode()
+            }
+
             configManager.config.locale = locale
         }
 

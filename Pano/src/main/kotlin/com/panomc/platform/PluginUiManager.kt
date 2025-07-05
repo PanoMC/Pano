@@ -10,14 +10,18 @@ class PluginUiManager {
     internal fun getRegisteredPlugins() = pluginUiRegisterList.toList()
 
     internal fun initializePlugin(plugin: PanoPlugin) {
+        calculatePluginUiHash(plugin)
+    }
+
+    internal fun unRegisterPlugin(plugin: PanoPlugin) {
+        pluginUiRegisterList.remove(plugin)
+    }
+
+    private fun calculatePluginUiHash(plugin: PanoPlugin) {
         val pluginUiZipFile = plugin.getResource("plugin-ui.zip") ?: return
 
         pluginUiRegisterList[plugin] = pluginUiZipFile.hash()
 
         pluginUiZipFile.close()
-    }
-
-    internal fun unRegisterPlugin(plugin: PanoPlugin) {
-        pluginUiRegisterList.remove(plugin)
     }
 }

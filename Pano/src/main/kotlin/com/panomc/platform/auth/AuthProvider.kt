@@ -145,13 +145,30 @@ class AuthProvider(
         return jwt.subject.toLong()
     }
 
+    private fun parseCookies(cookieHeader: String): Map<String, String> {
+        val cookies = mutableMapOf<String, String>()
+
+        try {
+            val cookiePairs = cookieHeader.split(";")
+            for (cookiePair in cookiePairs) {
+                val (name, value) = cookiePair.trim().split("=")
+                cookies[name] = value
+            }
+        } catch (_: Exception) {
+        }
+
+        return cookies
+    }
+
     fun getTokenFromRoutingContext(routingContext: RoutingContext): String? {
         val request = routingContext.request()
+        val cookieHeader = request.getHeader("cookie") ?: ""
 
-        val jwtCookie = request.getCookie(AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME)
+        val cookies = parseCookies(cookieHeader)
+        val jwtCookie = cookies[AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME]
 
         if (jwtCookie != null) {
-            return jwtCookie.value
+            return jwtCookie
         }
 
         val authorizationHeader = request.getHeader("Authorization") ?: return null

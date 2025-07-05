@@ -74,7 +74,11 @@ class UIManager(
     }
 
     private val startedUIList = mutableListOf<LoadedUI>()
-    private var activatedUIList = mutableMapOf<Route.Type, ProxyHandler>()
+    private var _activatedUIList = mutableMapOf<Route.Type, ActivatedUI>()
+
+    // to make it read-only to public
+    val activatedUIList: Map<Route.Type, ActivatedUI>
+        get() = _activatedUIList
 
     private var activeTheme = ""
 
@@ -235,9 +239,10 @@ class UIManager(
         val serverConfig = config.server
         val serverHost = serverConfig.host
         val serverPort = serverConfig.port
+        val host = "127.0.0.1"
 
         environment["PORT"] = port.toString()
-        environment["HOST"] = "127.0.0.1"
+        environment["HOST"] = host
         environment["API_URL"] = "http://${serverHost}:${serverPort}/api"
 
         val process = processBuilder.start()
@@ -248,7 +253,7 @@ class UIManager(
 
         redirectStreamToConsole(uiName, process.inputStream)
 
-        val startedUI = LoadedUI(uiName, port, process)
+        val startedUI = LoadedUI(uiName, host, port, process)
 
         startedUIList.add(startedUI)
 
@@ -374,15 +379,17 @@ class UIManager(
     }
 
     fun activateSetupUI(router: Router) {
-        if (activatedUIList.containsKey(Route.Type.SETUP_UI)) {
+        if (_activatedUIList.containsKey(Route.Type.SETUP_UI)) {
             return
         }
 
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
         val startedSetupUI = startedUIList.find { it.name == "setup-ui" }
+        val port = startedSetupUI?.port ?: 3002
+        val host = "127.0.0.1"
 
-        setupUI.origin(startedSetupUI?.port ?: 3002, "127.0.0.1")
+        setupUI.origin(port, host)
 
         val setupUIHandler = ProxyHandler.create(setupUI)
 
@@ -392,11 +399,11 @@ class UIManager(
             .handler(setupUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        activatedUIList[Route.Type.SETUP_UI] = setupUIHandler
+        _activatedUIList[Route.Type.SETUP_UI] = ActivatedUI(port, host, setupUIHandler)
     }
 
     fun activatePanelUI(router: Router) {
-        if (activatedUIList.containsKey(Route.Type.PANEL_UI)) {
+        if (_activatedUIList.containsKey(Route.Type.PANEL_UI)) {
             return
         }
 
@@ -404,7 +411,10 @@ class UIManager(
 
         val startedPanelUI = startedUIList.find { it.name == "panel-ui" }
 
-        panelUI.origin(startedPanelUI?.port ?: 3001, "127.0.0.1")
+        val host = "127.0.0.1"
+        val port = startedPanelUI?.port ?: 3001
+
+        panelUI.origin(port, host)
 
         val panelUIHandler = ProxyHandler.create(panelUI)
 
@@ -430,16 +440,16 @@ class UIManager(
                     }
 
                     request.resume()
-                    activatedUIList[Route.Type.THEME_UI]!!.handle(context)
+                    _activatedUIList[Route.Type.THEME_UI]!!.proxyHandler.handle(context)
                 }
             }
             .failureHandler { it.failure().printStackTrace() }
 
-        activatedUIList[Route.Type.PANEL_UI] = panelUIHandler
+        _activatedUIList[Route.Type.PANEL_UI] = ActivatedUI(port, host, panelUIHandler)
     }
 
     fun activateThemeUI(router: Router) {
-        if (activatedUIList.containsKey(Route.Type.THEME_UI)) {
+        if (_activatedUIList.containsKey(Route.Type.THEME_UI)) {
             return
         }
 
@@ -447,7 +457,10 @@ class UIManager(
 
         val startedThemeUI = startedUIList.find { it.name == activeTheme }
 
-        themeUI.origin(startedThemeUI?.port ?: 3000, "127.0.0.1")
+        val host = "127.0.0.1"
+        val port = startedThemeUI?.port ?: 3000
+
+        themeUI.origin(port, host)
 
         val themeUIHandler = ProxyHandler.create(themeUI)
 
@@ -457,7 +470,7 @@ class UIManager(
             .handler(themeUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        activatedUIList[Route.Type.THEME_UI] = themeUIHandler
+        _activatedUIList[Route.Type.THEME_UI] = ActivatedUI(port, host, themeUIHandler)
     }
 
     fun disableUIOnRoute(router: Router, UI: Route.Type) {
@@ -474,11 +487,11 @@ class UIManager(
             it.remove()
         }
 
-        if (!activatedUIList.containsKey(UI)) {
+        if (!_activatedUIList.containsKey(UI)) {
             return
         }
 
-        activatedUIList.remove(UI)
+        _activatedUIList.remove(UI)
     }
 
     fun prepareUI(router: Router) {
@@ -508,8 +521,15 @@ class UIManager(
     companion object {
         class LoadedUI(
             val name: String,
+            val host: String,
             val port: Int,
             val process: Process
+        )
+
+        class ActivatedUI(
+            val port: Int,
+            val host: String,
+            val proxyHandler: ProxyHandler
         )
     }
 }

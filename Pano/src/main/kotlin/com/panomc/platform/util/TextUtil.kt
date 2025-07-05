@@ -2,6 +2,7 @@ package com.panomc.platform.util
 
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.*
 
 object TextUtil {
     fun convertStringToUrl(string: String, limit: Int = 200) =
@@ -24,5 +25,16 @@ object TextUtil {
         val printWriter = PrintWriter(stringWriter)
         exception.printStackTrace(printWriter)
         return stringWriter.toString()
+    }
+
+    fun isValidLanguageTag(tag: String): Boolean {
+        return try {
+            val locale = Locale.forLanguageTag(tag)
+            val hasLanguage = locale.language.isNotEmpty()
+            val reconstructed = locale.toLanguageTag()
+            hasLanguage && reconstructed.equals(tag, ignoreCase = true)
+        } catch (e: Exception) {
+            false
+        }
     }
 }

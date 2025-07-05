@@ -15,6 +15,7 @@ object AppConstants {
     val CSRF_HEADER = "X-CSRF-Token".lowercase()
 
     val AVAILABLE_LOCALES = listOf("tr", "en-US")
+    val DEFAULT_LOCALE_CODE = "en-US"
 
     val pluginUiFolder = "plugin-ui/"
 }

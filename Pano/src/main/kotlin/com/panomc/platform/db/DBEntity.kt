@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.panomc.platform.util.deserializer.BooleanDeserializer
 import com.panomc.platform.util.deserializer.JsonObjectDeserializer
+import com.panomc.platform.util.deserializer.LenientListStringAdapterFactory
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
@@ -13,6 +14,7 @@ abstract class DBEntity {
         val gson: Gson by lazy {
             val builder = GsonBuilder()
 
+            builder.registerTypeAdapterFactory(LenientListStringAdapterFactory())
             builder.registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
             builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
 

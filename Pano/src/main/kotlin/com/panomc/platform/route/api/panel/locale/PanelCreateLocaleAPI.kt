@@ -33,7 +33,7 @@ class PanelCreateLocaleAPI(
                     objectSchema()
                         .requiredProperty("code", stringSchema())
                         .requiredProperty("name", stringSchema())
-                        .requiredProperty("dateFnsCode", numberSchema())
+                        .requiredProperty("dateFnsCode", stringSchema())
                         .requiredProperty("derivatives", arraySchema().items(stringSchema()))
                 )
             )

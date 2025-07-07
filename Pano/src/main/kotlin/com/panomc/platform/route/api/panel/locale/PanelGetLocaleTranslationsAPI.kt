@@ -69,7 +69,7 @@ class PanelGetLocaleTranslationsAPI(
 
         val translations = mutableListOf<Translation>()
 
-        var originalTranslations: Map<String, Any>
+        var originalTranslations: MutableMap<String, Any>
 
         if (routeType != null) {
             val activatedUI = uiManager.activatedUIList[routeType]!!
@@ -77,14 +77,21 @@ class PanelGetLocaleTranslationsAPI(
             val url =
                 "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${locale.code}.json"
 
-            try {
-                val response = webClient.getAbs(url).send().coAwait()
-                val body = response.bodyAsJsonObject()
-                originalTranslations = JsonObjectUtil.flattenJsonObject(body)
-            } catch (e: Exception) {
-                originalTranslations = mapOf()
+            originalTranslations = getTranslationsFromUI(url)
+
+            if (locale.code != AppConstants.DEFAULT_LOCALE_CODE) {
+                val url =
+                    "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${AppConstants.DEFAULT_LOCALE_CODE}.json"
+
+                val originalTranslationsCopy = originalTranslations.toMap()
+
+                originalTranslations = getTranslationsFromUI(url)
+
+                originalTranslationsCopy.forEach {
+                    originalTranslations[it.key] = it.value
+                }
             }
-        } else {
+        } else { // plugins
             originalTranslations = pluginManager.getPluginWrappers()
                 .mapNotNull { wrapper ->
                     val pluginTranslations =
@@ -96,6 +103,20 @@ class PanelGetLocaleTranslationsAPI(
                 }
                 .flatten()
                 .toMap()
+                .toMutableMap()
+
+            pluginManager.getPluginWrappers()
+                .mapNotNull { wrapper ->
+                    val pluginTranslations =
+                        wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE] ?: return@mapNotNull null
+
+                    JsonObjectUtil.flattenJsonObject(pluginTranslations)
+                        .map { (key, value) -> "plugins.${wrapper.pluginId}.$key" to value }
+                }.flatten().toMap().forEach { pluginTranslation ->
+                    if (originalTranslations[pluginTranslation.key] == null) {
+                        originalTranslations[pluginTranslation.key] = pluginTranslation.value
+                    }
+                }
         }
 
         originalTranslations.forEach {
@@ -152,5 +173,15 @@ class PanelGetLocaleTranslationsAPI(
         ORIGINAL,
         CUSTOM,
         NOT_EXISTS
+    }
+
+    private suspend fun getTranslationsFromUI(url: String): MutableMap<String, Any> {
+        return try {
+            val response = webClient.getAbs(url).send().coAwait()
+            val body = response.bodyAsJsonObject()
+            JsonObjectUtil.flattenJsonObject(body).toMutableMap()
+        } catch (e: Exception) {
+            mutableMapOf()
+        }
     }
 }

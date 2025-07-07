@@ -47,7 +47,7 @@ class PanelCreateLocaleAPI(
         val code = data.getString("code")
         val name = data.getString("name")
         val dateFnsCode = data.getString("dateFnsCode")
-        val derivatives = data.getJsonArray("dateFnsCode").map { it.toString() }
+        val derivatives = data.getJsonArray("derivatives").map { it.toString() }
 
         validateInput(code, name, dateFnsCode, derivatives)
 

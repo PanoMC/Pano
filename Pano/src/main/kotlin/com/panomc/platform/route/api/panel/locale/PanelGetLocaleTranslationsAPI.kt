@@ -135,7 +135,7 @@ class PanelGetLocaleTranslationsAPI(
 
         when (filter) {
             TranslationFilter.CUSTOM -> {
-                filterResult.addAll(translations.filter { it.custom != null })
+                filterResult.addAll(translations.filter { it.custom != null && !it.notExists })
             }
 
             TranslationFilter.ORIGINAL -> {

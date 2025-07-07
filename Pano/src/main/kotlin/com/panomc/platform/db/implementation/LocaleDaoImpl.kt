@@ -102,6 +102,21 @@ class LocaleDaoImpl : LocaleDao() {
         return rows.toEntities()
     }
 
+    override suspend fun getAllByPage(
+        page: Long,
+        sqlClient: SqlClient
+    ): List<Locale> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun byId(
         id: Long,
         sqlClient: SqlClient

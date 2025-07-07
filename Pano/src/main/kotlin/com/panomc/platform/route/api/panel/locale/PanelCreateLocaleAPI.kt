@@ -82,7 +82,7 @@ class PanelCreateLocaleAPI(
     }
 
     private fun validateInput(code: String, name: String, dateFnsCode: String, derivatives: List<String>) {
-        if (TextUtil.isValidLanguageTag(code)) {
+        if (!TextUtil.isValidLanguageTag(code)) {
             throw InvalidLocaleCode()
         }
 
@@ -90,12 +90,12 @@ class PanelCreateLocaleAPI(
             throw InvalidLocaleName()
         }
 
-        if (TextUtil.isValidLanguageTag(dateFnsCode)) {
+        if (!TextUtil.isValidLanguageTag(dateFnsCode)) {
             throw InvalidDateFnsCode()
         }
 
         derivatives.forEach {
-            if (TextUtil.isValidLanguageTag(it)) {
+            if (!TextUtil.isValidLanguageTag(it)) {
                 throw InvalidLocaleDerivative()
             }
         }

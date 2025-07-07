@@ -2,7 +2,6 @@ package com.panomc.platform.util
 
 import java.io.PrintWriter
 import java.io.StringWriter
-import java.util.*
 
 object TextUtil {
     fun convertStringToUrl(string: String, limit: Int = 200) =
@@ -28,13 +27,8 @@ object TextUtil {
     }
 
     fun isValidLanguageTag(tag: String): Boolean {
-        return try {
-            val locale = Locale.forLanguageTag(tag)
-            val hasLanguage = locale.language.isNotEmpty()
-            val reconstructed = locale.toLanguageTag()
-            hasLanguage && reconstructed.equals(tag, ignoreCase = true)
-        } catch (e: Exception) {
-            false
-        }
+        val bcp47Regex = Regex("^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$")
+        return bcp47Regex.matches(tag)
     }
+
 }

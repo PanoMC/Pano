@@ -15,7 +15,7 @@ class DatabaseMigration7to8 : DatabaseMigration(7, 8, "Add manage translations p
     private fun addManageTranslationsPermission(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
             val query =
-                "INSERT INTO `${getTablePrefix()}locale` (`name`, `iconName`) VALUES (?, ?);"
+                "INSERT INTO `${getTablePrefix()}permission` (`name`, `iconName`) VALUES (?, ?);"
 
             sqlClient
                 .preparedQuery(query)

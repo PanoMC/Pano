@@ -16,7 +16,7 @@ import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.http.ServerWebSocket
 import io.vertx.ext.web.RoutingContext
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -30,7 +30,7 @@ class ServerConnectAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/server/connection", RouteType.GET))
 
-    override fun getValidationHandler(schemaParser: SchemaParser) = null
+    override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result? {
         val request = context.request()

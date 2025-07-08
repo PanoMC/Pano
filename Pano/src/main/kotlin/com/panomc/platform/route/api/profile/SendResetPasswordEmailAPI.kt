@@ -9,7 +9,7 @@ import com.panomc.platform.mail.mails.ResetPasswordMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class SendResetPasswordEmailAPI(
@@ -19,7 +19,7 @@ class SendResetPasswordEmailAPI(
 ) : LoggedInApi() {
     override val paths = listOf(Path("/api/profile/resetPassword", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser) = null
+    override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
         val userId = authProvider.getUserIdFromRoutingContext(context)

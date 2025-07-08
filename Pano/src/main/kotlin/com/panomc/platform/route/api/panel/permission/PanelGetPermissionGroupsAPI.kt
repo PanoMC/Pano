@@ -12,7 +12,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import kotlin.math.ceil
 
@@ -23,8 +23,8 @@ class PanelGetPermissionGroupsAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/permissionGroups", RouteType.GET))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser)
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
             .queryParameter(Parameters.optionalParam("page", numberSchema()))
             .build()
 

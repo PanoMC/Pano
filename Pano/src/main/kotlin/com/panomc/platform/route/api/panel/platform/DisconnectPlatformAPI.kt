@@ -6,7 +6,7 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class DisconnectPlatformAPI(
@@ -14,8 +14,8 @@ class DisconnectPlatformAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/platform/disconnect", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser)
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {

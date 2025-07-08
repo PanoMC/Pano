@@ -7,13 +7,13 @@ import com.panomc.platform.db.model.WebsiteView
 import com.panomc.platform.error.InvalidIpAddress
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class VisitorVisitAPI(private val databaseManager: DatabaseManager) : Api() {
     override val paths = listOf(Path("/api/visitorVisit", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser) = null
+    override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
         val ipAddress = context.request().remoteAddress().host()

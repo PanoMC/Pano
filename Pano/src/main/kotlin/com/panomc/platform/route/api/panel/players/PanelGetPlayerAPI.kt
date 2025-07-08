@@ -15,7 +15,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import kotlin.math.ceil
@@ -27,8 +27,8 @@ class PanelGetPlayerAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username", RouteType.GET))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser)
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
             .pathParameter(param("username", stringSchema()))
             .queryParameter(optionalParam("page", numberSchema()))
             .build()

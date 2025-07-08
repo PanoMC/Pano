@@ -14,7 +14,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import org.apache.commons.codec.digest.DigestUtils
@@ -27,8 +27,8 @@ class PanelDeleteServerAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id/delete", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser)
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
             .pathParameter(param("id", numberSchema()))
             .body(
                 Bodies.json(

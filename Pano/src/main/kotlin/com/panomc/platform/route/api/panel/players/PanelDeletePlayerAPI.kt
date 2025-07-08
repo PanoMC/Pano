@@ -17,7 +17,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import org.apache.commons.codec.digest.DigestUtils
@@ -30,8 +30,8 @@ class PanelDeletePlayerAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/delete", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser)
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
             .pathParameter(Parameters.param("username", stringSchema()))
             .body(
                 Bodies.json(

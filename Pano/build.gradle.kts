@@ -1,6 +1,6 @@
+
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -8,7 +8,7 @@ val vertxVersion: String by project
 val gsonVersion: String by project
 val springContextVersion: String by project
 val handlebarsVersion: String by project
-val log4jVersion = "2.24.3"
+val log4jVersion = "2.25.0"
 val appMainClass = "com.panomc.platform.Main"
 val pf4jVersion: String by project
 val pluginsDir: File? by rootProject.extra
@@ -16,7 +16,7 @@ val pluginsDir: File? by rootProject.extra
 plugins {
     kotlin("jvm") version "2.1.0"
     kotlin("kapt") version "2.1.0"
-    id("com.gradleup.shadow") version "8.3.5"
+    id("com.gradleup.shadow") version "8.3.8"
     application
     `maven-publish`
 }
@@ -39,8 +39,8 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation(kotlin("reflect"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.3")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.3")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -57,7 +57,7 @@ dependencies {
     implementation("io.vertx:vertx-web-proxy:$vertxVersion")
 
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
-    implementation("com.auth0:java-jwt:4.4.0")
+    implementation("com.auth0:java-jwt:4.5.0")
 
     implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = log4jVersion)
     implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = log4jVersion)
@@ -67,13 +67,13 @@ dependencies {
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.17.2")
+    implementation(group = "commons-codec", name = "commons-codec", version = "1.18.0")
 
     // https://mvnrepository.com/artifact/commons-io/commons-io
-    implementation("commons-io:commons-io:2.18.0")
+    implementation("commons-io:commons-io:2.19.0")
 
     // https://mvnrepository.com/artifact/org.apache.tika/tika-core
-    implementation("org.apache.tika:tika-core:2.9.2")
+    implementation("org.apache.tika:tika-core:2.9.4")
 
     // https://mvnrepository.com/artifact/org.springframework/spring-context
     implementation("org.springframework:spring-context:$springContextVersion")
@@ -242,28 +242,18 @@ publishing {
         }
     }
 }
-
 java {
-    withJavadocJar()
-    withSourcesJar()
-
-    // Use Java 21 for compilation
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(11)) // Java 11 toolchain
     }
 }
 
 kotlin {
-    jvmToolchain(21) // Ensure Kotlin uses the Java 21 toolchain
+    jvmToolchain(11)
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_1_8)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
-}
-
-tasks.withType<JavaCompile> {
-    sourceCompatibility = "1.8"
-    targetCompatibility = "1.8"
 }

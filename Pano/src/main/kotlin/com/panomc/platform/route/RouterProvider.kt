@@ -7,13 +7,14 @@ import com.panomc.platform.model.Route
 import com.panomc.platform.model.RouteType
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
+
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
 class RouterProvider private constructor(
     vertx: Vertx,
     applicationContext: AnnotationConfigApplicationContext,
-    schemaParser: SchemaParser,
+    schemaRepository: SchemaRepository,
     pluginManager: PluginManager,
     uiManager: UIManager
 ) {
@@ -21,14 +22,14 @@ class RouterProvider private constructor(
         fun create(
             vertx: Vertx,
             applicationContext: AnnotationConfigApplicationContext,
-            schemaParser: SchemaParser,
+            schemaRepository: SchemaRepository,
             pluginManager: PluginManager,
             uiManager: UIManager
         ) =
             RouterProvider(
                 vertx,
                 applicationContext,
-                schemaParser,
+                schemaRepository,
                 pluginManager,
                 uiManager
             )
@@ -77,7 +78,7 @@ class RouterProvider private constructor(
                     routedRoute.handler(corsHandler)
                 }
 
-                val validationHandler = route.getValidationHandler(schemaParser)
+                val validationHandler = route.getValidationHandler(schemaRepository)
 
                 if (validationHandler != null) {
                     routedRoute

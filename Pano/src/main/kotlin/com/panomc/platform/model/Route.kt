@@ -7,7 +7,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 import org.springframework.beans.factory.annotation.Autowired
 import java.io.File
 import java.net.URI
@@ -81,8 +81,8 @@ abstract class Route {
         .setDeleteUploadedFilesOnEnd(true)
         .setUploadsDirectory(configManager.config.fileUploadsFolder + File.separator + "temp")
 
-    open fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler? =
-        ValidationHandlerBuilder.create(schemaParser).build()
+    open fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? =
+        ValidationHandlerBuilder.create(schemaRepository).build()
 
     open fun getFailureHandler(): Handler<RoutingContext> = Handler { request ->
         val response = request.response()

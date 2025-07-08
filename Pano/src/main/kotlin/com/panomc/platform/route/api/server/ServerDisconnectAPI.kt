@@ -8,7 +8,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerAuthProvider
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class ServerDisconnectAPI(
@@ -18,7 +18,7 @@ class ServerDisconnectAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/server/disconnect", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser) = null
+    override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
         if (!setupManager.isSetupDone()) {

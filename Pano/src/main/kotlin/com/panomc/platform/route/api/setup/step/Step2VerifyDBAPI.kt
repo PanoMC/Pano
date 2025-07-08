@@ -8,11 +8,11 @@ import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.kotlin.coroutines.coAwait
+import io.vertx.mysqlclient.MySQLBuilder
 import io.vertx.mysqlclient.MySQLConnectOptions
-import io.vertx.mysqlclient.MySQLPool
 import io.vertx.sqlclient.PoolOptions
 import org.slf4j.Logger
 
@@ -20,8 +20,8 @@ import org.slf4j.Logger
 class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
     override val paths = listOf(Path("/api/setup/steps/2/verify", RouteType.POST))
 
-    override fun getValidationHandler(schemaParser: SchemaParser): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaParser)
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
             .body(
                 Bodies.json(
                     Schemas.objectSchema()
@@ -61,7 +61,11 @@ class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
         val poolOptions = PoolOptions()
             .setMaxSize(1)
 
-        val mySQLPool = MySQLPool.pool(context.vertx(), connectOptions, poolOptions)
+        val mySQLPool = MySQLBuilder.pool()
+            .with(poolOptions)
+            .connectingTo(connectOptions)
+            .using(context.vertx())
+            .build()
 
         try {
             val connection = mySQLPool.connection.coAwait()

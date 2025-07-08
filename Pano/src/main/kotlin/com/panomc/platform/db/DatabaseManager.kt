@@ -6,8 +6,8 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.*
 import com.panomc.platform.db.model.SchemeVersion
 import io.vertx.core.Vertx
+import io.vertx.mysqlclient.MySQLBuilder
 import io.vertx.mysqlclient.MySQLConnectOptions
-import io.vertx.mysqlclient.MySQLPool
 import io.vertx.sqlclient.PoolOptions
 import io.vertx.sqlclient.SqlClient
 import org.slf4j.Logger
@@ -94,7 +94,11 @@ class DatabaseManager(
             val poolOptions = PoolOptions()
                 .setMaxSize(100)
 
-            sqlClient = MySQLPool.client(vertx, connectOptions, poolOptions)
+            sqlClient = MySQLBuilder.pool()
+                .with(poolOptions)
+                .connectingTo(connectOptions)
+                .using(vertx)
+                .build()
         }
 
         try {

@@ -288,12 +288,12 @@ class Main : CoroutineVerticle() {
         vertx
             .createHttpServer()
             .requestHandler(router)
-            .listen(port, host) { result ->
-                if (result.succeeded()) {
-                    logger.info("Started listening on http://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
-                } else {
-                    logger.error("Failed to listen on http://$host:$port, reason: " + result.cause().toString())
-                }
+            .listen(port, host)
+            .onSuccess {
+                logger.info("Started listening on http://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+            }
+            .onFailure { result ->
+                logger.error("Failed to listen on http://$host:$port, reason: " + result.cause.toString())
             }
     }
 }

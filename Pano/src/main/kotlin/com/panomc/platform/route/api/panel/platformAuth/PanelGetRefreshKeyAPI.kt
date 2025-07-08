@@ -6,7 +6,7 @@ import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.model.*
 import com.panomc.platform.server.PlatformCodeManager
 import io.vertx.ext.web.RoutingContext
-import io.vertx.json.schema.SchemaParser
+import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class PanelGetRefreshKeyAPI(
@@ -15,7 +15,7 @@ class PanelGetRefreshKeyAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/platformAuth/refreshKey", RouteType.GET))
 
-    override fun getValidationHandler(schemaParser: SchemaParser) = null
+    override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManageServersPermission(), context)

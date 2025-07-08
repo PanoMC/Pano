@@ -178,6 +178,11 @@ class PanelGetLocaleTranslationsAPI(
     private suspend fun getTranslationsFromUI(url: String): MutableMap<String, Any> {
         return try {
             val response = webClient.getAbs(url).send().coAwait()
+
+            if (response.statusCode() == 404) {
+                return mutableMapOf()
+            }
+
             val body = response.bodyAsJsonObject()
             JsonObjectUtil.flattenJsonObject(body).toMutableMap()
         } catch (e: Exception) {

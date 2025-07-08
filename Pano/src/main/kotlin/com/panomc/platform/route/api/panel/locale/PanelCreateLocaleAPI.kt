@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.locale
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.NewLocaleLog
+import com.panomc.platform.auth.panel.permission.ManageTranslations
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Locale
 import com.panomc.platform.error.InvalidDateFnsCode
@@ -41,6 +42,8 @@ class PanelCreateLocaleAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManageTranslations(), context)
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 

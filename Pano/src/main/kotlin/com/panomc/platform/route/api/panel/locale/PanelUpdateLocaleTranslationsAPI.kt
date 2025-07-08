@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.locale
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.UpdatedTranslationsLog
+import com.panomc.platform.auth.panel.permission.ManageTranslations
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
@@ -37,6 +38,8 @@ class PanelUpdateLocaleTranslationsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManageTranslations(), context)
+
         val parameters = getParameters(context)
         val requestBody = parameters.body().jsonObject
 

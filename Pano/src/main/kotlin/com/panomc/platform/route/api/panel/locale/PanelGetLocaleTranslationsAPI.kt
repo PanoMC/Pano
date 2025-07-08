@@ -4,6 +4,8 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginManager
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManageTranslations
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.BadRequest
@@ -25,7 +27,8 @@ class PanelGetLocaleTranslationsAPI(
     private val databaseManager: DatabaseManager,
     private val webClient: WebClient,
     private val uiManager: UIManager,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val authProvider: AuthProvider,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/locales/:localeId/types/:type/translations", RouteType.GET))
 
@@ -42,6 +45,8 @@ class PanelGetLocaleTranslationsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManageTranslations(), context)
+
         val parameters = getParameters(context)
 
         val localeId = parameters.pathParameter("localeId").long

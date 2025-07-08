@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.locale
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManageTranslations
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
@@ -14,7 +16,8 @@ import kotlin.math.ceil
 
 @Endpoint
 class PanelGetLocalesAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/locales", RouteType.GET))
 
@@ -24,6 +27,8 @@ class PanelGetLocalesAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManageTranslations(), context)
+
         val parameters = getParameters(context)
 
         val page = parameters.queryParameter("page")?.long ?: 1L

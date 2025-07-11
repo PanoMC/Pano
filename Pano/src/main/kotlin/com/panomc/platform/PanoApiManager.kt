@@ -130,7 +130,6 @@ class PanoApiManager(
             configManager.saveConfig()
 
         } catch (e: Exception) {
-            e.printStackTrace()
             throw PanoConnectFailed()
         }
 
@@ -192,5 +191,34 @@ class PanoApiManager(
         configManager.saveConfig()
 
         return Pair(publicKey, state.toString())
+    }
+
+    suspend fun getStoreAuthorizeToken(): Pair<String, String> {
+        if (!isConnected()) {
+            throw PanoConnectFailed()
+        }
+
+        try {
+            val authorizeResponse = createRequest(HttpMethod.GET, "/platform/api/store/authorize/token")
+                .send()
+                .coAwait()
+
+            val responseBody = authorizeResponse.bodyAsJsonObject()
+
+            if (responseBody.getString("result") != "ok") {
+                throw PanoConnectFailed()
+            }
+
+            val responseData = responseBody.getJsonObject("data")
+
+            val base64Encoder = Base64.getEncoder()
+
+            val token = String(base64Encoder.encode(responseData.getString("token").toByteArray(Charsets.UTF_8)))
+            val state = responseData.getString("state")
+
+            return Pair(token, state)
+        } catch (e: Exception) {
+            throw PanoConnectFailed()
+        }
     }
 }

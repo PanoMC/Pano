@@ -45,8 +45,7 @@ class PanoApiManager(
         val panoApiUrl = configManager.config.panoApiUrl
 
         val request = webClient
-            .request(httpMethod, 443, panoApiUrl, uri)
-            .ssl(true)
+            .requestAbs(httpMethod, panoApiUrl + uri)
 
         if (isConnected()) {
             val panoAccountConfig = getPanoAccountConfig()
@@ -131,6 +130,7 @@ class PanoApiManager(
             configManager.saveConfig()
 
         } catch (e: Exception) {
+            e.printStackTrace()
             throw PanoConnectFailed()
         }
 

@@ -15,6 +15,8 @@ class GetStoreAuthorizeTokenAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
+        panoApiManager.updatePlatformMetadata()
+
         val (token, state) = panoApiManager.getStoreAuthorizeToken()
 
         return Successful(

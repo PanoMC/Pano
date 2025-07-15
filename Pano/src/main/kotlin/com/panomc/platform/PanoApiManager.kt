@@ -21,7 +21,8 @@ import java.util.*
 @Component
 class PanoApiManager(
     private val configManager: ConfigManager,
-    private val webClient: WebClient
+    private val webClient: WebClient,
+    private val pluginManager: PluginManager
 ) {
     companion object {
         private const val HEADER_PREFIX = "Bearer "
@@ -221,4 +222,48 @@ class PanoApiManager(
             throw PanoConnectFailed()
         }
     }
+
+    suspend fun updatePlatformMetadata() {
+        if (!isConnected()) {
+            return
+        }
+
+        val resources = mutableListOf<ResourceObj>()
+
+        resources.addAll(pluginManager.plugins.map { plugin ->
+            ResourceObj(
+                plugin.pluginId,
+                plugin.descriptor.version,
+                ResourceObjType.ADDON
+            )
+        })
+
+        val request = JsonObject(
+            mapOf(
+                "version" to Main.VERSION,
+                "resources" to resources
+            )
+        )
+
+        try {
+            val response = createRequest(HttpMethod.PUT, "/platform/api/metadata")
+                .sendJson(request)
+                .coAwait()
+
+            val responseBody = response.bodyAsJsonObject()
+            val result = responseBody.getString("result")
+
+            if (result != "ok") {
+                throw PanoConnectFailed()
+            }
+        } catch (e: Exception) {
+            throw PanoConnectFailed()
+        }
+    }
+
+    private enum class ResourceObjType {
+        ADDON, THEME
+    }
+
+    private data class ResourceObj(val id: String, val version: String, val type: ResourceObjType)
 }

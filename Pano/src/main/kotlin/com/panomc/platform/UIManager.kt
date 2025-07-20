@@ -90,6 +90,27 @@ class UIManager(
         }
     }
 
+    private var muslRequired = false
+
+    private fun tryRun(path: String): Boolean {
+        logger.info("Checking is downloaded Bun compatible with the system...")
+        return try {
+            val process = ProcessBuilder(path, "--version")
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            process.waitFor()
+
+            if (output.contains("' not found (required by bun)")) {
+                muslRequired = true
+            }
+
+            output.contains("bun") || process.exitValue() == 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun deleteOldBunRuntimes() {
         // Delete existing Bun files
         librariesFolder.listFiles { file ->
@@ -98,7 +119,9 @@ class UIManager(
     }
 
     //    Example: https://github.com/oven-sh/bun/releases/download/bun-v1.2.0/bun-darwin-x64-baseline-profile.zip
-    private fun downloadBunRuntime() {
+    private fun downloadBunRuntime(bunZipFileName: String) {
+        deleteOldBunRuntimes()
+
         val fullUrl = "$githubUrl/oven-sh/bun/releases/download/$bunVersion/$bunZipFileName.zip"
 
         try {
@@ -145,6 +168,26 @@ class UIManager(
         } catch (e: Exception) {
             logger.error("Couldn't download Bun runtime: {}", e.message)
             exitProcess(1)
+        }
+
+        if (!tryRun(bunFilePath)) {
+            val nextBunFileZipName = if (muslRequired && !bunZipFileName.contains("-musl")) {
+                "${this.bunZipFileName}-musl"
+            } else if (bunZipFileName.endsWith("-baseline") || bunZipFileName.endsWith("-musl")) {
+                "$bunZipFileName-profile"
+            } else {
+                if (bunZipFileName.endsWith("-profile")) {
+                    val split = bunZipFileName.split("-profile")
+
+                    "${split[0]}-baseline-profile"
+                } else {
+                    "$bunZipFileName-baseline"
+                }
+            }
+
+            logger.warn("Downloaded bun is not compatible will try with: {}", nextBunFileZipName)
+
+            downloadBunRuntime(nextBunFileZipName)
         }
     }
 
@@ -346,9 +389,7 @@ class UIManager(
             logger.warn("Required Bun runtime is not found.")
             logger.warn("Downloading Bun runtime, may take a while...")
 
-            deleteOldBunRuntimes()
-
-            downloadBunRuntime()
+            downloadBunRuntime(bunZipFileName)
         }
 
         val currentTheme = config.currentTheme

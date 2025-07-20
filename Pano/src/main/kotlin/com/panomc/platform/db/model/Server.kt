@@ -21,4 +21,12 @@ data class Server(
     val acceptedTime: Long = 0,
     val startTime: Long,
     val stopTime: Long = 0
-) : DBEntity()
+) : DBEntity() {
+    override fun hashCode(): Int {
+        return id.hashCode()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        return other is Server && other.id == this.id
+    }
+}

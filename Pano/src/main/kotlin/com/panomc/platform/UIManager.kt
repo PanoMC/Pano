@@ -239,10 +239,9 @@ class UIManager(
         val serverConfig = config.server
         val serverHost = serverConfig.host
         val serverPort = serverConfig.port
-        val host = "127.0.0.1"
 
         environment["PORT"] = port.toString()
-        environment["HOST"] = host
+        environment["HOST"] = serverHost
         environment["API_URL"] = "http://${serverHost}:${serverPort}/api"
 
         val process = processBuilder.start()
@@ -253,7 +252,7 @@ class UIManager(
 
         redirectStreamToConsole(uiName, process.inputStream)
 
-        val startedUI = LoadedUI(uiName, host, port, process)
+        val startedUI = LoadedUI(uiName, serverHost, port, process)
 
         startedUIList.add(startedUI)
 
@@ -387,9 +386,12 @@ class UIManager(
 
         val startedSetupUI = startedUIList.find { it.name == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
-        val host = "127.0.0.1"
 
-        setupUI.origin(port, host)
+        val config = configManager.config
+        val serverConfig = config.server
+        val serverHost = serverConfig.host
+
+        setupUI.origin(port, serverHost)
 
         val setupUIHandler = ProxyHandler.create(setupUI)
 
@@ -399,7 +401,7 @@ class UIManager(
             .handler(setupUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        _activatedUIList[Route.Type.SETUP_UI] = ActivatedUI(port, host, setupUIHandler)
+        _activatedUIList[Route.Type.SETUP_UI] = ActivatedUI(port, serverHost, setupUIHandler)
     }
 
     fun activatePanelUI(router: Router) {
@@ -411,10 +413,13 @@ class UIManager(
 
         val startedPanelUI = startedUIList.find { it.name == "panel-ui" }
 
-        val host = "127.0.0.1"
+        val config = configManager.config
+        val serverConfig = config.server
+        val serverHost = serverConfig.host
+
         val port = startedPanelUI?.port ?: 3001
 
-        panelUI.origin(port, host)
+        panelUI.origin(port, serverHost)
 
         val panelUIHandler = ProxyHandler.create(panelUI)
 
@@ -445,7 +450,7 @@ class UIManager(
             }
             .failureHandler { it.failure().printStackTrace() }
 
-        _activatedUIList[Route.Type.PANEL_UI] = ActivatedUI(port, host, panelUIHandler)
+        _activatedUIList[Route.Type.PANEL_UI] = ActivatedUI(port, serverHost, panelUIHandler)
     }
 
     fun activateThemeUI(router: Router) {
@@ -457,10 +462,13 @@ class UIManager(
 
         val startedThemeUI = startedUIList.find { it.name == activeTheme }
 
-        val host = "127.0.0.1"
+        val config = configManager.config
+        val serverConfig = config.server
+        val serverHost = serverConfig.host
+
         val port = startedThemeUI?.port ?: 3000
 
-        themeUI.origin(port, host)
+        themeUI.origin(port, serverHost)
 
         val themeUIHandler = ProxyHandler.create(themeUI)
 
@@ -470,7 +478,7 @@ class UIManager(
             .handler(themeUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        _activatedUIList[Route.Type.THEME_UI] = ActivatedUI(port, host, themeUIHandler)
+        _activatedUIList[Route.Type.THEME_UI] = ActivatedUI(port, serverHost, themeUIHandler)
     }
 
     fun disableUIOnRoute(router: Router, UI: Route.Type) {

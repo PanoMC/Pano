@@ -77,9 +77,13 @@ class PanelGetBasicDataAPI(
                 selectedServer = databaseManager.serverDao.getById(selectedServerId, sqlClient)
             }
 
+            val host = context.request().authority().host()
+            val port = context.request().authority().port()
+            val platformHostAddress = host + if (port == 80) "" else ":$port"
+
             result["platformServerMatchKey"] = platformCodeManager.getPlatformKey()
             result["platformServerMatchKeyTimeStarted"] = platformCodeManager.getTimeStarted()
-            result["platformHostAddress"] = context.request().authority().host()
+            result["platformHostAddress"] = platformHostAddress
 
             result["mainServer"] = mainServer
             result["selectedServer"] = selectedServer

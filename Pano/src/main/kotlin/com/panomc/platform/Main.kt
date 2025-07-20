@@ -148,16 +148,32 @@ class Main : CoroutineVerticle() {
         }
     }
 
-    private suspend fun init() {
-        initDependencyInjection()
+    private suspend fun executeBlocking(unit: () -> Unit) {
+        vertx.executeBlocking {
+            unit.invoke()
+        }.onFailure {
+            it.printStackTrace()
+        }.coAwait()
+    }
 
-        initPlugins()
+    private suspend fun init() {
+        executeBlocking {
+            initDependencyInjection()
+
+            initPlugins()
+        }
 
         initConfigManager()
 
-        clearTempFiles()
+        executeBlocking {
+            clearTempFiles()
+        }
 
-        val isPlatformInstalled = initSetupManager()
+        var isPlatformInstalled = false
+
+        executeBlocking {
+            isPlatformInstalled = initSetupManager()
+        }
 
         if (isPlatformInstalled) {
             initDatabaseManager()
@@ -165,13 +181,11 @@ class Main : CoroutineVerticle() {
             initServerManager()
         }
 
-        vertx.executeBlocking { ->
+        executeBlocking {
             initUiManager()
-        }.onFailure {
-            it.printStackTrace()
-        }.coAwait()
 
-        initRoutes()
+            initRoutes()
+        }
     }
 
     private fun initPlugins() {

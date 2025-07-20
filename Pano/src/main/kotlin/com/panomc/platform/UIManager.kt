@@ -60,7 +60,7 @@ class UIManager(
 
     private val githubUrl = "https://github.com"
 
-    private val bunVersion = "bun-v1.2.0"
+    private val bunVersion = "bun-v1.2.19"
     private val bunZipFileName by lazy {
         "bun-${Main.OPERATING_SYSTEM.name.lowercase()}-${Main.ARCHITECTURE.name.lowercase()}"
     }

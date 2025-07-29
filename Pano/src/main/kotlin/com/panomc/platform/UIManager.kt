@@ -208,7 +208,7 @@ class UIManager(
         }
     }
 
-    private fun getZipFile(uiName: String): Optional<Path> {
+    private fun getZipFile(id: String): Optional<Path> {
         val resourceDirUri = systemClassLoader.getResource("UIFiles")?.toURI()
         val dirPath = try {
             Paths.get(resourceDirUri)
@@ -220,11 +220,11 @@ class UIManager(
 
         // Find the ZIP file matching the pattern setup-ui-*.zip
         val optionalZipFile = Files.list(dirPath).filter { file ->
-            file.name.startsWith("$uiName-") && file.name.endsWith(".zip")
+            file.name.startsWith("$id-") && file.name.endsWith(".zip")
         }.findFirst()
 
         if (!optionalZipFile.isPresent) {
-            logger.error("No file matching $uiName-*.zip was found!")
+            logger.error("No file matching $id-*.zip was found!")
 
             exitProcess(1)
         }
@@ -236,8 +236,8 @@ class UIManager(
         return systemClassLoader.getResourceAsStream("UIFiles/" + optionalZipFile.get().name)!!
     }
 
-    private fun unzipUIFiles(uiName: String, targetDir: File) {
-        val optionalZipFile = getZipFile(uiName)
+    private fun unzipUIFiles(id: String, targetDir: File) {
+        val optionalZipFile = getZipFile(id)
 
         logger.info("Found file: ${optionalZipFile.get().name}")
 
@@ -270,13 +270,13 @@ class UIManager(
         zipAsStreamForHash.close()
 
         val splitDot = optionalZipFile.get().name.split(".zip")
-        val version = splitDot[0].split("$uiName-")[1]
+        val version = splitDot[0].split("$id-")[1]
         // Create manifest file
         val manifestFile = File(targetDir, manifestFileName)
         val themeManifest = parseThemeManifest(manifestFile)
 
         val installedTheme = InstalledTheme(
-            uiName,
+            id,
             version,
             themeManifest.author,
             themeManifest.license,
@@ -291,8 +291,8 @@ class UIManager(
         manifestFile.writeText(installedTheme.encode())
     }
 
-    private fun redirectStreamToConsole(uiName: String, inputStream: InputStream) {
-        val logger = LoggerFactory.getLogger("UI | $uiName")
+    private fun redirectStreamToConsole(id: String, inputStream: InputStream) {
+        val logger = LoggerFactory.getLogger("UI | $id")
         val executor = Executors.newSingleThreadExecutor()
 
         executor.submit {
@@ -302,7 +302,7 @@ class UIManager(
         }
     }
 
-    private fun startUI(uiName: String, uiFolder: String, port: Int = findAvailablePort()) {
+    private fun startUI(id: String, uiFolder: String, port: Int = findAvailablePort()) {
         val processBuilder = ProcessBuilder()
 
         processBuilder.redirectErrorStream(true)
@@ -318,6 +318,7 @@ class UIManager(
         environment["PORT"] = port.toString()
         environment["HOST"] = serverHost
         environment["API_URL"] = "http://${serverHost}:${serverPort}/api"
+        environment["PANO_WEBSITE_URL"] = config.panoWebsiteUrl
 
         val process = processBuilder.start()
 
@@ -325,13 +326,31 @@ class UIManager(
             Thread.sleep(100)
         }
 
-        redirectStreamToConsole(uiName, process.inputStream)
+        redirectStreamToConsole(id, process.inputStream)
 
-        val startedUI = LoadedUI(uiName, serverHost, port, process)
+        val startedUI = LoadedUI(id, serverHost, port, process)
 
         startedUIList.add(startedUI)
 
-        logger.info("\"$uiName\" started at port: {}", port)
+        logger.info("\"$id\" started at port: {}", port)
+    }
+
+    fun startUI(id: String, port: Int = findAvailablePort()) {
+        val uiFolder = THEMES_FOLDER_PATH + File.separator + id
+
+        startUI(id, uiFolder, port)
+    }
+
+    fun stopUI(id: String) {
+        val startedUI = startedUIList.find { it.id == id }
+
+        startedUI?.let {
+            it.process.destroyForcibly()
+
+            startedUIList.remove(it)
+
+            logger.info("\"${it.id}\" stopped at port: {}", it.port)
+        }
     }
 
     private fun initUiFolders() {
@@ -348,25 +367,25 @@ class UIManager(
         }
 
         if (!defaultThemeFolder.exists()) {
-            logger.warn("Default Vanilla theme not found, installing...")
+            logger.warn("Default vanilla theme not found, installing...")
 
             unzipUIFiles("vanilla-theme", defaultThemeFolder)
         }
     }
 
-    private fun upgradeEmbeddedUi(uiName: String, targetDir: File) {
+    private fun upgradeEmbeddedUi(id: String, targetDir: File) {
         targetDir.deleteRecursively()
 
-        logger.warn("Upgrading found for: {}", uiName)
+        logger.warn("Upgrading found for: {}", id)
 
-        unzipUIFiles(uiName, targetDir)
+        unzipUIFiles(id, targetDir)
     }
 
-    private fun checkEmbeddedUiUpgrade(uiName: String, targetDir: File) {
+    private fun checkEmbeddedUiUpgrade(id: String, targetDir: File) {
         val manifestFile = File(targetDir, manifestFileName)
 
         if (!manifestFile.exists()) {
-            upgradeEmbeddedUi(uiName, targetDir)
+            upgradeEmbeddedUi(id, targetDir)
 
             return
         }
@@ -376,12 +395,12 @@ class UIManager(
         try {
             manifest = parseInstalledTheme(manifestFile)
         } catch (e: Exception) {
-            upgradeEmbeddedUi(uiName, targetDir)
+            upgradeEmbeddedUi(id, targetDir)
 
             return
         }
 
-        val optionalZipFile = getZipFile(uiName)
+        val optionalZipFile = getZipFile(id)
         val zipFileAsStream = getZipAsStream(optionalZipFile)
         val hash = zipFileAsStream.hash()
 
@@ -391,7 +410,7 @@ class UIManager(
             return
         }
 
-        upgradeEmbeddedUi(uiName, targetDir)
+        upgradeEmbeddedUi(id, targetDir)
     }
 
     private fun checkEmbeddedUiUpgrades() {
@@ -461,8 +480,6 @@ class UIManager(
             logger.error("Current theme is not valid, defaulting to \"$DEFAULT_THEME_NAME\"")
         }
 
-        val themeFolder = if (currentThemeValid) currentThemeFolder.absolutePath else defaultThemeFolder.absolutePath
-
         val theme = if (currentThemeValid) currentTheme else DEFAULT_THEME_NAME
 
         activeTheme = theme
@@ -470,7 +487,7 @@ class UIManager(
         try {
             startUI("setup-ui", setupUIFolder.absolutePath)
             startUI("panel-ui", panelUIFolder.absolutePath)
-            startUI(theme, themeFolder)
+            startUI(theme)
         } catch (e: Exception) {
             logger.error("Failed to start UI.", e)
 
@@ -487,7 +504,7 @@ class UIManager(
 
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
-        val startedSetupUI = startedUIList.find { it.name == "setup-ui" }
+        val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
 
         val config = configManager.config
@@ -514,7 +531,7 @@ class UIManager(
 
         val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
-        val startedPanelUI = startedUIList.find { it.name == "panel-ui" }
+        val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
 
         val config = configManager.config
         val serverConfig = config.server
@@ -556,6 +573,7 @@ class UIManager(
         _activatedUIList[Route.Type.PANEL_UI] = ActivatedUI(port, serverHost, panelUIHandler)
     }
 
+
     fun activateThemeUI(router: Router) {
         if (_activatedUIList.containsKey(Route.Type.THEME_UI)) {
             return
@@ -563,7 +581,7 @@ class UIManager(
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
-        val startedThemeUI = startedUIList.find { it.name == activeTheme }
+        val startedThemeUI = startedUIList.find { it.id == activeTheme }
 
         val config = configManager.config
         val serverConfig = config.server
@@ -639,7 +657,7 @@ class UIManager(
         fun InstalledTheme.encode(): String = gson.toJson(this)
 
         class LoadedUI(
-            val name: String,
+            val id: String,
             val host: String,
             val port: Int,
             val process: Process

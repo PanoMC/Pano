@@ -28,7 +28,7 @@ data class PanoConfig(
 
     @SerializedName("pano-account") var panoAccount: PanoAccountConfig = PanoAccountConfig(),
 
-    @SerializedName("current-theme") var currentTheme: String = "Vanilla",
+    @SerializedName("current-theme") var currentTheme: String = "vanilla-theme",
 
     var email: EmailConfig = EmailConfig(),
 
@@ -45,6 +45,7 @@ data class PanoConfig(
     @SerializedName("file-paths") var filePaths: MutableMap<String, String> = mutableMapOf(),
 
     @SerializedName("pano-api-url") var panoApiUrl: String = getPanoApiUrl(),
+    @SerializedName("pano-website-url") var panoWebsiteUrl: String = getPanoWebsiteUrl(),
 ) {
     companion object {
         data class SetupConfig(var step: Int = 0)
@@ -95,7 +96,10 @@ data class PanoConfig(
         }
 
         private fun getPanoApiUrl() =
-            "api" + (if (Main.STAGE == ReleaseStage.ALPHA || Main.STAGE == ReleaseStage.BETA) "-dev" else "") + ".panomc.com"
+            "https://api${if (Main.STAGE == ReleaseStage.ALPHA || Main.STAGE == ReleaseStage.BETA) "-dev" else ""}.panomc.com"
+
+        private fun getPanoWebsiteUrl() =
+            "https://${if (Main.STAGE == ReleaseStage.ALPHA || Main.STAGE == ReleaseStage.BETA) "dev" else ""}.panomc.com"
 
         private val gson = GsonBuilder()
             .registerTypeAdapter(UpdatePeriod::class.java, UpdatePeriodDeserializer())

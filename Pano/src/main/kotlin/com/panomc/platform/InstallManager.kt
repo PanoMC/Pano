@@ -4,14 +4,18 @@ import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.UIManager.Companion.InstalledTheme
 import com.panomc.platform.UIManager.Companion.encode
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.error.FailedToInstallResource
+import com.panomc.platform.error.FailedToInstallSystemResource
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
+import com.panomc.platform.model.Route
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
+import io.vertx.ext.web.Router
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -28,7 +32,9 @@ import java.util.zip.ZipInputStream
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class InstallManager(
     private val pluginManager: PluginManager,
-    private val uiManager: UIManager
+    private val uiManager: UIManager,
+    private val configManager: ConfigManager,
+    @param:Lazy private val router: Router
 ) {
     companion object {
         enum class ResourceType {
@@ -107,9 +113,8 @@ class InstallManager(
 
                 if (!manifestFile.exists()) {
                     tempThemeFolder.deleteRecursively()
-                    // TODO: invalid theme zip error
 
-                    return
+                    throw InvalidResourceFile()
                 }
 
                 val parsedInstalledTheme: InstalledTheme
@@ -133,8 +138,34 @@ class InstallManager(
                     manifestFile.writeText(parsedInstalledTheme.encode())
                 } catch (e: Exception) {
                     tempThemeFolder.deleteRecursively()
-                    // TODO: invalid theme file error
-                    return
+
+                    throw InvalidResourceFile(extras = mapOf("message" to e.message))
+                }
+
+                val id = parsedInstalledTheme.id.lowercase()
+                val version = parsedInstalledTheme.version
+
+                if (isInstalled(id, version, type)) {
+                    tempThemeFolder.deleteRecursively()
+
+                    throw FailedToInstallResource(extras = mapOf("message" to "This version ($version) is already installed."))
+                }
+
+                val config = configManager.config
+
+                if (isInstalled(id, type)) {
+                    val existingTheme = uiManager.installedThemeList.find { it.id == id }!!
+
+                    if (existingTheme.installedBy == InstalledBy.SYSTEM) {
+                        tempThemeFolder.deleteRecursively()
+
+                        throw FailedToInstallSystemResource()
+                    }
+
+                    if (config.currentTheme == id) {
+                        uiManager.stopUI(id)
+                        uiManager.disableUIOnRoute(router, Route.Type.THEME_UI)
+                    }
                 }
 
                 val actualThemeFolder = File(THEMES_FOLDER_PATH, parsedInstalledTheme.id)
@@ -143,6 +174,13 @@ class InstallManager(
                 tempThemeFolder.deleteRecursively()
 
                 uiManager.reloadInstalledThemes()
+
+                if (config.currentTheme == id) {
+                    uiManager.startUI(id)
+                    uiManager.activateThemeUI(router)
+                } else {
+                    config.currentTheme = id
+                }
 
                 progressHandler.invoke(Successful()) // Installing success
             }

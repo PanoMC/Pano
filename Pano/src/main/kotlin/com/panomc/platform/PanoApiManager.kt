@@ -21,6 +21,7 @@ import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.kotlin.coroutines.coAwait
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
@@ -37,10 +38,15 @@ class PanoApiManager(
     private val configManager: ConfigManager,
     private val webClient: WebClient,
     private val pluginManager: PluginManager,
-    private val installManager: InstallManager
+    private val installManager: InstallManager,
+    applicationContext: ApplicationContext
 ) {
     companion object {
         private const val HEADER_PREFIX = "Bearer "
+    }
+
+    private val uiManager: UIManager by lazy {
+        applicationContext.getBean(UIManager::class.java)
     }
 
     private fun getPanoAccountConfig() = configManager.config.panoAccount
@@ -257,6 +263,14 @@ class PanoApiManager(
             )
         })
 
+        resources.addAll(uiManager.installedThemeList.map { theme ->
+            ResourceObj(
+                theme.id,
+                theme.version,
+                ResourceType.THEME
+            )
+        })
+
         val request = JsonObject(
             mapOf(
                 "version" to Main.VERSION,
@@ -292,7 +306,7 @@ class PanoApiManager(
 
             val responseBody = response.bodyAsJsonObject()
             data = responseBody.getJsonObject("data")
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             throw PanoConnectFailed()
         }
 
@@ -376,12 +390,10 @@ class PanoApiManager(
             val file = File(newFilePath)
 
             installManager.installResource(hash, verified, file, versionType) {
+                sendServerSentEventMessage(context, it)
+
                 if (it is Error) {
                     file.delete()
-                    context.response().end()
-                    return@installResource
-                } else {
-                    sendServerSentEventMessage(context, it)
                 }
             }
         } catch (e: Error) {

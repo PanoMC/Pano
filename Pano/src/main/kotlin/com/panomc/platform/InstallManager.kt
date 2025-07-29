@@ -4,6 +4,7 @@ import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.UIManager.Companion.InstalledTheme
 import com.panomc.platform.UIManager.Companion.encode
+import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
@@ -19,6 +20,7 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.nio.file.Path
 import java.util.zip.ZipInputStream
 
 @Lazy
@@ -57,7 +59,32 @@ class InstallManager(
             progressHandler.invoke(Successful()) // Preparing success
 
             if (type == ResourceType.PLUGIN) {
-                val pluginId = pluginManager.loadPlugin(resourceFile.toPath())
+                val pluginMetadata: PanoPluginDescriptor
+
+                try {
+                    pluginMetadata = readPluginMetadata(resourceFile.toPath())
+                } catch (e: Exception) {
+                    throw InvalidResourceFile(extras = mapOf("message" to e.message))
+                }
+
+                val pluginId = pluginMetadata.pluginId
+                val version = pluginMetadata.version
+
+                if (isInstalled(pluginId, version, type)) {
+                    throw FailedToInstallResource(extras = mapOf("message" to "This version ($version) is already installed."))
+                }
+
+                if (isInstalled(pluginId, type)) {
+                    val existingPlugin = pluginManager.getPlugin(pluginId)
+
+                    pluginManager.stopPlugin(pluginId)
+                    pluginManager.disablePlugin(pluginId)
+                    pluginManager.unloadPlugin(pluginId)
+
+                    existingPlugin.pluginPath.toFile().delete()
+                }
+
+                pluginManager.loadPlugin(resourceFile.toPath())
                 pluginManager.enablePlugin(pluginId)
                 pluginManager.startPlugin(pluginId)
 
@@ -121,8 +148,18 @@ class InstallManager(
             }
         } catch (e: Error) {
             progressHandler.invoke(e)
+        } catch (e: Exception) {
+            progressHandler.invoke(FailedToInstallResource(extras = mapOf("message" to e.message)))
         }
     }
+
+    fun readPluginMetadata(pluginPath: Path): PanoPluginDescriptor {
+        val pluginDescriptorFinder = PanoManifestPluginDescriptorFinder()
+
+        return pluginDescriptorFinder.find(pluginPath) as PanoPluginDescriptor
+    }
+
+    fun fixVersion(version: String) = (if (!version.startsWith("v")) "v" else "") + version
 
     fun isInstalled(resourceId: String, type: ResourceType): Boolean {
         if (type == ResourceType.PLUGIN) {
@@ -132,6 +169,16 @@ class InstallManager(
         return uiManager.installedThemeList.any { it.id == resourceId }
     }
 
+    fun isInstalled(resourceId: String, version: String, type: ResourceType): Boolean {
+        if (type == ResourceType.PLUGIN) {
+            return pluginManager.resolvedPlugins.any {
+                it.pluginId == resourceId && fixVersion(it.descriptor.version) == fixVersion(version)
+            }
+        }
+
+        return uiManager.installedThemeList.any { it.id == resourceId && fixVersion(it.version) == fixVersion(version) }
+    }
+
     fun getResourceInfo(resourceId: String, type: ResourceType): Map<String, Any> {
         if (type == ResourceType.PLUGIN) {
             val plugin = pluginManager.resolvedPlugins.find { it.pluginId == resourceId } as PanoPluginWrapper
@@ -139,7 +186,7 @@ class InstallManager(
 
             return mapOf(
                 "id" to plugin.pluginId,
-                "version" to (if (descriptor.version.startsWith("v")) "" else "v") + descriptor.version,
+                "version" to fixVersion(descriptor.version),
                 "hash" to plugin.hash,
                 "license" to descriptor.license
             )

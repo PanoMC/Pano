@@ -377,6 +377,7 @@ class PanoApiManager(
 
             installManager.installResource(hash, verified, file, versionType) {
                 if (it is Error) {
+                    file.delete()
                     context.response().end()
                     return@installResource
                 } else {

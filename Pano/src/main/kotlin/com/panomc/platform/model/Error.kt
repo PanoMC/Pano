@@ -7,7 +7,7 @@ abstract class Error(
     private val statusCode: Int = 500,
     private val statusMessage: String = "",
     private val extras: Map<String, Any?> = mapOf()
-) : Throwable(), Result {
+) : Throwable(extras["message"] as String?), Result {
 
     override fun encode(extras: Map<String, Any?>): String {
         val response = mutableMapOf<String, Any?>(

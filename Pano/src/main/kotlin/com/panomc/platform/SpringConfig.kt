@@ -7,6 +7,7 @@ import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClient
 import io.vertx.ext.web.client.WebClient
+import io.vertx.ext.web.client.WebClientOptions
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
 import io.vertx.json.schema.Draft
 import io.vertx.json.schema.JsonSchemaOptions
@@ -80,7 +81,7 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun provideWebClient(): WebClient = WebClient.create(vertx)
+    open fun provideWebClient(): WebClient = WebClient.create(vertx, WebClientOptions().setFollowRedirects(true))
 
     @Bean
     @Lazy

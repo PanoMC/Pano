@@ -18,4 +18,10 @@ object AppConstants {
     val DEFAULT_LOCALE_CODE = "en-US"
 
     val pluginUiFolder = "plugin-ui/"
+
+    val THEMES_FOLDER_PATH: String = System.getProperty("pano.themesFolder", "themes")
+    const val DEFAULT_THEME_NAME = "Vanilla"
+
+    const val TEMP_FOLDER = ".temp"
+
 }

@@ -1,6 +1,8 @@
 package com.panomc.platform.util
 
 import java.lang.management.ManagementFactory
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 
@@ -61,4 +63,6 @@ object TimeUtil {
 
         calendar.timeInMillis
     }.groupingBy { it }.eachCount()
+
+    fun getCurrentTimeStamp(): String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
 }

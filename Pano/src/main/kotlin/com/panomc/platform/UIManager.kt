@@ -1,5 +1,8 @@
 package com.panomc.platform
 
+import com.google.gson.GsonBuilder
+import com.panomc.platform.AppConstants.DEFAULT_THEME_NAME
+import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Route
@@ -7,7 +10,6 @@ import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import io.vertx.core.http.HttpClient
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
@@ -45,14 +47,15 @@ class UIManager(
     private val httpClient: HttpClient,
     private val authProvider: AuthProvider
 ) {
-    private val themesFolderPath = System.getProperty("pano.themesFolder", "themes")
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
     private val panelUIFolderPath = System.getProperty("pano.panelUIFolder", "panel-ui")
-    private val defaultThemeName = "Vanilla"
-    private val defaultThemeFolderPath = themesFolderPath + File.separator + defaultThemeName
+    private val defaultThemeFolderPath = THEMES_FOLDER_PATH + File.separator + DEFAULT_THEME_NAME
 
-    private val themesFolder = File(themesFolderPath)
+
+    val manifestFileName = "manifest.json"
+
+    private val themesFolder = File(THEMES_FOLDER_PATH)
     private val librariesFolder = File(librariesFolderPath)
     private val setupUIFolder = File(setupUIFolderPath)
     private val panelUIFolder = File(panelUIFolderPath)
@@ -80,6 +83,12 @@ class UIManager(
     val activatedUIList: Map<Route.Type, ActivatedUI>
         get() = _activatedUIList
 
+    private var _installedThemeList = mutableListOf<InstalledTheme>()
+
+    // to make it read-only to public
+    val installedThemeList: List<InstalledTheme>
+        get() = _installedThemeList
+
     private var activeTheme = ""
 
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
@@ -91,6 +100,14 @@ class UIManager(
     }
 
     private var muslRequired = false
+
+    fun parseThemeManifest(manifestFile: File): ThemeManifest {
+        return gson.fromJson(manifestFile.readText(), ThemeManifest::class.java)
+    }
+
+    private fun parseInstalledTheme(manifestFile: File): InstalledTheme {
+        return gson.fromJson(manifestFile.readText(), InstalledTheme::class.java)
+    }
 
     private fun tryRun(path: String): Boolean {
         logger.info("Checking is downloaded Bun compatible with the system...")
@@ -252,11 +269,26 @@ class UIManager(
         val hash = zipAsStreamForHash.hash()
         zipAsStreamForHash.close()
 
-        // Create manifest.json
-        val manifestFile = File(targetDir, "manifest.json")
-        val manifestContent = JsonObject().put("hash", hash)
+        val splitDot = optionalZipFile.get().name.split(".zip")
+        val version = splitDot[0].split("$uiName-")[1]
+        // Create manifest file
+        val manifestFile = File(targetDir, manifestFileName)
+        val themeManifest = parseThemeManifest(manifestFile)
 
-        manifestFile.writeText(manifestContent.encodePrettily())
+        val installedTheme = InstalledTheme(
+            uiName,
+            version,
+            themeManifest.author,
+            themeManifest.license,
+            themeManifest.panoVersion,
+            hash,
+            true,
+            System.currentTimeMillis(),
+            System.currentTimeMillis(),
+            InstalledBy.SYSTEM
+        )
+
+        manifestFile.writeText(installedTheme.encode())
     }
 
     private fun redirectStreamToConsole(uiName: String, inputStream: InputStream) {
@@ -322,7 +354,7 @@ class UIManager(
         }
     }
 
-    private fun upgradeUi(uiName: String, targetDir: File) {
+    private fun upgradeEmbeddedUi(uiName: String, targetDir: File) {
         targetDir.deleteRecursively()
 
         logger.warn("Upgrading found for: {}", uiName)
@@ -330,21 +362,21 @@ class UIManager(
         unzipUIFiles(uiName, targetDir)
     }
 
-    private fun checkUpgrade(uiName: String, targetDir: File) {
-        val manifestFile = File(targetDir, "manifest.json")
+    private fun checkEmbeddedUiUpgrade(uiName: String, targetDir: File) {
+        val manifestFile = File(targetDir, manifestFileName)
 
         if (!manifestFile.exists()) {
-            upgradeUi(uiName, targetDir)
+            upgradeEmbeddedUi(uiName, targetDir)
 
             return
         }
 
-        val manifest: JsonObject
+        val manifest: InstalledTheme
 
         try {
-            manifest = JsonObject(manifestFile.readText())
+            manifest = parseInstalledTheme(manifestFile)
         } catch (e: Exception) {
-            upgradeUi(uiName, targetDir)
+            upgradeEmbeddedUi(uiName, targetDir)
 
             return
         }
@@ -355,17 +387,45 @@ class UIManager(
 
         zipFileAsStream.close()
 
-        if (manifest.getString("hash") == hash) {
+        if (manifest.hash == hash) {
             return
         }
 
-        upgradeUi(uiName, targetDir)
+        upgradeEmbeddedUi(uiName, targetDir)
     }
 
-    private fun checkUiUpgrades() {
-        checkUpgrade("setup-ui", setupUIFolder)
-        checkUpgrade("panel-ui", panelUIFolder)
-        checkUpgrade("vanilla-theme", defaultThemeFolder)
+    private fun checkEmbeddedUiUpgrades() {
+        checkEmbeddedUiUpgrade("setup-ui", setupUIFolder)
+        checkEmbeddedUiUpgrade("panel-ui", panelUIFolder)
+        checkEmbeddedUiUpgrade("vanilla-theme", defaultThemeFolder)
+    }
+
+    fun reloadInstalledThemes() {
+        _installedThemeList = mutableListOf()
+
+        if (!themesFolder.exists()) {
+            return
+        }
+
+        themesFolder.listFiles()
+            ?.filter { themeFolder ->
+                themeFolder.name.matches(Regex("^[a-zA-Z0-9-]+$"))
+            }
+            ?.forEach { themeFolder ->
+                val manifestFile = File(themeFolder.absolutePath, manifestFileName)
+
+                if (!manifestFile.exists()) {
+                    return@forEach
+                }
+
+                try {
+                    val installedTheme = parseInstalledTheme(manifestFile)
+
+                    _installedThemeList.add(installedTheme)
+                } catch (e: Exception) {
+                    return@forEach
+                }
+            }
     }
 
     internal fun init() {
@@ -381,7 +441,7 @@ class UIManager(
 
         initUiFolders()
 
-        checkUiUpgrades()
+        checkEmbeddedUiUpgrades()
 
         logger.info("Verifying Bun runtime...")
 
@@ -398,12 +458,12 @@ class UIManager(
         val currentThemeValid = currentThemeFolder.exists() && currentThemeFolder.isDirectory
 
         if (!currentThemeValid) {
-            logger.error("Current theme is not valid, defaulting to \"$defaultThemeName\"")
+            logger.error("Current theme is not valid, defaulting to \"$DEFAULT_THEME_NAME\"")
         }
 
         val themeFolder = if (currentThemeValid) currentThemeFolder.absolutePath else defaultThemeFolder.absolutePath
 
-        val theme = if (currentThemeValid) currentTheme else defaultThemeName
+        val theme = if (currentThemeValid) currentTheme else DEFAULT_THEME_NAME
 
         activeTheme = theme
 
@@ -416,6 +476,8 @@ class UIManager(
 
             exitProcess(1)
         }
+
+        reloadInstalledThemes()
     }
 
     fun activateSetupUI(router: Router) {
@@ -568,6 +630,14 @@ class UIManager(
     }
 
     companion object {
+        private val gson by lazy {
+            GsonBuilder()
+                .setPrettyPrinting()
+                .create()
+        }
+
+        fun InstalledTheme.encode(): String = gson.toJson(this)
+
         class LoadedUI(
             val name: String,
             val host: String,
@@ -579,6 +649,32 @@ class UIManager(
             val port: Int,
             val host: String,
             val proxyHandler: ProxyHandler
+        )
+
+        enum class InstalledBy {
+            SYSTEM,
+            USER
+        }
+
+        open class ThemeManifest(
+            val id: String,
+            val version: String,
+            val author: String,
+            val license: String? = null,
+            val panoVersion: String
+        )
+
+        data class InstalledTheme(
+            val id: String,
+            val version: String,
+            val author: String,
+            val license: String? = null,
+            val panoVersion: String,
+            val hash: String,
+            val verified: Boolean? = null,
+            val createdAt: Long,
+            val updatedAt: Long,
+            val installedBy: InstalledBy
         )
     }
 }

@@ -203,23 +203,11 @@ class Main : CoroutineVerticle() {
     }
 
     private fun clearTempFiles() {
-        val tempFolder = File(configManager.config.fileUploadsFolder + File.separator + "temp")
+        val uploadsFolderTempFolder = File(configManager.config.fileUploadsFolder + File.separator + "temp")
 
-        if (tempFolder.exists()) {
-            deleteDirectory(tempFolder)
-        }
-    }
+        uploadsFolderTempFolder.deleteRecursively()
 
-    private fun deleteDirectory(directoryToBeDeleted: File) {
-        val allContents = directoryToBeDeleted.listFiles()
-
-        if (allContents != null) {
-            for (file in allContents) {
-                deleteDirectory(file)
-            }
-        }
-
-        directoryToBeDeleted.delete()
+        File(AppConstants.TEMP_FOLDER).deleteRecursively()
     }
 
     private fun initDependencyInjection() {

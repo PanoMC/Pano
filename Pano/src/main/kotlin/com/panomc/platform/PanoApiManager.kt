@@ -1,28 +1,43 @@
 package com.panomc.platform
 
+import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
-import com.panomc.platform.error.AlreadyConnectedToPano
-import com.panomc.platform.error.PanoConnectFailed
-import com.panomc.platform.error.PanoDisconnectFailed
+import com.panomc.platform.error.*
+import com.panomc.platform.model.Error
+import com.panomc.platform.model.Result
+import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.KeyGeneratorUtil
+import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import io.vertx.core.buffer.Buffer
+import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.HttpRequest
+import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
+import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.kotlin.coroutines.coAwait
+import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
+import java.io.File
 import java.security.KeyFactory
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.*
+import kotlin.io.path.absolutePathString
 
+@Lazy
 @Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class PanoApiManager(
     private val configManager: ConfigManager,
     private val webClient: WebClient,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val installManager: InstallManager
 ) {
     companion object {
         private const val HEADER_PREFIX = "Bearer "
@@ -151,10 +166,10 @@ class PanoApiManager(
             val result = responseBody.getString("result")
             val error = responseBody.getString("error")
 
-            if (result != "ok" && error != "UNAUTHORIZED") {
+            if (response.statusCode() != 200 && response.statusCode() != 401) {
                 throw PanoDisconnectFailed()
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             throw PanoDisconnectFailed()
         }
 
@@ -196,7 +211,7 @@ class PanoApiManager(
 
     suspend fun getStoreAuthorizeToken(): Pair<String, String> {
         if (!isConnected()) {
-            throw PanoConnectFailed()
+            throw PanoNotConnected()
         }
 
         try {
@@ -206,7 +221,11 @@ class PanoApiManager(
 
             val responseBody = authorizeResponse.bodyAsJsonObject()
 
-            if (responseBody.getString("result") != "ok") {
+            if (authorizeResponse.statusCode() == 401) {
+                throw PanoNotConnected()
+            }
+
+            if (authorizeResponse.statusCode() != 200) {
                 throw PanoConnectFailed()
             }
 
@@ -218,14 +237,14 @@ class PanoApiManager(
             val state = responseData.getString("state")
 
             return Pair(token, state)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             throw PanoConnectFailed()
         }
     }
 
     suspend fun updatePlatformMetadata() {
         if (!isConnected()) {
-            return
+            throw PanoNotConnected()
         }
 
         val resources = mutableListOf<ResourceObj>()
@@ -234,7 +253,7 @@ class PanoApiManager(
             ResourceObj(
                 plugin.pluginId,
                 plugin.descriptor.version,
-                ResourceObjType.ADDON
+                ResourceType.PLUGIN
             )
         })
 
@@ -250,20 +269,138 @@ class PanoApiManager(
                 .sendJson(request)
                 .coAwait()
 
-            val responseBody = response.bodyAsJsonObject()
-            val result = responseBody.getString("result")
+            if (response.statusCode() == 401) {
+                throw PanoNotConnected()
+            }
 
-            if (result != "ok") {
+            if (response.statusCode() != 200) {
                 throw PanoConnectFailed()
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             throw PanoConnectFailed()
         }
     }
 
-    private enum class ResourceObjType {
-        ADDON, THEME
+    suspend fun getVersionInfo(versionId: UUID): JsonObject {
+        val response: HttpResponse<Buffer>
+        val data: JsonObject
+
+        try {
+            response = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}")
+                .send()
+                .coAwait()
+
+            val responseBody = response.bodyAsJsonObject()
+            data = responseBody.getJsonObject("data")
+        } catch (e: Exception) {
+            throw PanoConnectFailed()
+        }
+
+        if (response.statusCode() == 401) {
+            throw PanoNotConnected()
+        }
+
+        if (response.statusCode() == 404) {
+            throw NotFound()
+        }
+
+        return data
     }
 
-    private data class ResourceObj(val id: String, val version: String, val type: ResourceObjType)
+    suspend fun installResourceFromStore(context: RoutingContext, versionId: UUID) {
+        try {
+            val versionInfo = getVersionInfo(versionId)
+            val versionType = ResourceType.valueOf(versionInfo.getString("type"))
+
+            val resourceFolderPath =
+                if (versionType == ResourceType.PLUGIN) pluginManager.pluginsRoot.absolutePathString() else File(
+                    AppConstants.THEMES_FOLDER_PATH
+                ).absolutePath
+
+            val tempFolder = File(AppConstants.TEMP_FOLDER)
+
+            if (!tempFolder.exists() || !tempFolder.isDirectory) {
+                tempFolder.deleteRecursively()
+                tempFolder.mkdirs()
+            }
+
+            sendServerSentEventMessage(context, Successful()) // Getting version info success
+
+            val vertx = context.vertx()
+            val fileSystem = vertx.fileSystem()
+            val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + getCurrentTimeStamp()
+            val writeStream = fileSystem.openBlocking(
+                temporaryFilePath,
+                OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
+            )
+
+            val getFileResponse = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}/file")
+                .`as`(BodyCodec.pipe(writeStream))
+                .send()
+                .coAwait()
+
+            if (getFileResponse.statusCode() != 200) {
+                writeStream.close()
+                // TODO: Add error
+
+                return
+            }
+
+            sendServerSentEventMessage(context, Successful()) // Downloading file success
+
+            val contentDisposition = getFileResponse.getHeader("Content-Disposition")
+            val defaultFileName = if (versionType == ResourceType.PLUGIN) {
+                "plugin"
+            } else {
+                "theme"
+            } + "_${getCurrentTimeStamp()}"
+
+            val fileName = contentDisposition
+                ?.let {
+                    val regex = Regex("filename=\"?([^\";]+)\"?")
+                    regex.find(it)?.groups?.get(1)?.value
+                } ?: defaultFileName
+
+            val resourceFolder = File(resourceFolderPath)
+
+            if (!resourceFolder.exists() || !resourceFolder.isDirectory) {
+                resourceFolder.deleteRecursively()
+                resourceFolder.mkdirs()
+            }
+
+            val newFilePath = resourceFolderPath + File.separator + fileName
+            fileSystem.moveBlocking(temporaryFilePath, newFilePath)
+
+            val hash = versionInfo.getString("hash")
+            val verified = versionInfo.getBoolean("verified")
+            val file = File(newFilePath)
+
+            installManager.installResource(hash, verified, file, versionType) {
+                if (it is Error) {
+                    context.response().end()
+                    return@installResource
+                } else {
+                    sendServerSentEventMessage(context, it)
+                }
+            }
+        } catch (e: Error) {
+            sendServerSentEventMessage(context, e)
+        } catch (e: Exception) {
+            sendServerSentEventMessage(context, FailedToInstallResource(extras = mapOf("message" to e.message)))
+        }
+    }
+
+    private fun sendServerSentEventMessage(context: RoutingContext, result: Result) {
+        val response = context.response()
+        val responseBody = result.encode()
+
+        response.write("data: ${responseBody}\n\n")
+
+        if (result is Error) {
+            result.printStackTrace()
+            response.end()
+        }
+    }
+
+    private data class ResourceObj(val id: String, val version: String, val type: ResourceType)
 }

@@ -91,7 +91,7 @@ abstract class Api : Route() {
     ) {
         val response = context.response()
 
-        if (response.ended()) {
+        if (response.ended() || response.headWritten()) {
             return
         }
 

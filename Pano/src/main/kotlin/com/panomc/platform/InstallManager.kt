@@ -127,6 +127,7 @@ class InstallManager(
                         manifest.version,
                         manifest.author,
                         manifest.license,
+                        manifest.sourceUrl,
                         manifest.panoVersion,
                         calculatedHash,
                         verified,

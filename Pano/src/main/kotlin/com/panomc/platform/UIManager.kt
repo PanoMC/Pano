@@ -280,6 +280,7 @@ class UIManager(
             version,
             themeManifest.author,
             themeManifest.license,
+            themeManifest.sourceUrl,
             themeManifest.panoVersion,
             hash,
             true,
@@ -679,6 +680,7 @@ class UIManager(
             val version: String,
             val author: String,
             val license: String? = null,
+            val sourceUrl: String? = null,
             val panoVersion: String
         )
 
@@ -687,6 +689,7 @@ class UIManager(
             val version: String,
             val author: String,
             val license: String? = null,
+            val sourceUrl: String? = null,
             val panoVersion: String,
             val hash: String,
             val verified: Boolean? = null,

@@ -6,8 +6,8 @@ import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.util.AddonHashStatus
-import com.panomc.platform.util.AddonStatusType
+import com.panomc.platform.util.ResourceHashStatus
+import com.panomc.platform.util.ResourceStatusType
 import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -29,7 +29,8 @@ class PanelGetPluginsAPI(
         ValidationHandlerBuilder.create(schemaRepository)
             .queryParameter(
                 optionalParam(
-                    "status", arraySchema().items(enumSchema(*AddonStatusType.entries.map { it.name }.toTypedArray()))
+                    "status",
+                    arraySchema().items(enumSchema(*ResourceStatusType.entries.map { it.name }.toTypedArray()))
                 )
             )
             .build()
@@ -37,13 +38,13 @@ class PanelGetPluginsAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
-        val statusType = AddonStatusType.valueOf(
-            parameters.queryParameter("status")?.jsonArray?.first() as String? ?: AddonStatusType.ALL.name
+        val statusType = ResourceStatusType.valueOf(
+            parameters.queryParameter("status")?.jsonArray?.first() as String? ?: ResourceStatusType.ALL.name
         )
 
         val plugins = when (statusType) {
-            AddonStatusType.ACTIVE -> pluginManager.plugins.filter { it.pluginState == PluginState.STARTED }
-            AddonStatusType.DISABLED -> pluginManager.plugins.filter { it.pluginState != PluginState.STARTED }
+            ResourceStatusType.ACTIVE -> pluginManager.plugins.filter { it.pluginState == PluginState.STARTED }
+            ResourceStatusType.DISABLED -> pluginManager.plugins.filter { it.pluginState != PluginState.STARTED }
             else -> pluginManager.plugins
         }.map { it as PanoPluginWrapper }
 
@@ -51,7 +52,7 @@ class PanelGetPluginsAPI(
 
         val sqlClient = getSqlClient()
 
-        val addonHashes = databaseManager.addonHashDao.byListOfHash(hashList, sqlClient)
+        val addonHashes = databaseManager.resourceHashDao.byListOfHash(hashList, sqlClient)
 
         val result = mutableMapOf(
             "plugins" to plugins.map { plugin ->
@@ -71,7 +72,7 @@ class PanelGetPluginsAPI(
                     "license" to panoPluginDescriptor.license,
                     "error" to if (plugin.failedException == null) null else TextUtil.getStackTraceAsString(plugin.failedException),
                     "hash" to plugin.hash,
-                    "verifyStatus" to if (addonHashes[plugin.hash] == null) AddonHashStatus.UNKNOWN else addonHashes[plugin.hash]!!.status,
+                    "verifyStatus" to if (addonHashes[plugin.hash] == null) ResourceHashStatus.UNKNOWN else addonHashes[plugin.hash]!!.status,
                     "sourceUrl" to panoPluginDescriptor.sourceUrl
                 )
             }

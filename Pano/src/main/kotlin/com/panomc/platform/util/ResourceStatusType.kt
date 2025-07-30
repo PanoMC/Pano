@@ -1,6 +1,6 @@
 package com.panomc.platform.util
 
-enum class AddonStatusType {
+enum class ResourceStatusType {
     ALL,
     ACTIVE,
     DISABLED

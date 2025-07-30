@@ -1,8 +1,8 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.db.dao.AddonHashDao
-import com.panomc.platform.db.model.AddonHash
+import com.panomc.platform.db.dao.ResourceHashDao
+import com.panomc.platform.db.model.ResourceHash
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -11,7 +11,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 @Dao
-class AddonHashDaoImpl : AddonHashDao() {
+class ResourceHashDaoImpl : ResourceHashDao() {
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -22,7 +22,7 @@ class AddonHashDaoImpl : AddonHashDao() {
                               `hash` text NOT NULL,
                               `status` varchar(255) NOT NULL,
                               PRIMARY KEY (`id`)
-                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Addon hash table.';
+                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Resource hash table.';
                         """
             )
             .execute()
@@ -30,7 +30,7 @@ class AddonHashDaoImpl : AddonHashDao() {
     }
 
     override suspend fun add(
-        addonHash: AddonHash,
+        resourceHash: ResourceHash,
         sqlClient: SqlClient
     ): Long {
         val query =
@@ -41,8 +41,8 @@ class AddonHashDaoImpl : AddonHashDao() {
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    addonHash.hash,
-                    addonHash.status
+                    resourceHash.hash,
+                    resourceHash.status
                 )
             ).coAwait()
 
@@ -52,7 +52,7 @@ class AddonHashDaoImpl : AddonHashDao() {
     override suspend fun byListOfHash(
         hashList: List<String>,
         sqlClient: SqlClient
-    ): Map<String, AddonHash> {
+    ): Map<String, ResourceHash> {
         var listText = ""
 
         if (hashList.isEmpty()) {
@@ -74,12 +74,12 @@ class AddonHashDaoImpl : AddonHashDao() {
             .execute()
             .coAwait()
 
-        val listOfAddonHash = mutableMapOf<String, AddonHash>()
+        val listOfResourceHash = mutableMapOf<String, ResourceHash>()
 
         rows.forEach { row ->
-            listOfAddonHash[row.getString(1)] = row.toEntity()
+            listOfResourceHash[row.getString(1)] = row.toEntity()
         }
 
-        return listOfAddonHash
+        return listOfResourceHash
     }
 }

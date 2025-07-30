@@ -283,7 +283,6 @@ class UIManager(
             themeManifest.sourceUrl,
             themeManifest.panoVersion,
             hash,
-            true,
             System.currentTimeMillis(),
             System.currentTimeMillis(),
             InstalledBy.SYSTEM
@@ -692,7 +691,6 @@ class UIManager(
             val sourceUrl: String? = null,
             val panoVersion: String,
             val hash: String,
-            val verified: Boolean? = null,
             val createdAt: Long,
             val updatedAt: Long,
             val installedBy: InstalledBy

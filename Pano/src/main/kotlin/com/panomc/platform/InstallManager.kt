@@ -5,6 +5,8 @@ import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.UIManager.Companion.InstalledTheme
 import com.panomc.platform.UIManager.Companion.encode
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.ResourceHash
 import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.FailedToInstallSystemResource
 import com.panomc.platform.error.InvalidResourceFile
@@ -14,6 +16,7 @@ import com.panomc.platform.model.Route
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.HashUtil.hash
+import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import io.vertx.ext.web.Router
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -34,7 +37,8 @@ class InstallManager(
     private val pluginManager: PluginManager,
     private val uiManager: UIManager,
     private val configManager: ConfigManager,
-    @param:Lazy private val router: Router
+    @param:Lazy private val router: Router,
+    private val databaseManager: DatabaseManager
 ) {
     companion object {
         enum class ResourceType {
@@ -42,7 +46,13 @@ class InstallManager(
         }
     }
 
-    fun installResource(
+    private suspend fun addHash(hash: String, verified: Boolean) {
+        val sqlClient = databaseManager.getSqlClient()
+        val status = if (verified) ResourceHashStatus.VERIFIED else ResourceHashStatus.NOT_VERIFIED
+        databaseManager.resourceHashDao.add(ResourceHash(hash = hash, status = status), sqlClient)
+    }
+
+    suspend fun installResource(
         hash: String?,
         verified: Boolean?,
         resourceFile: File,
@@ -94,6 +104,12 @@ class InstallManager(
                 pluginManager.enablePlugin(pluginId)
                 pluginManager.startPlugin(pluginId)
 
+                val plugin = pluginManager.getPlugin(pluginId) as PanoPluginWrapper
+
+                if (verified != null) {
+                    addHash(plugin.hash, verified)
+                }
+
                 progressHandler.invoke(Successful()) // Installing success
 
                 return
@@ -130,7 +146,6 @@ class InstallManager(
                         manifest.sourceUrl,
                         manifest.panoVersion,
                         calculatedHash,
-                        verified,
                         System.currentTimeMillis(),
                         System.currentTimeMillis(),
                         InstalledBy.USER
@@ -181,6 +196,10 @@ class InstallManager(
                     uiManager.activateThemeUI(router)
                 } else {
                     config.currentTheme = id
+                }
+
+                if (verified != null) {
+                    addHash(calculatedHash, verified)
                 }
 
                 progressHandler.invoke(Successful()) // Installing success

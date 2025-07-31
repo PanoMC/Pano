@@ -140,6 +140,8 @@ class InstallManager(
 
                     parsedInstalledTheme = InstalledTheme(
                         manifest.id,
+                        manifest.title,
+                        manifest.description,
                         manifest.version,
                         manifest.author,
                         manifest.license,

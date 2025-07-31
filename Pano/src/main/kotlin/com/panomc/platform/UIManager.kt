@@ -19,7 +19,6 @@ import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.jetbrains.annotations.NotNull
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -286,15 +285,15 @@ class UIManager(
         val hash = zipAsStreamForHash.hash()
         zipAsStreamForHash.close()
 
-        val splitDot = optionalZipFile.get().name.split(".zip")
-        val version = splitDot[0].split("$id-")[1]
         // Create manifest file
         val manifestFile = File(targetDir, manifestFileName)
         val themeManifest = parseThemeManifest(manifestFile)
 
         val installedTheme = InstalledTheme(
-            id,
-            version,
+            themeManifest.id,
+            themeManifest.title,
+            themeManifest.description,
+            themeManifest.version,
             themeManifest.author,
             themeManifest.license,
             themeManifest.sourceUrl,
@@ -698,6 +697,8 @@ class UIManager(
         @StrictValidation
         open class ThemeManifest(
             val id: String,
+            val title: String,
+            val description: String? = null,
             val version: String,
             val author: String,
             val license: String? = null,
@@ -708,17 +709,19 @@ class UIManager(
 
         @StrictValidation
         data class InstalledTheme(
-            @param:NotNull val id: String,
-            @param:NotNull val version: String,
-            @param:NotNull val author: String,
+            val id: String,
+            val title: String,
+            val description: String? = null,
+            val version: String,
+            val author: String,
             val license: String? = null,
             val sourceUrl: String? = null,
-            @param:NotNull val panoVersion: String,
+            val panoVersion: String,
             val screenshots: List<String>,
-            @param:NotNull val hash: String,
-            @param:NotNull val createdAt: Long,
-            @param:NotNull val updatedAt: Long,
-            @param:NotNull val installedBy: InstalledBy
+            val hash: String,
+            val createdAt: Long,
+            val updatedAt: Long,
+            val installedBy: InstalledBy
         )
     }
 }

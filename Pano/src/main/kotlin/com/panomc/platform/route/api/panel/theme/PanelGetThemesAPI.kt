@@ -59,10 +59,13 @@ class PanelGetThemesAPI(
             "data" to themes.map { theme ->
                 mapOf(
                     "id" to theme.id,
+                    "title" to theme.title,
+                    "description" to theme.description,
                     "version" to theme.version,
                     "author" to theme.author,
                     "active" to (currentTheme == theme.id),
                     "panoVersion" to theme.panoVersion,
+                    "screenshots" to theme.screenshots,
                     "license" to theme.license,
                     "hash" to theme.hash,
                     "createdAt" to theme.createdAt,

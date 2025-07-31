@@ -41,26 +41,26 @@ class PanelGetThemeAPI(
 
         val resourceHashes = databaseManager.resourceHashDao.byListOfHash(listOf(theme.hash), sqlClient)
 
-        val result = mutableMapOf(
-            "data" to mapOf(
-                "id" to theme.id,
-                "title" to theme.title,
-                "description" to theme.description,
-                "version" to theme.version,
-                "author" to theme.author,
-                "active" to (currentTheme == theme.id),
-                "panoVersion" to theme.panoVersion,
-                "screenshots" to theme.screenshots,
-                "license" to theme.license,
-                "hash" to theme.hash,
-                "createdAt" to theme.createdAt,
-                "updatedAt" to theme.updatedAt,
-                "installedBy" to theme.installedBy,
-                "verifyStatus" to if (resourceHashes[theme.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[theme.hash]!!.status,
-                "sourceUrl" to theme.sourceUrl
+        return Successful(
+            mapOf(
+                "data" to mapOf(
+                    "id" to theme.id,
+                    "title" to theme.title,
+                    "description" to theme.description,
+                    "version" to theme.version,
+                    "author" to theme.author,
+                    "active" to (currentTheme == theme.id),
+                    "panoVersion" to theme.panoVersion,
+                    "screenshots" to theme.screenshots,
+                    "license" to theme.license,
+                    "hash" to theme.hash,
+                    "createdAt" to theme.createdAt,
+                    "updatedAt" to theme.updatedAt,
+                    "installedBy" to theme.installedBy,
+                    "verifyStatus" to if (resourceHashes[theme.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[theme.hash]!!.status,
+                    "sourceUrl" to theme.sourceUrl
+                )
             )
         )
-
-        return Successful(result)
     }
 }

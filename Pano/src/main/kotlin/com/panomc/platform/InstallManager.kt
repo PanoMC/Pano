@@ -145,6 +145,7 @@ class InstallManager(
                         manifest.license,
                         manifest.sourceUrl,
                         manifest.panoVersion,
+                        manifest.screenshots,
                         calculatedHash,
                         System.currentTimeMillis(),
                         System.currentTimeMillis(),

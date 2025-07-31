@@ -1,4 +1,4 @@
-package com.panomc.platform.route.api.panel
+package com.panomc.platform.route.api.panel.theme
 
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
@@ -9,11 +9,10 @@ import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.ResourceStatusType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
+import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.arraySchema
-import io.vertx.json.schema.common.dsl.Schemas.enumSchema
+import io.vertx.json.schema.common.dsl.Schemas
 
 @Endpoint
 class PanelGetThemesAPI(
@@ -26,9 +25,10 @@ class PanelGetThemesAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .queryParameter(
-                optionalParam(
+                Parameters.optionalParam(
                     "status",
-                    arraySchema().items(enumSchema(*ResourceStatusType.entries.map { it.name }.toTypedArray()))
+                    Schemas.arraySchema()
+                        .items(Schemas.enumSchema(*ResourceStatusType.entries.map { it.name }.toTypedArray()))
                 )
             )
             .build()

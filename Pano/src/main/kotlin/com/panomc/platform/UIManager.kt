@@ -9,6 +9,8 @@ import com.panomc.platform.model.Route
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
+import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
+import com.panomc.platform.util.annotation.StrictValidation
 import io.vertx.core.http.HttpClient
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.proxy.handler.ProxyHandler
@@ -17,16 +19,14 @@ import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.jetbrains.annotations.NotNull
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStream
-import java.io.InputStreamReader
+import java.io.*
 import java.net.ServerSocket
 import java.net.URL
 import java.nio.file.*
@@ -51,7 +51,6 @@ class UIManager(
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
     private val panelUIFolderPath = System.getProperty("pano.panelUIFolder", "panel-ui")
     private val defaultThemeFolderPath = THEMES_FOLDER_PATH + File.separator + DEFAULT_THEME_NAME
-
 
     val manifestFileName = "manifest.json"
 
@@ -104,6 +103,24 @@ class UIManager(
     fun parseThemeManifest(manifestFile: File): ThemeManifest {
         return gson.fromJson(manifestFile.readText(), ThemeManifest::class.java)
     }
+
+    fun getThemeFile(id: String, fileName: String): File? {
+        val themeFolder = File(THEMES_FOLDER_PATH, id)
+
+        if (!themeFolder.exists()) {
+            return null
+        }
+
+        val file = File(themeFolder, fileName)
+
+        if (!file.exists()) {
+            return null
+        }
+
+        return file
+    }
+
+    fun getThemeFileAsStream(id: String, fileName: String): FileInputStream? = getThemeFile(id, fileName)?.inputStream()
 
     private fun parseInstalledTheme(manifestFile: File): InstalledTheme {
         return gson.fromJson(manifestFile.readText(), InstalledTheme::class.java)
@@ -282,6 +299,7 @@ class UIManager(
             themeManifest.license,
             themeManifest.sourceUrl,
             themeManifest.panoVersion,
+            themeManifest.screenshots,
             hash,
             System.currentTimeMillis(),
             System.currentTimeMillis(),
@@ -652,6 +670,7 @@ class UIManager(
     companion object {
         private val gson by lazy {
             GsonBuilder()
+                .registerTypeAdapterFactory(StrictNotNullTypeAdapterFactory())
                 .setPrettyPrinting()
                 .create()
         }
@@ -676,26 +695,30 @@ class UIManager(
             USER
         }
 
+        @StrictValidation
         open class ThemeManifest(
             val id: String,
             val version: String,
             val author: String,
             val license: String? = null,
             val sourceUrl: String? = null,
-            val panoVersion: String
+            val panoVersion: String,
+            val screenshots: List<String>
         )
 
+        @StrictValidation
         data class InstalledTheme(
-            val id: String,
-            val version: String,
-            val author: String,
+            @param:NotNull val id: String,
+            @param:NotNull val version: String,
+            @param:NotNull val author: String,
             val license: String? = null,
             val sourceUrl: String? = null,
-            val panoVersion: String,
-            val hash: String,
-            val createdAt: Long,
-            val updatedAt: Long,
-            val installedBy: InstalledBy
+            @param:NotNull val panoVersion: String,
+            val screenshots: List<String>,
+            @param:NotNull val hash: String,
+            @param:NotNull val createdAt: Long,
+            @param:NotNull val updatedAt: Long,
+            @param:NotNull val installedBy: InstalledBy
         )
     }
 }

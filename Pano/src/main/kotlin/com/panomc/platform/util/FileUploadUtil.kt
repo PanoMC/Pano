@@ -21,7 +21,7 @@ object FileUploadUtil {
                 val fieldConfig = field.fieldConfig
 
                 if (!isContentTypeCorrect) {
-                    throw Error(fieldConfig.contentTypeError)
+                    throw fieldConfig.contentTypeError
                 }
 
                 if (fieldConfig.size != -1L && fileUpload.size() > fieldConfig.size) {

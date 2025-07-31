@@ -451,6 +451,8 @@ class UIManager(
         val config = configManager.config
 
         if (!config.initUi) {
+            reloadInstalledThemes()
+
             return
         }
 

@@ -53,10 +53,8 @@ class PanelActivateThemeAPI(
         uiManager.stopUI(uiManager.activeTheme)
         uiManager.disableUIOnRoute(router, Type.THEME_UI)
 
-        uiManager.activeTheme = theme.id
-
         uiManager.startUI(theme.id)
-        uiManager.activateThemeUI(router)
+        uiManager.activateThemeUI(router, theme.id)
 
         val sqlClient = getSqlClient()
 

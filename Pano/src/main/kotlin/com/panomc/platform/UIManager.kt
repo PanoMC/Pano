@@ -88,6 +88,7 @@ class UIManager(
         get() = _installedThemeList
 
     var activeTheme = ""
+        private set
 
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
 
@@ -596,14 +597,15 @@ class UIManager(
     }
 
 
-    fun activateThemeUI(router: Router) {
+    fun activateThemeUI(router: Router, id: String) {
         if (_activatedUIList.containsKey(Route.Type.THEME_UI)) {
             return
         }
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
 
-        val startedThemeUI = startedUIList.find { it.id == activeTheme }
+        val startedThemeUI = startedUIList.find { it.id == id }
+        activeTheme = id
 
         val config = configManager.config
         val serverConfig = config.server
@@ -649,7 +651,7 @@ class UIManager(
         if (setupManager.isSetupDone()) {
             disableUIOnRoute(router, Route.Type.SETUP_UI)
 
-            activateThemeUI(router)
+            activateThemeUI(router, activeTheme)
             activatePanelUI(router)
 
             return

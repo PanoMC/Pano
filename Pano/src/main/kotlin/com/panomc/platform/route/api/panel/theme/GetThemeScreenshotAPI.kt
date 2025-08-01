@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.theme
 
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
@@ -19,7 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class GetThemeScreenshotAPI(
-    private val uiManager: UIManager
+    private val uiManager: UIManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes/:themeId/screenshots/*", RouteType.GET))
 
@@ -30,6 +33,8 @@ class GetThemeScreenshotAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
+        authProvider.requirePermission(ManageViewPermission(), context)
+
         val parameters = getParameters(context)
 
         val themeId = parameters.pathParameter("themeId").string

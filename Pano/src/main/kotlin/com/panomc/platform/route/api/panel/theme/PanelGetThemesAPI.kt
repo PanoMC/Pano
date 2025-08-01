@@ -3,6 +3,8 @@ package com.panomc.platform.route.api.panel.theme
 import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
@@ -21,7 +23,8 @@ import java.io.File
 class PanelGetThemesAPI(
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes", RouteType.GET))
 
@@ -37,6 +40,8 @@ class PanelGetThemesAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManageViewPermission(), context)
+
         val parameters = getParameters(context)
 
         val statusType = ResourceStatusType.valueOf(

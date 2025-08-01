@@ -138,6 +138,14 @@ class InstallManager(
                 try {
                     val manifest = uiManager.parseThemeManifest(manifestFile)
 
+                    val createdAt = if (isInstalled(manifest.id, type)) {
+                        val existingTheme = uiManager.installedThemeList.find { it.id == manifest.id }!!
+
+                        existingTheme.createdAt
+                    } else {
+                        System.currentTimeMillis()
+                    }
+
                     parsedInstalledTheme = InstalledTheme(
                         manifest.id,
                         manifest.title,
@@ -149,7 +157,7 @@ class InstallManager(
                         manifest.panoVersion,
                         manifest.screenshots,
                         calculatedHash,
-                        System.currentTimeMillis(),
+                        createdAt,
                         System.currentTimeMillis(),
                         InstalledBy.USER
                     )

@@ -43,8 +43,7 @@ class PanelGetThemeAPI(
         val theme = uiManager.installedThemeList.find { it.id == themeId } ?: throw NotFound()
         val themeFolder = File(THEMES_FOLDER_PATH, theme.id)
 
-        val config = configManager.config
-        val currentTheme = config.currentTheme
+        val activeTheme = uiManager.activeTheme
 
         val sqlClient = getSqlClient()
 
@@ -58,7 +57,7 @@ class PanelGetThemeAPI(
                     "description" to theme.description,
                     "version" to theme.version,
                     "author" to theme.author,
-                    "active" to (currentTheme == theme.id),
+                    "active" to (activeTheme == theme.id),
                     "panoVersion" to theme.panoVersion,
                     "screenshots" to theme.screenshots,
                     "license" to theme.license,

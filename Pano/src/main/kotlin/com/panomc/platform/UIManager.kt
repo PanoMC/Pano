@@ -471,27 +471,23 @@ class UIManager(
     internal fun init() {
         val config = configManager.config
 
-        if (!config.initUi) {
-            reloadInstalledThemes()
+        if (config.initUi) {
+            if (!librariesFolder.exists()) {
+                librariesFolder.mkdirs()
+            }
 
-            return
-        }
+            initUiFolders()
 
-        if (!librariesFolder.exists()) {
-            librariesFolder.mkdirs()
-        }
+            checkEmbeddedUiUpgrades()
 
-        initUiFolders()
+            logger.info("Verifying Bun runtime...")
 
-        checkEmbeddedUiUpgrades()
+            if (!File(bunFilePath).exists()) {
+                logger.warn("Required Bun runtime is not found.")
+                logger.warn("Downloading Bun runtime, may take a while...")
 
-        logger.info("Verifying Bun runtime...")
-
-        if (!File(bunFilePath).exists()) {
-            logger.warn("Required Bun runtime is not found.")
-            logger.warn("Downloading Bun runtime, may take a while...")
-
-            downloadBunRuntime(bunZipFileName)
+                downloadBunRuntime(bunZipFileName)
+            }
         }
 
         val currentTheme = config.currentTheme
@@ -507,14 +503,16 @@ class UIManager(
 
         activeTheme = theme
 
-        try {
-            startUI("setup-ui", setupUIFolder.absolutePath)
-            startUI("panel-ui", panelUIFolder.absolutePath)
-            startUI(theme)
-        } catch (e: Exception) {
-            logger.error("Failed to start UI.", e)
+        if (config.initUi) {
+            try {
+                startUI("setup-ui", setupUIFolder.absolutePath)
+                startUI("panel-ui", panelUIFolder.absolutePath)
+                startUI(theme)
+            } catch (e: Exception) {
+                logger.error("Failed to start UI.", e)
 
-            exitProcess(1)
+                exitProcess(1)
+            }
         }
 
         reloadInstalledThemes()

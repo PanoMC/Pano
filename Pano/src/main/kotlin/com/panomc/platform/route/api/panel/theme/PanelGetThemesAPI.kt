@@ -48,12 +48,11 @@ class PanelGetThemesAPI(
             parameters.queryParameter("status")?.jsonArray?.first() as String? ?: ResourceStatusType.ALL.name
         )
 
-        val config = configManager.config
-        val currentTheme = config.currentTheme
+        val activeTheme = uiManager.activeTheme
 
         val themes = when (statusType) {
-            ResourceStatusType.ACTIVE -> uiManager.installedThemeList.filter { it.id == currentTheme }
-            ResourceStatusType.DISABLED -> uiManager.installedThemeList.filter { it.id != currentTheme }
+            ResourceStatusType.ACTIVE -> uiManager.installedThemeList.filter { it.id == activeTheme }
+            ResourceStatusType.DISABLED -> uiManager.installedThemeList.filter { it.id != activeTheme }
             else -> uiManager.installedThemeList
         }
 
@@ -73,7 +72,7 @@ class PanelGetThemesAPI(
                     "description" to theme.description,
                     "version" to theme.version,
                     "author" to theme.author,
-                    "active" to (currentTheme == theme.id),
+                    "active" to (activeTheme == theme.id),
                     "panoVersion" to theme.panoVersion,
                     "screenshots" to theme.screenshots,
                     "license" to theme.license,

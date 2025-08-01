@@ -437,6 +437,7 @@ class UIManager(
     }
 
     fun reloadInstalledThemes() {
+        logger.info("Reloading installed themes...")
         _installedThemeList = mutableListOf()
 
         if (!themesFolder.exists()) {
@@ -462,6 +463,8 @@ class UIManager(
                     return@forEach
                 }
             }
+
+        logger.info("{} amount of installed theme found.", _installedThemeList.size)
     }
 
     internal fun init() {

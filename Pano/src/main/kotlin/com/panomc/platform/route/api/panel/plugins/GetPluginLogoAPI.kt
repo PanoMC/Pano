@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.plugins
 
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
@@ -20,7 +22,8 @@ import java.io.InputStream
 
 @Endpoint
 class GetPluginLogoAPI(
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/plugins/:pluginId/logo", RouteType.GET))
 
@@ -30,6 +33,8 @@ class GetPluginLogoAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
+        authProvider.requirePermission(ManageAddonsPermission(), context)
+
         val parameters = getParameters(context)
 
         val pluginId = parameters.pathParameter("pluginId").string

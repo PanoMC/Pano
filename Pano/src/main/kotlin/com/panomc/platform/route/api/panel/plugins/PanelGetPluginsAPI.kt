@@ -4,6 +4,8 @@ import com.panomc.platform.PanoPluginDescriptor
 import com.panomc.platform.PanoPluginWrapper
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.ResourceHashStatus
@@ -20,7 +22,8 @@ import org.pf4j.PluginState
 @Endpoint
 class PanelGetPluginsAPI(
     private val databaseManager: DatabaseManager,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/plugins", RouteType.GET))
 
@@ -36,6 +39,8 @@ class PanelGetPluginsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManageAddonsPermission(), context)
+
         val parameters = getParameters(context)
 
         val statusType = ResourceStatusType.valueOf(

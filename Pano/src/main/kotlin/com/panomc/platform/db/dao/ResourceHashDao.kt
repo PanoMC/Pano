@@ -14,4 +14,9 @@ abstract class ResourceHashDao : Dao<ResourceHash>(ResourceHash::class.java) {
         hashList: List<String>,
         sqlClient: SqlClient
     ): Map<String, ResourceHash>
+
+    abstract suspend fun deleteByHash(
+        hash: String,
+        sqlClient: SqlClient,
+    )
 }

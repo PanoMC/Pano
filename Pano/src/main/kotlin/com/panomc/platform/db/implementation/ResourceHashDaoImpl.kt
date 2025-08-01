@@ -82,4 +82,20 @@ class ResourceHashDaoImpl : ResourceHashDao() {
 
         return listOfResourceHash
     }
+
+    override suspend fun deleteByHash(
+        hash: String,
+        sqlClient: SqlClient,
+    ) {
+        val query =
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `hash` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    hash
+                )
+            ).coAwait()
+    }
 }

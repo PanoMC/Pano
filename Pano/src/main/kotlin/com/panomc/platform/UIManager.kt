@@ -1,7 +1,7 @@
 package com.panomc.platform
 
 import com.google.gson.GsonBuilder
-import com.panomc.platform.AppConstants.DEFAULT_THEME_NAME
+import com.panomc.platform.AppConstants.DEFAULT_THEME_ID
 import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
@@ -49,7 +49,7 @@ class UIManager(
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
     private val panelUIFolderPath = System.getProperty("pano.panelUIFolder", "panel-ui")
-    private val defaultThemeFolderPath = THEMES_FOLDER_PATH + File.separator + DEFAULT_THEME_NAME
+    private val defaultThemeFolderPath = THEMES_FOLDER_PATH + File.separator + DEFAULT_THEME_ID
 
     val manifestFileName = "manifest.json"
 
@@ -499,10 +499,10 @@ class UIManager(
         val currentThemeValid = currentThemeFolder.exists() && currentThemeFolder.isDirectory
 
         if (!currentThemeValid) {
-            logger.error("Current theme is not valid, defaulting to \"$DEFAULT_THEME_NAME\"")
+            logger.error("Current theme is not valid, defaulting to \"$DEFAULT_THEME_ID\"")
         }
 
-        val theme = if (currentThemeValid) currentTheme else DEFAULT_THEME_NAME
+        val theme = if (currentThemeValid) currentTheme else DEFAULT_THEME_ID
 
         activeTheme = theme
 

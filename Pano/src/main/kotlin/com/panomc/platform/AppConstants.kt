@@ -20,7 +20,7 @@ object AppConstants {
     val pluginUiFolder = "plugin-ui/"
 
     val THEMES_FOLDER_PATH: String = System.getProperty("pano.themesFolder", "themes")
-    const val DEFAULT_THEME_NAME = "vanilla-theme"
+    const val DEFAULT_THEME_ID = "vanilla-theme"
 
     const val TEMP_FOLDER = ".temp"
 

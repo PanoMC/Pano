@@ -12,12 +12,14 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.error.Unauthorized
 import com.panomc.platform.model.*
+import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import org.springframework.context.annotation.Lazy
 import java.io.File
 
 @Endpoint
@@ -25,7 +27,8 @@ class PanelDeleteThemeAPI(
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
     private val configManager: ConfigManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    @param:Lazy private val router: Router
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes/:themeId", RouteType.DELETE))
 
@@ -55,6 +58,17 @@ class PanelDeleteThemeAPI(
         if (theme.id == currentTheme) {
             config.currentTheme = AppConstants.DEFAULT_THEME_ID
             configManager.saveConfig()
+        }
+
+        if (uiManager.activeTheme == theme.id) {
+            uiManager.stopUI(theme.id)
+            uiManager.disableUIOnRoute(router, Type.THEME_UI)
+
+            if (config.initUi) {
+                uiManager.startUI(AppConstants.DEFAULT_THEME_ID)
+            }
+
+            uiManager.activateThemeUI(router, AppConstants.DEFAULT_THEME_ID)
         }
 
         if (themeFolder.exists()) {

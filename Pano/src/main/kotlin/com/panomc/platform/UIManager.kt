@@ -87,7 +87,7 @@ class UIManager(
     val installedThemeList: List<InstalledTheme>
         get() = _installedThemeList
 
-    private var activeTheme = ""
+    var activeTheme = ""
 
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
 

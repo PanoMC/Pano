@@ -189,7 +189,7 @@ class InstallManager(
                         throw FailedToInstallSystemResource()
                     }
 
-                    if (config.currentTheme == id) {
+                    if (config.currentTheme == id && config.initUi) {
                         uiManager.stopUI(id)
                         uiManager.disableUIOnRoute(router, Route.Type.THEME_UI)
                     }
@@ -202,7 +202,7 @@ class InstallManager(
 
                 uiManager.reloadInstalledThemes()
 
-                if (config.currentTheme == id) {
+                if (config.currentTheme == id && config.initUi) {
                     uiManager.startUI(id)
                     uiManager.activateThemeUI(router)
                 }

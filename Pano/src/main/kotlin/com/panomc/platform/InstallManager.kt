@@ -205,8 +205,6 @@ class InstallManager(
                 if (config.currentTheme == id) {
                     uiManager.startUI(id)
                     uiManager.activateThemeUI(router)
-                } else {
-                    config.currentTheme = id
                 }
 
                 if (verified != null) {

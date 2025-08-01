@@ -6,4 +6,4 @@ import com.panomc.platform.model.Error
 class NoPermission(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(401, statusMessage, extras)
+) : Error(403, statusMessage, extras)

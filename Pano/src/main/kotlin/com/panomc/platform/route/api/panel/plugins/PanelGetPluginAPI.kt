@@ -47,12 +47,13 @@ class PanelGetPluginAPI(
 
         val resourceHashes = databaseManager.resourceHashDao.byListOfHash(listOf(plugin.hash), sqlClient)
 
+
         return Successful(
             mapOf(
                 "data" to mapOf(
                     "id" to plugin.pluginId,
-                    "author" to panoPluginDescriptor.provider,
-                    "description" to panoPluginDescriptor.pluginDescription,
+                    "author" to panoPluginDescriptor.developer,
+                    "description" to panoPluginDescriptor.description,
                     "version" to panoPluginDescriptor.version,
                     "status" to plugin.pluginState,
                     "dependencies" to panoPluginDescriptor.dependencies,

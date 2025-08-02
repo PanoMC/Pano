@@ -2,12 +2,20 @@ package com.panomc.platform
 
 import org.pf4j.ManifestPluginDescriptorFinder
 import org.pf4j.PluginDescriptor
-import org.pf4j.util.StringUtils
 import java.util.jar.Manifest
 
 class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
     companion object {
-        private const val PLUGIN_SOURCE_URL: String = "Plugin-Source-Url"
+        private const val PLUGIN_ID: String = "id"
+        private const val PLUGIN_NAME: String = "name"
+        private const val PLUGIN_DESCRIPTION: String = "description"
+        private const val PLUGIN_CLASS: String = "main-class"
+        private const val PLUGIN_VERSION: String = "version"
+        private const val PLUGIN_DEVELOPER: String = "developer"
+        private const val PLUGIN_LICENSE: String = "license"
+        private const val PLUGIN_SOURCE_URL: String = "source-url"
+        private const val PLUGIN_DEPENDENCIES: String = "dependencies"
+        private const val PLUGIN_REQUIRES: String = "requires"
     }
 
     override fun createPluginDescriptorInstance(): PanoPluginDescriptor {
@@ -19,41 +27,26 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
 
         val attributes = manifest.mainAttributes
         val id = attributes.getValue(PLUGIN_ID)
-        pluginDescriptor.pluginId = id
-
+        val name = attributes.getValue(PLUGIN_NAME)
         val description = attributes.getValue(PLUGIN_DESCRIPTION)
-        pluginDescriptor.pluginDescription = if (StringUtils.isNullOrEmpty(description)) {
-            ""
-        } else {
-            description
-        }
-
         val clazz = attributes.getValue(PLUGIN_CLASS)
-        if (StringUtils.isNotNullOrEmpty(clazz)) {
-            pluginDescriptor.setPluginClass(clazz)
-        }
-
         val version = attributes.getValue(PLUGIN_VERSION)
-        if (StringUtils.isNotNullOrEmpty(version)) {
-            pluginDescriptor.setPluginVersion(version)
-        }
-
-        val provider = attributes.getValue(PLUGIN_PROVIDER)
-        pluginDescriptor.setProvider(provider)
-        val dependencies = attributes.getValue(PLUGIN_DEPENDENCIES)
-        pluginDescriptor.setDependencies(dependencies)
-
-        val requires = attributes.getValue(PLUGIN_REQUIRES)
-        if (StringUtils.isNotNullOrEmpty(requires)) {
-            pluginDescriptor.setRequires(requires)
-        }
-
-        pluginDescriptor.setLicense(attributes.getValue(PLUGIN_LICENSE))
-
+        val developer = attributes.getValue(PLUGIN_DEVELOPER)
+        val license = attributes.getValue(PLUGIN_LICENSE)
         val sourceUrl = attributes.getValue(PLUGIN_SOURCE_URL)
-        if (StringUtils.isNotNullOrEmpty(sourceUrl)) {
-            pluginDescriptor.sourceUrl = sourceUrl
-        }
+        val dependencies = attributes.getValue(PLUGIN_DEPENDENCIES)
+        val requires = attributes.getValue(PLUGIN_REQUIRES)
+
+        pluginDescriptor.pluginId = id
+        pluginDescriptor.name = name
+        pluginDescriptor.description = description
+        pluginDescriptor.setPluginClass(clazz)
+        pluginDescriptor.setPluginVersion(version)
+        pluginDescriptor.developer = developer
+        pluginDescriptor.setLicense(license)
+        pluginDescriptor.sourceUrl = sourceUrl
+        pluginDescriptor.setDependencies(dependencies)
+        pluginDescriptor.setRequires(requires)
 
         return pluginDescriptor
     }

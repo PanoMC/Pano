@@ -9,6 +9,7 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
         private const val PLUGIN_ID: String = "id"
         private const val PLUGIN_NAME: String = "name"
         private const val PLUGIN_DESCRIPTION: String = "description"
+        private const val PLUGIN_PANO_VERSION: String = "pano-version"
         private const val PLUGIN_CLASS: String = "main-class"
         private const val PLUGIN_VERSION: String = "version"
         private const val PLUGIN_DEVELOPER: String = "developer"
@@ -29,6 +30,7 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
         val id = attributes.getValue(PLUGIN_ID)
         val name = attributes.getValue(PLUGIN_NAME)
         val description = attributes.getValue(PLUGIN_DESCRIPTION)
+        val panoVersion = attributes.getValue(PLUGIN_PANO_VERSION)
         val clazz = attributes.getValue(PLUGIN_CLASS)
         val version = attributes.getValue(PLUGIN_VERSION)
         val developer = attributes.getValue(PLUGIN_DEVELOPER)
@@ -40,6 +42,7 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
         pluginDescriptor.pluginId = id
         pluginDescriptor.name = name
         pluginDescriptor.description = description
+        pluginDescriptor.panoVersion = panoVersion
         pluginDescriptor.setPluginClass(clazz)
         pluginDescriptor.setPluginVersion(version)
         pluginDescriptor.developer = developer

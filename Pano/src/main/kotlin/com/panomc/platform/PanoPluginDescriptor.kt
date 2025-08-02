@@ -6,6 +6,7 @@ import org.pf4j.PluginDescriptor
 class PanoPluginDescriptor : DefaultPluginDescriptor() {
     lateinit var name: String
     var description: String? = null
+    lateinit var panoVersion: String
     lateinit var developer: String
     var sourceUrl: String? = null
 

@@ -69,6 +69,7 @@ class PanelGetPluginsAPI(
                     "id" to plugin.pluginId,
                     "name" to panoPluginDescriptor.name,
                     "description" to panoPluginDescriptor.description,
+                    "panoVersion" to panoPluginDescriptor.panoVersion,
                     "developer" to panoPluginDescriptor.developer,
                     "version" to panoPluginDescriptor.version,
                     "license" to panoPluginDescriptor.license,

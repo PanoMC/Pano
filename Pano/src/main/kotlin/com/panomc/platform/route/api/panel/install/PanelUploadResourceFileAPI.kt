@@ -42,7 +42,7 @@ class PanelUploadResourceFileAPI : PanelApi() {
         }
 
         val split = file.fileName().split(".")
-        val tempFileName = "pano-upload_" + getCurrentTimeStamp() + (if (split.size > 1) "." + split[1] else "")
+        val tempFileName = "pano-upload_" + getCurrentTimeStamp() + (if (split.size > 1) "." + split.last() else "")
         val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + tempFileName
 
         uploadedFile.copyTo(File(temporaryFilePath))

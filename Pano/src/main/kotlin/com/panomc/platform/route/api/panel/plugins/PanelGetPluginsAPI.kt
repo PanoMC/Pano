@@ -57,32 +57,32 @@ class PanelGetPluginsAPI(
 
         val sqlClient = getSqlClient()
 
-        val addonHashes = databaseManager.resourceHashDao.byListOfHash(hashList, sqlClient)
+        val resourceHashes = databaseManager.resourceHashDao.byListOfHash(hashList, sqlClient)
 
-        val result = mutableMapOf(
-            "plugins" to plugins.map { plugin ->
+        return Successful(
+            mapOf(
+                "data" to plugins.map { plugin ->
                 val panoPluginDescriptor = plugin.descriptor as PanoPluginDescriptor
 
                 mapOf(
                     "id" to plugin.pluginId,
-                    "author" to panoPluginDescriptor.provider,
-                    "description" to panoPluginDescriptor.pluginDescription,
+                    "name" to panoPluginDescriptor.name,
+                    "description" to panoPluginDescriptor.description,
+                    "developer" to panoPluginDescriptor.developer,
                     "version" to panoPluginDescriptor.version,
+                    "license" to panoPluginDescriptor.license,
+                    "sourceUrl" to panoPluginDescriptor.sourceUrl,
                     "status" to plugin.pluginState,
+                    "hash" to plugin.hash,
                     "dependencies" to panoPluginDescriptor.dependencies,
                     "notStartedDependencies" to panoPluginDescriptor.dependencies.filter { dependency -> !dependency.isOptional && plugins.any { it.pluginId == dependency.pluginId && it.pluginState != PluginState.STARTED } }
                         .map { it.pluginId },
                     "dependents" to plugins.filter { it.pluginState == PluginState.STARTED && it.descriptor.dependencies.any { it.pluginId == plugin.pluginId && !it.isOptional } }
                         .map { it.pluginId },
-                    "license" to panoPluginDescriptor.license,
                     "error" to if (plugin.failedException == null) null else TextUtil.getStackTraceAsString(plugin.failedException),
-                    "hash" to plugin.hash,
-                    "verifyStatus" to if (addonHashes[plugin.hash] == null) ResourceHashStatus.UNKNOWN else addonHashes[plugin.hash]!!.status,
-                    "sourceUrl" to panoPluginDescriptor.sourceUrl
+                    "verifyStatus" to if (resourceHashes[plugin.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[plugin.hash]!!.status,
                 )
             }
-        )
-
-        return Successful(result)
+            ))
     }
 }

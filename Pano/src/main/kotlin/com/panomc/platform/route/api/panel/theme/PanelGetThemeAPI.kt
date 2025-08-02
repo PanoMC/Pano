@@ -55,6 +55,7 @@ class PanelGetThemeAPI(
                     "id" to theme.id,
                     "title" to theme.title,
                     "description" to theme.description,
+                    "panoVersion" to theme.panoVersion,
                     "version" to theme.version,
                     "author" to theme.author,
                     "active" to (activeTheme == theme.id),

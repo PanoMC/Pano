@@ -9,6 +9,7 @@ import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
+import com.panomc.platform.util.FileUtil.getSize
 import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
@@ -60,12 +61,14 @@ class PanelGetPluginAPI(
                     "status" to plugin.pluginState,
                     "hash" to plugin.hash,
                     "dependencies" to panoPluginDescriptor.dependencies,
+                    "requires" to panoPluginDescriptor.requires,
                     "notStartedDependencies" to panoPluginDescriptor.dependencies.filter { dependency -> !dependency.isOptional && plugins.any { it.pluginId == dependency.pluginId && it.pluginState != PluginState.STARTED } }
                         .map { it.pluginId },
                     "dependents" to plugins.filter { it.pluginState == PluginState.STARTED && it.descriptor.dependencies.any { it.pluginId == plugin.pluginId && !it.isOptional } }
                         .map { it.pluginId },
                     "error" to if (plugin.failedException == null) null else TextUtil.getStackTraceAsString(plugin.failedException),
                     "verifyStatus" to if (resourceHashes[plugin.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[plugin.hash]!!.status,
+                    "size" to plugin.pluginPath.toFile().getSize()
                 )
             )
         )

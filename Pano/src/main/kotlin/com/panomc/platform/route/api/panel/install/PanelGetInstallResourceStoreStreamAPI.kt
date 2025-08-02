@@ -16,7 +16,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.util.*
 
 @Endpoint
-class PanelGetInstallResourceStreamAPI(
+class PanelGetInstallResourceStoreStreamAPI(
     private val panoApiManager: PanoApiManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/store/:versionId/stream", RouteType.GET))

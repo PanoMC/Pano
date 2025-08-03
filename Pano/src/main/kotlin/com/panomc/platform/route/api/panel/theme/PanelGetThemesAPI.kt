@@ -5,7 +5,6 @@ import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUtil.getSize
@@ -23,7 +22,6 @@ import java.io.File
 class PanelGetThemesAPI(
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
-    private val configManager: ConfigManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes", RouteType.GET))

@@ -5,7 +5,6 @@ import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
@@ -23,7 +22,6 @@ import java.io.File
 class PanelGetThemeAPI(
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
-    private val configManager: ConfigManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes/:themeId", RouteType.GET))
@@ -49,6 +47,8 @@ class PanelGetThemeAPI(
 
         val resourceHashes = databaseManager.resourceHashDao.byListOfHash(listOf(theme.hash), sqlClient)
 
+        val running = uiManager.activeTheme == theme.id && uiManager.activatedUIList.containsKey(Type.THEME_UI)
+
         return Successful(
             mapOf(
                 "data" to mapOf(
@@ -68,7 +68,8 @@ class PanelGetThemeAPI(
                     "updatedAt" to theme.updatedAt,
                     "installedBy" to theme.installedBy,
                     "verifyStatus" to if (resourceHashes[theme.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[theme.hash]!!.status,
-                    "sourceUrl" to theme.sourceUrl
+                    "sourceUrl" to theme.sourceUrl,
+                    "running" to running
                 )
             )
         )

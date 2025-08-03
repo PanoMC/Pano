@@ -43,8 +43,6 @@ class PanelDeletePluginAPI(
         val pluginFile = pluginWrapper.pluginPath.toFile()
 
         pluginManager.stopPlugin(pluginId)
-        pluginManager.disablePlugin(pluginId)
-        pluginManager.unloadPlugin(pluginId)
 
         val dependents =
             pluginManager.plugins.filter { it.pluginState != PluginState.DISABLED && it.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
@@ -53,6 +51,9 @@ class PanelDeletePluginAPI(
         dependents.forEach {
             pluginManager.disablePlugin(it)
         }
+
+        pluginManager.disablePlugin(pluginId)
+        pluginManager.unloadPlugin(pluginId)
 
         pluginFile.delete()
 

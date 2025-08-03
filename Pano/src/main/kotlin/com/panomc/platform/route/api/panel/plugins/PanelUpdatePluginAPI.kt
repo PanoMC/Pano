@@ -71,6 +71,14 @@ class PanelUpdatePluginAPI(
 
                     pluginManager.stopPlugin(pluginId)
                     pluginManager.disablePlugin(pluginId)
+
+                    val dependents =
+                        pluginManager.plugins.filter { it.pluginState != PluginState.DISABLED && it.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
+                            .map { it.pluginId }
+
+                    dependents.forEach {
+                        pluginManager.disablePlugin(it)
+                    }
                 }
             }
         } catch (e: Exception) {

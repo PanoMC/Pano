@@ -51,10 +51,10 @@ class PanelUpdatePluginAPI(
             throw NotFound()
         }
 
-        val status = data.getBoolean("status") ?: null
+        val status = data.getBoolean("status")
 
+        if (status != null) {
         try {
-            if (status != null) {
                 if (status) {
                     if (pluginWrapper.pluginState == PluginState.STARTED) {
                         return Successful()
@@ -80,8 +80,12 @@ class PanelUpdatePluginAPI(
                         pluginManager.disablePlugin(it)
                     }
                 }
-            }
         } catch (e: Exception) {
+            val plugin = pluginManager.getPlugin(pluginId)
+
+            plugin.failedException = e
+            plugin.pluginState = PluginState.FAILED
+
             return Successful(
                 mapOf(
                     "status" to pluginWrapper.pluginState,
@@ -90,6 +94,7 @@ class PanelUpdatePluginAPI(
                     )
                 )
             )
+        }
         }
 
         return Successful(

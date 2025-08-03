@@ -67,6 +67,8 @@ class PanelGetPluginAPI(
                         .map { it.pluginId },
                     "dependents" to plugins.filter { it.pluginState == PluginState.STARTED && it.descriptor.dependencies.any { it.pluginId == plugin.pluginId && !it.isOptional } }
                         .map { it.pluginId },
+                    "removeDependents" to plugins.filter { it.descriptor.dependencies.any { it.pluginId == plugin.pluginId && !it.isOptional } }
+                        .map { it.pluginId },
                     "error" to if (plugin.failedException == null) null else TextUtil.getStackTraceAsString(plugin.failedException),
                     "verifyStatus" to if (resourceHashes[plugin.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[plugin.hash]!!.status,
                     "size" to plugin.pluginPath.toFile().getSize()

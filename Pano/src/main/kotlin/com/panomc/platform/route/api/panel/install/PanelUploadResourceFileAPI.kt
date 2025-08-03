@@ -4,7 +4,6 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.*
-import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
@@ -41,16 +40,14 @@ class PanelUploadResourceFileAPI : PanelApi() {
             tempFolder.mkdirs()
         }
 
-        val split = file.fileName().split(".")
-        val tempFileName = "pano-upload_" + getCurrentTimeStamp() + (if (split.size > 1) "." + split.last() else "")
-        val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + tempFileName
+        val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + file.fileName()
 
-        uploadedFile.copyTo(File(temporaryFilePath))
+        uploadedFile.copyTo(File(temporaryFilePath), true)
 
         return Successful(
             mapOf(
                 "data" to mapOf(
-                    "fileName" to tempFileName
+                    "fileName" to file.fileName()
                 )
             )
         )

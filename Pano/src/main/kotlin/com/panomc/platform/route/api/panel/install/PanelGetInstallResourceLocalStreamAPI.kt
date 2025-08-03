@@ -3,13 +3,12 @@ package com.panomc.platform.route.api.panel.install
 import com.panomc.platform.AppConstants
 import com.panomc.platform.InstallManager
 import com.panomc.platform.InstallManager.Companion.ResourceType
+import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.InvalidResourceFile
-import com.panomc.platform.model.PanelApi
-import com.panomc.platform.model.Path
-import com.panomc.platform.model.Result
-import com.panomc.platform.model.RouteType
+import com.panomc.platform.model.*
+import com.panomc.platform.util.FileUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -17,10 +16,12 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.File
+import kotlin.io.path.absolutePathString
 
 @Endpoint
 class PanelGetInstallResourceLocalStreamAPI(
-    private val installManager: InstallManager
+    private val installManager: InstallManager,
+    private val pluginManager: PluginManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/local/:type/:fileName/stream", RouteType.GET))
 
@@ -50,16 +51,32 @@ class PanelGetInstallResourceLocalStreamAPI(
         val tempFolder = File(AppConstants.TEMP_FOLDER)
         val file = File(tempFolder, fileName)
 
-        if (!file.exists()) {
+        if (!file.exists() || !file.isFile) {
             throw InvalidResourceFile()
         }
 
-        installManager.installResource(null, null, file, type) {
-            sendServerSentEventMessage(context, it)
+        context.put("file", file)
 
-            if (it is Error) {
-                file.delete()
-            }
+        val resourceFolderPath =
+            if (type == ResourceType.PLUGIN) pluginManager.pluginsRoot.absolutePathString() else File(
+                AppConstants.THEMES_FOLDER_PATH
+            ).absolutePath
+
+        val vertx = context.vertx()
+        val fileSystem = vertx.fileSystem()
+        var newFilePath = resourceFolderPath + File.separator + fileName
+
+        if (File(newFilePath).exists()) {
+            newFilePath = FileUtil.getAvailableFilePath(newFilePath)
+        }
+
+        fileSystem.moveBlocking(file.absolutePath, newFilePath)
+        val newFile = File(newFilePath)
+
+        context.put("file", newFile)
+
+        installManager.installResource(null, null, newFile, type) {
+            sendServerSentEventMessage(context, it)
         }
 
         return null
@@ -83,6 +100,7 @@ class PanelGetInstallResourceLocalStreamAPI(
         response.write("data: ${responseBody}\n\n")
 
         if (result is Error) {
+            context.get<File>("file")?.delete()
             result.printStackTrace()
             response.end()
         }

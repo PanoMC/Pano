@@ -355,9 +355,7 @@ class PanoApiManager(
 
             if (getFileResponse.statusCode() != 200) {
                 writeStream.close()
-                // TODO: Add error
-
-                return
+                throw PanoConnectFailed()
             }
 
             sendServerSentEventMessage(context, Successful()) // Downloading file success

@@ -48,8 +48,8 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
         pluginDescriptor.developer = developer
         pluginDescriptor.setLicense(license)
         pluginDescriptor.sourceUrl = sourceUrl
-        pluginDescriptor.setDependencies(dependencies)
-        pluginDescriptor.setRequires(requires)
+        pluginDescriptor.setDependencies(dependencies ?: "")
+        pluginDescriptor.setRequires(requires ?: "")
 
         return pluginDescriptor
     }

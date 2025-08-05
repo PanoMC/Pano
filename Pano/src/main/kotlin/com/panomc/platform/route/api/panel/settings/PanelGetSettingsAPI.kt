@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.Main
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
@@ -83,12 +84,18 @@ class PanelGetSettingsAPI(
                 databaseManager.systemPropertyDao.getByOption(UpdateManager.PLATFORM_UPDATE_CHECK_INFO, sqlClient)
         }
 
+        if (settingType == SettingType.ABOUT) {
+            result["platformVersion"] = Main.VERSION
+            result["platformStage"] = Main.STAGE.toString()
+        }
+
         return Successful(result)
     }
 
     enum class SettingType {
         GENERAL,
         WEBSITE,
-        UPDATES;
+        UPDATES,
+        ABOUT;
     }
 }

@@ -1,10 +1,12 @@
 package com.panomc.platform.route.api.panel.settings
 
 import com.panomc.platform.PanoApiManager
+import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -19,7 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 class PanelGetSettingsAPI(
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider,
-    private val panoApiManager: PanoApiManager
+    private val panoApiManager: PanoApiManager,
+    private val databaseManager: DatabaseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.GET))
 
@@ -73,11 +76,19 @@ class PanelGetSettingsAPI(
             result["keywords"] = configManager.config.keywords
         }
 
+        if (settingType == SettingType.UPDATES) {
+            val sqlClient = databaseManager.getSqlClient()
+
+            result["platformUpdate"] =
+                databaseManager.systemPropertyDao.getByOption(UpdateManager.PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+        }
+
         return Successful(result)
     }
 
     enum class SettingType {
         GENERAL,
-        WEBSITE;
+        WEBSITE,
+        UPDATES;
     }
 }

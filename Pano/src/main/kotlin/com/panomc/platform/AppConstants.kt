@@ -24,4 +24,6 @@ object AppConstants {
 
     const val TEMP_FOLDER = ".temp"
 
+    const val REPO = "PanoMC/pano"
+
 }

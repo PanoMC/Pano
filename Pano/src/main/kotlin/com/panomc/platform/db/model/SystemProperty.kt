@@ -6,5 +6,7 @@ import com.panomc.platform.db.DBEntity
 data class SystemProperty(
     val id: Long = -1,
     val option: String,
-    val value: String = ""
+    val value: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 ) : DBEntity()

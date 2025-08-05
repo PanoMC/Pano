@@ -20,6 +20,8 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
                           `id` bigint NOT NULL AUTO_INCREMENT,
                           `option` text NOT NULL,
                           `value` text NOT NULL,
+                          `createdAt` BIGINT(20) NOT NULL,
+                          `updatedAt` BIGINT(20) NOT NULL,
                           PRIMARY KEY (`id`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='System Property table.';
                     """
@@ -35,14 +37,17 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
         systemProperty: SystemProperty,
         sqlClient: SqlClient
     ) {
-        val query = "INSERT INTO `${getTablePrefix() + tableName}` (`option`, `value`) VALUES (?, ?)"
+        val query =
+            "INSERT INTO `${getTablePrefix() + tableName}` (`option`, `value`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?)"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     systemProperty.option,
-                    systemProperty.value
+                    systemProperty.value,
+                    systemProperty.createdAt,
+                    systemProperty.updatedAt
                 )
             )
             .coAwait()
@@ -54,13 +59,14 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `value` = ? WHERE `option` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `value` = ?, `updatedAt` = ? WHERE `option` = ?"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     value,
+                    System.currentTimeMillis(),
                     option
                 )
             )
@@ -108,7 +114,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
         option: String,
         sqlClient: SqlClient
     ): SystemProperty? {
-        val query = "SELECT `id`, `option`, `value` FROM `${getTablePrefix() + tableName}` where `option` = ?"
+        val query = "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` where `option` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

@@ -17,15 +17,18 @@ import org.springframework.stereotype.Component
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class UpdateManager(private val webClient: WebClient, private val databaseManager: DatabaseManager) {
+class UpdateManager(
+    private val webClient: WebClient,
+    private val databaseManager: DatabaseManager,
+    private val panoApiManager: PanoApiManager
+) {
     companion object {
         const val PLATFORM_UPDATE_CHECK_INFO = "platform_update_check_info"
+        const val RESOURCES_UPDATE_CHECK_INFO = "resources_update_check_info"
         const val UPDATE_LAST_CHECK = "update_last_checked_at"
     }
 
     suspend fun checkPlatformUpdate() {
-        updateLastCheck()
-
         try {
             val latestRelease = if (STAGE == ReleaseStage.RELEASE) {
                 val getLatestReleaseResponse = webClient
@@ -105,6 +108,44 @@ class UpdateManager(private val webClient: WebClient, private val databaseManage
             e.printStackTrace()
             throw InternalServerError()
         }
+    }
+
+    suspend fun checkResourceUpdates() {
+        if (!panoApiManager.isConnected()) {
+            return
+        }
+
+        try {
+            panoApiManager.updatePlatformMetadata()
+
+            val updates = panoApiManager.getUpdates()
+
+            val sqlClient = databaseManager.getSqlClient()
+
+            val propertyExists =
+                databaseManager.systemPropertyDao.existsByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+
+            if (propertyExists) {
+                databaseManager.systemPropertyDao.update(RESOURCES_UPDATE_CHECK_INFO, updates.encode(), sqlClient)
+                return
+            }
+
+            databaseManager.systemPropertyDao.add(
+                SystemProperty(
+                    option = RESOURCES_UPDATE_CHECK_INFO,
+                    value = updates.encode()
+                ), sqlClient
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            throw InternalServerError()
+        }
+    }
+
+    suspend fun checkUpdates() {
+        updateLastCheck()
+        checkResourceUpdates()
+        checkPlatformUpdate()
     }
 
     private suspend fun updateLastCheck() {

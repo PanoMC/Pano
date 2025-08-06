@@ -9,6 +9,7 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -44,7 +45,7 @@ class PanelGetSettingsAPI(
 
         val result = mutableMapOf<String, Any?>()
 
-        if (settingType == SettingType.GENERAL) {
+        if (settingType == SettingType.GENERAL || settingType == SettingType.UPDATES) {
             val panoAccountConfig = configManager.config.panoAccount
 
             if (panoApiManager.isConnected()) {
@@ -55,7 +56,9 @@ class PanelGetSettingsAPI(
 
                 result["panoAccount"] = panoAccount
             }
+        }
 
+        if (settingType == SettingType.GENERAL) {
             result["updatePeriod"] = configManager.config.updatePeriod.name
             result["locale"] = configManager.config.locale
 
@@ -83,9 +86,12 @@ class PanelGetSettingsAPI(
             val lastCheck = databaseManager.systemPropertyDao.getByOption(UpdateManager.UPDATE_LAST_CHECK, sqlClient)
             val platformUpdate =
                 databaseManager.systemPropertyDao.getByOption(UpdateManager.PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+            val resourceUpdates =
+                databaseManager.systemPropertyDao.getByOption(UpdateManager.RESOURCES_UPDATE_CHECK_INFO, sqlClient)
 
             result["lastCheckedAt"] = lastCheck
             result["platformUpdate"] = platformUpdate?.value?.let { JsonObject(it) }
+            result["resourceUpdates"] = resourceUpdates?.value?.let { JsonArray(it) } ?: JsonArray()
         }
 
         if (settingType == SettingType.ABOUT) {

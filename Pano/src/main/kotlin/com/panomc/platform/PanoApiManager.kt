@@ -13,6 +13,7 @@ import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.HttpRequest
@@ -316,6 +317,28 @@ class PanoApiManager(
 
         if (response.statusCode() == 404) {
             throw NotFound()
+        }
+
+        return data
+    }
+
+    suspend fun getUpdates(): JsonArray {
+        val response: HttpResponse<Buffer>
+        val data: JsonArray
+
+        try {
+            response = createRequest(HttpMethod.GET, "/platform/api/store/resources/versions")
+                .send()
+                .coAwait()
+
+            val responseBody = response.bodyAsJsonObject()
+            data = responseBody.getJsonArray("data")
+        } catch (_: Exception) {
+            throw PanoConnectFailed()
+        }
+
+        if (response.statusCode() == 401) {
+            throw PanoNotConnected()
         }
 
         return data

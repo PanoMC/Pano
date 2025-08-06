@@ -15,7 +15,7 @@ class PanelCheckPlatformUpdateAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        updateManager.checkPlatformUpdate()
+        updateManager.checkUpdates()
 
         return Successful()
     }

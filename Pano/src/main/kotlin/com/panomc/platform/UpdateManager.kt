@@ -20,10 +20,12 @@ import org.springframework.stereotype.Component
 class UpdateManager(private val webClient: WebClient, private val databaseManager: DatabaseManager) {
     companion object {
         const val PLATFORM_UPDATE_CHECK_INFO = "platform_update_check_info"
-
+        const val UPDATE_LAST_CHECK = "update_last_checked_at"
     }
 
     suspend fun checkPlatformUpdate() {
+        updateLastCheck()
+
         try {
             val latestRelease = if (STAGE == ReleaseStage.RELEASE) {
                 val getLatestReleaseResponse = webClient
@@ -62,6 +64,7 @@ class UpdateManager(private val webClient: WebClient, private val databaseManage
             val changelog = latestRelease.getString("body")
             val version = latestRelease.getString("tag_name")
             val assets = latestRelease.getJsonArray("assets").map { it as JsonObject }
+            val releaseDate = latestRelease.getString("published_at")
 
             if (!VersionUtil.isVersionHigher(version, Main.VERSION)) {
                 throw NotFound()
@@ -69,6 +72,8 @@ class UpdateManager(private val webClient: WebClient, private val databaseManage
 
             val asset = assets.find { it.getString("name").endsWith(".jar") } ?: throw NotFound()
             val downloadUrl = asset.getString("browser_download_url")
+            val size = asset.getLong("size")
+            val hash = asset.getString("digest")
 
             val sqlClient = databaseManager.getSqlClient()
             val propertyExists = databaseManager.systemPropertyDao.existsByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
@@ -77,7 +82,11 @@ class UpdateManager(private val webClient: WebClient, private val databaseManage
                 mapOf(
                     "changelog" to changelog,
                     "version" to version,
-                    "downloadUrl" to downloadUrl
+                    "downloadUrl" to downloadUrl,
+                    "size" to size,
+                    "hash" to hash,
+                    "releaseDate" to releaseDate,
+                    "channel" to VersionUtil.getReleaseType(version)
                 )
             )
 
@@ -92,8 +101,29 @@ class UpdateManager(private val webClient: WebClient, private val databaseManage
                     value = versionInfo.encode()
                 ), sqlClient
             )
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            e.printStackTrace()
             throw InternalServerError()
         }
+    }
+
+    private suspend fun updateLastCheck() {
+        val sqlClient = databaseManager.getSqlClient()
+
+        if (databaseManager.systemPropertyDao.existsByOption(UPDATE_LAST_CHECK, sqlClient)) {
+            databaseManager.systemPropertyDao.update(
+                UPDATE_LAST_CHECK,
+                System.currentTimeMillis().toString(),
+                sqlClient
+            )
+            return
+        }
+
+        databaseManager.systemPropertyDao.add(
+            SystemProperty(
+                option = UPDATE_LAST_CHECK,
+                value = System.currentTimeMillis().toString()
+            ), sqlClient
+        )
     }
 }

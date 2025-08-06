@@ -67,10 +67,22 @@ object VersionUtil {
     }
 
     fun isVersionHigher(versionA: String, versionB: String): Boolean {
-        if (versionB == "local-build") return false
-
-        return compareVersions(versionA, versionB) > 0
+        return compareVersions(versionA, if (versionB == "local-build") "v1.0.0-alpha.0" else versionB) > 0
     }
+
+    fun getReleaseType(version: String): String {
+        if (!isSemVer(version)) return "invalid"
+
+        val preParts = parseVersion(version).preParts
+        val type = preParts.firstOrNull()
+
+        return when (type) {
+            "alpha" -> "alpha"
+            "beta" -> "beta"
+            else -> "stable"
+        }
+    }
+
 
     fun isPanoVersionCompatible(current: String, required: String): Boolean {
         if (current == "local-build") return true

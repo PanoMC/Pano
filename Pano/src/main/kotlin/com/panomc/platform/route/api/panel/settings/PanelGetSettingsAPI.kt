@@ -80,8 +80,12 @@ class PanelGetSettingsAPI(
         if (settingType == SettingType.UPDATES) {
             val sqlClient = databaseManager.getSqlClient()
 
-            result["platformUpdate"] =
+            val lastCheck = databaseManager.systemPropertyDao.getByOption(UpdateManager.UPDATE_LAST_CHECK, sqlClient)
+            val platformUpdate =
                 databaseManager.systemPropertyDao.getByOption(UpdateManager.PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+
+            result["lastCheckedAt"] = lastCheck
+            result["platformUpdate"] = platformUpdate?.value?.let { JsonObject(it) }
         }
 
         if (settingType == SettingType.ABOUT) {

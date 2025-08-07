@@ -322,9 +322,9 @@ class PanoApiManager(
         return data
     }
 
-    suspend fun getUpdates(): JsonArray {
+    suspend fun getUpdates(): JsonArray? {
         val response: HttpResponse<Buffer>
-        val data: JsonArray
+        val data: JsonArray?
 
         try {
             response = createRequest(HttpMethod.GET, "/platform/api/store/resources/versions")

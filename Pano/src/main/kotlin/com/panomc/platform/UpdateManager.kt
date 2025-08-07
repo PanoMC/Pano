@@ -6,6 +6,7 @@ import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.InternalServerError
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.util.VersionUtil
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.client.WebClient
 import io.vertx.kotlin.coroutines.coAwait
@@ -118,7 +119,7 @@ class UpdateManager(
         try {
             panoApiManager.updatePlatformMetadata()
 
-            val updates = panoApiManager.getUpdates()
+            val updates = panoApiManager.getUpdates() ?: JsonArray()
 
             val sqlClient = databaseManager.getSqlClient()
 

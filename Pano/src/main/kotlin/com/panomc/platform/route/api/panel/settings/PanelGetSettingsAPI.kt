@@ -92,6 +92,10 @@ class PanelGetSettingsAPI(
             result["lastCheckedAt"] = lastCheck
             result["platformUpdate"] = platformUpdate?.value?.let { JsonObject(it) }
             result["resourceUpdates"] = resourceUpdates?.value?.let { JsonArray(it) } ?: JsonArray()
+
+            if (platformUpdate != null) {
+                (result["platformUpdate"] as JsonObject?)?.put("oldVersion", Main.VERSION)
+            }
         }
 
         if (settingType == SettingType.ABOUT) {

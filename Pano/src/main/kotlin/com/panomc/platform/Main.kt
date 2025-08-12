@@ -111,17 +111,41 @@ class Main : CoroutineVerticle() {
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
 
+    suspend fun shutdown() {
+        logger.info("Shutting down Pano...")
+        try {
+            vertx.close().coAwait()
+        } catch (e: Exception) {
+            logger.error("Pano graceful shutdown failed", e)
+        }
+    }
+
     private fun hookShutdown() {
         Runtime.getRuntime().addShutdownHook(Thread {
-            logger.info("Shutting down Pano...")
-            try {
-                runBlocking {
-                    vertx.close().coAwait()
-                }
-            } catch (e: Exception) {
-                logger.error("Pano graceful shutdown failed", e)
+            runBlocking {
+                shutdown()
             }
         })
+
+        // In Unix catching SIGINT/SIGTERM (optional, not exists in Windows)
+        try {
+            val sigInt = Class.forName("sun.misc.Signal")
+            val sigHdl = Class.forName("sun.misc.SignalHandler")
+            val handleMethod = sigInt.getMethod("handle", sigInt, sigHdl)
+            val ctor = sigInt.getConstructor(String::class.java)
+            val handler = java.lang.reflect.Proxy.newProxyInstance(
+                sigHdl.classLoader, arrayOf(sigHdl)
+            ) { _, _, _ ->
+                runBlocking {
+                    shutdown()
+                }
+                null
+            }
+            handleMethod.invoke(null, ctor.newInstance("INT"), handler)
+            handleMethod.invoke(null, ctor.newInstance("TERM"), handler)
+        } catch (_: Throwable) {
+            // Windows don't have, no problem; shutdown hook is enough
+        }
     }
 
     override suspend fun start() {

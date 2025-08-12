@@ -663,9 +663,7 @@ class UIManager(
 
     internal fun shutdown() {
         startedUIList.forEach {
-            it.process.destroyForcibly()
-
-            startedUIList.remove(it)
+            stopUI(it.id)
         }
     }
 

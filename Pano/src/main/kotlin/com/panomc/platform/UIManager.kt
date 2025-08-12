@@ -465,7 +465,7 @@ class UIManager(
                 }
             }
 
-        logger.info("{} amount of installed theme found.", _installedThemeList.size)
+        logger.info("{} installed theme found.", _installedThemeList.size)
     }
 
     internal fun init() {

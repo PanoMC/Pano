@@ -26,4 +26,5 @@ object AppConstants {
 
     const val REPO = "PanoMC/pano"
 
+    const val UPDATER_JAR = "pano-updater.jar"
 }

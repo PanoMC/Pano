@@ -29,11 +29,13 @@ tasks {
 
     build {
         dependsOn(":plugins:build")
+        dependsOn(":Updater:build")
         dependsOn(":Pano:build")
     }
 
     clean {
         dependsOn(":Pano:clean")
+        dependsOn(":Updater:clean")
         dependsOn(":plugins:clean")
     }
 

@@ -134,6 +134,18 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
         return row.toEntity()
     }
 
+    override suspend fun deleteByOption(
+        option: String,
+        sqlClient: SqlClient
+    ) {
+        val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `option` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(option))
+            .coAwait()
+    }
+
     private suspend fun addShowGettingStartedOption(
         sqlClient: SqlClient
     ) {

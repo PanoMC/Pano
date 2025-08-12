@@ -410,8 +410,20 @@ class PanoApiManager(
             val verified = versionInfo.getBoolean("verified")
             val file = File(newFilePath)
 
+            var successAmount = 0
+
             installManager.installResource(hash, verified, file, versionType) {
                 sendServerSentEventMessage(context, it)
+
+                if (it is Successful) {
+                    successAmount++
+
+                    if (successAmount == 3) {
+                        val response = context.response()
+
+                        response.end()
+                    }
+                }
 
                 if (it is Error) {
                     file.delete()

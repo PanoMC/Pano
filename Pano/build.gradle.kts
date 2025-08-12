@@ -257,3 +257,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
+
+// Ensure Pano's processResources waits for the Updater zip to be produced and copied
+tasks.named<ProcessResources>("processResources") {
+    dependsOn(":Updater:copyUpdaterZip")
+}

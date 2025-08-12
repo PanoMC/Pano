@@ -30,4 +30,9 @@ abstract class SystemPropertyDao : Dao<SystemProperty>(SystemProperty::class.jav
         option: String,
         sqlClient: SqlClient
     ): SystemProperty?
+
+    abstract suspend fun deleteByOption(
+        option: String,
+        sqlClient: SqlClient
+    )
 }

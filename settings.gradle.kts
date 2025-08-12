@@ -10,3 +10,5 @@ File("plugins").listFiles()?.filter {
 }?.forEach { subproject ->
     include("plugins:" + subproject.name)
 }
+
+include("Updater")

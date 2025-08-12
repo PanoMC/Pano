@@ -6,12 +6,12 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
-class TestAPI : Api() {
-    override val paths = listOf(Path("/test", RouteType.GET))
+class HealthAPI : Api() {
+    override val paths = listOf(Path("/api/health", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
-    override suspend fun handle(context: RoutingContext): Result? {
+    override suspend fun handle(context: RoutingContext): Result {
         return Successful()
     }
 }

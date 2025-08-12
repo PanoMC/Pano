@@ -75,8 +75,20 @@ class PanelGetInstallResourceLocalStreamAPI(
 
         context.put("file", newFile)
 
+        var successAmount = 0
+
         installManager.installResource(null, null, newFile, type) {
             sendServerSentEventMessage(context, it)
+
+            if (it is Successful) {
+                successAmount++
+
+                if (successAmount == 3) {
+                    val response = context.response()
+
+                    response.end()
+                }
+            }
         }
 
         return null

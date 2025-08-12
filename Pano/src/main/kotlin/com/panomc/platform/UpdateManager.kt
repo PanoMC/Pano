@@ -1,33 +1,63 @@
 package com.panomc.platform
 
+import com.panomc.platform.AppConstants.UPDATER_JAR
 import com.panomc.platform.Main.Companion.STAGE
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.InternalServerError
+import com.panomc.platform.error.InvalidPlatformUpdateFile
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.model.Error
+import com.panomc.platform.model.Result
+import com.panomc.platform.model.Successful
+import com.panomc.platform.util.HashUtil
+import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import com.panomc.platform.util.VersionUtil
+import io.vertx.core.Vertx
+import io.vertx.core.file.OpenOptions
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.client.WebClient
+import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.kotlin.coroutines.coAwait
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.slf4j.Logger
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardOpenOption
+import java.util.*
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import kotlin.system.exitProcess
 
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class UpdateManager(
+    private val vertx: Vertx,
     private val webClient: WebClient,
     private val databaseManager: DatabaseManager,
-    private val panoApiManager: PanoApiManager
+    private val panoApiManager: PanoApiManager,
+    private val configManager: ConfigManager
 ) {
     companion object {
         const val PLATFORM_UPDATE_CHECK_INFO = "platform_update_check_info"
         const val RESOURCES_UPDATE_CHECK_INFO = "resources_update_check_info"
         const val UPDATE_LAST_CHECK = "update_last_checked_at"
     }
+
+    @Autowired
+    private lateinit var logger: Logger
 
     suspend fun checkPlatformUpdate() {
         try {
@@ -78,6 +108,7 @@ class UpdateManager(
             val downloadUrl = asset.getString("browser_download_url")
             val size = asset.getLong("size")
             val hash = asset.getString("digest")
+            val fileName = asset.getString("name")
 
             val sqlClient = databaseManager.getSqlClient()
             val propertyExists = databaseManager.systemPropertyDao.existsByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
@@ -87,10 +118,12 @@ class UpdateManager(
                     "changelog" to changelog,
                     "version" to version,
                     "downloadUrl" to downloadUrl,
+                    "fileName" to fileName,
                     "size" to size,
                     "hash" to hash,
                     "releaseDate" to releaseDate,
-                    "channel" to VersionUtil.getReleaseType(version)
+                    "channel" to VersionUtil.getReleaseType(version),
+                    "state" to UUID.randomUUID()
                 )
             )
 
@@ -147,6 +180,162 @@ class UpdateManager(
         updateLastCheck()
         checkResourceUpdates()
         checkPlatformUpdate()
+    }
+
+    suspend fun updatePlatform(state: UUID, progressHandler: (result: Result) -> Unit) {
+        try {
+            val sqlClient = databaseManager.getSqlClient()
+
+            val platformUpdateInfoOption =
+                databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+                    ?: throw InvalidPlatformUpdateFile(extras = mapOf("message" to "There are no updates. Please run check updates."))
+            val platformUpdateInfo = JsonObject(platformUpdateInfoOption.value)
+            val versionState = UUID.fromString(platformUpdateInfo.getString("state"))
+
+            if (state != versionState) {
+                throw InvalidPlatformUpdateFile(extras = mapOf("message" to "There are no updates. Please run check updates."))
+            }
+
+            progressHandler.invoke(Successful()) // Getting platform update info success
+
+            val tempFolder = File(AppConstants.TEMP_FOLDER)
+
+            if (!tempFolder.exists() || !tempFolder.isDirectory) {
+                tempFolder.deleteRecursively()
+                tempFolder.mkdirs()
+            }
+
+            val fileSystem = vertx.fileSystem()
+            val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + getCurrentTimeStamp()
+            val writeStream = fileSystem.openBlocking(
+                temporaryFilePath,
+                OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
+            )
+
+            webClient
+                .getAbs(platformUpdateInfo.getString("downloadUrl"))
+                .`as`(BodyCodec.pipe(writeStream))
+                .send()
+                .coAwait()
+
+            progressHandler.invoke(Successful()) // Downloading update success
+
+            val hash = platformUpdateInfo.getString("hash").split("sha256:")[1]
+
+            val temporaryFile = File(temporaryFilePath)
+
+            if (!HashUtil.verifyFileHash(temporaryFile, hash)) {
+                throw InvalidPlatformUpdateFile()
+            }
+
+            progressHandler.invoke(Successful()) // Verifying hash success
+
+            val panoUpdaterJarPath = extractPanoUpdaterJar()
+
+            progressHandler.invoke(Successful()) // Extracting pano updater done
+
+            val javaBin = Path.of(System.getProperty("java.home"), "bin", "java").toString()
+
+            // Detect current pano.jar path
+            val targetJar = Path.of(
+                Main::class.java.protectionDomain.codeSource.location.toURI()
+            ).toAbsolutePath().toString()
+
+            // Assume the downloaded update jar is in working dir
+            val newUpdateJar = Path.of(temporaryFilePath).toAbsolutePath().toString()
+
+            val config = configManager.config
+            val serverConfig = config.server
+            val host = serverConfig.host
+            val port = serverConfig.port
+
+            ProcessBuilder(
+                javaBin, "-jar", panoUpdaterJarPath.toAbsolutePath().toString(),
+                "--target", targetJar,
+                "--update", newUpdateJar,
+                "--host", host,
+                "--port", port.toString(),
+                "--restart"
+            )
+                .inheritIO()
+                .start()
+
+            progressHandler.invoke(Successful()) // Installation start success
+
+            vertx.close()
+            exitProcess(0)
+        } catch (e: Error) {
+            progressHandler.invoke(e)
+        } catch (e: Exception) {
+            progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
+        }
+    }
+
+    internal suspend fun init() {
+        checkDidUpgrade()
+    }
+
+    private suspend fun checkDidUpgrade() {
+        val panoUpdaterJar = File(UPDATER_JAR)
+
+        if (!panoUpdaterJar.exists()) {
+            return
+        }
+
+        logger.info("Detected an upgrade.")
+        panoUpdaterJar.delete()
+
+        val sqlClient = databaseManager.getSqlClient()
+
+        databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+    }
+
+    /**
+     * Extracts pano-updater.jar from pano-updater.zip (in resources) to the current working directory.
+     */
+    private suspend fun extractPanoUpdaterJar(): Path = withContext(Dispatchers.IO) {
+        val resourcePath = "pano-updater.zip"
+        val outputPath = Path.of(UPDATER_JAR)
+
+        val inStream = Thread.currentThread().contextClassLoader
+            .getResourceAsStream(resourcePath)
+            ?: throw IllegalArgumentException("Resource not found: $resourcePath")
+
+        ZipInputStream(BufferedInputStream(inStream)).use { zis ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var entry: ZipEntry? = zis.nextEntry
+            var written = false
+
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name == UPDATER_JAR) {
+                    Files.createDirectories(outputPath.parent ?: Path.of("."))
+                    BufferedOutputStream(
+                        Files.newOutputStream(
+                            outputPath,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE
+                        )
+                    ).use { out ->
+                        var read = zis.read(buffer)
+                        while (read > 0) {
+                            out.write(buffer, 0, read)
+                            read = zis.read(buffer)
+                        }
+                    }
+                    written = true
+                    break
+                }
+                zis.closeEntry()
+                entry = zis.nextEntry
+            }
+
+            if (!written) {
+                throw IllegalStateException("$UPDATER_JAR not found inside $resourcePath")
+            }
+        }
+
+        outputPath
     }
 
     private suspend fun updateLastCheck() {

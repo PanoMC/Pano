@@ -27,5 +27,6 @@ Pano/panel-ui
 Pano/themes
 Pano/plugins
 Pano/.temp
+Pano/src/main/resources/pano-updater.zip
 
 .kotlin

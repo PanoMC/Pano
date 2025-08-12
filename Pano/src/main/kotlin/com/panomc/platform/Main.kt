@@ -113,6 +113,7 @@ class Main : CoroutineVerticle() {
 
     private fun hookShutdown() {
         Runtime.getRuntime().addShutdownHook(Thread {
+            logger.info("Shutting down Pano...")
             try {
                 runBlocking {
                     vertx.close().coAwait()
@@ -124,8 +125,6 @@ class Main : CoroutineVerticle() {
     }
 
     override suspend fun start() {
-        hookShutdown()
-
         println(
             "\n" +
                     " ______   ______     __   __     ______    \n" +
@@ -157,6 +156,8 @@ class Main : CoroutineVerticle() {
     }
 
     private suspend fun init() {
+        hookShutdown()
+
         executeBlocking {
             initDependencyInjection()
 
@@ -179,6 +180,8 @@ class Main : CoroutineVerticle() {
             initDatabaseManager()
 
             initServerManager()
+
+            initUpdateManager()
         }
 
         executeBlocking {
@@ -186,6 +189,14 @@ class Main : CoroutineVerticle() {
 
             initRoutes()
         }
+    }
+
+    private suspend fun initUpdateManager() {
+        logger.info("Initializing update manager")
+
+        val updateManager = applicationContext.getBean(UpdateManager::class.java)
+
+        updateManager.init()
     }
 
     private fun initPlugins() {

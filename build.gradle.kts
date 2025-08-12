@@ -25,6 +25,11 @@ tasks {
         doLast {
             dependsOn(":Pano:run")
         }
+        project(":Updater") {
+            tasks.matching { it.name == "run" }.configureEach {
+                enabled = false
+            }
+        }
     }
 
     build {

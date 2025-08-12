@@ -68,6 +68,8 @@ class UpdateManager(
                     .coAwait()
 
                 if (getLatestReleaseResponse.statusCode() == 404) {
+                    deletePlatformUpdateInfo()
+
                     throw NotFound()
                 }
 
@@ -89,6 +91,8 @@ class UpdateManager(
                 val releases = getReleasesResponse.bodyAsJsonArray().map { it as JsonObject }
 
                 if (releases.isEmpty()) {
+                    deletePlatformUpdateInfo()
+
                     throw NotFound()
                 }
 
@@ -101,6 +105,8 @@ class UpdateManager(
             val releaseDate = latestRelease.getString("published_at")
 
             if (!VersionUtil.isVersionHigher(version, Main.VERSION)) {
+                deletePlatformUpdateInfo()
+
                 throw NotFound()
             }
 
@@ -142,6 +148,12 @@ class UpdateManager(
             e.printStackTrace()
             throw InternalServerError()
         }
+    }
+
+    private suspend fun deletePlatformUpdateInfo() {
+        val sqlClient = databaseManager.getSqlClient()
+
+        databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
     }
 
     suspend fun checkResourceUpdates() {

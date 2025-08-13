@@ -13,12 +13,11 @@ import io.vertx.core.VertxOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.coAwait
-import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.io.File
 import java.util.jar.Manifest
-
+import kotlin.system.exitProcess
 
 @Boot
 class Main : CoroutineVerticle() {
@@ -110,11 +109,19 @@ class Main : CoroutineVerticle() {
     private lateinit var configManager: ConfigManager
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
+    private var stopping = false
 
-    suspend fun shutdown() {
+    fun shutdown() {
+        if (stopping) {
+            return
+        }
+
+        stopping = true
+
         logger.info("Shutting down Pano...")
         try {
-            vertx.close().coAwait()
+            vertx.close()
+
         } catch (e: Exception) {
             logger.error("Pano graceful shutdown failed", e)
         }
@@ -122,12 +129,10 @@ class Main : CoroutineVerticle() {
 
     private fun hookShutdown() {
         Runtime.getRuntime().addShutdownHook(Thread {
-            runBlocking {
-                shutdown()
-            }
+            shutdown()
         })
 
-        // In Unix catching SIGINT/SIGTERM (optional, not exists in Windows)
+//         In Unix catching SIGINT/SIGTERM (optional, not exists in Windows)
         try {
             val sigInt = Class.forName("sun.misc.Signal")
             val sigHdl = Class.forName("sun.misc.SignalHandler")
@@ -136,10 +141,8 @@ class Main : CoroutineVerticle() {
             val handler = java.lang.reflect.Proxy.newProxyInstance(
                 sigHdl.classLoader, arrayOf(sigHdl)
             ) { _, _, _ ->
-                runBlocking {
-                    shutdown()
-                }
-                null
+                shutdown()
+                exitProcess(0)
             }
             handleMethod.invoke(null, ctor.newInstance("INT"), handler)
             handleMethod.invoke(null, ctor.newInstance("TERM"), handler)
@@ -256,7 +259,7 @@ class Main : CoroutineVerticle() {
     private fun initUiManager() {
         logger.info("Initializing UI manager")
 
-        val uiManager = applicationContext.getBean(UIManager::class.java)
+        uiManager = applicationContext.getBean(UIManager::class.java)
 
         uiManager.init()
     }

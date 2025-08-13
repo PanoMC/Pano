@@ -30,6 +30,7 @@ import java.net.ServerSocket
 import java.net.URL
 import java.nio.file.*
 import java.util.*
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
@@ -74,7 +75,7 @@ class UIManager(
         librariesFolder.absolutePath + File.separator + bunFileName
     }
 
-    private val startedUIList = mutableListOf<LoadedUI>()
+    private val startedUIList = CopyOnWriteArrayList<LoadedUI>()
     private var _activatedUIList = mutableMapOf<Route.Type, ActivatedUI>()
 
     // to make it read-only to public

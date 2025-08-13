@@ -274,7 +274,7 @@ class UpdateManager(
 
             progressHandler.invoke(Successful()) // Installation start success
 
-            vertx.close()
+            vertx.close().coAwait()
             exitProcess(0)
         } catch (e: Error) {
             progressHandler.invoke(e)

@@ -70,6 +70,7 @@ class PanelGetInstallResourceLocalStreamAPI(
             newFilePath = FileUtil.getAvailableFilePath(newFilePath)
         }
 
+        File(newFilePath).parentFile.mkdirs()
         fileSystem.moveBlocking(file.absolutePath, newFilePath)
         val newFile = File(newFilePath)
 

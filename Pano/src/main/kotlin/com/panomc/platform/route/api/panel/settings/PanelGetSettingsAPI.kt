@@ -9,7 +9,6 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -24,7 +23,8 @@ class PanelGetSettingsAPI(
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider,
     private val panoApiManager: PanoApiManager,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val updateManager: UpdateManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.GET))
 
@@ -84,17 +84,15 @@ class PanelGetSettingsAPI(
             val sqlClient = databaseManager.getSqlClient()
 
             val lastCheck = databaseManager.systemPropertyDao.getByOption(UpdateManager.UPDATE_LAST_CHECK, sqlClient)
-            val platformUpdate =
-                databaseManager.systemPropertyDao.getByOption(UpdateManager.PLATFORM_UPDATE_CHECK_INFO, sqlClient)
-            val resourceUpdates =
-                databaseManager.systemPropertyDao.getByOption(UpdateManager.RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+            val platformUpdate = updateManager.getPlatformUpdateeInfo()
+            val resourceUpdatesInfo = updateManager.getResourcesUpdateList()
 
             result["lastCheckedAt"] = lastCheck
-            result["platformUpdate"] = platformUpdate?.value?.let { JsonObject(it) }
-            result["resourceUpdates"] = resourceUpdates?.value?.let { JsonArray(it) } ?: JsonArray()
+            result["platformUpdate"] = platformUpdate
+            result["resourceUpdates"] = resourceUpdatesInfo
 
             if (platformUpdate != null) {
-                (result["platformUpdate"] as JsonObject?)?.put("oldVersion", Main.VERSION)
+                (result["platformUpdate"] as JsonObject).put("oldVersion", Main.VERSION)
             }
         }
 

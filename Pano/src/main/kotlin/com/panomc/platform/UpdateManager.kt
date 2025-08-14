@@ -1,6 +1,7 @@
 package com.panomc.platform
 
 import com.panomc.platform.AppConstants.UPDATER_JAR
+import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -47,7 +48,8 @@ class UpdateManager(
     private val webClient: WebClient,
     private val databaseManager: DatabaseManager,
     private val panoApiManager: PanoApiManager,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val installManager: InstallManager
 ) {
     companion object {
         const val PLATFORM_UPDATE_CHECK_INFO = "platform_update_check_info"
@@ -306,6 +308,38 @@ class UpdateManager(
         val sqlClient = databaseManager.getSqlClient()
 
         databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+    }
+
+    suspend fun getPlatformUpdateeInfo(): JsonObject? {
+        val sqlClient = databaseManager.getSqlClient()
+
+        val platformUpdateInfo =
+            databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+
+        val platformUpdate = platformUpdateInfo?.value?.let { JsonObject(it) } ?: return null
+
+        val version = platformUpdate.getString("version")
+
+        if (version == Main.VERSION) {
+            return null
+        }
+
+        return platformUpdate
+    }
+
+    suspend fun getResourcesUpdateList(): List<JsonObject> {
+        val sqlClient = databaseManager.getSqlClient()
+        val resourceUpdatesInfo =
+            databaseManager.systemPropertyDao.getByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+
+        val resourceUpdatesConverted = resourceUpdatesInfo?.value?.let { JsonArray(it) } ?: JsonArray()
+
+        return resourceUpdatesConverted.map { it as JsonObject }.filter {
+            val type = ResourceType.valueOf(it.getString("type"))
+            val id = it.getString("id")
+
+            installManager.isInstalled(id, type)
+        }
     }
 
     /**

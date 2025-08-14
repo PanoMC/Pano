@@ -7,7 +7,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.InternalServerError
 import com.panomc.platform.error.InvalidPlatformUpdateFile
-import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
@@ -70,7 +69,7 @@ class UpdateManager(
                 if (getLatestReleaseResponse.statusCode() == 404) {
                     deletePlatformUpdateInfo()
 
-                    throw NotFound()
+                    return
                 }
 
                 if (getLatestReleaseResponse.statusCode() != 200) {
@@ -93,7 +92,7 @@ class UpdateManager(
                 if (releases.isEmpty()) {
                     deletePlatformUpdateInfo()
 
-                    throw NotFound()
+                    return
                 }
 
                 releases.first()
@@ -107,10 +106,17 @@ class UpdateManager(
             if (!VersionUtil.isVersionHigher(version, Main.VERSION)) {
                 deletePlatformUpdateInfo()
 
-                throw NotFound()
+                return
             }
 
-            val asset = assets.find { it.getString("name").endsWith(".jar") } ?: throw NotFound()
+            val asset = assets.find { it.getString("name").endsWith(".jar") }
+
+            if (asset == null) {
+                deletePlatformUpdateInfo()
+
+                return
+            }
+
             val downloadUrl = asset.getString("browser_download_url")
             val size = asset.getLong("size")
             val hash = asset.getString("digest")
@@ -190,8 +196,8 @@ class UpdateManager(
 
     suspend fun checkUpdates() {
         updateLastCheck()
-        checkResourceUpdates()
         checkPlatformUpdate()
+        checkResourceUpdates()
     }
 
     suspend fun updatePlatform(state: UUID, progressHandler: (result: Result) -> Unit) {

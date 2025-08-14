@@ -1,7 +1,9 @@
 package com.panomc.platform.route.api.panel
 
+import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -17,7 +19,8 @@ class PanelGetBasicDataAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val platformCodeManager: PlatformCodeManager,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val updateManager: UpdateManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/basicData", RouteType.GET))
 
@@ -55,6 +58,13 @@ class PanelGetBasicDataAPI(
             "locale" to configManager.config.locale,
             "connectedServerCount" to connectedServerCount
         )
+
+        if (authProvider.hasPermission(userId, ManagePlatformSettingsPermission(), context)) {
+            val platformUpdate = updateManager.getPlatformUpdateeInfo()
+            val resourceUpdatesInfo = updateManager.getResourcesUpdateList()
+
+            result["hasUpdate"] = platformUpdate != null || resourceUpdatesInfo.isNotEmpty()
+        }
 
         if (authProvider.hasPermission(userId, ManageServersPermission(), context)) {
             val mainServerId = databaseManager.systemPropertyDao.getByOption(

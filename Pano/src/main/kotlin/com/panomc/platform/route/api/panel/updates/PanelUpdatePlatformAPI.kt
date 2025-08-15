@@ -22,7 +22,7 @@ class PanelUpdatePlatformAPI(
             .queryParameter(param("state", stringSchema()))
             .build()
 
-    override suspend fun handle(context: RoutingContext): Result {
+    override suspend fun handle(context: RoutingContext): Result? {
         val parameters = getParameters(context)
 
         val state = UUID.fromString(parameters.queryParameter("state").string)
@@ -48,7 +48,7 @@ class PanelUpdatePlatformAPI(
             }
         }
 
-        return Successful()
+        return null
     }
 
     private fun sendServerSentEventMessage(context: RoutingContext, result: Result) {

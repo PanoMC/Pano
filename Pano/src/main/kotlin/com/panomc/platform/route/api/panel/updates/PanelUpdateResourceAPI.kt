@@ -1,8 +1,7 @@
-package com.panomc.platform.route.api.panel.install
+package com.panomc.platform.route.api.panel.updates
 
-import com.panomc.platform.PanoApiManager
+import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
-import com.panomc.platform.error.BadRequest
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -11,27 +10,24 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.util.*
-import kotlin.Error
 
 @Endpoint
-class PanelGetInstallResourceStoreStreamAPI(
-    private val panoApiManager: PanoApiManager
+class PanelUpdateResourceAPI(
+    private val updateManager: UpdateManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/install/store/:versionId/stream", RouteType.GET))
+    override val paths = listOf(Path("/api/panel/updates/resources/:resourceId/stream", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
-            .pathParameter(param("versionId", stringSchema()))
+            .pathParameter(param("resourceId", stringSchema()))
+            .queryParameter(param("state", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
         val parameters = getParameters(context)
 
-        val versionId = try {
-            UUID.fromString(parameters.pathParameter("versionId").string)
-        } catch (_: Exception) {
-            throw BadRequest()
-        }
+        val resourceId = parameters.pathParameter("resourceId").string
+        val state = UUID.fromString(parameters.queryParameter("state").string)
 
         val response = context.response()
 
@@ -42,7 +38,7 @@ class PanelGetInstallResourceStoreStreamAPI(
 
         var successAmount = 0
 
-        panoApiManager.installResourceFromStore(versionId) {
+        updateManager.updateResource(resourceId, state) {
             sendServerSentEventMessage(context, it)
 
             if (it is Successful) {

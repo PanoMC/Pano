@@ -10,12 +10,12 @@ import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
+import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
@@ -40,7 +40,8 @@ class PanoApiManager(
     private val webClient: WebClient,
     private val pluginManager: PluginManager,
     private val installManager: InstallManager,
-    applicationContext: ApplicationContext
+    applicationContext: ApplicationContext,
+    private val vertx: Vertx
 ) {
     companion object {
         private const val HEADER_PREFIX = "Bearer "
@@ -344,107 +345,100 @@ class PanoApiManager(
         return data
     }
 
-    suspend fun installResourceFromStore(context: RoutingContext, versionId: UUID) {
+    suspend fun downloadResourceVersionFromStore(
+        versionId: UUID,
+        progressHandler: (result: Result) -> Unit
+    ): Map<String, Any?> {
+        val versionInfo = getVersionInfo(versionId)
+        val versionType = ResourceType.valueOf(versionInfo.getString("type"))
+
+        val resourceFolderPath =
+            if (versionType == ResourceType.PLUGIN) pluginManager.pluginsRoot.absolutePathString() else File(
+                AppConstants.THEMES_FOLDER_PATH
+            ).absolutePath
+
+        val tempFolder = File(AppConstants.TEMP_FOLDER)
+
+        if (!tempFolder.exists() || !tempFolder.isDirectory) {
+            tempFolder.deleteRecursively()
+            tempFolder.mkdirs()
+        }
+
+        progressHandler.invoke(Successful()) // Getting version info success
+
+        val fileSystem = vertx.fileSystem()
+        val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + getCurrentTimeStamp()
+        val writeStream = fileSystem.openBlocking(
+            temporaryFilePath,
+            OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
+        )
+
+        val getFileResponse = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}/file")
+            .`as`(BodyCodec.pipe(writeStream))
+            .send()
+            .coAwait()
+
+        if (getFileResponse.statusCode() != 200) {
+            writeStream.close()
+            throw PanoConnectFailed()
+        }
+
+        progressHandler.invoke(Successful()) // Downloading file success
+
+        val contentDisposition = getFileResponse.getHeader("Content-Disposition")
+        val defaultFileName = if (versionType == ResourceType.PLUGIN) {
+            "plugin"
+        } else {
+            "theme"
+        } + "_${getCurrentTimeStamp()}"
+
+        val fileName = contentDisposition
+            ?.let {
+                val regex = Regex("filename=\"?([^\";]+)\"?")
+                regex.find(it)?.groups?.get(1)?.value
+            } ?: defaultFileName
+
+        val resourceFolder = File(resourceFolderPath)
+
+        if (!resourceFolder.exists() || !resourceFolder.isDirectory) {
+            resourceFolder.deleteRecursively()
+            resourceFolder.mkdirs()
+        }
+
+        val newFilePath = resourceFolderPath + File.separator + fileName
+        fileSystem.moveBlocking(temporaryFilePath, newFilePath)
+
+        val hash = versionInfo.getString("hash")
+        val verified = versionInfo.getBoolean("verified")
+        val file = File(newFilePath)
+
+        return mapOf(
+            "hash" to hash,
+            "verified" to verified,
+            "file" to file,
+            "versionType" to versionType
+        )
+    }
+
+    suspend fun installResourceFromStore(versionId: UUID, progressHandler: (result: Result) -> Unit) {
         try {
-            val versionInfo = getVersionInfo(versionId)
-            val versionType = ResourceType.valueOf(versionInfo.getString("type"))
-
-            val resourceFolderPath =
-                if (versionType == ResourceType.PLUGIN) pluginManager.pluginsRoot.absolutePathString() else File(
-                    AppConstants.THEMES_FOLDER_PATH
-                ).absolutePath
-
-            val tempFolder = File(AppConstants.TEMP_FOLDER)
-
-            if (!tempFolder.exists() || !tempFolder.isDirectory) {
-                tempFolder.deleteRecursively()
-                tempFolder.mkdirs()
-            }
-
-            sendServerSentEventMessage(context, Successful()) // Getting version info success
-
-            val vertx = context.vertx()
-            val fileSystem = vertx.fileSystem()
-            val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + getCurrentTimeStamp()
-            val writeStream = fileSystem.openBlocking(
-                temporaryFilePath,
-                OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
-            )
-
-            val getFileResponse = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}/file")
-                .`as`(BodyCodec.pipe(writeStream))
-                .send()
-                .coAwait()
-
-            if (getFileResponse.statusCode() != 200) {
-                writeStream.close()
-                throw PanoConnectFailed()
-            }
-
-            sendServerSentEventMessage(context, Successful()) // Downloading file success
-
-            val contentDisposition = getFileResponse.getHeader("Content-Disposition")
-            val defaultFileName = if (versionType == ResourceType.PLUGIN) {
-                "plugin"
-            } else {
-                "theme"
-            } + "_${getCurrentTimeStamp()}"
-
-            val fileName = contentDisposition
-                ?.let {
-                    val regex = Regex("filename=\"?([^\";]+)\"?")
-                    regex.find(it)?.groups?.get(1)?.value
-                } ?: defaultFileName
-
-            val resourceFolder = File(resourceFolderPath)
-
-            if (!resourceFolder.exists() || !resourceFolder.isDirectory) {
-                resourceFolder.deleteRecursively()
-                resourceFolder.mkdirs()
-            }
-
-            val newFilePath = resourceFolderPath + File.separator + fileName
-            fileSystem.moveBlocking(temporaryFilePath, newFilePath)
-
-            val hash = versionInfo.getString("hash")
-            val verified = versionInfo.getBoolean("verified")
-            val file = File(newFilePath)
-
-            var successAmount = 0
+            val downloadResult = downloadResourceVersionFromStore(versionId, progressHandler)
+            val file = downloadResult["file"] as File
+            val hash = downloadResult["hash"] as String
+            val verified = downloadResult["verified"] as Boolean
+            val versionType = downloadResult["versionType"] as ResourceType
 
             installManager.installResource(hash, verified, file, versionType) {
-                sendServerSentEventMessage(context, it)
-
-                if (it is Successful) {
-                    successAmount++
-
-                    if (successAmount == 3) {
-                        val response = context.response()
-
-                        response.end()
-                    }
-                }
+                progressHandler.invoke(it)
 
                 if (it is Error) {
                     file.delete()
                 }
             }
         } catch (e: Error) {
-            sendServerSentEventMessage(context, e)
+            progressHandler.invoke(e)
         } catch (e: Exception) {
-            sendServerSentEventMessage(context, FailedToInstallResource(extras = mapOf("message" to e.message)))
-        }
-    }
-
-    private fun sendServerSentEventMessage(context: RoutingContext, result: Result) {
-        val response = context.response()
-        val responseBody = result.encode()
-
-        response.write("data: ${responseBody}\n\n")
-
-        if (result is Error) {
-            result.printStackTrace()
-            response.end()
+            progressHandler.invoke(FailedToInstallResource(extras = mapOf("message" to e.message)))
         }
     }
 

@@ -6,13 +6,14 @@ import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
+import com.panomc.platform.error.FailedToUpdatePlatform
+import com.panomc.platform.error.FailedToUpdateResource
 import com.panomc.platform.error.InternalServerError
 import com.panomc.platform.error.InvalidPlatformUpdateFile
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
-import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import com.panomc.platform.util.VersionUtil
 import io.vertx.core.Vertx
 import io.vertx.core.file.OpenOptions
@@ -21,7 +22,10 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.kotlin.coroutines.coAwait
+import io.vertx.kotlin.coroutines.dispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.springframework.beans.factory.annotation.Autowired
@@ -179,6 +183,10 @@ class UpdateManager(
             val propertyExists =
                 databaseManager.systemPropertyDao.existsByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
 
+            updates.forEach {
+                (it as JsonObject).put("state", UUID.randomUUID())
+            }
+
             if (propertyExists) {
                 databaseManager.systemPropertyDao.update(RESOURCES_UPDATE_CHECK_INFO, updates.encode(), sqlClient)
                 return
@@ -208,12 +216,12 @@ class UpdateManager(
 
             val platformUpdateInfoOption =
                 databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
-                    ?: throw InvalidPlatformUpdateFile(extras = mapOf("message" to "There are no updates. Please run check updates."))
+                    ?: throw FailedToUpdatePlatform(extras = mapOf("message" to "There are no updates. Please run check updates."))
             val platformUpdateInfo = JsonObject(platformUpdateInfoOption.value)
             val versionState = UUID.fromString(platformUpdateInfo.getString("state"))
 
             if (state != versionState) {
-                throw InvalidPlatformUpdateFile(extras = mapOf("message" to "There are no updates. Please run check updates."))
+                throw FailedToUpdatePlatform(extras = mapOf("message" to "There are no updates. Please run check updates."))
             }
 
             progressHandler.invoke(Successful()) // Getting platform update info success
@@ -226,7 +234,7 @@ class UpdateManager(
             }
 
             val fileSystem = vertx.fileSystem()
-            val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + getCurrentTimeStamp()
+            val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + UUID.randomUUID()
             val writeStream = fileSystem.openBlocking(
                 temporaryFilePath,
                 OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
@@ -284,6 +292,54 @@ class UpdateManager(
 
             vertx.close().coAwait()
             exitProcess(0)
+        } catch (e: Error) {
+            progressHandler.invoke(e)
+        } catch (e: Exception) {
+            progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
+        }
+    }
+
+    suspend fun updateResource(resourceId: String, state: UUID, progressHandler: (result: Result) -> Unit) {
+        try {
+            val sqlClient = databaseManager.getSqlClient()
+
+            val platformUpdateInfoOption =
+                databaseManager.systemPropertyDao.getByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+                    ?: throw FailedToUpdateResource(extras = mapOf("message" to "There are no updates. Please run check updates."))
+            val resourceUpdateInfo = JsonArray(platformUpdateInfoOption.value).map { it as JsonObject }
+                .find { it.getString("id") == resourceId }
+                ?: throw FailedToUpdateResource(extras = mapOf("message" to "There are no updates. Please run check updates."))
+
+            val versionState = UUID.fromString(resourceUpdateInfo.getString("state"))
+
+            if (state != versionState) {
+                throw FailedToUpdateResource(extras = mapOf("message" to "There are no updates. Please run check updates."))
+            }
+
+            val versionId = UUID.fromString(resourceUpdateInfo.getString("versionId"))
+
+            var successAmount = 0
+
+            panoApiManager.installResourceFromStore(versionId) {
+                if (it is Successful) {
+                    successAmount++
+
+                    if (successAmount == 4) {
+                        val filteredUpdateList =
+                            JsonArray(JsonArray(platformUpdateInfoOption.value).filter { (it as JsonObject).getString("id") != resourceId })
+
+                        CoroutineScope(vertx.dispatcher()).launch {
+                            databaseManager.systemPropertyDao.update(
+                                RESOURCES_UPDATE_CHECK_INFO,
+                                filteredUpdateList.encode(),
+                                sqlClient
+                            )
+                        }
+                    }
+                }
+
+                progressHandler.invoke(it)
+            }
         } catch (e: Error) {
             progressHandler.invoke(e)
         } catch (e: Exception) {

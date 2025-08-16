@@ -27,8 +27,8 @@ class ServerDaoImpl : ServerDao() {
                               `port` int(5) NOT NULL,
                               `playerCount` bigint NOT NULL,
                               `maxPlayerCount` bigint NOT NULL,
-                              `serverType` varchar(255) NOT NULL,
-                              `serverVersion` varchar(255) NOT NULL,
+                              `type` varchar(255) NOT NULL,
+                              `version` varchar(255) NOT NULL,
                               `favicon` text NOT NULL,
                               `permissionGranted` TINYINT(1) default 0,
                               `status` VARCHAR(255) NOT NULL,
@@ -49,7 +49,7 @@ class ServerDaoImpl : ServerDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `serverType`, `serverVersion`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
@@ -78,7 +78,7 @@ class ServerDaoImpl : ServerDao() {
 
     override suspend fun getById(id: Long, sqlClient: SqlClient): Server? {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `serverType`, `serverVersion`, `favicon`, `permissionGranted`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `permissionGranted`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -100,7 +100,7 @@ class ServerDaoImpl : ServerDao() {
 
     override suspend fun getAllByPermissionGranted(sqlClient: SqlClient): List<Server> {
         val query =
-            "SELECT `id`, `name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `serverType`, `serverVersion`, `favicon`, `permissionGranted`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime` FROM `${getTablePrefix() + tableName}` WHERE  `permissionGranted` = ?"
+            "SELECT `id`, `name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `permissionGranted`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime` FROM `${getTablePrefix() + tableName}` WHERE  `permissionGranted` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -282,7 +282,7 @@ class ServerDaoImpl : ServerDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `playerCount` = ?, `maxPlayerCount` = ?, `serverType` = ?, `serverVersion` = ?, `favicon` = ?, `status` = ?, `startTime` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `playerCount` = ?, `maxPlayerCount` = ?, `type` = ?, `version` = ?, `favicon` = ?, `status` = ?, `startTime` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)

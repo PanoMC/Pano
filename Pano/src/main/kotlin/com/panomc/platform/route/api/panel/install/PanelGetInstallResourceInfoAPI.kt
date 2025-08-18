@@ -4,6 +4,8 @@ import com.panomc.platform.InstallManager
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -17,7 +19,8 @@ import java.util.*
 @Endpoint
 class PanelGetInstallResourceInfoAPI(
     private val panoApiManager: PanoApiManager,
-    private val installManager: InstallManager
+    private val installManager: InstallManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/store/:versionId/info", RouteType.GET))
 
@@ -27,6 +30,8 @@ class PanelGetInstallResourceInfoAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
+
         val parameters = getParameters(context)
 
         val versionId = try {

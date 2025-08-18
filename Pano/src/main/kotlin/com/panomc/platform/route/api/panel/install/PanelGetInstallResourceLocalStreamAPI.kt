@@ -5,6 +5,8 @@ import com.panomc.platform.InstallManager
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.*
@@ -21,7 +23,8 @@ import kotlin.io.path.absolutePathString
 @Endpoint
 class PanelGetInstallResourceLocalStreamAPI(
     private val installManager: InstallManager,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/local/:type/:fileName/stream", RouteType.GET))
 
@@ -32,6 +35,8 @@ class PanelGetInstallResourceLocalStreamAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
+        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
+
         val parameters = getParameters(context)
 
         val type = try {

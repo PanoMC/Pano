@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.install
 
 import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.*
 import io.vertx.core.Handler
@@ -11,7 +13,9 @@ import io.vertx.json.schema.SchemaRepository
 import java.io.File
 
 @Endpoint
-class PanelUploadResourceFileAPI : PanelApi() {
+class PanelUploadResourceFileAPI(
+    private val authProvider: AuthProvider
+) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/upload", RouteType.PUT))
 
     override fun bodyHandler(): Handler<RoutingContext> =
@@ -21,7 +25,9 @@ class PanelUploadResourceFileAPI : PanelApi() {
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
-    override suspend fun handle(context: RoutingContext): Result? {
+    override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
+
         val fileUploads = context.fileUploads()
 
         if (fileUploads.size > 1 || fileUploads.isEmpty()) {

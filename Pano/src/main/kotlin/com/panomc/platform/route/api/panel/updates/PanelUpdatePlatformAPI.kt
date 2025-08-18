@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.updates
 
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -13,7 +15,8 @@ import java.util.*
 
 @Endpoint
 class PanelUpdatePlatformAPI(
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/updates/platform/stream", RouteType.GET))
 
@@ -23,6 +26,8 @@ class PanelUpdatePlatformAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
+        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
+
         val parameters = getParameters(context)
 
         val state = UUID.fromString(parameters.queryParameter("state").string)

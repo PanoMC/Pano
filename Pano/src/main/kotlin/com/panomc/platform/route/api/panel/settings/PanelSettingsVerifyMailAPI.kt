@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.settings
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.model.*
 import io.vertx.ext.mail.StartTLSOptions
@@ -14,7 +16,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class PanelSettingsVerifyMailAPI(
-    private val mailManager: MailManager
+    private val mailManager: MailManager,
+    private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings/verify/mail", RouteType.POST))
 
@@ -40,6 +43,8 @@ class PanelSettingsVerifyMailAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
+
         val parameters = getParameters(context)
         val config = parameters.body().jsonObject
 

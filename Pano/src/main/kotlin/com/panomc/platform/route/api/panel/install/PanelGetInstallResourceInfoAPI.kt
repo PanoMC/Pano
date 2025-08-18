@@ -5,7 +5,8 @@ import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
+import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
+import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -30,8 +31,6 @@ class PanelGetInstallResourceInfoAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
-
         val parameters = getParameters(context)
 
         val versionId = try {
@@ -44,6 +43,12 @@ class PanelGetInstallResourceInfoAPI(
 
         val resourceId = versionInfo.getString("resourceId")
         val type = ResourceType.valueOf(versionInfo.getString("type"))
+
+        if (type == ResourceType.PLUGIN) {
+            authProvider.requirePermission(ManageAddonsPermission(), context)
+        } else {
+            authProvider.requirePermission(ManageViewPermission(), context)
+        }
 
         val installed = installManager.isInstalled(resourceId, type)
 

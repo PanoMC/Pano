@@ -1,6 +1,9 @@
 package com.panomc.platform
 
 import com.panomc.platform.InstallManager.Companion.ResourceType
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
+import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.error.*
@@ -16,6 +19,7 @@ import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
@@ -41,7 +45,8 @@ class PanoApiManager(
     private val pluginManager: PluginManager,
     private val installManager: InstallManager,
     applicationContext: ApplicationContext,
-    private val vertx: Vertx
+    private val vertx: Vertx,
+    private val authProvider: AuthProvider
 ) {
     companion object {
         private const val HEADER_PREFIX = "Bearer "
@@ -346,11 +351,18 @@ class PanoApiManager(
     }
 
     suspend fun downloadResourceVersionFromStore(
+        context: RoutingContext,
         versionId: UUID,
         progressHandler: (result: Result) -> Unit
     ): Map<String, Any?> {
         val versionInfo = getVersionInfo(versionId)
         val versionType = ResourceType.valueOf(versionInfo.getString("type"))
+
+        if (versionType == ResourceType.PLUGIN) {
+            authProvider.requirePermission(ManageAddonsPermission(), context)
+        } else {
+            authProvider.requirePermission(ManageViewPermission(), context)
+        }
 
         val resourceFolderPath =
             if (versionType == ResourceType.PLUGIN) pluginManager.pluginsRoot.absolutePathString() else File(
@@ -420,9 +432,13 @@ class PanoApiManager(
         )
     }
 
-    suspend fun installResourceFromStore(versionId: UUID, progressHandler: (result: Result) -> Unit) {
+    suspend fun installResourceFromStore(
+        context: RoutingContext,
+        versionId: UUID,
+        progressHandler: (result: Result) -> Unit
+    ) {
         try {
-            val downloadResult = downloadResourceVersionFromStore(versionId, progressHandler)
+            val downloadResult = downloadResourceVersionFromStore(context, versionId, progressHandler)
             val file = downloadResult["file"] as File
             val hash = downloadResult["hash"] as String
             val verified = downloadResult["verified"] as Boolean

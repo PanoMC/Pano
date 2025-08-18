@@ -43,7 +43,7 @@ class PanelUpdateResourceAPI(
 
         var successAmount = 0
 
-        updateManager.updateResource(resourceId, state) {
+        updateManager.updateResource(context, resourceId, state) {
             sendServerSentEventMessage(context, it)
 
             if (it is Successful) {

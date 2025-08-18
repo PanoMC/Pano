@@ -47,7 +47,7 @@ class PanelGetInstallResourceStoreStreamAPI(
 
         var successAmount = 0
 
-        panoApiManager.installResourceFromStore(versionId) {
+        panoApiManager.installResourceFromStore(context, versionId) {
             sendServerSentEventMessage(context, it)
 
             if (it is Successful) {

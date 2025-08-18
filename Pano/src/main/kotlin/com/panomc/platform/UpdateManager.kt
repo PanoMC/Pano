@@ -19,6 +19,7 @@ import io.vertx.core.Vertx
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.kotlin.coroutines.coAwait
@@ -299,7 +300,12 @@ class UpdateManager(
         }
     }
 
-    suspend fun updateResource(resourceId: String, state: UUID, progressHandler: (result: Result) -> Unit) {
+    suspend fun updateResource(
+        context: RoutingContext,
+        resourceId: String,
+        state: UUID,
+        progressHandler: (result: Result) -> Unit
+    ) {
         try {
             val sqlClient = databaseManager.getSqlClient()
 
@@ -320,7 +326,7 @@ class UpdateManager(
 
             var successAmount = 0
 
-            panoApiManager.installResourceFromStore(versionId) {
+            panoApiManager.installResourceFromStore(context, versionId) {
                 if (it is Successful) {
                     successAmount++
 

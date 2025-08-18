@@ -6,7 +6,8 @@ import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
+import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
+import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.*
@@ -35,8 +36,6 @@ class PanelGetInstallResourceLocalStreamAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
-        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
-
         val parameters = getParameters(context)
 
         val type = try {
@@ -45,6 +44,12 @@ class PanelGetInstallResourceLocalStreamAPI(
             throw InvalidResourceFile()
         }
         val fileName = parameters.pathParameter("fileName").string
+
+        if (type == ResourceType.PLUGIN) {
+            authProvider.requirePermission(ManageAddonsPermission(), context)
+        } else {
+            authProvider.requirePermission(ManageViewPermission(), context)
+        }
 
         val response = context.response()
 

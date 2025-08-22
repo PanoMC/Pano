@@ -5,14 +5,13 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
-import com.panomc.platform.util.Architecture
-import com.panomc.platform.util.OperatingSystem
-import com.panomc.platform.util.TimeUtil
+import com.panomc.platform.util.*
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.coAwait
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.io.File
@@ -91,6 +90,27 @@ class Main : CoroutineVerticle() {
 
         @JvmStatic
         fun main(args: Array<String>) {
+            val noGui = Args.hasFlag(args, "-nogui")
+
+            if (!noGui) {
+                // Try GUI first; if it fails (headless or no display), do normal start.
+                if (UiConsole.isGuiAvailable()) {
+                    UiConsole.showConsoleWindow("Pano Console")
+                    vertx.deployVerticle(Main())
+                    return
+                }
+                // GUI not available -> fall back to normal start
+            }
+
+            // Normal start (with console respawn if needed)
+            val alreadySpawned = System.getenv("PANO_SPAWNED") != null
+            val hasTty = LauncherUtil.hasAttachedTty()
+
+            if (!alreadySpawned && !hasTty) {
+                if (LauncherUtil.spawnWithConsole()) return
+                // If spawn failed (no terminal on system), just run headless
+            }
+
             vertx.deployVerticle(Main())
         }
 
@@ -111,7 +131,7 @@ class Main : CoroutineVerticle() {
     private lateinit var uiManager: UIManager
     private var stopping = false
 
-    fun shutdown() {
+    suspend fun shutdown() {
         if (stopping) {
             return
         }
@@ -120,16 +140,40 @@ class Main : CoroutineVerticle() {
 
         logger.info("Shutting down Pano...")
         try {
-            vertx.close()
-
+            vertx.close().coAwait()
         } catch (e: Exception) {
             logger.error("Pano graceful shutdown failed", e)
+        }
+
+        UiConsole.markStopped()
+    }
+
+    private fun hookCommands() {
+        UiConsole.setCommandHandler { cmd ->
+            // Parse & run your commands here
+            when (cmd) {
+                "stop", "exit", "quit" -> {
+                    runBlocking { shutdown() }
+                }
+
+                else -> println("Unknown command: $cmd")
+            }
         }
     }
 
     private fun hookShutdown() {
+        UiConsole.setInterruptHandler {
+            // Graceful stop
+            runBlocking {
+                shutdown()
+            }
+            // do not System.exit(); window stays open
+        }
+
         Runtime.getRuntime().addShutdownHook(Thread {
-            shutdown()
+            runBlocking {
+                shutdown()
+            }
         })
 
 //         In Unix catching SIGINT/SIGTERM (optional, not exists in Windows)
@@ -141,7 +185,9 @@ class Main : CoroutineVerticle() {
             val handler = java.lang.reflect.Proxy.newProxyInstance(
                 sigHdl.classLoader, arrayOf(sigHdl)
             ) { _, _, _ ->
-                shutdown()
+                runBlocking {
+                    shutdown()
+                }
                 exitProcess(0)
             }
             handleMethod.invoke(null, ctor.newInstance("INT"), handler)
@@ -216,6 +262,8 @@ class Main : CoroutineVerticle() {
 
             initRoutes()
         }
+
+        hookCommands()
     }
 
     private suspend fun initUpdateManager() {
@@ -331,9 +379,12 @@ class Main : CoroutineVerticle() {
             .listen(port, host)
             .onSuccess {
                 logger.info("Started listening on http://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+
+                UiConsole.markReady()
             }
             .onFailure { result ->
                 logger.error("Failed to listen on http://$host:$port, reason: " + result.cause.toString())
+                exitProcess(1)
             }
     }
 }

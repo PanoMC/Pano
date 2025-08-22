@@ -3,6 +3,7 @@ package com.panomc.platform.util
 import com.panomc.platform.util.UiConsole.markReady
 import java.awt.*
 import java.awt.datatransfer.StringSelection
+import java.awt.image.BufferedImage
 import java.io.OutputStream
 import java.io.PrintStream
 import javax.swing.*
@@ -11,6 +12,16 @@ import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
 import javax.swing.text.StyledDocument
 
+/**
+ * Dark-themed Swing console window with:
+ *  - ANSI colors (basic 16, bold, underline)
+ *  - Monospace font, anti-aliased
+ *  - Command input with placeholder/prompt and lock states
+ *  - Ctrl+C stops the app (window stays), prints guidance
+ *  - System.out/err redirected (optional tee)
+ *  - Uses system Look&Feel for native window chrome
+ *  - Loads app icon from classpath resource: /logo.png
+ */
 object UiConsole {
 
     private var frame: JFrame? = null
@@ -39,7 +50,7 @@ object UiConsole {
     private val fg = Color(0xd4d4d4)
     private val fieldBg = Color(0x252526)
     private val borderTop = Color(0x2a2a2a)
-    private val placeholderColor = Color(0x8a8a8a) // dim gray
+    private val placeholderColor = Color(0x8a8a8a)
     private val caretDisabled = Color(0x5a5a5a)
 
     private val placeholderText = "> Enter command here..."
@@ -57,15 +68,18 @@ object UiConsole {
         return true
     }
 
+    /** Set a Ctrl+C (interrupt) handler to gracefully stop your app. */
     fun setInterruptHandler(handler: (() -> Unit)?) {
         interruptHandler = handler
     }
 
+    /** Set a handler that receives commands typed in the input box. */
     fun setCommandHandler(handler: ((String) -> Unit)?) {
         commandHandler = handler
     }
 
     /**
+     * Show the console window and redirect System.out/err to it.
      * Input starts LOCKED until you call [markReady].
      */
     fun showConsoleWindow(title: String = "Pano Console", teeToOriginal: Boolean = true) {
@@ -73,9 +87,16 @@ object UiConsole {
             frame!!.toFront(); return
         }
 
+        // Native window look (Windows/macOS/Linux)
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
+        } catch (_: Exception) {
+        }
+
         System.setProperty("awt.useSystemAAFontSettings", "on")
         System.setProperty("swing.aatext", "true")
 
+        // Keep our dark colors for content
         UIManager.put("TextPane.background", bg)
         UIManager.put("TextPane.foreground", fg)
         UIManager.put("ScrollBar.thumb", Color(0x3a3d41))
@@ -83,7 +104,10 @@ object UiConsole {
 
         val f = JFrame(title)
 
-        // Output
+        // Try to set window and taskbar/dock icon from /logo.png
+        applyAppIcon(f, "/logo.png")
+
+        // Output area
         val pane = JTextPane().apply {
             isEditable = false
             background = bg
@@ -92,7 +116,7 @@ object UiConsole {
         }
         val scroll = JScrollPane(pane).apply { border = BorderFactory.createEmptyBorder() }
 
-        // Input
+        // Input area
         val input = JTextField().apply {
             background = fieldBg
             foreground = placeholderColor
@@ -107,15 +131,12 @@ object UiConsole {
         // Placeholder behavior
         input.addFocusListener(object : java.awt.event.FocusAdapter() {
             override fun focusGained(e: java.awt.event.FocusEvent?) {
-                if (input.text == placeholderText) {
-                    input.text = ""
-                }
+                if (input.text == placeholderText) input.text = ""
                 if (inputEnabled && !stopped) {
                     input.foreground = fg
                     input.caretColor = fg
                 }
             }
-
             override fun focusLost(e: java.awt.event.FocusEvent?) {
                 if (input.text.isBlank()) {
                     input.text = placeholderText
@@ -164,7 +185,7 @@ object UiConsole {
         installKeyBindings(pane)
         installSystemStreamsRedirect(teeToOriginal)
 
-        // Start locked (editable=false to preserve colors)
+        // Start locked; unlock later via markReady()
         inputEnabled = false
         inputLockReason = "Starting…"
         applyInputLockUI()
@@ -172,14 +193,13 @@ object UiConsole {
         f.isVisible = true
     }
 
-    /** App fully ready -> unlock input */
+    /** Call when your app is fully ready: unlocks input and focuses the field. */
     fun markReady() {
         inputEnabled = true
         inputLockReason = ""
         applyInputLockUI()
         SwingUtilities.invokeLater {
             inputField?.requestFocusInWindow()
-            // show prompt style if field is empty
             val field = inputField ?: return@invokeLater
             if (field.text.isBlank()) {
                 field.text = ""
@@ -189,19 +209,18 @@ object UiConsole {
         }
     }
 
-    /** App stopped -> lock input, keep window, print guidance */
+    /** Call when your app has stopped: lock input, keep window, print guidance. */
     fun markStopped() {
         if (stopped) return
         stopped = true
         inputEnabled = false
         inputLockReason = "Pano is stopped"
         applyInputLockUI()
-        // ensure focus leaves the (now disabled) field
         SwingUtilities.invokeLater { inputField?.transferFocusUpCycle() }
         println("\u001B[33mPano stopped. Commands are disabled. To close this window, click the window's Close (X) button.\u001B[0m")
     }
 
-    /** Optional manual toggle */
+    /** Optional manual toggle. */
     fun setInputEnabled(enabled: Boolean, reasonIfDisabled: String = "") {
         inputEnabled = enabled
         inputLockReason = if (enabled) "" else reasonIfDisabled
@@ -238,51 +257,38 @@ object UiConsole {
         val field = inputField ?: return
         val btn = sendBtn
 
-        // Two levels:
-        //  - starting lock  -> editable=false, enabled=true (keeps colors; can still focus)
-        //  - stopped (hard) -> enabled=false (cannot focus / interact)
+        // HARD DISABLE when stopped: cannot focus or type
         val hardDisabled = stopped
-
         if (hardDisabled) {
-            // HARD DISABLE (after stop): no focus, no typing, no send
             field.isEnabled = false
             field.isEditable = false
             field.isFocusable = false
             field.isRequestFocusEnabled = false
             field.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
-
-            // Show placeholder in dim color
             field.text = placeholderText
             field.foreground = placeholderColor
             field.caretColor = caretDisabled
-
             btn?.isEnabled = false
             field.toolTipText = "Pano is stopped"
-            // Optionally move focus away if it was here
             field.transferFocusUpCycle()
             return
         }
 
-        // STARTING or READY state
+        // STARTING or READY
         val editable = inputEnabled
-        // Keep enabled to preserve dark colors and allow focus when ready
         field.isEnabled = true
         field.isFocusable = true
         field.isRequestFocusEnabled = true
         field.isEditable = editable
-        field.cursor = if (editable)
-            Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
-        else
-            Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
+        field.cursor = if (editable) Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR)
+        else Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
 
-        // Caret / text color & placeholder
         if (editable) {
             if (field.text == placeholderText) field.text = ""
             field.foreground = fg
             field.caretColor = fg
             field.toolTipText = null
         } else {
-            // starting lock
             if (field.text.isBlank()) field.text = placeholderText
             field.foreground = placeholderColor
             field.caretColor = caretDisabled
@@ -301,13 +307,11 @@ object UiConsole {
                 parseAnsiAndAppend(String(byteArrayOf(b.toByte())))
                 if (teeToOriginal) originalOut?.write(b)
             }
-
             override fun write(b: ByteArray, off: Int, len: Int) {
                 val s = String(b, off, len)
                 parseAnsiAndAppend(s)
                 if (teeToOriginal) originalOut?.write(b, off, len)
             }
-
             override fun flush() {
                 if (teeToOriginal) originalOut?.flush()
             }
@@ -318,13 +322,11 @@ object UiConsole {
                 parseAnsiAndAppend(String(byteArrayOf(b.toByte())))
                 if (teeToOriginal) originalErr?.write(b)
             }
-
             override fun write(b: ByteArray, off: Int, len: Int) {
                 val s = String(b, off, len)
                 parseAnsiAndAppend(s)
                 if (teeToOriginal) originalErr?.write(b, off, len)
             }
-
             override fun flush() {
                 if (teeToOriginal) originalErr?.flush()
             }
@@ -345,6 +347,8 @@ object UiConsole {
                         interruptHandler?.invoke()
                     } catch (t: Throwable) {
                         System.err.println("\u001B[31mInterrupt handler error:\u001B[0m ${t.message}")
+                    } finally {
+                        markStopped()
                     }
                 } else {
                     println("\u001B[90mPano is already stopped. Close this window with the X button.\u001B[0m")
@@ -352,7 +356,7 @@ object UiConsole {
             }
         })
 
-        // Ctrl+Shift+C -> copy
+        // Ctrl+Shift+C -> copy selection
         pane.getInputMap(JComponent.WHEN_FOCUSED)
             .put(KeyStroke.getKeyStroke("control shift C"), "copySel")
         pane.actionMap.put("copySel", object : AbstractAction() {
@@ -462,5 +466,48 @@ object UiConsole {
         val avail = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toSet()
         val chosen = candidates.firstOrNull { it in avail } ?: "Monospaced"
         return Font(chosen, Font.PLAIN, 14)
+    }
+
+    // ---------- Icon helpers ----------
+
+    /**
+     * Loads /logo.png (or any given resourcePath) and sets:
+     *  - frame icon images at multiple sizes
+     *  - Taskbar/Dock icon (Java 9+ Taskbar API)
+     */
+    private fun applyAppIcon(f: JFrame, resourcePath: String) {
+        val url = javaClass.getResource(resourcePath) ?: return
+        val baseImg = ImageIcon(url).image ?: return
+
+        // Prepare multiple sizes for best results across platforms
+        val sizes = listOf(16, 24, 32, 48, 64, 128, 256, 512)
+        val images = sizes.map { scaleImageSmooth(baseImg, it, it) }
+
+        // setIconImages prefers highest quality list
+        try {
+            f.iconImages = images
+        } catch (_: Exception) {
+            f.iconImage = baseImg
+        }
+
+        // Taskbar / Dock icon (macOS, Windows 10+, some Linux DEs)
+        try {
+            val taskbar = Taskbar.getTaskbar()
+            // Some platforms throw UnsupportedOperationException
+            taskbar.iconImage = images.lastOrNull() ?: baseImg
+        } catch (_: Exception) {
+            // not supported, ignore
+        }
+    }
+
+    private fun scaleImageSmooth(src: Image, w: Int, h: Int): Image {
+        val scaled = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
+        val g2 = scaled.createGraphics()
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.drawImage(src, 0, 0, w, h, null)
+        g2.dispose()
+        return scaled
     }
 }

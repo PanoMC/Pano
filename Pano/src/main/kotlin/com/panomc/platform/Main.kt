@@ -98,7 +98,7 @@ class Main : CoroutineVerticle() {
             if (!noGui) {
                 // Try GUI first; if it fails (headless or no display), do normal start.
                 if (UiConsole.isGuiAvailable()) {
-                    UiConsole.showConsoleWindow("Pano Console")
+                    UiConsole.showConsoleWindow("Pano v${VERSION} Console")
                     IS_GUI = true
                     vertx.deployVerticle(Main())
                     return

@@ -181,7 +181,6 @@ class Main : CoroutineVerticle() {
                 runBlocking {
                     shutdown()
                 }
-                exitProcess(0)
             }
             handleMethod.invoke(null, ctor.newInstance("INT"), handler)
             handleMethod.invoke(null, ctor.newInstance("TERM"), handler)
@@ -213,6 +212,7 @@ class Main : CoroutineVerticle() {
         }
 
         UiConsole.markStopped()
+        exitProcess(0)
     }
 
     private suspend fun executeBlocking(unit: () -> Unit) {

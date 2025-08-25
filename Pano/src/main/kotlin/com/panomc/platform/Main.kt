@@ -133,14 +133,12 @@ class Main : CoroutineVerticle() {
 
         stopping = true
 
-        logger.info("Shutting down Pano...")
+        logger.info("Gracefully shutting down Pano...")
         try {
             vertx.close().coAwait()
         } catch (e: Exception) {
             logger.error("Pano graceful shutdown failed", e)
         }
-
-        UiConsole.markStopped()
     }
 
     private fun hookCommands() {
@@ -213,6 +211,8 @@ class Main : CoroutineVerticle() {
         if (::uiManager.isInitialized) {
             uiManager.shutdown()
         }
+
+        UiConsole.markStopped()
     }
 
     private suspend fun executeBlocking(unit: () -> Unit) {

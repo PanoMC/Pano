@@ -37,7 +37,7 @@ object UiConsole {
     private var defaultAttr: SimpleAttributeSet = SimpleAttributeSet()
     private var currentAttr: SimpleAttributeSet = SimpleAttributeSet()
 
-    private var interruptHandler: (() -> Unit)? = null
+    private var interruptHandler: (suspend () -> Unit)? = null
     private var commandHandler: ((String) -> Unit)? = null
 
     private var originalOut: PrintStream? = null
@@ -73,7 +73,7 @@ object UiConsole {
     }
 
     /** Set a Ctrl+C (interrupt) handler to gracefully stop your app. */
-    fun setInterruptHandler(handler: (() -> Unit)?) {
+    fun setInterruptHandler(handler: (suspend () -> Unit)?) {
         interruptHandler = handler
     }
 
@@ -186,11 +186,11 @@ object UiConsole {
                 try {
                     if (!stopped) {
                         try {
-                            interruptHandler?.invoke()
+                            runBlocking {
+                                interruptHandler?.invoke()
+                            }
                         } catch (t: Throwable) {
                             System.err.println("\u001B[31mInterrupt handler error:\u001B[0m ${t.message}")
-                        } finally {
-                            markStoppedInternal()
                         }
                     }
                 } finally {

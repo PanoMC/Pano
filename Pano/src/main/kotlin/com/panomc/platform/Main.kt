@@ -88,6 +88,9 @@ class Main : CoroutineVerticle() {
             }
         }
 
+        var IS_GUI = false
+            private set
+
         @JvmStatic
         fun main(args: Array<String>) {
             val noGui = Args.hasFlag(args, "-nogui")
@@ -96,19 +99,11 @@ class Main : CoroutineVerticle() {
                 // Try GUI first; if it fails (headless or no display), do normal start.
                 if (UiConsole.isGuiAvailable()) {
                     UiConsole.showConsoleWindow("Pano Console")
+                    IS_GUI = true
                     vertx.deployVerticle(Main())
                     return
                 }
                 // GUI not available -> fall back to normal start
-            }
-
-            // Normal start (with console respawn if needed)
-            val alreadySpawned = System.getenv("PANO_SPAWNED") != null
-            val hasTty = LauncherUtil.hasAttachedTty()
-
-            if (!alreadySpawned && !hasTty) {
-                if (LauncherUtil.spawnWithConsole()) return
-                // If spawn failed (no terminal on system), just run headless
             }
 
             vertx.deployVerticle(Main())

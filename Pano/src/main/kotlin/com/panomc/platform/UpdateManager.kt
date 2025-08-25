@@ -2,6 +2,7 @@ package com.panomc.platform
 
 import com.panomc.platform.AppConstants.UPDATER_JAR
 import com.panomc.platform.InstallManager.Companion.ResourceType
+import com.panomc.platform.Main.Companion.IS_GUI
 import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -278,7 +279,7 @@ class UpdateManager(
             val host = serverConfig.host
             val port = serverConfig.port
 
-            ProcessBuilder(
+            val args = mutableListOf(
                 javaBin, "-jar", panoUpdaterJarPath.toAbsolutePath().toString(),
                 "--target", targetJar,
                 "--update", newUpdateJar,
@@ -286,6 +287,12 @@ class UpdateManager(
                 "--port", port.toString(),
                 "--restart"
             )
+
+            if (IS_GUI) {
+                args.add("--nogui")
+            }
+
+            ProcessBuilder(args)
                 .inheritIO()
                 .start()
 

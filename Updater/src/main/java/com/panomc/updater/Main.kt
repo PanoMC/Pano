@@ -28,16 +28,26 @@ class Main {
                 (argMap["--java"] ?: currentJavaBin()).let { Paths.get(it).toAbsolutePath().normalize().toString() }
             val launchArgs = splitArgsPreservingQuotes(argMap["--launch-args"])
 
+            // Check for --nogui
+            val noGui = argMap["--nogui"]?.toBoolean() == true
+
+            val childArgs = buildList {
+                addAll(launchArgs)
+                if (noGui) add("--nogui")
+            }
+
             println("[Pano Updater] PID=${ProcessHandle.current().pid()} starting…")
             println("[Pano Updater] host=$host port=$port")
             println("[Pano Updater] target=$targetJar")
             println("[Pano Updater] javaBin=$javaBin")
             println("[Pano Updater] update=$updateJar")
+            println("[Pano Updater] pass --nogui: $noGui")
+            if (childArgs.isNotEmpty()) println("[Pano Updater] child args: $childArgs")
 
             waitForPortToClose(host, port, timeout = Duration.ofMinutes(5), poll = Duration.ofMillis(300))
             replaceJarWithRetries(updateJar, targetJar, attempts = 20, sleepMs = 300)
 
-            val child = startChild(javaBin, targetJar, launchArgs)
+            val child = startChild(javaBin, targetJar, childArgs)
             println("[Pano Updater] Child PID=${child.pid()} launched.")
 
             println("[Pano Updater] Updater finished! Exiting...")
@@ -76,8 +86,9 @@ class Main {
                 try {
                     try {
                         if (Files.exists(backup)) Files.delete(backup)
-                    } catch (_: Exception) {
+                    } catch (_: Exception) { /* ignore */
                     }
+
                     if (Files.exists(targetJar)) {
                         try {
                             Files.move(targetJar, backup, ATOMIC_MOVE, REPLACE_EXISTING)
@@ -85,6 +96,7 @@ class Main {
                             Files.move(targetJar, backup, REPLACE_EXISTING)
                         }
                     }
+
                     try {
                         Files.move(updateJar, targetJar, ATOMIC_MOVE, REPLACE_EXISTING)
                     } catch (_: AtomicMoveNotSupportedException) {
@@ -93,8 +105,9 @@ class Main {
 
                     try {
                         if (Files.exists(backup)) Files.delete(backup)
-                    } catch (_: Exception) {
+                    } catch (_: Exception) { /* ignore */
                     }
+
                     println("[Pano Updater] Replaced $targetJar successfully.")
                     return
                 } catch (e: Exception) {
@@ -106,7 +119,7 @@ class Main {
                                 if (Files.exists(targetJar)) Files.delete(targetJar)
                                 Files.move(backup, targetJar, REPLACE_EXISTING)
                             }
-                        } catch (_: Exception) {
+                        } catch (_: Exception) { /* ignore */
                         }
                         fail("Failed to replace jar after $attempts attempts.")
                     }
@@ -116,7 +129,8 @@ class Main {
         }
 
         private fun startChild(javaBin: String, targetJar: Path, args: List<String>): Process {
-            return ProcessBuilder(mutableListOf(javaBin, "-jar", targetJar.toString()).apply { addAll(args) })
+            val cmd = mutableListOf(javaBin, "-jar", targetJar.toString()).apply { addAll(args) }
+            return ProcessBuilder(cmd)
                 .inheritIO()
                 .start()
         }
@@ -130,10 +144,18 @@ class Main {
                 if (a.startsWith("--")) {
                     val eq = a.indexOf('=')
                     if (eq > 0) {
+                        // --key=value
                         map[a.substring(0, eq)] = a.substring(eq + 1)
                     } else {
-                        map[a] = args.getOrNull(i + 1)?.takeIf { !it.startsWith("--") } ?: "true"
-                        if (map[a] != "true") i++
+                        // --flag [value?]
+                        val next = args.getOrNull(i + 1)
+                        if (next != null && !next.startsWith("--")) {
+                            map[a] = next
+                            i++
+                        } else {
+                            // unnecessary flag -> "true"
+                            map[a] = "true"
+                        }
                     }
                 }
                 i++
@@ -152,10 +174,10 @@ class Main {
                     quote != null && c == quote -> quote = null
                     quote == null && c.isWhitespace() -> {
                         if (sb.isNotEmpty()) {
-                            out += sb.toString(); sb.setLength(0)
+                            out += sb.toString()
+                            sb.setLength(0)
                         }
                     }
-
                     else -> sb.append(c)
                 }
             }

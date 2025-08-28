@@ -4,10 +4,10 @@
 import {execSync} from 'node:child_process';
 import {readdirSync, writeFileSync} from 'node:fs';
 
-// Look for bundled UI zips inside the Pano module
+// Look for UI ZIPs inside the Pano module
 const UI_DIR = 'Pano/src/main/resources/UIFiles';
 
-// Organization / repository mapping
+// Mapping of UI components to their repos
 const OWNER = 'PanoMC';
 const REPOS = {
     'panel-ui': 'panel-ui',
@@ -22,7 +22,7 @@ if (!token) {
 }
 
 /**
- * Parse zip file name: "<component>-v1.0.0-dev.34.zip" (the "v" is optional)
+ * Parse ZIP name like: "panel-ui-v1.0.0-dev.34.zip"
  */
 function parseZip(name) {
     const m = name.match(/^([a-z0-9-]+)-((?:v)?\d+\.\d+\.\d+(?:-[a-z0-9.]+)?)\.zip$/i);
@@ -31,15 +31,15 @@ function parseZip(name) {
 }
 
 /**
- * Read current UI zip versions from working tree
+ * Read current UI ZIP versions from working tree.
  */
 function listCurrentVersions() {
-    const entries = readdirSync(UI_DIR, {withFileTypes: true})
+    const files = readdirSync(UI_DIR, {withFileTypes: true})
         .filter((d) => d.isFile() && d.name.endsWith('.zip'))
         .map((d) => d.name);
 
     const map = {};
-    for (const f of entries) {
+    for (const f of files) {
         const p = parseZip(f);
         if (p && REPOS[p.comp]) map[p.comp] = p.version;
     }
@@ -47,7 +47,7 @@ function listCurrentVersions() {
 }
 
 /**
- * Get the previous tag (semantic-release last tag)
+ * Get previous release tag in this repo.
  */
 function getPrevTag() {
     try {
@@ -62,17 +62,17 @@ function getPrevTag() {
 }
 
 /**
- * Read UI zip versions from the previous tag’s tree without checkout
+ * Read previous UI ZIP versions from tree at prevTag.
  */
 function listPreviousVersionsFromTag(prevTag) {
     if (!prevTag) return {};
-    let listing = '';
+    let out = '';
     try {
-        listing = execSync(`git ls-tree -r --name-only ${prevTag} ${UI_DIR}`, {encoding: 'utf8'});
+        out = execSync(`git ls-tree -r --name-only ${prevTag} ${UI_DIR}`, {encoding: 'utf8'});
     } catch {
         return {};
     }
-    const files = listing.split('\n').filter(Boolean).map((p) => p.split('/').pop());
+    const files = out.split('\n').filter(Boolean).map((p) => p.split('/').pop());
     const map = {};
     for (const f of files) {
         const p = parseZip(f);
@@ -82,7 +82,7 @@ function listPreviousVersionsFromTag(prevTag) {
 }
 
 /**
- * Minimal GitHub API helper
+ * GitHub API helper
  */
 async function ghJson(path, params = {}) {
     const url = `https://api.github.com${path}`;
@@ -102,75 +102,12 @@ async function ghJson(path, params = {}) {
 }
 
 /**
- * Normalize a UI repo release body to clean bullet lines:
- * - drop any heading lines (start with #) and section names (Features, Bug Fixes, etc.)
- * - drop version/date headings
- * - drop code blocks
- * - flatten to "- ..." bullets
- * - de-duplicate
- */
-function normalizeReleaseBody(body) {
-    const out = [];
-    let inCode = false;
-
-    for (const raw of body.split('\n')) {
-        const line = raw.replace(/\s+$/, ''); // rtrim
-        const t = line.trim();
-
-        // toggle code blocks
-        if (t.startsWith('```')) {
-            inCode = !inCode;
-            continue;
-        }
-        if (inCode) continue;
-
-        // skip empty
-        if (!t) continue;
-
-        // drop any markdown headings
-        if (/^#{1,6}\s*/.test(t)) continue;
-
-        // drop common section headers and separators
-        if (
-            /^(features|bug fixes|fix(es)?|performance improvements|reverts|chores?|ci|build|changes)\s*:?$/i.test(t) ||
-            /^[-_]{3,}$/.test(t)
-        ) continue;
-
-        // drop version/date headings like "1.0.0 (2025-08-28)" or "v1.2.3"
-        if (/^(v?\d+\.\d+\.\d+(?:-[^\s)]+)?)(\s*\(\d{4}-\d{2}-\d{2}\))?$/i.test(t)) continue;
-
-        // normalize list items / ordered items
-        let item = t.replace(/^[-*]\s+/, '');   // strip leading list marker
-        item = item.replace(/^\d+\.\s+/, '');   // strip ordered list
-        item = item.replace(/^\s+/, '');
-
-        // bulletize anything left (including conventional headers)
-        out.push(`- ${item}`);
-    }
-
-    // de-duplicate (case-insensitive)
-    const seen = new Set();
-    const uniq = [];
-    for (const l of out) {
-        const k = l.toLowerCase();
-        if (!seen.has(k)) {
-            seen.add(k);
-            uniq.push(l);
-        }
-    }
-    return uniq;
-}
-
-/**
- * Collect notes between fromTag…toTag for a repo:
- * 1) Conventional commit headers from compare API
- * 2) Target tag’s normalized GitHub Release body (if exists)
+ * Collect notes between tags for a repo.
  */
 async function collectNotesForRange(repo, fromTag, toTag) {
-    const set = new Set();
     const lines = [];
 
-    // 1) Conventional commits via compare API
+    // 1) Commit headers from compare API
     try {
         const cmp = await ghJson(
             `/repos/${OWNER}/${repo}/compare/${encodeURIComponent(fromTag)}...${encodeURIComponent(toTag)}`
@@ -179,31 +116,20 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         for (const msg of commits) {
             const first = msg.split('\n')[0].trim();
             if (/^(feat|fix|perf|refactor|docs|chore|build|ci)(\(.+\))?:/i.test(first)) {
-                const line = `- ${first}`;
-                const key = line.toLowerCase();
-                if (!set.has(key)) {
-                    set.add(key);
-                    lines.push(line);
-                }
+                lines.push(`- ${first}`);
             }
         }
     } catch {
         // ignore
     }
 
-    // 2) Append normalized release body of toTag
+    // 2) Target release body if available
     try {
         const releases = await ghJson(`/repos/${OWNER}/${repo}/releases?per_page=100`);
         for (const r of releases) {
             if (r.tag_name === toTag && r.body && r.body.trim()) {
-                const norm = normalizeReleaseBody(r.body);
-                for (const l of norm) {
-                    const key = l.toLowerCase();
-                    if (!set.has(key)) {
-                        set.add(key);
-                        lines.push(l);
-                    }
-                }
+                if (lines.length) lines.push(''); // blank line before body
+                lines.push(r.body.trim());
             }
         }
     } catch {
@@ -231,14 +157,13 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         const notes = await collectNotesForRange(repo, oldV, nowV);
         if (!notes) continue;
 
-        // Section title WITHOUT "###" — use bold line instead
-        sections.push(
-            [
-                `**${comp}: ${oldV} → ${nowV}**`,
-                '',
-                notes
-            ].join('\n')
-        );
+        // Section with heading, blank line, notes, trailing blank lines
+        sections.push([
+            `### ${comp}: ${oldV} → ${nowV}`,
+            '',
+            notes,
+            '',
+        ].join('\n'));
     }
 
     if (sections.length === 0) {
@@ -247,10 +172,8 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         return;
     }
 
-    // Visible spacing in GitHub release body (don’t rely on collapsed newlines)
-    const SPACER = '\n<br/>\n<br/>\n';
-    const output = `${SPACER}${sections.join(SPACER)}\n`;
-
+    // Ensure spacing: two blank lines before and between sections
+    const output = `\n\n${sections.join('\n\n')}\n`;
     writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');
 })();

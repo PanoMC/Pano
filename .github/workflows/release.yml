@@ -105,22 +105,40 @@ jobs:
               core.info('UI_CHANGELOG.md not found, skipping.');
               return;
             }
-            const extra = fs.readFileSync(path, 'utf8').trim();
+            const extraRaw = fs.readFileSync(path, 'utf8');
+            const extra = extraRaw.trimEnd(); // dosya sonundaki fazlalıkları temizle
+
             if (!extra) {
               core.info('UI_CHANGELOG.md empty, skipping.');
               return;
             }
+
             const { owner, repo } = context.repo;
-            const { data: releases } = await github.rest.repos.listReleases({
-              owner, repo, per_page: 1
-            });
+            const { data: releases } = await github.rest.repos.listReleases({ owner, repo, per_page: 1 });
             if (!releases.length) {
               core.warning('No releases found to update.');
               return;
             }
+
             const rel = releases[0];
-            const newBody = (rel.body || '') + '\n\n' + extra;
+
+            // --- En az 3 boş satır garantile ---
+            function ensureTripleBlank(str) {
+              // sonda kaç newline var say
+              const m = str.match(/(\n+)$/);
+              const tail = m ? m[1].length : 0;
+              if (tail >= 3) return str;               // zaten ≥3 newline
+              return str + '\n'.repeat(3 - tail);      // eksik kadar ekle
+            }
+
+            let body = rel.body || '';
+            body = ensureTripleBlank(body);            // pano changelog'dan sonra ≥3 boş satır
+            // UI_CHANGELOG zaten bölüm başlıkları + aralarda boşluk içeriyor
+            const newBody = body + extra;
+
             await github.rest.repos.updateRelease({
               owner, repo, release_id: rel.id, body: newBody
             });
-            core.info('Appended UI changelog to the latest release.');
+
+            core.info('Appended UI changelog with generous spacing after main changelog.');
+      

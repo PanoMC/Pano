@@ -21,18 +21,14 @@ if (!token) {
     process.exit(1);
 }
 
-/**
- * Parse ZIP name like: "panel-ui-v1.0.0-dev.34.zip"
- */
+/** Parse ZIP name like: "panel-ui-v1.0.0-dev.34.zip" */
 function parseZip(name) {
     const m = name.match(/^([a-z0-9-]+)-((?:v)?\d+\.\d+\.\d+(?:-[a-z0-9.]+)?)\.zip$/i);
     if (!m) return null;
     return {comp: m[1], version: m[2].startsWith('v') ? m[2] : `v${m[2]}`};
 }
 
-/**
- * Read current UI ZIP versions from working tree.
- */
+/** Read current UI ZIP versions from working tree. */
 function listCurrentVersions() {
     const files = readdirSync(UI_DIR, {withFileTypes: true})
         .filter((d) => d.isFile() && d.name.endsWith('.zip'))
@@ -46,9 +42,7 @@ function listCurrentVersions() {
     return map;
 }
 
-/**
- * Get previous release tag in this repo.
- */
+/** Get previous release tag in this repo. */
 function getPrevTag() {
     try {
         return execSync('git describe --tags --abbrev=0 HEAD^', {encoding: 'utf8'}).trim();
@@ -61,9 +55,7 @@ function getPrevTag() {
     }
 }
 
-/**
- * Read previous UI ZIP versions from tree at prevTag.
- */
+/** Read previous UI ZIP versions from tree at prevTag. */
 function listPreviousVersionsFromTag(prevTag) {
     if (!prevTag) return {};
     let out = '';
@@ -81,9 +73,7 @@ function listPreviousVersionsFromTag(prevTag) {
     return map;
 }
 
-/**
- * GitHub API helper
- */
+/** Minimal GitHub API helper. */
 async function ghJson(path, params = {}) {
     const url = `https://api.github.com${path}`;
     const res = await fetch(url, {
@@ -101,11 +91,38 @@ async function ghJson(path, params = {}) {
     return await res.json();
 }
 
+/** Normalize text for deduping: lower-case, strip links/hashes/punct/extra spaces. */
+function normalize(s) {
+    return s
+        // collapse markdown links: [text](url) -> text
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        // drop any (...) that contains a 7+ hex hash
+        .replace(/\((?=[^)]*[0-9a-fA-F]{7,})[^)]*\)/g, '')
+        // remove leading bullets if any
+        .replace(/^[-*]\s+/, '')
+        // trim punctuation at ends
+        .replace(/^[\s.:;,-]+|[\s.:;,-]+$/g, '')
+        // collapse whitespace
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+/** Extract subject from a conventional header ("type(scope)?: subject"). */
+function extractConventionalSubject(line) {
+    const m = line.match(/^(feat|fix|perf|refactor|docs|chore|build|ci)(\([^)]+\))?:\s*(.+)$/i);
+    return m ? m[3].trim() : line.trim();
+}
+
 /**
- * Collect notes between tags for a repo.
+ * Collect notes between fromTag…toTag for a given repo:
+ * - Gather conventional commit headers via compare API
+ * - Pull target tag’s release body (if present)
+ * - Dedupe: if a release bullet matches a commit subject, drop the commit line
  */
 async function collectNotesForRange(repo, fromTag, toTag) {
-    const lines = [];
+    const commitLines = [];
+    const commitSubjects = new Set();
 
     // 1) Commit headers from compare API
     try {
@@ -116,7 +133,9 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         for (const msg of commits) {
             const first = msg.split('\n')[0].trim();
             if (/^(feat|fix|perf|refactor|docs|chore|build|ci)(\(.+\))?:/i.test(first)) {
-                lines.push(`- ${first}`);
+                commitLines.push(`- ${first}`);
+                const subj = extractConventionalSubject(first);
+                commitSubjects.add(normalize(subj));
             }
         }
     } catch {
@@ -124,24 +143,49 @@ async function collectNotesForRange(repo, fromTag, toTag) {
     }
 
     // 2) Target release body if available
+    let releaseBody = '';
     try {
         const releases = await ghJson(`/repos/${OWNER}/${repo}/releases?per_page=100`);
-        for (const r of releases) {
-            if (r.tag_name === toTag && r.body && r.body.trim()) {
-                if (lines.length) lines.push(''); // blank line before body
-                lines.push(r.body.trim());
-            }
-        }
+        const r = releases.find((x) => x.tag_name === toTag && x.body && x.body.trim());
+        if (r) releaseBody = r.body.trim();
     } catch {
         // ignore
     }
 
-    return lines.length ? lines.join('\n') : null;
+    // 3) If we have a release body, dedupe overlapping bullets from commitLines
+    if (releaseBody) {
+        const releaseSubjects = new Set();
+        for (const rawLine of releaseBody.split('\n')) {
+            const line = rawLine.trim();
+            // bullets like "- text" or "* text"
+            const m = line.match(/^[-*]\s+(.+)$/);
+            if (m) {
+                const cleaned = normalize(m[1]);
+                if (cleaned) releaseSubjects.add(cleaned);
+            }
+        }
+
+        // Filter out commit lines whose subject appears in the release body bullets
+        const filteredCommitLines = commitLines.filter((line) => {
+            const subj = extractConventionalSubject(line.replace(/^-+\s*/, ''));
+            return !releaseSubjects.has(normalize(subj));
+        });
+
+        // Merge with spacing: commits (if any), blank line, then release body
+        const merged = [];
+        if (filteredCommitLines.length) merged.push(...filteredCommitLines);
+        if (releaseBody) {
+            if (merged.length) merged.push(''); // blank line before release body
+            merged.push(releaseBody);
+        }
+        return merged.length ? merged.join('\n') : null;
+    }
+
+    // If no release body, just return commit lines (or null)
+    return commitLines.length ? commitLines.join('\n') : null;
 }
 
-/**
- * Main
- */
+/** Main */
 (async () => {
     const current = listCurrentVersions();
     const prevTag = getPrevTag();
@@ -157,13 +201,15 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         const notes = await collectNotesForRange(repo, oldV, nowV);
         if (!notes) continue;
 
-        // Section with heading, blank line, notes, trailing blank lines
-        sections.push([
-            `### ${comp}: ${oldV} → ${nowV}`,
-            '',
-            notes,
-            '',
-        ].join('\n'));
+        // Section with heading, blank line, notes, and generous spacing between sections
+        sections.push(
+            [
+                `### ${comp}: ${oldV} → ${nowV}`,
+                '',
+                notes,
+                '',
+            ].join('\n')
+        );
     }
 
     if (sections.length === 0) {
@@ -172,7 +218,7 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         return;
     }
 
-    // Ensure spacing: two blank lines before and between sections
+    // Ensure spacing: two blank lines before and between sections, so it never sticks to main changelog
     const output = `\n\n${sections.join('\n\n')}\n`;
     writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');

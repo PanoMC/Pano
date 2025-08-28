@@ -4,7 +4,7 @@
 import {execSync} from 'node:child_process';
 import {readdirSync, writeFileSync} from 'node:fs';
 
-// Search UI ZIPs inside the Pano module
+// Look for bundled UI zips inside the Pano module
 const UI_DIR = 'Pano/src/main/resources/UIFiles';
 
 // Organization / repository mapping
@@ -22,8 +22,7 @@ if (!token) {
 }
 
 /**
- * Parse ZIP file name: "<component>-v1.0.0-dev.34.zip" (the "v" is optional)
- * Returns: { comp: string, version: string with leading "v" }
+ * Parse zip file name: "<component>-v1.0.0-dev.34.zip" (the "v" is optional)
  */
 function parseZip(name) {
     const m = name.match(/^([a-z0-9-]+)-((?:v)?\d+\.\d+\.\d+(?:-[a-z0-9.]+)?)\.zip$/i);
@@ -32,7 +31,7 @@ function parseZip(name) {
 }
 
 /**
- * Read current UI ZIP versions from working tree.
+ * Read current UI zip versions from working tree
  */
 function listCurrentVersions() {
     const entries = readdirSync(UI_DIR, {withFileTypes: true})
@@ -48,7 +47,7 @@ function listCurrentVersions() {
 }
 
 /**
- * Get the previous tag (semantic-release last tag).
+ * Get the previous tag (semantic-release last tag)
  */
 function getPrevTag() {
     try {
@@ -63,18 +62,16 @@ function getPrevTag() {
 }
 
 /**
- * Read UI ZIP versions from the previous tag’s tree without checking out.
+ * Read UI zip versions from the previous tag’s tree without checkout
  */
 function listPreviousVersionsFromTag(prevTag) {
     if (!prevTag) return {};
     let listing = '';
     try {
-        // List files at UI_DIR for the previous tag
         listing = execSync(`git ls-tree -r --name-only ${prevTag} ${UI_DIR}`, {encoding: 'utf8'});
     } catch {
         return {};
     }
-
     const files = listing.split('\n').filter(Boolean).map((p) => p.split('/').pop());
     const map = {};
     for (const f of files) {
@@ -85,7 +82,7 @@ function listPreviousVersionsFromTag(prevTag) {
 }
 
 /**
- * Minimal GitHub API helper.
+ * Minimal GitHub API helper
  */
 async function ghJson(path, params = {}) {
     const url = `https://api.github.com${path}`;
@@ -105,14 +102,14 @@ async function ghJson(path, params = {}) {
 }
 
 /**
- * Collect notes between fromTag…toTag for a given repo:
- * 1) Compare API conventional first-line commit headers
- * 2) Append target tag’s GitHub Release body if present
+ * Collect notes between fromTag…toTag for a repo:
+ * 1) Conventional commit headers from compare API
+ * 2) Target tag’s GitHub Release body (if exists)
  */
 async function collectNotesForRange(repo, fromTag, toTag) {
     const lines = [];
 
-    // 1) Conventional commit headers from compare API
+    // Conventional commits from compare
     try {
         const cmp = await ghJson(
             `/repos/${OWNER}/${repo}/compare/${encodeURIComponent(fromTag)}...${encodeURIComponent(toTag)}`
@@ -125,21 +122,20 @@ async function collectNotesForRange(repo, fromTag, toTag) {
             }
         }
     } catch {
-        // Ignore; not all tags/compare ranges may exist
+        // ignore if compare fails
     }
 
-    // 2) Pull the release body for the target tag if it exists
+    // Release body for toTag
     try {
         const releases = await ghJson(`/repos/${OWNER}/${repo}/releases?per_page=100`);
         for (const r of releases) {
             if (r.tag_name === toTag && r.body && r.body.trim()) {
-                // Add a blank line before release body to visually separate
                 if (lines.length) lines.push('');
                 lines.push(r.body.trim());
             }
         }
     } catch {
-        // Ignore
+        // ignore
     }
 
     return lines.length ? lines.join('\n') : null;
@@ -163,13 +159,12 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         const notes = await collectNotesForRange(repo, oldV, nowV);
         if (!notes) continue;
 
-        // Section with generous spacing around, no global heading
+        // Section with heading + blank line + notes
         sections.push(
             [
                 `### ${comp}: ${oldV} → ${nowV}`,
-                '', // blank line after section title
-                notes,
-                '', // trailing blank line to create paragraph spacing
+                '',
+                notes
             ].join('\n')
         );
     }
@@ -180,11 +175,10 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         return;
     }
 
-    // Add extra spacing:
-    // - 3 newlines before UI changelog starts (so it won't stick to Pano changelog)
-    // - 3 newlines between each section
-    const output = `\n\n\n${sections.join('\n\n\n')}\n`;
+    // Markdown collapses plain newlines, so use <br/> blocks for spacing.
+    const SPACER = '\n<br/>\n<br/>\n';
+    const output = `${SPACER}${sections.join(SPACER)}\n`;
+
     writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');
 })();
-

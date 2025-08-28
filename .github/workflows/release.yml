@@ -24,16 +24,15 @@ jobs:
 
       - name: Dry run to get next release version
         id: get_next_version
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
         run: |
           export NEXT_TAG_VERSION=$(bunx semantic-release --dry-run | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
           echo "new_tag_version=${NEXT_TAG_VERSION}" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
 
       - name: Echo new_tag_version
         run: |
           echo "Extracted Tag Version: ${{ steps.get_next_version.outputs.new_tag_version }}"
-
     outputs:
       new_tag_version: ${{ steps.get_next_version.outputs.new_tag_version }}
 
@@ -54,7 +53,8 @@ jobs:
       - name: Extract branch name
         id: extract_branch
         shell: bash
-        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        run: |
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
 
       - name: Get Time
         id: time
@@ -80,20 +80,25 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      # UI changelog'u üret (ZIP adlarından aralıkları bulup notları topla)
+      # Generate UI changelog from ZIP names and UI repos
       - name: Generate UI changelog
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
         run: |
           bun ./scripts/aggregate-ui-changelog.js
-          test -f UI_CHANGELOG.md && sed -n '1,120p' UI_CHANGELOG.md || true
+          if [ -f UI_CHANGELOG.md ]; then
+            echo "---- UI_CHANGELOG.md (preview) ----"
+            sed -n '1,120p' UI_CHANGELOG.md
+            echo "-----------------------------------"
+          fi
 
       - name: Release (semantic-release)
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
-        run: bunx semantic-release
+        run: |
+          bunx semantic-release
 
-      # Son release'in body’sine UI_CHANGELOG.md içeriğini ekle
+      # Append UI changelog to latest release with a Markdown separator
       - name: Append UI changelog to latest release
         if: success()
         uses: actions/github-script@v7
@@ -106,8 +111,7 @@ jobs:
               return;
             }
             const extraRaw = fs.readFileSync(path, 'utf8');
-            const extra = extraRaw.trimEnd(); // dosya sonundaki fazlalıkları temizle
-
+            const extra = extraRaw.trimEnd();
             if (!extra) {
               core.info('UI_CHANGELOG.md empty, skipping.');
               return;
@@ -119,26 +123,16 @@ jobs:
               core.warning('No releases found to update.');
               return;
             }
-
             const rel = releases[0];
 
-            // --- En az 3 boş satır garantile ---
-            function ensureTripleBlank(str) {
-              // sonda kaç newline var say
-              const m = str.match(/(\n+)$/);
-              const tail = m ? m[1].length : 0;
-              if (tail >= 3) return str;               // zaten ≥3 newline
-              return str + '\n'.repeat(3 - tail);      // eksik kadar ekle
-            }
+            // Use a Markdown separator to FORCE paragraph break & block context reset.
+            // Also add a non-breaking space paragraph to fully exit list contexts.
+            const separator = '\n\n&nbsp;\n\n---\n\n';
 
-            let body = rel.body || '';
-            body = ensureTripleBlank(body);            // pano changelog'dan sonra ≥3 boş satır
-            // UI_CHANGELOG zaten bölüm başlıkları + aralarda boşluk içeriyor
-            const newBody = body + extra;
+            const base = (rel.body || '').replace(/\s+$/,''); // trim trailing ws/newlines
+            const newBody = base + separator + extra;
 
             await github.rest.repos.updateRelease({
               owner, repo, release_id: rel.id, body: newBody
             });
-
-            core.info('Appended UI changelog with generous spacing after main changelog.');
-      
+            core.info('Appended UI changelog with Markdown separator and spacing.');

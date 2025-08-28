@@ -114,15 +114,30 @@ function extractConventionalSubject(line) {
     return m ? m[3].trim() : line.trim();
 }
 
+/** Remove version heading lines like "1.0.0-dev.183 (2025-08-28)" (with or without leading ### or links). */
+function stripVersionHeadings(body) {
+    const lines = body.split('\n');
+    const cleaned = [];
+    for (let raw of lines) {
+        let line = raw.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim(); // unwrap links
+        line = line.replace(/^#{1,6}\s*/, ''); // drop leading markdown hashes
+        const isVersionHeading = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\s*\(\d{4}-\d{2}-\d{2}\))?$/.test(line);
+        if (isVersionHeading) continue;
+        cleaned.push(raw); // keep original spacing
+    }
+    // trim leading/trailing blank lines
+    return cleaned.join('\n').replace(/^\s+|\s+$/g, '').trim();
+}
+
 /**
  * Collect notes between fromTag…toTag for a given repo:
  * - Gather conventional commit headers via compare API
- * - Pull target tag’s release body (if present)
- * - Dedupe: if a release bullet matches a commit subject, drop the commit line
+ * - Pull target tag’s release body (if present) and strip version headings
+ * - Dedupe: if body already mentions a commit subject, drop that commit line
  */
 async function collectNotesForRange(repo, fromTag, toTag) {
     const commitLines = [];
-    const commitSubjects = new Set();
+    const commitSubjects = [];
 
     // 1) Commit headers from compare API
     try {
@@ -134,8 +149,7 @@ async function collectNotesForRange(repo, fromTag, toTag) {
             const first = msg.split('\n')[0].trim();
             if (/^(feat|fix|perf|refactor|docs|chore|build|ci)(\(.+\))?:/i.test(first)) {
                 commitLines.push(`- ${first}`);
-                const subj = extractConventionalSubject(first);
-                commitSubjects.add(normalize(subj));
+                commitSubjects.push(normalize(extractConventionalSubject(first)));
             }
         }
     } catch {
@@ -147,41 +161,29 @@ async function collectNotesForRange(repo, fromTag, toTag) {
     try {
         const releases = await ghJson(`/repos/${OWNER}/${repo}/releases?per_page=100`);
         const r = releases.find((x) => x.tag_name === toTag && x.body && x.body.trim());
-        if (r) releaseBody = r.body.trim();
+        if (r) releaseBody = stripVersionHeadings(r.body.trim());
     } catch {
         // ignore
     }
 
-    // 3) If we have a release body, dedupe overlapping bullets from commitLines
+    // 3) Dedupe commit lines if body already contains the same subjects (even without bullets)
     if (releaseBody) {
-        const releaseSubjects = new Set();
-        for (const rawLine of releaseBody.split('\n')) {
-            const line = rawLine.trim();
-            // bullets like "- text" or "* text"
-            const m = line.match(/^[-*]\s+(.+)$/);
-            if (m) {
-                const cleaned = normalize(m[1]);
-                if (cleaned) releaseSubjects.add(cleaned);
-            }
-        }
-
-        // Filter out commit lines whose subject appears in the release body bullets
-        const filteredCommitLines = commitLines.filter((line) => {
-            const subj = extractConventionalSubject(line.replace(/^-+\s*/, ''));
-            return !releaseSubjects.has(normalize(subj));
+        const bodyNorm = normalize(releaseBody);
+        const filtered = commitLines.filter((line) => {
+            const subj = normalize(extractConventionalSubject(line.replace(/^-+\s*/, '')));
+            return !bodyNorm.includes(subj);
         });
 
-        // Merge with spacing: commits (if any), blank line, then release body
         const merged = [];
-        if (filteredCommitLines.length) merged.push(...filteredCommitLines);
+        if (filtered.length) merged.push(...filtered);
         if (releaseBody) {
-            if (merged.length) merged.push(''); // blank line before release body
+            if (merged.length) merged.push(''); // blank line before body
             merged.push(releaseBody);
         }
         return merged.length ? merged.join('\n') : null;
     }
 
-    // If no release body, just return commit lines (or null)
+    // If no body, return commits
     return commitLines.length ? commitLines.join('\n') : null;
 }
 
@@ -218,7 +220,7 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         return;
     }
 
-    // Ensure spacing: two blank lines before and between sections, so it never sticks to main changelog
+    // Two blank lines before and between sections so it never sticks to the main changelog
     const output = `\n\n${sections.join('\n\n')}\n`;
     writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');

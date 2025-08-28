@@ -180,8 +180,11 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         return;
     }
 
-    // Start with two blank lines so it won't stick to the main release notes above
-    const output = `\n\n${sections.join('\n')}\n`;
+    // Add extra spacing:
+    // - 3 newlines before UI changelog starts (so it won't stick to Pano changelog)
+    // - 3 newlines between each section
+    const output = `\n\n\n${sections.join('\n\n\n')}\n`;
     writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');
 })();
+

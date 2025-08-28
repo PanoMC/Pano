@@ -8,20 +8,22 @@ permissions:
   contents: read
 
 jobs:
-  get-next-version:
+  get_next_version:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to be able to publish a GitHub release
-      issues: write # to be able to comment on released issues
-      pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for npm provenance
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
 
       - name: Dry run to get next release version
-        id: get-next-version
+        id: get_next_version
         run: |
           export NEXT_TAG_VERSION=$(bunx semantic-release --dry-run | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
           echo "new_tag_version=${NEXT_TAG_VERSION}" >> $GITHUB_OUTPUT
@@ -30,28 +32,29 @@ jobs:
 
       - name: Echo new_tag_version
         run: |
-          echo "Extracted Tag Version: ${{ steps.get-next-version.outputs.new_tag_version }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
-    outputs:
-      new_tag_version: ${{ steps.get-next-version.outputs.new_tag_version }}
+          echo "Extracted Tag Version: ${{ steps.get_next_version.outputs.new_tag_version }}"
 
-  build-and-release:
+    outputs:
+      new_tag_version: ${{ steps.get_next_version.outputs.new_tag_version }}
+
+  build_and_release:
     runs-on: ubuntu-latest
-    needs: get-next-version
-    if: ${{needs.get-next-version.outputs.new_tag_version != ''}}
+    needs: get_next_version
+    if: ${{ needs.get_next_version.outputs.new_tag_version != '' }}
     permissions:
-      contents: write # to be able to publish a GitHub release
-      issues: write # to be able to comment on released issues
-      pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for npm provenance
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Extract branch name
+        id: extract_branch
         shell: bash
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
-        id: extract_branch
 
       - name: Get Time
         id: time
@@ -72,12 +75,52 @@ jobs:
         run: |
           ./gradlew ${{ steps.extract_branch.outputs.branch == 'main' && 'build' || 'buildDev' }} \
             -PbuildType=${{ steps.extract_branch.outputs.branch == 'main' && 'release' || steps.extract_branch.outputs.branch }} \
-            -Pversion=${{ needs.get-next-version.outputs.new_tag_version }} \
+            -Pversion=${{ needs.get_next_version.outputs.new_tag_version }} \
             -PtimeStamp=${{ steps.time.outputs.time }}
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Release
+      # UI changelog'u üret (ZIP adlarından aralıkları bulup notları topla)
+      - name: Generate UI changelog
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+        run: |
+          bun ./scripts/aggregate-ui-changelog.js
+          test -f UI_CHANGELOG.md && sed -n '1,120p' UI_CHANGELOG.md || true
+
+      - name: Release (semantic-release)
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
         run: bunx semantic-release
+
+      # Son release'in body’sine UI_CHANGELOG.md içeriğini ekle
+      - name: Append UI changelog to latest release
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'UI_CHANGELOG.md';
+            if (!fs.existsSync(path)) {
+              core.info('UI_CHANGELOG.md not found, skipping.');
+              return;
+            }
+            const extra = fs.readFileSync(path, 'utf8').trim();
+            if (!extra) {
+              core.info('UI_CHANGELOG.md empty, skipping.');
+              return;
+            }
+            const { owner, repo } = context.repo;
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner, repo, per_page: 1
+            });
+            if (!releases.length) {
+              core.warning('No releases found to update.');
+              return;
+            }
+            const rel = releases[0];
+            const newBody = (rel.body || '') + '\n\n' + extra;
+            await github.rest.repos.updateRelease({
+              owner, repo, release_id: rel.id, body: newBody
+            });
+            core.info('Appended UI changelog to the latest release.');

@@ -4,7 +4,7 @@
 import {execSync} from 'node:child_process';
 import {readdirSync, writeFileSync} from 'node:fs';
 
-const UI_DIR = 'src/main/resources/UIFiles';
+const UI_DIR = 'Pano/src/main/resources/UIFiles';
 const OWNER = 'PanoMC'; // org/user
 const REPOS = {
     'panel-ui': 'panel-ui',

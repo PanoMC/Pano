@@ -1,11 +1,14 @@
-// node >=18 (veya Bun); GITHUB_TOKEN gerekir
-// ZIP adı kalıbı: <comp>-v1.0.0-dev.34.zip (v opsiyonel)
-// src/main/resources/UIFiles altında aranır
+// scripts/aggregate-ui-changelog.js
+// Node 18+ (or Bun). Requires GITHUB_TOKEN with read access to the UI repos.
+
 import {execSync} from 'node:child_process';
 import {readdirSync, writeFileSync} from 'node:fs';
 
+// Search UI ZIPs inside the Pano module
 const UI_DIR = 'Pano/src/main/resources/UIFiles';
-const OWNER = 'PanoMC'; // org/user
+
+// Organization / repository mapping
+const OWNER = 'PanoMC';
 const REPOS = {
     'panel-ui': 'panel-ui',
     'setup-ui': 'setup-ui',
@@ -14,29 +17,39 @@ const REPOS = {
 
 const token = process.env.GITHUB_TOKEN;
 if (!token) {
-    console.error('GITHUB_TOKEN yok.');
+    console.error('GITHUB_TOKEN is required.');
     process.exit(1);
 }
 
+/**
+ * Parse ZIP file name: "<component>-v1.0.0-dev.34.zip" (the "v" is optional)
+ * Returns: { comp: string, version: string with leading "v" }
+ */
 function parseZip(name) {
-    // panel-ui-v1.0.0-dev.34.zip  |  setup-ui-1.2.3.zip
     const m = name.match(/^([a-z0-9-]+)-((?:v)?\d+\.\d+\.\d+(?:-[a-z0-9.]+)?)\.zip$/i);
     if (!m) return null;
     return {comp: m[1], version: m[2].startsWith('v') ? m[2] : `v${m[2]}`};
 }
 
+/**
+ * Read current UI ZIP versions from working tree.
+ */
 function listCurrentVersions() {
-    const files = readdirSync(UI_DIR, {withFileTypes: true})
+    const entries = readdirSync(UI_DIR, {withFileTypes: true})
         .filter((d) => d.isFile() && d.name.endsWith('.zip'))
         .map((d) => d.name);
+
     const map = {};
-    for (const f of files) {
+    for (const f of entries) {
         const p = parseZip(f);
         if (p && REPOS[p.comp]) map[p.comp] = p.version;
     }
     return map;
 }
 
+/**
+ * Get the previous tag (semantic-release last tag).
+ */
 function getPrevTag() {
     try {
         return execSync('git describe --tags --abbrev=0 HEAD^', {encoding: 'utf8'}).trim();
@@ -49,15 +62,20 @@ function getPrevTag() {
     }
 }
 
+/**
+ * Read UI ZIP versions from the previous tag’s tree without checking out.
+ */
 function listPreviousVersionsFromTag(prevTag) {
     if (!prevTag) return {};
-    let out = '';
+    let listing = '';
     try {
-        out = execSync(`git ls-tree -r --name-only ${prevTag} ${UI_DIR}`, {encoding: 'utf8'});
+        // List files at UI_DIR for the previous tag
+        listing = execSync(`git ls-tree -r --name-only ${prevTag} ${UI_DIR}`, {encoding: 'utf8'});
     } catch {
         return {};
     }
-    const files = out.split('\n').filter(Boolean).map((p) => p.split('/').pop());
+
+    const files = listing.split('\n').filter(Boolean).map((p) => p.split('/').pop());
     const map = {};
     for (const f of files) {
         const p = parseZip(f);
@@ -66,6 +84,9 @@ function listPreviousVersionsFromTag(prevTag) {
     return map;
 }
 
+/**
+ * Minimal GitHub API helper.
+ */
 async function ghJson(path, params = {}) {
     const url = `https://api.github.com${path}`;
     const res = await fetch(url, {
@@ -78,14 +99,20 @@ async function ghJson(path, params = {}) {
     });
     if (!res.ok) {
         const txt = await res.text();
-        throw new Error(`GitHub API ${res.status}: ${txt}`);
+        throw new Error(`GitHub API ${res.status} for ${path}: ${txt}`);
     }
     return await res.json();
 }
 
+/**
+ * Collect notes between fromTag…toTag for a given repo:
+ * 1) Compare API conventional first-line commit headers
+ * 2) Append target tag’s GitHub Release body if present
+ */
 async function collectNotesForRange(repo, fromTag, toTag) {
     const lines = [];
-    // 1) Tag compare ile aradaki conventional commit başlıkları
+
+    // 1) Conventional commit headers from compare API
     try {
         const cmp = await ghJson(
             `/repos/${OWNER}/${repo}/compare/${encodeURIComponent(fromTag)}...${encodeURIComponent(toTag)}`
@@ -98,22 +125,29 @@ async function collectNotesForRange(repo, fromTag, toTag) {
             }
         }
     } catch {
-        /* ignore */
+        // Ignore; not all tags/compare ranges may exist
     }
-    // 2) toTag için varsa GitHub Release body’si
+
+    // 2) Pull the release body for the target tag if it exists
     try {
         const releases = await ghJson(`/repos/${OWNER}/${repo}/releases?per_page=100`);
         for (const r of releases) {
             if (r.tag_name === toTag && r.body && r.body.trim()) {
+                // Add a blank line before release body to visually separate
+                if (lines.length) lines.push('');
                 lines.push(r.body.trim());
             }
         }
     } catch {
-        /* ignore */
+        // Ignore
     }
+
     return lines.length ? lines.join('\n') : null;
 }
 
+/**
+ * Main
+ */
 (async () => {
     const current = listCurrentVersions();
     const prevTag = getPrevTag();
@@ -129,7 +163,15 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         const notes = await collectNotesForRange(repo, oldV, nowV);
         if (!notes) continue;
 
-        sections.push(`### ${comp} ${oldV} → ${nowV}\n${notes}`);
+        // Section with generous spacing around, no global heading
+        sections.push(
+            [
+                `### ${comp}: ${oldV} → ${nowV}`,
+                '', // blank line after section title
+                notes,
+                '', // trailing blank line to create paragraph spacing
+            ].join('\n')
+        );
     }
 
     if (sections.length === 0) {
@@ -137,6 +179,9 @@ async function collectNotesForRange(repo, fromTag, toTag) {
         console.log('No UI changes found.');
         return;
     }
-    writeFileSync('UI_CHANGELOG.md', `## Bundled UI Updates\n\n${sections.join('\n\n')}\n`);
+
+    // Start with two blank lines so it won't stick to the main release notes above
+    const output = `\n\n${sections.join('\n')}\n`;
+    writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');
 })();

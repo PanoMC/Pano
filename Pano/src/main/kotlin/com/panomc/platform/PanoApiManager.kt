@@ -175,15 +175,11 @@ class PanoApiManager(
                 .send()
                 .coAwait()
 
-            val responseBody = response.bodyAsJsonObject()
-            val result = responseBody.getString("result")
-            val error = responseBody.getString("error")
-
-            if (response.statusCode() != 200 && response.statusCode() != 401) {
+            if (response.statusCode() != 200) {
                 throw PanoDisconnectFailed()
             }
         } catch (_: Exception) {
-            throw PanoDisconnectFailed()
+            throw PanoConnectFailed()
         }
 
         val panoAccountConfig = getPanoAccountConfig()

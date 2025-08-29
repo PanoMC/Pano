@@ -1,15 +1,14 @@
 // scripts/aggregate-ui-changelog.js
-// Node 18+ (or Bun). Uses conventional-changelog-cli to get notes for exactly oldTag → newTag.
+// Node 18+ (or Bun). Produces a single changelog block per component strictly for oldTag → newTag.
+// No per-version headings, only grouped conventional commits from the exact compare range.
 
 import {execSync} from 'node:child_process';
-import {mkdtempSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {readdirSync, writeFileSync} from 'node:fs';
 
-// Bundled UI ZIPs live here (inside the Pano module)
+// Where the bundled UI ZIPs live inside your repo
 const UI_DIR = 'Pano/src/main/resources/UIFiles';
 
-// UI component → repo mapping
+// Your org & repo mapping
 const OWNER = 'PanoMC';
 const REPOS = {
     'panel-ui': 'panel-ui',
@@ -17,34 +16,24 @@ const REPOS = {
     'vanilla-theme': 'vanilla-theme',
 };
 
-// Prefer bunx if present, otherwise npx
-function detectRunner() {
-    try {
-        execSync('bunx --version', {stdio: 'ignore'});
-        return 'bunx';
-    } catch {
-    }
-    try {
-        execSync('npx -v', {stdio: 'ignore'});
-        return 'npx -y';
-    } catch {
-    }
-    throw new Error('Neither bunx nor npx found in PATH.');
+const token = process.env.GITHUB_TOKEN;
+if (!token) {
+    console.error('GITHUB_TOKEN is required.');
+    process.exit(1);
 }
-const NPX_CMD = detectRunner();
 
-/** Parse "panel-ui-v1.0.0-dev.34.zip" or "setup-ui-1.2.3.zip" → { comp, version(with leading v) } */
+/** Parse "panel-ui-v1.0.0-dev.34.zip" or "setup-ui-1.2.3.zip" → { comp, version: 'v1.2.3' } */
 function parseZip(name) {
     const m = name.match(/^([a-z0-9-]+)-((?:v)?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)\.zip$/i);
     if (!m) return null;
     return {comp: m[1], version: m[2].startsWith('v') ? m[2] : `v${m[2]}`};
 }
 
-/** Read current UI versions from working tree. */
+/** Read current UI ZIP versions from working tree. */
 function listCurrentVersions() {
     const files = readdirSync(UI_DIR, {withFileTypes: true})
-        .filter(d => d.isFile() && d.name.endsWith('.zip'))
-        .map(d => d.name);
+        .filter((d) => d.isFile() && d.name.endsWith('.zip'))
+        .map((d) => d.name);
     const map = {};
     for (const f of files) {
         const p = parseZip(f);
@@ -53,7 +42,7 @@ function listCurrentVersions() {
     return map;
 }
 
-/** Get the previous Pano tag. */
+/** Get previous release tag in this (Pano) repo. */
 function getPrevTag() {
     try {
         return execSync('git describe --tags --abbrev=0 HEAD^', {encoding: 'utf8'}).trim();
@@ -66,7 +55,7 @@ function getPrevTag() {
     }
 }
 
-/** Read previous UI ZIP versions from prevTag’s tree (no checkout). */
+/** Read previous UI ZIP versions from the tree at prevTag (no checkout). */
 function listPreviousVersionsFromTag(prevTag) {
     if (!prevTag) return {};
     let out = '';
@@ -75,7 +64,7 @@ function listPreviousVersionsFromTag(prevTag) {
     } catch {
         return {};
     }
-    const files = out.split('\n').filter(Boolean).map(p => p.split('/').pop());
+    const files = out.split('\n').filter(Boolean).map((p) => p.split('/').pop());
     const map = {};
     for (const f of files) {
         const p = parseZip(f);
@@ -84,56 +73,75 @@ function listPreviousVersionsFromTag(prevTag) {
     return map;
 }
 
-/** Remove version headings *and* date-only lines like "(2025-08-28)" (with or without hashes). */
-function stripVersionHeadings(md) {
-    const lines = md.split('\n');
-    const out = [];
-    for (let raw of lines) {
-        // unwrap links in headings: "## [1.2.3](...) (YYYY-MM-DD)"
-        let s = raw.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-        // old anchor pattern: <a name="..."></a>
-        s = s.replace(/^<a name="[^"]+"><\/a>\s*/, '');
-        // for matching, drop markdown hashes
-        const t = s.replace(/^#{1,6}\s*/, '').trim();
-
-        const isVersionHeading =
-            /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\s*\(\d{4}-\d{2}-\d{2}\))?$/.test(t);
-
-        // handle date-only lines like "(2025-08-28)" or "2025-08-28", with optional hashes/spaces
-        const isDateOnly =
-            /^#{0,6}\s*\(?\d{4}-\d{2}-\d{2}\)?\s*$/.test(s);
-
-        if (isVersionHeading || isDateOnly) continue; // drop
-        out.push(raw);
+/** Small GitHub API helper (compare range). */
+async function ghJson(path) {
+    const res = await fetch(`https://api.github.com${path}`, {
+        headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${token}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+        },
+    });
+    if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`GitHub API ${res.status} for ${path}: ${txt}`);
     }
-    // normalize outer/triple blanks
-    return out.join('\n').replace(/^\s+|\s+$/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    return await res.json();
 }
 
+/** Parse conventional commit header → {type, scope, subject} or null. */
+function parseConventional(line) {
+    const m = line.match(/^(feat|fix|perf|refactor|docs|chore|build|ci)(?:\(([^\)]+)\))?:\s*(.+)$/i);
+    if (!m) return null;
+    return {type: m[1].toLowerCase(), scope: m[2] || null, subject: m[3].trim()};
+}
+
+/** Format a bullet line: "- subject (shortsha link)". */
+function bulletLine({scope, subject, sha, repo}) {
+    const short = sha.slice(0, 7);
+    const link = `https://github.com/${OWNER}/${repo}/commit/${sha}`;
+    const prefix = scope ? `${scope}: ` : '';
+    return `- ${prefix}${subject} ([${short}](${link}))`;
+}
+
+/** Map types to section titles, and render groups in a stable order. */
+const GROUPS = [
+    {type: 'feat', title: 'Features'},
+    {type: 'fix', title: 'Bug Fixes'},
+    {type: 'perf', title: 'Performance'},
+    {type: 'refactor', title: 'Refactoring'},
+    {type: 'docs', title: 'Docs'},
+    {type: 'build', title: 'Build'},
+    {type: 'ci', title: 'CI'},
+    {type: 'chore', title: 'Chore'},
+];
+
 /**
- * Produce a single conventional-changelog block for oldTag → newTag.
- * - Shallow+blobless clone to speed up
- * - preset=conventionalcommits, release-count=1 (only that range)
- * - Strip version headings and date-only lines
+ * Collect ONE clean markdown block for exact range oldTag…newTag.
+ * Only commits in that range (no per-release headings).
  */
-function changelogForRange(repo, oldTag, newTag) {
-    const tmp = mkdtempSync(join(tmpdir(), `cc-${repo}-`));
-    try {
-        const url = `https://github.com/${OWNER}/${repo}.git`;
-        execSync(`git -c protocol.version=2 clone --filter=blob:none --no-checkout --quiet ${url} "${tmp}"`, {stdio: 'inherit'});
-        execSync(`git -C "${tmp}" fetch --quiet --tags --force --prune`, {stdio: 'inherit'});
+async function notesForRange(repo, fromTag, toTag) {
+    const cmp = await ghJson(`/repos/${OWNER}/${repo}/compare/${encodeURIComponent(fromTag)}...${encodeURIComponent(toTag)}`);
 
-        const cmd = `${NPX_CMD} conventional-changelog-cli -p conventionalcommits -r 1 --from "${oldTag}" --to "${newTag}"`;
-        const raw = execSync(cmd, {cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit']});
-
-        const cleaned = stripVersionHeadings(raw);
-        return cleaned;
-    } finally {
-        try {
-            rmSync(tmp, {recursive: true, force: true});
-        } catch {
-        }
+    // Group conventional commits
+    /** @type {Record<string, string[]>} */
+    const buckets = {};
+    for (const c of cmp.commits || []) {
+        const msg = (c.commit && c.commit.message || '').split('\n')[0].trim();
+        const parsed = parseConventional(msg);
+        if (!parsed) continue; // skip non-conventional / merge commits
+        const key = parsed.type;
+        (buckets[key] ||= []).push(bulletLine({scope: parsed.scope, subject: parsed.subject, sha: c.sha, repo}));
     }
+
+    // Render grouped markdown
+    const out = [];
+    for (const g of GROUPS) {
+        const list = buckets[g.type];
+        if (!list || list.length === 0) continue;
+        out.push(`#### ${g.title}`, '', list.join('\n'), ''); // blank line after each group
+    }
+    return out.join('\n').trim();
 }
 
 /** Main */
@@ -149,15 +157,21 @@ function changelogForRange(repo, oldTag, newTag) {
         if (!nowV || !oldV || nowV === oldV) continue;
 
         const repo = REPOS[comp];
-        const block = changelogForRange(repo, oldV, nowV);
-        if (!block) continue;
+        try {
+            const block = await notesForRange(repo, oldV, nowV); // STRICT old → new only
+            if (!block) continue;
 
-        sections.push([
-            `### ${comp}: ${oldV} → ${nowV}`,
-            '',
-            block,
-            '' // trailing blank for readability
-        ].join('\n'));
+            sections.push(
+                [
+                    `### ${comp}: ${oldV} → ${nowV}`,
+                    '',
+                    block,
+                    '', // trailing blank line inside section
+                ].join('\n')
+            );
+        } catch (e) {
+            console.error(`Failed to build notes for ${comp} (${oldV} → ${nowV}):`, e.message);
+        }
     }
 
     if (!sections.length) {
@@ -166,7 +180,7 @@ function changelogForRange(repo, oldTag, newTag) {
         return;
     }
 
-    // Start with two blank lines; two blank lines between sections
+    // Two blank lines before and between sections so it never sticks to the main changelog
     const output = `\n\n${sections.join('\n\n')}\n`;
     writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');

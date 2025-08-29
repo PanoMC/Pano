@@ -27,4 +27,6 @@ object AppConstants {
     const val REPO = "PanoMC/pano"
 
     const val UPDATER_JAR = "pano-updater.jar"
+
+    const val DEFAULT_WEBSITE_LOGO_FILE = "assets/img/minecraft-logo.png"
 }

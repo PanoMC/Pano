@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api
 
+import com.panomc.platform.AppConstants.DEFAULT_WEBSITE_LOGO_FILE
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Api
@@ -101,6 +102,6 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
     }
 
     private fun sendDefault(context: RoutingContext) {
-        context.response().sendFile("assets/img/minecraft-logo.png")
+        context.response().sendFile(DEFAULT_WEBSITE_LOGO_FILE)
     }
 }

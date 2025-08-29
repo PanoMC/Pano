@@ -387,7 +387,6 @@ class PanoApiManager(
             .coAwait()
 
         if (getFileResponse.statusCode() != 200) {
-            writeStream.close()
             throw PanoConnectFailed()
         }
 

@@ -84,7 +84,7 @@ class PanelGetSettingsAPI(
             val sqlClient = databaseManager.getSqlClient()
 
             val lastCheck = databaseManager.systemPropertyDao.getByOption(UpdateManager.UPDATE_LAST_CHECK, sqlClient)
-            val platformUpdate = updateManager.getPlatformUpdateeInfo()
+            val platformUpdate = updateManager.getPlatformUpdateInfo()
             val resourceUpdatesInfo = updateManager.getResourcesUpdateList()
 
             result["lastCheckedAt"] = lastCheck

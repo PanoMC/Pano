@@ -60,7 +60,7 @@ class PanelGetBasicDataAPI(
         )
 
         if (authProvider.hasPermission(userId, ManagePlatformSettingsPermission(), context)) {
-            val platformUpdate = updateManager.getPlatformUpdateeInfo()
+            val platformUpdate = updateManager.getPlatformUpdateInfo()
             val resourceUpdatesInfo = updateManager.getResourcesUpdateList()
 
             result["hasUpdate"] = platformUpdate != null || resourceUpdatesInfo.isNotEmpty()

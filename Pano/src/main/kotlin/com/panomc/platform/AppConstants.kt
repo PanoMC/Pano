@@ -1,8 +1,10 @@
 package com.panomc.platform
 
+import java.io.File
+
 object AppConstants {
     const val DEFAULT_POST_UPLOAD_PATH = "post"
-    const val DEFAULT_POST_THUMBNAIL_UPLOAD_PATH = "$DEFAULT_POST_UPLOAD_PATH/thumbnail"
+    val DEFAULT_POST_THUMBNAIL_UPLOAD_PATH = "${DEFAULT_POST_UPLOAD_PATH + File.separator}thumbnail"
 
     const val POST_THUMBNAIL_URL_PREFIX = "/api/post/thumbnail/"
 
@@ -29,4 +31,6 @@ object AppConstants {
     const val UPDATER_JAR = "pano-updater.jar"
 
     const val DEFAULT_WEBSITE_LOGO_FILE = "assets/img/minecraft-logo.png"
+
+    val UPDATE_ICON_FOLDER = "update-thumbnail" + File.separator
 }

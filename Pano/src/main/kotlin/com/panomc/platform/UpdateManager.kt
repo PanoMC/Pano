@@ -1,16 +1,14 @@
 package com.panomc.platform
 
 import com.panomc.platform.AppConstants.UPDATER_JAR
+import com.panomc.platform.AppConstants.UPDATE_ICON_FOLDER
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.Main.Companion.IS_GUI
 import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
-import com.panomc.platform.error.FailedToUpdatePlatform
-import com.panomc.platform.error.FailedToUpdateResource
-import com.panomc.platform.error.InternalServerError
-import com.panomc.platform.error.InvalidPlatformUpdateFile
+import com.panomc.platform.error.*
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
@@ -18,6 +16,7 @@ import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.VersionUtil
 import io.vertx.core.Vertx
 import io.vertx.core.file.OpenOptions
+import io.vertx.core.http.HttpMethod
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -182,14 +181,71 @@ class UpdateManager(
 
             val sqlClient = databaseManager.getSqlClient()
 
-            val propertyExists =
-                databaseManager.systemPropertyDao.existsByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+            val existingProperty =
+                databaseManager.systemPropertyDao.getByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
 
-            updates.forEach {
-                (it as JsonObject).put("state", UUID.randomUUID())
+            val updateIconFolder = configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
+
+            val tempFolder = File(AppConstants.TEMP_FOLDER)
+
+            if (!tempFolder.exists() || !tempFolder.isDirectory) {
+                tempFolder.deleteRecursively()
+                tempFolder.mkdirs()
             }
 
-            if (propertyExists) {
+            val downloadedFiles = mutableMapOf<String, String>()
+
+            updates.map { it as JsonObject }.forEach {
+                it.put("state", UUID.randomUUID())
+                val id = it.getString("id")
+
+                val url = "/resources/${id}/" + if (ResourceType.valueOf(it.getString("type")) == ResourceType.THEME) {
+                    "screenshots/" + it.getJsonObject("screenshot").getString("id")
+                } else {
+                    "icon"
+                } + "?preview=true"
+
+                val fileSystem = vertx.fileSystem()
+                val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + UUID.randomUUID()
+                val writeStream = fileSystem.openBlocking(
+                    temporaryFilePath,
+                    OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
+                )
+
+                val getFileResponse = panoApiManager.createRequest(HttpMethod.GET, url)
+                    .`as`(BodyCodec.pipe(writeStream))
+                    .send()
+                    .coAwait()
+
+                if (getFileResponse.statusCode() != 200) {
+                    throw PanoConnectFailed()
+                }
+
+                downloadedFiles[id] = temporaryFilePath
+            }
+
+            val folder = File(updateIconFolder)
+
+            if (folder.exists()) {
+                folder.deleteRecursively()
+            }
+
+            updates.map { it as JsonObject }.forEach {
+                val id = it.getString("id")
+
+                val iconFileName = UUID.randomUUID()
+
+                val target = File(updateIconFolder + iconFileName)
+                val file = File(downloadedFiles[id]!!)
+
+                target.parentFile.mkdirs()
+                file.copyTo(target)
+                file.delete()
+
+                it.put("iconFileName", iconFileName)
+            }
+
+            if (existingProperty != null) {
                 databaseManager.systemPropertyDao.update(RESOURCES_UPDATE_CHECK_INFO, updates.encode(), sqlClient)
                 return
             }
@@ -338,6 +394,20 @@ class UpdateManager(
                     successAmount++
 
                     if (successAmount == 4) {
+                        val foundUpdateInfo = JsonArray(platformUpdateInfoOption.value).map { it as JsonObject }
+                            .find { it.getString("id") == resourceId }!!
+                        val iconFileName = foundUpdateInfo.getString("iconFileName")
+
+                        if (iconFileName != null) {
+                            val updateIconFolder =
+                                configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
+                            val file = File(updateIconFolder + iconFileName)
+
+                            if (file.exists()) {
+                                file.delete()
+                            }
+                        }
+
                         val filteredUpdateList =
                             JsonArray(JsonArray(platformUpdateInfoOption.value).filter { (it as JsonObject).getString("id") != resourceId })
 
@@ -379,7 +449,7 @@ class UpdateManager(
         databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
     }
 
-    suspend fun getPlatformUpdateeInfo(): JsonObject? {
+    suspend fun getPlatformUpdateInfo(): JsonObject? {
         val sqlClient = databaseManager.getSqlClient()
 
         val platformUpdateInfo =

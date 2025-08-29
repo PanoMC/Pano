@@ -1,15 +1,15 @@
-// Node 18+ (veya Bun). conventional-changelog-cli kullanılacak.
-// Bu script yalnızca oldTag → newTag aralığını TEK BLOK olarak üretir.
+// scripts/aggregate-ui-changelog.js
+// Node 18+ (or Bun). Uses conventional-changelog-cli to get notes for exactly oldTag → newTag.
 
 import {execSync} from 'node:child_process';
 import {mkdtempSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-// UI ZIP'leri Pano modülü altında
+// Bundled UI ZIPs live here (inside the Pano module)
 const UI_DIR = 'Pano/src/main/resources/UIFiles';
 
-// UI bileşeni → repo eşlemesi
+// UI component → repo mapping
 const OWNER = 'PanoMC';
 const REPOS = {
     'panel-ui': 'panel-ui',
@@ -17,7 +17,7 @@ const REPOS = {
     'vanilla-theme': 'vanilla-theme',
 };
 
-// Bun varsa bunx, yoksa npx
+// Prefer bunx if present, otherwise npx
 function detectRunner() {
     try {
         execSync('bunx --version', {stdio: 'ignore'});
@@ -29,18 +29,18 @@ function detectRunner() {
         return 'npx -y';
     } catch {
     }
-    throw new Error('Neither bunx nor npx is available in PATH.');
+    throw new Error('Neither bunx nor npx found in PATH.');
 }
 const NPX_CMD = detectRunner();
 
-/** "panel-ui-v1.0.0-dev.34.zip" veya "setup-ui-1.2.3.zip" → {comp, version (v ile)} */
+/** Parse "panel-ui-v1.0.0-dev.34.zip" or "setup-ui-1.2.3.zip" → { comp, version(with leading v) } */
 function parseZip(name) {
     const m = name.match(/^([a-z0-9-]+)-((?:v)?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)\.zip$/i);
     if (!m) return null;
     return {comp: m[1], version: m[2].startsWith('v') ? m[2] : `v${m[2]}`};
 }
 
-/** Çalışan ağacından güncel UI sürümlerini oku. */
+/** Read current UI versions from working tree. */
 function listCurrentVersions() {
     const files = readdirSync(UI_DIR, {withFileTypes: true})
         .filter(d => d.isFile() && d.name.endsWith('.zip'))
@@ -53,7 +53,7 @@ function listCurrentVersions() {
     return map;
 }
 
-/** Bu repo'daki önceki Pano tag'i. */
+/** Get the previous Pano tag. */
 function getPrevTag() {
     try {
         return execSync('git describe --tags --abbrev=0 HEAD^', {encoding: 'utf8'}).trim();
@@ -66,7 +66,7 @@ function getPrevTag() {
     }
 }
 
-/** prevTag ağacındaki UI ZIP sürümlerini checkout yapmadan oku. */
+/** Read previous UI ZIP versions from prevTag’s tree (no checkout). */
 function listPreviousVersionsFromTag(prevTag) {
     if (!prevTag) return {};
     let out = '';
@@ -84,43 +84,49 @@ function listPreviousVersionsFromTag(prevTag) {
     return map;
 }
 
-/** Sürüm başlıklarını (## 1.2.3 (YYYY-MM-DD), anchor'lı vs.) temizle. */
+/** Remove version headings *and* date-only lines like "(2025-08-28)" (with or without hashes). */
 function stripVersionHeadings(md) {
     const lines = md.split('\n');
     const out = [];
     for (let raw of lines) {
-        let s = raw.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // [1.2.3](url) → 1.2.3
-        s = s.replace(/^<a name="[^"]+"><\/a>\s*/, '');      // eski anchor kalıpları
-        const t = s.replace(/^#{1,6}\s*/, '').trim();       // heading hash'lerini kaldırıp test et
-        const isVersionHeading = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\s*\(\d{4}-\d{2}-\d{2}\))?$/.test(t);
-        if (isVersionHeading) continue;
+        // unwrap links in headings: "## [1.2.3](...) (YYYY-MM-DD)"
+        let s = raw.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+        // old anchor pattern: <a name="..."></a>
+        s = s.replace(/^<a name="[^"]+"><\/a>\s*/, '');
+        // for matching, drop markdown hashes
+        const t = s.replace(/^#{1,6}\s*/, '').trim();
+
+        const isVersionHeading =
+            /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\s*\(\d{4}-\d{2}-\d{2}\))?$/.test(t);
+
+        // handle date-only lines like "(2025-08-28)" or "2025-08-28", with optional hashes/spaces
+        const isDateOnly =
+            /^#{0,6}\s*\(?\d{4}-\d{2}-\d{2}\)?\s*$/.test(s);
+
+        if (isVersionHeading || isDateOnly) continue; // drop
         out.push(raw);
     }
-    // Kenarlardaki boş satırları toparla
-    return out.join('\n').replace(/^\s+|\s+$/g, '').trim();
+    // normalize outer/triple blanks
+    return out.join('\n').replace(/^\s+|\s+$/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
- * Bir repo için oldTag → newTag aralığında TEK BLOK changelog üret.
- * - Shallow+blobless clone
- * - conventional-changelog-cli preset=conventionalcommits, release-count=1
- * - Başlık strip + boşluk düzeni
+ * Produce a single conventional-changelog block for oldTag → newTag.
+ * - Shallow+blobless clone to speed up
+ * - preset=conventionalcommits, release-count=1 (only that range)
+ * - Strip version headings and date-only lines
  */
 function changelogForRange(repo, oldTag, newTag) {
     const tmp = mkdtempSync(join(tmpdir(), `cc-${repo}-`));
     try {
         const url = `https://github.com/${OWNER}/${repo}.git`;
-        // blobless clone (dosya içeriksiz, sadece commit/refs)
         execSync(`git -c protocol.version=2 clone --filter=blob:none --no-checkout --quiet ${url} "${tmp}"`, {stdio: 'inherit'});
         execSync(`git -C "${tmp}" fetch --quiet --tags --force --prune`, {stdio: 'inherit'});
 
-        // SADECE oldTag → newTag VE TEK BLOK: -r 1
         const cmd = `${NPX_CMD} conventional-changelog-cli -p conventionalcommits -r 1 --from "${oldTag}" --to "${newTag}"`;
-        const notes = execSync(cmd, {cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit']});
+        const raw = execSync(cmd, {cwd: tmp, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit']});
 
-        // Sürüm başlığını kaldır, 3+ boş satırı 2'ye indir
-        const cleaned = stripVersionHeadings(notes).replace(/\n{3,}/g, '\n\n').trim();
-
+        const cleaned = stripVersionHeadings(raw);
         return cleaned;
     } finally {
         try {
@@ -150,7 +156,7 @@ function changelogForRange(repo, oldTag, newTag) {
             `### ${comp}: ${oldV} → ${nowV}`,
             '',
             block,
-            '' // bölüm sonunda boş satır
+            '' // trailing blank for readability
         ].join('\n'));
     }
 
@@ -160,7 +166,7 @@ function changelogForRange(repo, oldTag, newTag) {
         return;
     }
 
-    // Başa 2 boş satır, bölümler arası 2 boş satır
+    // Start with two blank lines; two blank lines between sections
     const output = `\n\n${sections.join('\n\n')}\n`;
     writeFileSync('UI_CHANGELOG.md', output);
     console.log('UI_CHANGELOG.md written.');

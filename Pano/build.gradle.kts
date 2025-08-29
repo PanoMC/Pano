@@ -85,6 +85,9 @@ dependencies {
     kapt("org.pf4j:pf4j:${pf4jVersion}")
 
     implementation("com.typesafe:config:1.4.3")
+
+    // https://mvnrepository.com/artifact/org.imgscalr/imgscalr-lib
+    implementation("org.imgscalr:imgscalr-lib:4.2")
 }
 
 val organization = "PanoMC"

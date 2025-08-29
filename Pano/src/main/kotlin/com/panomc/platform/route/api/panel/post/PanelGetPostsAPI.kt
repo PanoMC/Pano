@@ -139,6 +139,7 @@ class PanelGetPostsAPI(
                         "username" to (usernameList[post.writerUserId] ?: "-")
                     ),
                     "date" to post.date,
+                    "thumbnailUrl" to post.thumbnailUrl,
                     "views" to post.views,
                     "status" to post.status
                 )

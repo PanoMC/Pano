@@ -94,21 +94,21 @@ class PanelGetDashboardAPI(
 
         if (authProvider.hasPermission(userId, ManagePlayersPermission(), context)) {
             val users = databaseManager.userDao.getLast5Register(sqlClient)
+            val permissionGroupIdList = users.map { it.permissionGroupId }
+            val userIdList = users.map { it.id }
+            val usernameList = users.map { it.username }
+            val permissions = databaseManager.permissionGroupDao.byListOfId(permissionGroupIdList, sqlClient)
+            val userIdTicketCountMap = databaseManager.ticketDao.countByUserIdList(userIdList, sqlClient)
+            val usernameInGameMap = databaseManager.serverPlayerDao.existsByUsernameList(usernameList, sqlClient)
 
             result["lastRegisters"] = users.map {
                 val user = JsonObject.mapFrom(it)
 
                 user.put("isBanned", it.banned)
-                user.put(
-                    "inGame",
-                    databaseManager.serverPlayerDao.existsByUsername(user.getString("username"), sqlClient)
-                )
-                user.put(
-                    "permissionGroup", databaseManager.permissionGroupDao.getPermissionGroupById(
-                        it.permissionGroupId,
-                        sqlClient
-                    )?.name ?: "-"
-                )
+                user.put("inGame", usernameInGameMap[it.username])
+                user.put("permissionGroup", permissions[it.permissionGroupId]?.name ?: "-")
+                user.put("ticketCount", userIdTicketCountMap[it.id])
+                user.put("isEmailVerified", it.emailVerified)
 
                 user.remove("password")
                 user.remove("banned")

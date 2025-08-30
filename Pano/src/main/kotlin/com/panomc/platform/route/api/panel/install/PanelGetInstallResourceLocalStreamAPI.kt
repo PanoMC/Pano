@@ -88,7 +88,9 @@ class PanelGetInstallResourceLocalStreamAPI(
 
         var successAmount = 0
 
-        installManager.installResource(null, null, newFile, type) {
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+
+        installManager.installResource(userId, null, null, newFile, type) {
             sendServerSentEventMessage(context, it)
 
             if (it is Successful) {

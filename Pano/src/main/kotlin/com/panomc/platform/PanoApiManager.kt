@@ -433,13 +433,17 @@ class PanoApiManager(
         progressHandler: (result: Result) -> Unit
     ) {
         try {
-            val downloadResult = downloadResourceVersionFromStore(context, versionId, progressHandler)
+            val downloadResult = downloadResourceVersionFromStore(context, versionId) {
+                progressHandler.invoke(it)
+            }
             val file = downloadResult["file"] as File
             val hash = downloadResult["hash"] as String
             val verified = downloadResult["verified"] as Boolean
             val versionType = downloadResult["versionType"] as ResourceType
 
-            installManager.installResource(hash, verified, file, versionType) {
+            val userId = authProvider.getUserIdFromRoutingContext(context)
+
+            installManager.installResource(userId, hash, verified, file, versionType) {
                 progressHandler.invoke(it)
 
                 if (it is Error) {

@@ -5,6 +5,7 @@ import com.panomc.platform.AppConstants.UPDATE_ICON_FOLDER
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.Main.Companion.IS_GUI
 import com.panomc.platform.Main.Companion.STAGE
+import com.panomc.platform.auth.panel.log.UpdatedPlatformLog
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -319,7 +320,7 @@ class UpdateManager(
         checkResourceUpdates(background)
     }
 
-    suspend fun updatePlatform(state: UUID, progressHandler: (result: Result) -> Unit) {
+    suspend fun updatePlatform(userId: Long?, state: UUID, progressHandler: (result: Result) -> Unit) {
         try {
             val sqlClient = databaseManager.getSqlClient()
 
@@ -358,6 +359,7 @@ class UpdateManager(
             progressHandler.invoke(Successful()) // Downloading update success
 
             val hash = platformUpdateInfo.getString("hash").split("sha256:")[1]
+            val version = platformUpdateInfo.getString("version")
 
             val temporaryFile = File(temporaryFilePath)
 
@@ -404,6 +406,19 @@ class UpdateManager(
                 .start()
 
             progressHandler.invoke(Successful()) // Installation start success
+
+            if (userId != null) {
+                val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+                databaseManager.panelActivityLogDao.add(
+                    UpdatedPlatformLog(
+                        userId,
+                        username,
+                        "v" + Main.VERSION,
+                        version,
+                    ), sqlClient
+                )
+            }
 
             vertx.close().coAwait()
             exitProcess(0)

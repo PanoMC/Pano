@@ -4,6 +4,9 @@ import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.UIManager.Companion.InstalledTheme
 import com.panomc.platform.UIManager.Companion.encode
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.InstalledResourceLog
+import com.panomc.platform.auth.panel.log.UpdatedResourceLog
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.ResourceHash
@@ -38,7 +41,8 @@ class InstallManager(
     private val uiManager: UIManager,
     private val configManager: ConfigManager,
     @param:Lazy private val router: Router,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider
 ) {
     companion object {
         enum class ResourceType {
@@ -53,6 +57,7 @@ class InstallManager(
     }
 
     suspend fun installResource(
+        userId: Long?,
         hash: String?,
         verified: Boolean?,
         resourceFile: File,
@@ -90,8 +95,11 @@ class InstallManager(
                     throw FailedToInstallResource(extras = mapOf("message" to "This version ($version) is already installed."))
                 }
 
+                var fromVersion: String? = null
+
                 if (isInstalled(pluginId, type)) {
                     val existingPlugin = pluginManager.getPlugin(pluginId)
+                    fromVersion = existingPlugin.descriptor.version
 
                     pluginManager.stopPlugin(pluginId)
                     pluginManager.disablePlugin(pluginId)
@@ -108,6 +116,37 @@ class InstallManager(
 
                 if (verified != null) {
                     addHash(plugin.hash, verified)
+                }
+
+                if (userId != null) {
+                    if (fromVersion != null) {
+                        val sqlClient = databaseManager.getSqlClient()
+                        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+                        databaseManager.panelActivityLogDao.add(
+                            UpdatedResourceLog(
+                                userId,
+                                username,
+                                pluginId,
+                                fromVersion,
+                                version,
+                                type
+                            ), sqlClient
+                        )
+                    } else {
+                        val sqlClient = databaseManager.getSqlClient()
+                        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+                        databaseManager.panelActivityLogDao.add(
+                            InstalledResourceLog(
+                                userId,
+                                username,
+                                pluginId,
+                                version,
+                                type
+                            ), sqlClient
+                        )
+                    }
                 }
 
                 progressHandler.invoke(Successful()) // Installing success
@@ -169,10 +208,10 @@ class InstallManager(
                     throw InvalidResourceFile(extras = mapOf("message" to e.message))
                 }
 
-                val id = parsedInstalledTheme.id.lowercase()
+                val themeId = parsedInstalledTheme.id.lowercase()
                 val version = parsedInstalledTheme.version
 
-                if (isInstalled(id, version, type)) {
+                if (isInstalled(themeId, version, type)) {
                     tempThemeFolder.deleteRecursively()
 
                     throw FailedToInstallResource(extras = mapOf("message" to "This version ($version) is already installed."))
@@ -180,8 +219,11 @@ class InstallManager(
 
                 val config = configManager.config
 
-                if (isInstalled(id, type)) {
-                    val existingTheme = uiManager.installedThemeList.find { it.id == id }!!
+                var fromVersion: String? = null
+
+                if (isInstalled(themeId, type)) {
+                    val existingTheme = uiManager.installedThemeList.find { it.id == themeId }!!
+                    fromVersion = existingTheme.version
 
                     if (existingTheme.installedBy == InstalledBy.SYSTEM) {
                         tempThemeFolder.deleteRecursively()
@@ -189,8 +231,8 @@ class InstallManager(
                         throw FailedToInstallSystemResource()
                     }
 
-                    if (uiManager.activeTheme == id && config.initUi) {
-                        uiManager.stopUI(id)
+                    if (uiManager.activeTheme == themeId && config.initUi) {
+                        uiManager.stopUI(themeId)
                         uiManager.disableUIOnRoute(router, Route.Type.THEME_UI)
                     }
                 }
@@ -202,13 +244,44 @@ class InstallManager(
 
                 uiManager.reloadInstalledThemes()
 
-                if (uiManager.activeTheme == id && config.initUi) {
-                    uiManager.startUI(id)
+                if (uiManager.activeTheme == themeId && config.initUi) {
+                    uiManager.startUI(themeId)
                     uiManager.activateThemeUI(router, uiManager.activeTheme)
                 }
 
                 if (verified != null) {
                     addHash(calculatedHash, verified)
+                }
+
+                if (userId != null) {
+                    if (fromVersion != null) {
+                        val sqlClient = databaseManager.getSqlClient()
+                        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+                        databaseManager.panelActivityLogDao.add(
+                            UpdatedResourceLog(
+                                userId,
+                                username,
+                                themeId,
+                                fromVersion,
+                                version,
+                                type
+                            ), sqlClient
+                        )
+                    } else {
+                        val sqlClient = databaseManager.getSqlClient()
+                        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+                        databaseManager.panelActivityLogDao.add(
+                            InstalledResourceLog(
+                                userId,
+                                username,
+                                themeId,
+                                version,
+                                type
+                            ), sqlClient
+                        )
+                    }
                 }
 
                 progressHandler.invoke(Successful()) // Installing success

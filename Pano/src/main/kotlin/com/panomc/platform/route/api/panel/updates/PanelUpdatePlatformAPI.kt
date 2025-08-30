@@ -41,7 +41,9 @@ class PanelUpdatePlatformAPI(
 
         var successAmount = 0
 
-        updateManager.updatePlatform(state) {
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+
+        updateManager.updatePlatform(userId, state) {
             sendServerSentEventMessage(context, it)
 
             if (it is Successful) {

@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel
 
+import com.panomc.platform.PluginManager
+import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
@@ -16,11 +18,14 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import io.vertx.json.schema.common.dsl.Schemas.enumSchema
+import org.pf4j.PluginState
 
 @Endpoint
 class PanelGetStatisticsAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val uiManager: UIManager,
+    private val pluginManager: PluginManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/statistics", RouteType.GET))
 
@@ -53,7 +58,10 @@ class PanelGetStatisticsAPI(
             "newRegisterCount" to 0,
             "period" to period,
             "websiteActivityDataList" to mutableMapOf<String, Any?>(),
-            "ticketCount" to 0
+            "ticketCount" to 0,
+            "installedThemes" to uiManager.installedThemeList.size,
+            "activePlugins" to pluginManager.plugins.filter { it.pluginState == PluginState.STARTED }.size,
+            "installedPlugins" to pluginManager.plugins.size
         )
 
         val sqlClient = getSqlClient()

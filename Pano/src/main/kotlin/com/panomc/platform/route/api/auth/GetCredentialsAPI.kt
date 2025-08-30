@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -27,7 +28,7 @@ class GetCredentialsAPI(
             mapOf(
                 "username" to user.username,
                 "email" to user.email,
-                "panelAccess" to (user.permissionGroupId != -1L)
+                "panelAccess" to authProvider.hasPermission(user.id, AccessPanelPermission(), context)
             )
         )
     }

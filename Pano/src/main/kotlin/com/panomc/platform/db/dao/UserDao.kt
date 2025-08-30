@@ -195,6 +195,10 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): List<String>
 
+    abstract suspend fun getLast5Register(
+        sqlClient: SqlClient
+    ): List<User>
+
     abstract suspend fun updateLastLoginDate(
         userId: Long,
         sqlClient: SqlClient

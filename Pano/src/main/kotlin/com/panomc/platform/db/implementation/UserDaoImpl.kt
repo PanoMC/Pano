@@ -737,6 +737,20 @@ class UserDaoImpl : UserDao() {
         return usernames
     }
 
+    override suspend fun getLast5Register(
+        sqlClient: SqlClient
+    ): List<User> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `registerDate` DESC, `id` DESC LIMIT 5"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun updateLastLoginDate(userId: Long, sqlClient: SqlClient) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `lastLoginDate` = ? WHERE `id` = ?"

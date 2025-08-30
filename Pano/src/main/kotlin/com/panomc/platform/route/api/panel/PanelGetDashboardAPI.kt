@@ -2,10 +2,12 @@ package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
@@ -25,7 +27,8 @@ class PanelGetDashboardAPI(
             "gettingStartedBlocks" to mapOf(
                 "welcomeBoard" to false
             ),
-            "tickets" to emptyList<Any?>()
+            "tickets" to emptyList<Any?>(),
+            "lastRegisters" to emptyList<Any?>()
         )
 
         val sqlClient = getSqlClient()
@@ -87,6 +90,31 @@ class PanelGetDashboardAPI(
             }
 
             result["tickets"] = ticketDataList
+        }
+
+        if (authProvider.hasPermission(userId, ManagePlayersPermission(), context)) {
+            val users = databaseManager.userDao.getLast5Register(sqlClient)
+
+            result["lastRegisters"] = users.map {
+                val user = JsonObject.mapFrom(it)
+
+                user.put("isBanned", it.banned)
+                user.put(
+                    "inGame",
+                    databaseManager.serverPlayerDao.existsByUsername(user.getString("username"), sqlClient)
+                )
+                user.put(
+                    "permissionGroup", databaseManager.permissionGroupDao.getPermissionGroupById(
+                        it.permissionGroupId,
+                        sqlClient
+                    )?.name ?: "-"
+                )
+
+                user.remove("password")
+                user.remove("banned")
+
+                user
+            }
         }
 
         return Successful(result)

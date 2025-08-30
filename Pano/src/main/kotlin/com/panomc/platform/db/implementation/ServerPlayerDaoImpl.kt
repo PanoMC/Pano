@@ -81,6 +81,40 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
         return rows.toList()[0].getLong(0) > 0
     }
 
+    override suspend fun existsByUsernameList(
+        usernameList: List<String>,
+        sqlClient: SqlClient
+    ): Map<String, Boolean> {
+        if (usernameList.isEmpty()) {
+            return mapOf()
+        }
+
+        var listText = ""
+
+        usernameList.forEach { id ->
+            if (listText == "")
+                listText = "'$id'"
+            else
+                listText += ", '$id'"
+        }
+
+        val query =
+            "SELECT `username`, COUNT(id) AS cnt FROM `${getTablePrefix() + tableName}` where `username` IN ($listText) GROUP BY `username`"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        val map = mutableMapOf<String, Boolean>()
+
+        rows.forEach { row ->
+            map[row.getString(0)] = row.getLong(1) > 0L
+        }
+
+        return map
+    }
+
     override suspend fun deleteByServerId(serverId: Long, sqlClient: SqlClient) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `serverId` = ?"

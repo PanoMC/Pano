@@ -57,4 +57,9 @@ abstract class PermissionGroupDao : Dao<PermissionGroup>(PermissionGroup::class.
         permissionGroup: PermissionGroup,
         sqlClient: SqlClient
     )
+
+    abstract suspend fun byListOfId(
+        idList: List<Long>,
+        sqlClient: SqlClient
+    ): Map<Long, PermissionGroup>
 }

@@ -96,6 +96,11 @@ abstract class TicketDao : Dao<Ticket>(Ticket::class.java) {
         sqlClient: SqlClient
     ): Long
 
+    abstract suspend fun countByUserIdList(
+        userIdList: List<Long>,
+        sqlClient: SqlClient
+    ): Map<Long, Long>
+
     abstract suspend fun getById(
         id: Long,
         sqlClient: SqlClient

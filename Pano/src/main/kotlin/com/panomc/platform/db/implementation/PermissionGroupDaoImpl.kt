@@ -219,6 +219,40 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
             .coAwait()
     }
 
+    override suspend fun byListOfId(
+        idList: List<Long>,
+        sqlClient: SqlClient
+    ): Map<Long, PermissionGroup> {
+        if (idList.isEmpty()) {
+            return mapOf()
+        }
+
+        var listText = ""
+
+        idList.forEach { id ->
+            if (listText == "")
+                listText = "'$id'"
+            else
+                listText += ", '$id'"
+        }
+
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` where `id` IN ($listText)"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        val map = mutableMapOf<Long, PermissionGroup>()
+
+        rows.forEach { row ->
+            map[row.getLong(0)] = row.toEntity()
+        }
+
+        return map
+    }
+
     private suspend fun createAdminPermission(
         sqlClient: SqlClient
     ) {

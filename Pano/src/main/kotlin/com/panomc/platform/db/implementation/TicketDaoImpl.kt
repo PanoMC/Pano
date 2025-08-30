@@ -351,6 +351,40 @@ class TicketDaoImpl : TicketDao() {
         return rows.toList()[0].getLong(0)
     }
 
+    override suspend fun countByUserIdList(
+        userIdList: List<Long>,
+        sqlClient: SqlClient
+    ): Map<Long, Long> {
+        if (userIdList.isEmpty()) {
+            return mapOf()
+        }
+
+        var listText = ""
+
+        userIdList.forEach { id ->
+            if (listText == "")
+                listText = "'$id'"
+            else
+                listText += ", '$id'"
+        }
+
+        val query =
+            "SELECT userId, COUNT(id) AS cnt FROM `${getTablePrefix() + tableName}` where `userId` IN ($listText) GROUP BY `userId`"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        val map = mutableMapOf<Long, Long>()
+
+        rows.forEach { row ->
+            map[row.getLong(0)] = row.getLong(1)
+        }
+
+        return map
+    }
+
     override suspend fun getById(
         id: Long,
         sqlClient: SqlClient

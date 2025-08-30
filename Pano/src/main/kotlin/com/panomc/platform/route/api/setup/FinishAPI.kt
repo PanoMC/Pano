@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.setup
 import com.panomc.platform.AppConstants
 import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.UIManager
+import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.InstalledPlatformLog
@@ -28,7 +29,8 @@ class FinishAPI(
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager,
     @Lazy private val router: Router,
-    private val uiManager: UIManager
+    private val uiManager: UIManager,
+    private val updateManager: UpdateManager
 ) : SetupApi() {
     override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
@@ -98,6 +100,8 @@ class FinishAPI(
         databaseManager.panelActivityLogDao.add(InstalledPlatformLog(userId, username), sqlClient)
 
         setupManager.finishSetup()
+
+        updateManager.checkUpdates(true)
 
         uiManager.prepareUI(router)
 

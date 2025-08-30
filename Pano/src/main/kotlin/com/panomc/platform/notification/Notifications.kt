@@ -12,6 +12,7 @@ enum class Notifications {
         NEW_TICKET,
         NEW_TICKET_MESSAGE,
         TICKET_CLOSED_BY_USER,
-        SERVER_CONNECT_REQUEST
+        SERVER_CONNECT_REQUEST,
+        PANO_UPDATE_FOUND
     }
 }

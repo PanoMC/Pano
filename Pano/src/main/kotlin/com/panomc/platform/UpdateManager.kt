@@ -5,6 +5,7 @@ import com.panomc.platform.AppConstants.UPDATE_ICON_FOLDER
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.Main.Companion.IS_GUI
 import com.panomc.platform.Main.Companion.STAGE
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
@@ -12,7 +13,11 @@ import com.panomc.platform.error.*
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
+import com.panomc.platform.notification.NotificationManager
+import com.panomc.platform.notification.Notifications
+import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil
+import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.util.VersionUtil
 import io.vertx.core.Vertx
 import io.vertx.core.file.OpenOptions
@@ -24,6 +29,7 @@ import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.kotlin.coroutines.dispatcher
+import io.vertx.sqlclient.SqlClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -40,6 +46,9 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -54,7 +63,9 @@ class UpdateManager(
     private val databaseManager: DatabaseManager,
     private val panoApiManager: PanoApiManager,
     private val configManager: ConfigManager,
-    private val installManager: InstallManager
+    private val installManager: InstallManager,
+    private val setupManager: SetupManager,
+    private val notificationManager: NotificationManager
 ) {
     companion object {
         const val PLATFORM_UPDATE_CHECK_INFO = "platform_update_check_info"
@@ -65,7 +76,7 @@ class UpdateManager(
     @Autowired
     private lateinit var logger: Logger
 
-    suspend fun checkPlatformUpdate() {
+    suspend fun checkPlatformUpdate(background: Boolean) {
         try {
             val latestRelease = if (STAGE == ReleaseStage.RELEASE) {
                 val getLatestReleaseResponse = webClient
@@ -74,7 +85,7 @@ class UpdateManager(
                     .coAwait()
 
                 if (getLatestReleaseResponse.statusCode() == 404) {
-                    deletePlatformUpdateInfo()
+                    deletePlatformUpdateInfo(background)
 
                     return
                 }
@@ -97,7 +108,7 @@ class UpdateManager(
                 val releases = getReleasesResponse.bodyAsJsonArray().map { it as JsonObject }
 
                 if (releases.isEmpty()) {
-                    deletePlatformUpdateInfo()
+                    deletePlatformUpdateInfo(background)
 
                     return
                 }
@@ -111,7 +122,7 @@ class UpdateManager(
             val releaseDate = latestRelease.getString("published_at")
 
             if (!VersionUtil.isVersionHigher(version, Main.VERSION)) {
-                deletePlatformUpdateInfo()
+                deletePlatformUpdateInfo(background)
 
                 return
             }
@@ -119,7 +130,7 @@ class UpdateManager(
             val asset = assets.find { it.getString("name").endsWith(".jar") }
 
             if (asset == null) {
-                deletePlatformUpdateInfo()
+                deletePlatformUpdateInfo(background)
 
                 return
             }
@@ -146,6 +157,10 @@ class UpdateManager(
                 )
             )
 
+            if (background) {
+                logger.info("A Pano update found: v{} -> {}", Main.VERSION, version)
+            }
+
             if (propertyExists) {
                 databaseManager.systemPropertyDao.update(PLATFORM_UPDATE_CHECK_INFO, versionInfo.encode(), sqlClient)
                 return
@@ -159,17 +174,27 @@ class UpdateManager(
             )
         } catch (e: Exception) {
             e.printStackTrace()
+
+            if (background) {
+                logger.error("Failed to check Pano updates!")
+                return
+            }
+
             throw InternalServerError()
         }
     }
 
-    private suspend fun deletePlatformUpdateInfo() {
+    private suspend fun deletePlatformUpdateInfo(background: Boolean) {
         val sqlClient = databaseManager.getSqlClient()
 
         databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+
+        if (background) {
+            logger.info("No Pano update found!")
+        }
     }
 
-    suspend fun checkResourceUpdates() {
+    suspend fun checkResourceUpdates(background: Boolean) {
         if (!panoApiManager.isConnected()) {
             return
         }
@@ -245,6 +270,17 @@ class UpdateManager(
                 it.put("iconFileName", iconFileName)
             }
 
+            if (background) {
+                if (updates.size() == 0) {
+                    logger.info("No resource update found!")
+                } else {
+                    logger.info(
+                        "{} resource updates found! {}",
+                        updates.size(),
+                        updates.map { it as JsonObject }.map { "${it.getString("id")}@${it.getString("version")}" })
+                }
+            }
+
             if (existingProperty != null) {
                 databaseManager.systemPropertyDao.update(RESOURCES_UPDATE_CHECK_INFO, updates.encode(), sqlClient)
                 return
@@ -256,16 +292,31 @@ class UpdateManager(
                     value = updates.encode()
                 ), sqlClient
             )
+        } catch (e: Error) {
+            if (background) {
+                return
+            }
+
+            throw e
         } catch (e: Exception) {
+            if (background) {
+                return
+            }
+
             e.printStackTrace()
             throw InternalServerError()
         }
     }
 
-    suspend fun checkUpdates() {
+    suspend fun checkUpdates(background: Boolean = false) {
+        if (background) {
+            logger.info("Checking for updates...")
+        }
+
         updateLastCheck()
-        checkPlatformUpdate()
-        checkResourceUpdates()
+
+        checkPlatformUpdate(background)
+        checkResourceUpdates(background)
     }
 
     suspend fun updatePlatform(state: UUID, progressHandler: (result: Result) -> Unit) {
@@ -432,6 +483,99 @@ class UpdateManager(
 
     internal suspend fun init() {
         checkDidUpgrade()
+
+        startUpdateChecker()
+    }
+
+    fun startUpdateChecker() {
+        logger.info("Started update checker.")
+
+        vertx.setPeriodic(1000 * 60) { // each minute run
+            CoroutineScope(vertx.dispatcher()).launch {
+                if (!shouldCheckUpdates()) {
+                    return@launch
+                }
+
+                val sqlClient = databaseManager.getSqlClient()
+                val oldPlatformUpdateInfo =
+                    databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+
+                try {
+                    checkUpdates(true)
+                } catch (_: Error) {
+                } catch (_: Exception) {
+                }
+
+                val platformUpdateInfo =
+                    databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+
+                if (oldPlatformUpdateInfo == null && platformUpdateInfo != null) {
+                    sendPanoUpdateFoundNotification(sqlClient)
+
+                    return@launch
+                }
+
+                if (oldPlatformUpdateInfo != null && platformUpdateInfo != null) {
+                    val oldPlatformUpdateInfoJsonObject = JsonObject(oldPlatformUpdateInfo.value)
+                    val platformUpdateInfoJsonObject = JsonObject(platformUpdateInfo.value)
+
+                    oldPlatformUpdateInfoJsonObject.remove("state")
+                    platformUpdateInfoJsonObject.remove("state")
+
+                    if (oldPlatformUpdateInfoJsonObject.encode() != platformUpdateInfoJsonObject.encode()) {
+                        println(oldPlatformUpdateInfo.value)
+                        println()
+                        println(platformUpdateInfo.value)
+                        sendPanoUpdateFoundNotification(sqlClient)
+
+                        return@launch
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun sendPanoUpdateFoundNotification(sqlClient: SqlClient) {
+        notificationManager.sendNotificationToAllWithPermission(
+            notificationType = Notifications.PanelNotificationType.PANO_UPDATE_FOUND,
+            panelPermission = ManagePlatformSettingsPermission(),
+            sqlClient = sqlClient
+        )
+    }
+
+    private suspend fun shouldCheckUpdates(): Boolean {
+        if (!setupManager.isSetupDone()) {
+            return false
+        }
+
+        val sqlClient = databaseManager.getSqlClient()
+
+        val config = configManager.config
+        if (config.updatePeriod == UpdatePeriod.NEVER) {
+            return false
+        }
+
+        val lastUpdateCheck = databaseManager.systemPropertyDao.getByOption(UPDATE_LAST_CHECK, sqlClient) ?: return true
+        val lastUpdateCheckDate = lastUpdateCheck.value.toLong()
+
+        val now = LocalDateTime.now()
+        val time = Instant.ofEpochMilli(lastUpdateCheckDate)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+
+        if (config.updatePeriod == UpdatePeriod.ONCE_PER_DAY && time.plusDays(1).isBefore(now)) {
+            return true
+        }
+
+        if (config.updatePeriod == UpdatePeriod.ONCE_PER_WEEK && time.plusWeeks(1).isBefore(now)) {
+            return true
+        }
+
+        if (config.updatePeriod == UpdatePeriod.ONCE_PER_MONTH && time.plusMonths(1).isBefore(now)) {
+            return true
+        }
+
+        return false
     }
 
     private suspend fun checkDidUpgrade() {

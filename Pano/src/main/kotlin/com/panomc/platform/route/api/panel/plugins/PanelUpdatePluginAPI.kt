@@ -4,7 +4,10 @@ package com.panomc.platform.route.api.panel.plugins
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.DisabledPluginLog
+import com.panomc.platform.auth.panel.log.EnabledPluginLog
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.TextUtil
@@ -21,7 +24,8 @@ import org.pf4j.PluginState
 @Endpoint
 class PanelUpdatePluginAPI(
     private val authProvider: AuthProvider,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val databaseManager: DatabaseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.PUT))
 
@@ -54,7 +58,7 @@ class PanelUpdatePluginAPI(
         val status = data.getBoolean("status")
 
         if (status != null) {
-        try {
+            try {
                 if (status) {
                     if (pluginWrapper.pluginState == PluginState.STARTED) {
                         return Successful()
@@ -62,6 +66,18 @@ class PanelUpdatePluginAPI(
 
                     pluginManager.enablePlugin(pluginId)
                     pluginManager.startPlugin(pluginId)
+
+                    val sqlClient = databaseManager.getSqlClient()
+                    val userId = authProvider.getUserIdFromRoutingContext(context)
+                    val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+                    databaseManager.panelActivityLogDao.add(
+                        EnabledPluginLog(
+                            userId,
+                            username,
+                            pluginId,
+                        ), sqlClient
+                    )
                 }
 
                 if (!status) {
@@ -79,22 +95,34 @@ class PanelUpdatePluginAPI(
                     dependents.forEach {
                         pluginManager.disablePlugin(it)
                     }
+
+                    val sqlClient = databaseManager.getSqlClient()
+                    val userId = authProvider.getUserIdFromRoutingContext(context)
+                    val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+                    databaseManager.panelActivityLogDao.add(
+                        DisabledPluginLog(
+                            userId,
+                            username,
+                            pluginId,
+                        ), sqlClient
+                    )
                 }
-        } catch (e: Exception) {
-            val plugin = pluginManager.getPlugin(pluginId)
+            } catch (e: Exception) {
+                val plugin = pluginManager.getPlugin(pluginId)
 
-            plugin.failedException = e
-            plugin.pluginState = PluginState.FAILED
+                plugin.failedException = e
+                plugin.pluginState = PluginState.FAILED
 
-            return Successful(
-                mapOf(
-                    "status" to pluginWrapper.pluginState,
-                    "error" to if (pluginWrapper.failedException == null) null else TextUtil.getStackTraceAsString(
-                        pluginWrapper.failedException
+                return Successful(
+                    mapOf(
+                        "status" to pluginWrapper.pluginState,
+                        "error" to if (pluginWrapper.failedException == null) null else TextUtil.getStackTraceAsString(
+                            pluginWrapper.failedException
+                        )
                     )
                 )
-            )
-        }
+            }
         }
 
         return Successful(

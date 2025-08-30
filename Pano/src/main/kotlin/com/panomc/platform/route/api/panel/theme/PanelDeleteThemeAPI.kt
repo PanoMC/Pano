@@ -6,6 +6,7 @@ import com.panomc.platform.UIManager
 import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.DeletedThemeLog
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -80,6 +81,17 @@ class PanelDeleteThemeAPI(
         databaseManager.resourceHashDao.deleteByHash(theme.hash, sqlClient)
 
         uiManager.reloadInstalledThemes()
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            DeletedThemeLog(
+                userId,
+                username,
+                themeId,
+            ), sqlClient
+        )
 
         return Successful()
     }

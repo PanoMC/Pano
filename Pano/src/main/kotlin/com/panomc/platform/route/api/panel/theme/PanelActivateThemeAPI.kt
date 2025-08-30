@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.theme
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.ActivatedThemeLog
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -61,6 +62,17 @@ class PanelActivateThemeAPI(
         databaseManager.resourceHashDao.deleteByHash(theme.hash, sqlClient)
 
         uiManager.reloadInstalledThemes()
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            ActivatedThemeLog(
+                userId,
+                username,
+                theme.id,
+            ), sqlClient
+        )
 
         return Successful()
     }

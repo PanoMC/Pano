@@ -4,7 +4,9 @@ package com.panomc.platform.route.api.panel.plugins
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.DeletedPluginLog
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -18,7 +20,8 @@ import org.pf4j.PluginState
 @Endpoint
 class PanelDeletePluginAPI(
     private val authProvider: AuthProvider,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val databaseManager: DatabaseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.DELETE))
 
@@ -56,6 +59,18 @@ class PanelDeletePluginAPI(
         pluginManager.unloadPlugin(pluginId)
 
         pluginFile.delete()
+
+        val sqlClient = databaseManager.getSqlClient()
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            DeletedPluginLog(
+                userId,
+                username,
+                pluginId,
+            ), sqlClient
+        )
 
         return Successful()
     }

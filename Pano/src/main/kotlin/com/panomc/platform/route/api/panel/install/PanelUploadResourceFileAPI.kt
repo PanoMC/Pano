@@ -28,8 +28,6 @@ class PanelUploadResourceFileAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        val userId = authProvider.getUserIdFromRoutingContext(context)
-
         if (!(
                     authProvider.hasPermission(ManageAddonsPermission(), context) ||
                             authProvider.hasPermission(ManageViewPermission(), context))

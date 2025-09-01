@@ -42,7 +42,6 @@ class PanelGetStatisticsAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
-        val userId = authProvider.getUserIdFromRoutingContext(context)
 
         val periodQueryParam =
             parameters.queryParameter("period")?.jsonArray?.first() as String? ?: DashboardPeriodType.WEEK.name

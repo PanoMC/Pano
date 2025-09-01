@@ -1,5 +1,6 @@
 package com.panomc.platform.model
 
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.InternalServerError
@@ -29,6 +30,9 @@ abstract class Api : Route() {
 
     @Autowired
     private lateinit var setupManager: SetupManager
+
+    @Autowired
+    private lateinit var authProvider: AuthProvider
 
     fun getSqlClient(): SqlClient {
         return databaseManager.getSqlClient()

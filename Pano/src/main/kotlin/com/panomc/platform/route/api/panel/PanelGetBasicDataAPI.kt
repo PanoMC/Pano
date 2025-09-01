@@ -59,14 +59,14 @@ class PanelGetBasicDataAPI(
             "connectedServerCount" to connectedServerCount
         )
 
-        if (authProvider.hasPermission(userId, ManagePlatformSettingsPermission(), context)) {
+        if (authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {
             val platformUpdate = updateManager.getPlatformUpdateInfo()
             val resourceUpdatesInfo = updateManager.getResourcesUpdateList()
 
             result["hasUpdate"] = platformUpdate != null || resourceUpdatesInfo.isNotEmpty()
         }
 
-        if (authProvider.hasPermission(userId, ManageServersPermission(), context)) {
+        if (authProvider.hasPermission(ManageServersPermission(), context)) {
             val mainServerId = databaseManager.systemPropertyDao.getByOption(
                 "main_server",
                 sqlClient

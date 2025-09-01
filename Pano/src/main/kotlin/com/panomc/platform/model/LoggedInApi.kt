@@ -45,5 +45,7 @@ abstract class LoggedInApi : Api() {
         checkLoggedIn(context)
 
         updateLastActivityTime(context)
+
+        authProvider.applyPermissionsTo(context)
     }
 }

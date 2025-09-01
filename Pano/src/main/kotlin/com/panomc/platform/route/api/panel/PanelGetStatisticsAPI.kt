@@ -72,7 +72,7 @@ class PanelGetStatisticsAPI(
 
         result["postCount"] = databaseManager.postDao.count(sqlClient)
 
-        if (authProvider.hasPermission(userId, ManageTicketsPermission(), context)) {
+        if (authProvider.hasPermission(ManageTicketsPermission(), context)) {
             val ticketCount = databaseManager.ticketDao.count(sqlClient)
 
             result["ticketCount"] = ticketCount

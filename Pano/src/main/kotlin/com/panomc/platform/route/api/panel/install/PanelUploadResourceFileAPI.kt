@@ -31,8 +31,8 @@ class PanelUploadResourceFileAPI(
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         if (!(
-                    authProvider.hasPermission(userId, ManageAddonsPermission(), context) ||
-                            authProvider.hasPermission(userId, ManageViewPermission(), context))
+                    authProvider.hasPermission(ManageAddonsPermission(), context) ||
+                            authProvider.hasPermission(ManageViewPermission(), context))
         ) {
             throw NoPermission()
         }

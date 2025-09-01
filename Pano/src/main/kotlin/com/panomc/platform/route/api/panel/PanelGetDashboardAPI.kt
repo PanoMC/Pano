@@ -49,7 +49,7 @@ class PanelGetDashboardAPI(
 
         val ticketCount = databaseManager.ticketDao.count(sqlClient)
 
-        if (authProvider.hasPermission(userId, ManageTicketsPermission(), context) && ticketCount != 0L) {
+        if (authProvider.hasPermission(ManageTicketsPermission(), context) && ticketCount != 0L) {
             val tickets = databaseManager.ticketDao.getLast5Tickets(sqlClient)
 
             val userIdList = tickets.distinctBy { it.userId }.map { it.userId }
@@ -92,7 +92,7 @@ class PanelGetDashboardAPI(
             result["tickets"] = ticketDataList
         }
 
-        if (authProvider.hasPermission(userId, ManagePlayersPermission(), context)) {
+        if (authProvider.hasPermission(ManagePlayersPermission(), context)) {
             val users = databaseManager.userDao.getLast5Register(sqlClient)
             val permissionGroupIdList = users.map { it.permissionGroupId }
             val userIdList = users.map { it.id }

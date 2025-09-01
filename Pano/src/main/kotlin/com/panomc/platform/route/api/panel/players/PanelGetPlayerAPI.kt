@@ -78,7 +78,7 @@ class PanelGetPlayerAPI(
             (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
         }
 
-        if (!authProvider.hasPermission(user.id, ManageTicketsPermission(), context)) {
+        if (!authProvider.hasPermission(ManageTicketsPermission(), context)) {
             return Successful(result)
         }
 

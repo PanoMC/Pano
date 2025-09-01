@@ -32,7 +32,7 @@ class PanelGetActivityLogsAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val hasPermission = authProvider.hasPermission(userId, AccessActivityLogsPermission(), context)
+        val hasPermission = authProvider.hasPermission(AccessActivityLogsPermission(), context)
 
         val sqlClient = getSqlClient()
 

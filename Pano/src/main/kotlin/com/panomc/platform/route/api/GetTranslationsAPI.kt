@@ -38,7 +38,7 @@ class GetTranslationsAPI(
         val code = parameters.pathParameter("code").string
         val type = try {
             TranslationType.valueOf(parameters.pathParameter("type").string)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             throw BadRequest("Invalid type")
         }
 

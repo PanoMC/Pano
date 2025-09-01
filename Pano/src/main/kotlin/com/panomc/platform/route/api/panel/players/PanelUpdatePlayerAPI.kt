@@ -56,7 +56,7 @@ class PanelUpdatePlayerAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val hasManagePlayerPermission = authProvider.hasPermission(userId, ManagePlayersPermission(), context)
+        val hasManagePlayerPermission = authProvider.hasPermission(ManagePlayersPermission(), context)
 
         if (!hasManagePlayerPermission && playerId != userId) {
             throw NoPermission()

@@ -576,6 +576,8 @@ class UIManager(
                     val isLoggedIn = authProvider.isLoggedIn(context)
 
                     if (isLoggedIn) {
+                        authProvider.applyPermissionsTo(context)
+
                         val hasAccessPanel = authProvider.hasAccessPanel(context)
 
                         if (hasAccessPanel) {

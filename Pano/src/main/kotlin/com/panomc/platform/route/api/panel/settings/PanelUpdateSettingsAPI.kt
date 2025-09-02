@@ -17,7 +17,9 @@ import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import org.imgscalr.Scalr
 import java.io.File
+import javax.imageio.ImageIO
 
 @Endpoint
 class PanelUpdateSettingsAPI(
@@ -137,6 +139,20 @@ class PanelUpdateSettingsAPI(
 
                     if (oldFile.exists()) {
                         oldFile.delete()
+                    }
+                }
+
+                if (savedFile.field.name == "favicon") {
+                    try {
+                        val file = File(
+                            configManager.config
+                                .fileUploadsFolder + File.separator + savedFile.path
+                        )
+                        val original = ImageIO.read(file)
+                        val resized = Scalr.resize(original, 128, 128)
+
+                        ImageIO.write(resized, "PNG", file)
+                    } catch (_: Exception) {
                     }
                 }
 

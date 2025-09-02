@@ -1,5 +1,6 @@
 package com.panomc.platform
 
+import com.panomc.platform.db.model.Locale
 import java.io.File
 
 object AppConstants {
@@ -33,4 +34,19 @@ object AppConstants {
     const val DEFAULT_WEBSITE_LOGO_FILE = "assets/img/minecraft-logo.png"
 
     val UPDATE_ICON_FOLDER = "update-thumbnail" + File.separator
+
+    val DEFAULT_LOCALES = listOf(
+        Locale(
+            code = "en-US",
+            name = "English (US)",
+            dateFnsCode = "en-US",
+            derivatives = listOf()
+        ),
+        Locale(
+            code = "tr",
+            name = "Türkçe (TR)",
+            dateFnsCode = "tr",
+            derivatives = listOf("tr-tr")
+        )
+    )
 }

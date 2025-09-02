@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.setup.step
 
+import com.panomc.platform.AppConstants.DEFAULT_LOCALES
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
@@ -26,6 +27,8 @@ class UpdateStepAPI(
                     objectSchema()
                         .requiredProperty("clientStep", intSchema())
                         .optionalProperty("step", intSchema())
+
+                        .optionalProperty("locale", stringSchema())
 
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
@@ -73,6 +76,8 @@ class UpdateStepAPI(
         val clientStep = data.getInteger("clientStep")
         val step = data.getInteger("step")
 
+        val locale = data.getString("locale")
+
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
 
@@ -106,7 +111,9 @@ class UpdateStepAPI(
             }
         }
 
-        if (clientStep == 0) {
+        if (clientStep == 0 && !locale.isNullOrEmpty() && DEFAULT_LOCALES.any { it.code == locale }) {
+            configManager.config.locale = locale
+
             return true
         }
 

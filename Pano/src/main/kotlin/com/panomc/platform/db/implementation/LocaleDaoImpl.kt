@@ -1,5 +1,6 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.AppConstants.DEFAULT_LOCALES
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.LocaleDao
 import com.panomc.platform.db.model.Locale
@@ -34,22 +35,7 @@ class LocaleDaoImpl : LocaleDao() {
             .execute()
             .coAwait()
 
-        add(
-            Locale(
-                code = "en-US",
-                name = "English (US)",
-                dateFnsCode = "en-US",
-                derivatives = listOf()
-            ), sqlClient
-        )
-        add(
-            Locale(
-                code = "tr",
-                name = "Türkçe (TR)",
-                dateFnsCode = "tr",
-                derivatives = listOf("tr-tr")
-            ), sqlClient
-        )
+        DEFAULT_LOCALES.forEach { add(it, sqlClient) }
     }
 
     override suspend fun add(locale: Locale, sqlClient: SqlClient): Long {

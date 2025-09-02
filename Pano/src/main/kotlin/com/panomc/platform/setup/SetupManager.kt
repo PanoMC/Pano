@@ -25,6 +25,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         val step = getCurrentStep()
 
         data.put("step", step)
+        data.put("locale", configManager.config.locale)
 
         if (step == 1 || step == 4) {
             data.put("websiteName", configManager.config.websiteName)

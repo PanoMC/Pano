@@ -1,7 +1,9 @@
 package com.panomc.platform.util
 
 import java.lang.management.ManagementFactory
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 
@@ -13,42 +15,27 @@ object TimeUtil {
 
     fun getStartupTime() = secondsWithPrecision(calculateStartTime())
 
-    fun getCalendarOfToday(): Calendar {
-        val calendar = Calendar.getInstance()
-
-        calendar[Calendar.HOUR_OF_DAY] = 0 // ! clear would not reset the hour of day !
-
-        calendar.firstDayOfWeek = Calendar.MONDAY
-
-        calendar.clear(Calendar.MINUTE)
-        calendar.clear(Calendar.SECOND)
-        calendar.clear(Calendar.MILLISECOND)
-
-        return calendar
+    fun getStartOfLast2WeekAtMidnightInMillis(): Long {
+        val oneWeekAgo = LocalDate.now(ZoneId.systemDefault()).minusWeeks(2)
+        return oneWeekAgo
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
     }
 
-    fun getStartOfWeekInMillis(): Long {
-        val calendar = getCalendarOfToday()
-
-        calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
-
-        return calendar.timeInMillis
+    fun getStartOfLastMonthAtMidnightInMillis(): Long {
+        val oneMonthAgo = LocalDate.now(ZoneId.systemDefault()).minusMonths(2)
+        return oneMonthAgo
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
     }
-
-    fun getStartOfMonthInMillis(): Long {
-        val calendar = getCalendarOfToday()
-
-        calendar.set(Calendar.DAY_OF_MONTH, 1)
-
-        return calendar.timeInMillis
-    }
-
 
     fun getTimeToCompareByDashboardPeriodType(dashboardPeriodType: DashboardPeriodType) =
         if (dashboardPeriodType == DashboardPeriodType.WEEK) {
-            getStartOfWeekInMillis()
+            getStartOfLast2WeekAtMidnightInMillis()
         } else {
-            getStartOfMonthInMillis()
+            getStartOfLastMonthAtMidnightInMillis()
         }
 
     fun List<Long>.toGroupGetCountAndDates() = this.map { time ->

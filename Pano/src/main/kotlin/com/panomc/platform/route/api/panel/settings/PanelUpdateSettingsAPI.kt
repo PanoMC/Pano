@@ -179,7 +179,7 @@ class PanelUpdateSettingsAPI(
         }
 
         if (keywords != null) {
-            configManager.config.keywords = keywords
+            configManager.config.keywords = keywords.filter { !it.isBlank() }
         }
 
         if (email != null) {

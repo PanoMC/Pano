@@ -39,7 +39,13 @@ object FileUploadUtil {
 
                 val file = File(fileUpload.uploadedFileName())
 
-                file.copyTo(File(newPath), true)
+                val newPathFile = File(newPath)
+
+                if (newPathFile.exists()) {
+                    newPathFile.delete()
+                }
+
+                file.copyTo(newPathFile, true)
 
                 savedFiles.add(
                     SavedFile(

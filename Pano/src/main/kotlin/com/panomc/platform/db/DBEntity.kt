@@ -2,6 +2,8 @@ package com.panomc.platform.db
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.panomc.platform.notification.NotificationType
+import com.panomc.platform.notification.NotificationTypeDeserializer
 import com.panomc.platform.util.deserializer.BooleanDeserializer
 import com.panomc.platform.util.deserializer.JsonObjectDeserializer
 import com.panomc.platform.util.deserializer.LenientListStringAdapterFactory
@@ -17,6 +19,7 @@ abstract class DBEntity {
             builder.registerTypeAdapterFactory(LenientListStringAdapterFactory())
             builder.registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
             builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
+            builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer())
 
             builder.create()
         }

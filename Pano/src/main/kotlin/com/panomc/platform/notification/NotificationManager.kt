@@ -3,6 +3,9 @@ package com.panomc.platform.notification
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.dao.NotificationDao
+import com.panomc.platform.db.dao.PanelNotificationDao
+import com.panomc.platform.db.dao.UserDao
 import com.panomc.platform.db.model.Notification
 import com.panomc.platform.db.model.PanelNotification
 import io.vertx.core.json.JsonObject
@@ -15,61 +18,42 @@ import org.springframework.stereotype.Component
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class NotificationManager(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
+class NotificationManager(databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
+    private val notificationDao: NotificationDao = databaseManager.notificationDao
+    private val panelNotificationDao: PanelNotificationDao = databaseManager.panelNotificationDao
+    private val userDao: UserDao = databaseManager.userDao
+
     suspend fun sendNotification(
         userId: Long,
-        notificationType: Notifications.UserNotificationType,
-        properties: JsonObject = JsonObject(),
+        userNotificationType: UserNotificationType,
         sqlClient: SqlClient
     ) {
         val notification = Notification(
             userId = userId,
-            type = notificationType.name,
-            properties = properties
+            type = userNotificationType,
+            details = JsonObject.mapFrom(userNotificationType)
         )
 
-        databaseManager.notificationDao.add(notification, sqlClient)
-    }
-
-    suspend fun sendNotification(
-        userId: Long,
-        notificationType: Notifications.UserNotificationType,
-        properties: JsonObject = JsonObject()
-    ) {
-        val sqlClient = databaseManager.getSqlClient()
-
-        sendNotification(userId, notificationType, properties, sqlClient)
+        notificationDao.add(notification, sqlClient)
     }
 
     suspend fun sendPanelNotification(
         userId: Long,
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject(),
+        panelUserNotificationType: PanelUserNotificationType,
         sqlClient: SqlClient
     ) {
         val panelNotification = PanelNotification(
             userId = userId,
-            type = notificationType.name,
-            properties = properties
+            type = panelUserNotificationType,
+            details = JsonObject.mapFrom(panelUserNotificationType)
         )
 
-        databaseManager.panelNotificationDao.add(panelNotification, sqlClient)
-    }
-
-    suspend fun sendPanelNotification(
-        userId: Long,
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject()
-    ) {
-        val sqlClient = databaseManager.getSqlClient()
-
-        sendPanelNotification(userId, notificationType, properties, sqlClient)
+        panelNotificationDao.add(panelNotification, sqlClient)
     }
 
     suspend fun sendNotificationToAll(
         userIdList: List<Long>,
-        notificationType: Notifications.UserNotificationType,
-        properties: JsonObject = JsonObject(),
+        userNotificationType: UserNotificationType,
         sqlClient: SqlClient
     ) {
         val notifications = mutableListOf<Notification>()
@@ -77,30 +61,19 @@ class NotificationManager(private val databaseManager: DatabaseManager, private 
         userIdList.forEach { userId ->
             val notification = Notification(
                 userId = userId,
-                type = notificationType.name,
-                properties = properties
+                type = userNotificationType,
+                details = JsonObject.mapFrom(userNotificationType)
             )
 
             notifications.add(notification)
         }
 
-        databaseManager.notificationDao.addAll(notifications, sqlClient)
-    }
-
-    suspend fun sendNotificationToAll(
-        userIdList: List<Long>,
-        notificationType: Notifications.UserNotificationType,
-        properties: JsonObject = JsonObject()
-    ) {
-        val sqlClient = databaseManager.getSqlClient()
-
-        sendNotificationToAll(userIdList, notificationType, properties, sqlClient)
+        notificationDao.addAll(notifications, sqlClient)
     }
 
     suspend fun sendPanelNotificationToAll(
         userIdList: List<Long>,
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject(),
+        panelUserNotificationType: PanelUserNotificationType,
         sqlClient: SqlClient
     ) {
         val panelNotifications = mutableListOf<PanelNotification>()
@@ -108,77 +81,40 @@ class NotificationManager(private val databaseManager: DatabaseManager, private 
         userIdList.forEach { userId ->
             val notification = PanelNotification(
                 userId = userId,
-                type = notificationType.name,
-                properties = properties
+                type = panelUserNotificationType,
+                details = JsonObject.mapFrom(panelUserNotificationType)
             )
 
             panelNotifications.add(notification)
         }
 
-        databaseManager.panelNotificationDao.addAll(panelNotifications, sqlClient)
-    }
-
-    suspend fun sendPanelNotificationToAll(
-        userIdList: List<Long>,
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject()
-    ) {
-        val sqlClient = databaseManager.getSqlClient()
-
-        sendPanelNotificationToAll(userIdList, notificationType, properties, sqlClient)
+        panelNotificationDao.addAll(panelNotifications, sqlClient)
     }
 
     suspend fun sendNotificationToAllAdmins(
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject(),
+        panelUserNotificationType: PanelUserNotificationType,
         sqlClient: SqlClient
     ) {
         val adminList = authProvider.getAdminList(sqlClient)
+        val adminIdList = userDao.getIdsByListOfUsername(adminList, sqlClient).map { it.value }
 
-        val adminUserIdList = adminList.map { username ->
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient)!!
-        }
-
-        sendPanelNotificationToAll(adminUserIdList, notificationType, properties, sqlClient)
-    }
-
-    suspend fun sendNotificationToAllAdmins(
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject()
-    ) {
-        val sqlClient = databaseManager.getSqlClient()
-
-        sendNotificationToAllAdmins(notificationType, properties, sqlClient)
+        sendPanelNotificationToAll(adminIdList, panelUserNotificationType, sqlClient)
     }
 
     suspend fun sendNotificationToAllWithPermission(
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject(),
+        notificationType: PanelUserNotificationType,
         panelPermission: PanelPermission,
         sqlClient: SqlClient
     ) {
         val users = mutableSetOf<Long>()
-        val usersWithPermission = databaseManager.userDao.getIdsByPermission(panelPermission, sqlClient)
+        val usersWithPermission = userDao.getIdsByPermission(panelPermission, sqlClient)
         val adminList = authProvider.getAdminList(sqlClient)
 
-        val adminUserIdList = adminList.map { username ->
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient)!!
-        }
+        val adminUserIdList = userDao.getIdsByListOfUsername(adminList, sqlClient).map { it.value }
 
         users.addAll(usersWithPermission)
         users.addAll(adminUserIdList)
 
-        sendPanelNotificationToAll(users.toList(), notificationType, properties, sqlClient)
+        sendPanelNotificationToAll(users.toList(), notificationType, sqlClient)
     }
-
-    suspend fun sendNotificationToAllAdminsWithPermission(
-        notificationType: Notifications.PanelNotificationType,
-        properties: JsonObject = JsonObject(),
-        panelPermission: PanelPermission
-    ) {
-        val sqlClient = databaseManager.getSqlClient()
-
-        sendNotificationToAllWithPermission(notificationType, properties, panelPermission, sqlClient)
-    }
-
 }

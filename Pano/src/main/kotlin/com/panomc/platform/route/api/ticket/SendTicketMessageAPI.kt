@@ -12,9 +12,8 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.TicketIsClosed
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
-import com.panomc.platform.notification.Notifications
+import com.panomc.platform.notification.type.panel.NewTicketMessageNotification
 import com.panomc.platform.util.TicketStatus
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -77,7 +76,7 @@ class SendTicketMessageAPI(
             throw TicketIsClosed()
         }
 
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
         val ticketMessage = TicketMessage(userId = userId, ticketId = ticketId, message = message)
 
@@ -89,11 +88,8 @@ class SendTicketMessageAPI(
             sqlClient
         )
 
-        val notificationProperties = JsonObject().put("id", ticketId)
-
         notificationManager.sendNotificationToAllWithPermission(
-            Notifications.PanelNotificationType.NEW_TICKET_MESSAGE,
-            notificationProperties,
+            NewTicketMessageNotification(ticketId, username),
             ManageTicketsPermission(),
             sqlClient
         )

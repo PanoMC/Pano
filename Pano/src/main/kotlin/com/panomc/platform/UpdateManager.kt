@@ -15,7 +15,7 @@ import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.notification.NotificationManager
-import com.panomc.platform.notification.Notifications
+import com.panomc.platform.notification.type.panel.PanoUpdateFoundNotification
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.UpdatePeriod
@@ -549,7 +549,7 @@ class UpdateManager(
 
     private suspend fun sendPanoUpdateFoundNotification(sqlClient: SqlClient) {
         notificationManager.sendNotificationToAllWithPermission(
-            notificationType = Notifications.PanelNotificationType.PANO_UPDATE_FOUND,
+            notificationType = PanoUpdateFoundNotification(),
             panelPermission = ManagePlatformSettingsPermission(),
             sqlClient = sqlClient
         )

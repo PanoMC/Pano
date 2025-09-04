@@ -8,14 +8,13 @@ import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InvalidPlatformCode
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
-import com.panomc.platform.notification.Notifications
+import com.panomc.platform.notification.type.panel.ServerConnectRequestNotification
 import com.panomc.platform.server.PlatformCodeManager
 import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.ServerType
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -70,6 +69,8 @@ class ServerConnectNewAPI(
             throw InvalidPlatformCode()
         }
 
+        val favicon = data.getString("favicon")
+
         val server = Server(
             name = data.getString("serverName"),
             motd = data.getString("motd") ?: "",
@@ -79,7 +80,7 @@ class ServerConnectNewAPI(
             maxPlayerCount = data.getLong("maxPlayerCount"),
             type = ServerType.valueOf(data.getString("serverType")),
             version = data.getString("serverVersion"),
-            favicon = data.getString("favicon") ?: "",
+            favicon = favicon ?: "",
             status = ServerStatus.OFFLINE,
             startTime = data.getLong("startTime")
         )
@@ -92,11 +93,8 @@ class ServerConnectNewAPI(
 
         tokenProvider.saveToken(token, serverId.toString(), TokenType.SERVER_AUTHENTICATION, expireDate, sqlClient)
 
-        val notificationProperties = JsonObject().put("id", serverId)
-
         notificationManager.sendNotificationToAllWithPermission(
-            Notifications.PanelNotificationType.SERVER_CONNECT_REQUEST,
-            notificationProperties,
+            ServerConnectRequestNotification(serverId, favicon ?: "/api/server/icon/default"),
             ManageServersPermission(),
             sqlClient
         )

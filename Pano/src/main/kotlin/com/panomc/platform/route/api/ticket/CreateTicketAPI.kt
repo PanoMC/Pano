@@ -11,8 +11,7 @@ import com.panomc.platform.error.MessageCantBeEmpty
 import com.panomc.platform.error.TitleCantBeEmpty
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
-import com.panomc.platform.notification.Notifications
-import io.vertx.core.json.JsonObject
+import com.panomc.platform.notification.type.panel.NewTicketNotification
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -76,11 +75,13 @@ class CreateTicketAPI(
             sqlClient
         )
 
-        val notificationProperties = JsonObject().put("id", id)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
         notificationManager.sendNotificationToAllWithPermission(
-            Notifications.PanelNotificationType.NEW_TICKET,
-            notificationProperties,
+            NewTicketNotification(
+                id,
+                username
+            ),
             ManageTicketsPermission(),
             sqlClient
         )

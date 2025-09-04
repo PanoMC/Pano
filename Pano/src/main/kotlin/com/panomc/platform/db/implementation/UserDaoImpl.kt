@@ -420,6 +420,36 @@ class UserDaoImpl : UserDao() {
         return listOfUsers
     }
 
+    override suspend fun getIdsByListOfUsername(
+        usernameList: List<String>,
+        sqlClient: SqlClient
+    ): Map<String, Long> {
+        var listText = ""
+
+        usernameList.forEach { username ->
+            if (listText == "")
+                listText = "'$username'"
+            else
+                listText += ", '$username'"
+        }
+
+        val query =
+            "SELECT `username`, `id` FROM `${getTablePrefix() + tableName}` where `username` IN ($listText)"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        val listOfUsers = mutableMapOf<String, Long>()
+
+        rows.forEach { row ->
+            listOfUsers[row.getString(0)] = row.getLong(1)
+        }
+
+        return listOfUsers
+    }
+
     override suspend fun existsByUsername(
         username: String,
         sqlClient: SqlClient

@@ -9,9 +9,8 @@ import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
-import com.panomc.platform.notification.Notifications
+import com.panomc.platform.notification.type.panel.TicketClosedByUserNotification
 import com.panomc.platform.util.TicketStatus
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -67,11 +66,10 @@ class UpdateTicketAPI(
         if (ticketStatus != null && ticketStatus == TicketStatus.CLOSED) {
             databaseManager.ticketDao.closeTicketById(id, sqlClient)
 
-            val notificationProperties = JsonObject().put("id", id)
+            val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
             notificationManager.sendNotificationToAllWithPermission(
-                Notifications.PanelNotificationType.TICKET_CLOSED_BY_USER,
-                notificationProperties,
+                TicketClosedByUserNotification(id, username),
                 ManageTicketsPermission(),
                 sqlClient
             )

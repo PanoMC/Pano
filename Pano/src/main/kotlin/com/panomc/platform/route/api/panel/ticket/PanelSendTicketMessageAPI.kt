@@ -10,9 +10,8 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.TicketIsClosed
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
-import com.panomc.platform.notification.Notifications
+import com.panomc.platform.notification.type.user.AnAdminRepliedTicketNotification
 import com.panomc.platform.util.TicketStatus
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -71,14 +70,12 @@ class PanelSendTicketMessageAPI(
 
         databaseManager.ticketDao.makeStatus(ticketId, TicketStatus.REPLIED, sqlClient)
 
-        val notificationProperties = JsonObject()
-            .put("id", ticketId)
-            .put("whoReplied", username)
-
         notificationManager.sendNotification(
             ticket.userId,
-            Notifications.UserNotificationType.AN_ADMIN_REPLIED_TICKET,
-            notificationProperties,
+            AnAdminRepliedTicketNotification(
+                ticketId,
+                username
+            ),
             sqlClient
         )
 

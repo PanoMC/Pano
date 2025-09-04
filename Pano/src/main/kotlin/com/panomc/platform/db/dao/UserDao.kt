@@ -99,6 +99,11 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): Map<Long, String>
 
+    abstract suspend fun getIdsByListOfUsername(
+        usernameList: List<String>,
+        sqlClient: SqlClient
+    ): Map<String, Long>
+
     abstract suspend fun existsByUsername(
         username: String,
         sqlClient: SqlClient

@@ -21,9 +21,10 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `userId` bigint NOT NULL,
                               `type` varchar(255) NOT NULL,
-                              `properties` mediumtext NOT NULL,
-                              `date` BIGINT(20) NOT NULL,
+                              `details` mediumtext NOT NULL,
                               `status` varchar(255) NOT NULL,
+                              `createdAt` BIGINT(20) NOT NULL,
+                              `updatedAt` BIGINT(20) NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Panel Notification table.';
                         """
@@ -37,18 +38,19 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `type`, `properties`, `date`, `status`) " +
-                    "VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `type`, `details`, `status`, `createdAt`, `updatedAt`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     panelNotification.userId,
-                    panelNotification.type,
-                    panelNotification.properties.toString(),
-                    panelNotification.date,
-                    panelNotification.status
+                    panelNotification.type.getName(),
+                    panelNotification.details.encode(),
+                    panelNotification.status,
+                    panelNotification.createdAt,
+                    panelNotification.updatedAt,
                 )
             ).coAwait()
     }
@@ -59,19 +61,20 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
 
         panelNotifications.forEach { panelNotification ->
             tuple.addValue(panelNotification.userId)
-            tuple.addValue(panelNotification.type)
-            tuple.addValue(panelNotification.properties.toString())
-            tuple.addValue(panelNotification.date)
+            tuple.addValue(panelNotification.type.getName())
+            tuple.addValue(panelNotification.details.encode())
             tuple.addValue(panelNotification.status)
+            tuple.addValue(panelNotification.createdAt)
+            tuple.addValue(panelNotification.updatedAt)
 
             if (listText == "")
-                listText = "(?, ?, ?, ?, ?)"
+                listText = "(?, ?, ?, ?, ?, ?)"
             else
-                listText += ", (?, ?, ?, ?, ?)"
+                listText += ", (?, ?, ?, ?, ?, ?)"
         }
 
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `type`, `properties`, `date`, `status`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `type`, `details`, `status`, `createdAt`, `updatedAt`) " +
                     "VALUES $listText"
 
         sqlClient
@@ -85,7 +88,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? AND `status` = ? ORDER BY `date` DESC, `id` DESC"
+            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? AND `status` = ? ORDER BY `createdAt` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -104,7 +107,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC"
+            "SELECT count(`id`) FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -122,7 +125,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `userId`, `type`, `details`, `status`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -141,7 +144,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? AND id < ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `userId`, `type`, `details`, `status`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? AND id < ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 10"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -160,7 +163,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 10"
 
         sqlClient
             .preparedQuery(query)
@@ -178,7 +181,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? AND id < ?  ORDER BY `date` DESC, `id` DESC LIMIT 10"
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? AND id < ?  ORDER BY `createdAt` DESC, `id` DESC LIMIT 10"
 
         sqlClient
             .preparedQuery(query)
@@ -196,7 +199,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ): List<PanelNotification> {
         val query =
-            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `userId`, `type`, `details`, `status`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -214,7 +217,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 5"
 
         sqlClient
             .preparedQuery(query)
@@ -245,7 +248,7 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         sqlClient: SqlClient
     ): PanelNotification? {
         val query =
-            "SELECT `id`, `userId`, `type`, `properties`, `date`, `status` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `date` DESC, `id` DESC LIMIT 5"
+            "SELECT `id`, `userId`, `type`, `details`, `status`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}` WHERE `id` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

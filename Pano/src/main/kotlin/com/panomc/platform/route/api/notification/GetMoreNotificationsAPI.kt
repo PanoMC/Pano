@@ -43,11 +43,12 @@ class GetMoreNotificationsAPI(
             notificationsDataList.add(
                 mapOf(
                     "id" to notification.id,
-                    "type" to notification.type,
-                    "properties" to notification.properties,
-                    "date" to notification.date,
+                    "type" to notification.type.getName(),
+                    "details" to notification.details.map,
                     "status" to notification.status,
-                    "isPersonal" to (notification.userId == userId)
+                    "isPersonal" to (notification.userId == userId),
+                    "createdAt" to notification.createdAt,
+                    "updatedAt" to notification.createdAt,
                 )
             )
         }

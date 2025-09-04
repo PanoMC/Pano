@@ -397,8 +397,8 @@ class UpdateManager(
                 "--restart"
             )
 
-            if (IS_GUI) {
-                args.add("--nogui")
+            if (!IS_GUI) {
+                args.add("-nogui")
             }
 
             ProcessBuilder(args)

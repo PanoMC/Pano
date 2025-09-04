@@ -28,12 +28,12 @@ class Main {
                 (argMap["--java"] ?: currentJavaBin()).let { Paths.get(it).toAbsolutePath().normalize().toString() }
             val launchArgs = splitArgsPreservingQuotes(argMap["--launch-args"])
 
-            // Check for --nogui
-            val noGui = argMap["--nogui"]?.toBoolean() == true
+            // Check for -nogui
+            val noGui = argMap["-nogui"]?.toBoolean() == true
 
             val childArgs = buildList {
                 addAll(launchArgs)
-                if (noGui) add("--nogui")
+                if (noGui) add("-nogui")
             }
 
             println("[Pano Updater] PID=${ProcessHandle.current().pid()} starting…")
@@ -41,7 +41,7 @@ class Main {
             println("[Pano Updater] target=$targetJar")
             println("[Pano Updater] javaBin=$javaBin")
             println("[Pano Updater] update=$updateJar")
-            println("[Pano Updater] pass --nogui: $noGui")
+            println("[Pano Updater] pass -nogui: $noGui")
             if (childArgs.isNotEmpty()) println("[Pano Updater] child args: $childArgs")
 
             waitForPortToClose(host, port, timeout = Duration.ofMinutes(5), poll = Duration.ofMillis(300))

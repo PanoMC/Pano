@@ -538,9 +538,6 @@ class UpdateManager(
                     platformUpdateInfoJsonObject.remove("state")
 
                     if (oldPlatformUpdateInfoJsonObject.encode() != platformUpdateInfoJsonObject.encode()) {
-                        println(oldPlatformUpdateInfo.value)
-                        println()
-                        println(platformUpdateInfo.value)
                         sendPanoUpdateFoundNotification(sqlClient)
 
                         return@launch

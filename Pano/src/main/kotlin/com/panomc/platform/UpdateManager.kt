@@ -294,6 +294,13 @@ class UpdateManager(
                 ), sqlClient
             )
         } catch (e: Error) {
+            if (e is PanoNotConnected) {
+                val sqlClient = databaseManager.getSqlClient()
+
+                databaseManager.systemPropertyDao.update(RESOURCES_UPDATE_CHECK_INFO, JsonArray().encode(), sqlClient)
+                panoApiManager.removePanoAccount()
+            }
+
             if (background) {
                 return
             }

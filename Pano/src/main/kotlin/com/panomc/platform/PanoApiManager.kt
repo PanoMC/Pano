@@ -165,6 +165,19 @@ class PanoApiManager(
         return Triple(username, email, platformId)
     }
 
+    fun removePanoAccount() {
+        val panoAccountConfig = getPanoAccountConfig()
+
+        panoAccountConfig.accessToken = ""
+        panoAccountConfig.platformId = ""
+        panoAccountConfig.username = ""
+        panoAccountConfig.email = ""
+
+        panoAccountConfig.connect = null
+
+        configManager.saveConfig()
+    }
+
     suspend fun disconnectPlatform() {
         if (!isConnected()) {
             return
@@ -182,16 +195,7 @@ class PanoApiManager(
             throw PanoConnectFailed()
         }
 
-        val panoAccountConfig = getPanoAccountConfig()
-
-        panoAccountConfig.accessToken = ""
-        panoAccountConfig.platformId = ""
-        panoAccountConfig.username = ""
-        panoAccountConfig.email = ""
-
-        panoAccountConfig.connect = null
-
-        configManager.saveConfig()
+        removePanoAccount()
     }
 
     fun createPanoCode(): Pair<String, String> {

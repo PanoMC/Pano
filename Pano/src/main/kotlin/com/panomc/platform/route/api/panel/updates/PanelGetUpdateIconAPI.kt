@@ -68,7 +68,11 @@ class PanelGetUpdateIconAPI(
         response.putHeader("ETag", etag)
         response.putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS, immutable")
 
-        response.sendFile(path)
+        try {
+            response.sendFile(path)
+        } catch (_: Exception) {
+            response.setStatusCode(404).end()
+        }
 
         return null
     }

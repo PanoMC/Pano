@@ -101,7 +101,11 @@ class FinishAPI(
 
         setupManager.finishSetup()
 
-        updateManager.checkUpdates(true)
+        try {
+            updateManager.checkUpdates(true)
+        } catch (_: Exception) {
+        } catch (_: Error) {
+        }
 
         uiManager.prepareUI(router)
 

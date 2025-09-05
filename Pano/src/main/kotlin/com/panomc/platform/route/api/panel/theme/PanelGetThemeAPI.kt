@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.panel.theme
 
 import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.UIManager
+import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
@@ -67,7 +68,7 @@ class PanelGetThemeAPI(
                     "createdAt" to theme.createdAt,
                     "updatedAt" to theme.updatedAt,
                     "installedBy" to theme.installedBy,
-                    "verifyStatus" to if (resourceHashes[theme.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[theme.hash]!!.status,
+                    "verifyStatus" to if (theme.installedBy == InstalledBy.SYSTEM) ResourceHashStatus.VERIFIED else if (resourceHashes[theme.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[theme.hash]!!.status,
                     "sourceUrl" to theme.sourceUrl,
                     "running" to running
                 )

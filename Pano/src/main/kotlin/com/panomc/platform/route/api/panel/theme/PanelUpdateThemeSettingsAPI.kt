@@ -176,6 +176,22 @@ class PanelUpdateThemeSettingsAPI(
                                 }
                             }
                         }
+
+                    existingFiles.forEach { existingFile ->
+                        newSettingsFiles.filter { it.key == existingFile.key }.forEach {
+                            val newFiles = JsonArray(it.value.toString())
+
+                            val files = JsonArray(existingFile.value.toString())
+
+                            files.filter { !newFiles.contains(it) }.forEach {
+                                val file = File(folder + it)
+
+                                if (file.exists()) {
+                                    file.deleteRecursively()
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

@@ -169,10 +169,12 @@ class PanelUpdateThemeSettingsAPI(
 
                     existingFiles.filter { !(newSettingsFiles.getJsonArray(it.key) ?: JsonArray()).contains(it.value) }
                         .forEach {
-                            val file = File(folder + it)
+                            JsonArray(it.value.toString()).forEach { fileName ->
+                                val file = File(folder + fileName)
 
-                            if (file.exists()) {
-                                file.deleteRecursively()
+                                if (file.exists()) {
+                                    file.deleteRecursively()
+                                }
                             }
                         }
                 }

@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.theme
 
+import com.panomc.platform.AppConstants.THEME_SETTINS_FILE_UPLOAD_FOLDER
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -31,8 +32,6 @@ class PanelUpdateThemeSettingsAPI(
     private val uiManager: UIManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/theme/settings", RouteType.PUT))
-
-    private val themeSettingsFileUploadPath = "theme-settings"
 
     companion object {
         const val THEME_SETTINGS = "theme_settings"
@@ -71,7 +70,7 @@ class PanelUpdateThemeSettingsAPI(
         val newSettings = data.getJsonObject("settings")
 
         val folder = configManager.config
-            .fileUploadsFolder + File.separator + themeSettingsFileUploadPath + File.separator
+            .fileUploadsFolder + File.separator + THEME_SETTINS_FILE_UPLOAD_FOLDER + File.separator
         val folderFile = File(folder)
 
         if (!folderFile.exists() || !folderFile.isDirectory) {

@@ -35,6 +35,8 @@ object AppConstants {
 
     val UPDATE_ICON_FOLDER = "update-thumbnail" + File.separator
 
+    val THEME_SETTINS_FILE_UPLOAD_FOLDER = "theme-settings"
+
     val DEFAULT_LOCALES = listOf(
         Locale(
             code = "en-US",

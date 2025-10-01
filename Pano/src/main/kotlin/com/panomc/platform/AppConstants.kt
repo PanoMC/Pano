@@ -31,7 +31,8 @@ object AppConstants {
 
     const val UPDATER_JAR = "pano-updater.jar"
 
-    const val DEFAULT_WEBSITE_LOGO_FILE = "assets/img/minecraft-logo.png"
+    const val DEFAULT_WEBSITE_LOGO_FILE = "assets/img/default-logo.png"
+    const val DEFAULT_WEBSITE_ICON_FILE = "assets/img/default-icon.ico"
 
     val UPDATE_ICON_FOLDER = "update-thumbnail" + File.separator
 

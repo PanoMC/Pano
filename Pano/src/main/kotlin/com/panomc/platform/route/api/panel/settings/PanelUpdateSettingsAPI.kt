@@ -142,7 +142,7 @@ class PanelUpdateSettingsAPI(
                     }
                 }
 
-                if (savedFile.field.name == "favicon") {
+                if (savedFile.field.name == "favicon" && !savedFile.path.endsWith(".gif")) {
                     try {
                         val file = File(
                             configManager.config

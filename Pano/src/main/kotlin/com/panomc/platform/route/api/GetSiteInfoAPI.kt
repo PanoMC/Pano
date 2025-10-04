@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api
 
+import com.panomc.platform.AppConstants.DEFAULT_FAVICON_FILE
 import com.panomc.platform.AppConstants.DEFAULT_WEBSITE_LOGO_FILE
 import com.panomc.platform.Main.Companion.VERSION
 import com.panomc.platform.PluginManager
@@ -26,17 +27,47 @@ class GetSiteInfoAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/siteInfo", RouteType.GET))
 
+    private val systemClassLoader = ClassLoader.getSystemClassLoader()
+
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
         val response = mutableMapOf<String, Any?>()
         val config = configManager.config
 
-        val websiteLogoPath =
-            if (config.filePaths["websiteLogo"] == null) DEFAULT_WEBSITE_LOGO_FILE else configManager.config.fileUploadsFolder + File.separator + config.filePaths["websiteLogo"]
-        val websiteLogoFile = File(websiteLogoPath)
-        val websiteLogoHash =
-            if (websiteLogoFile.exists()) websiteLogoFile.inputStream().hash() else File(DEFAULT_WEBSITE_LOGO_FILE)
+        val websiteLogoHash = try {
+            if (config.filePaths["websiteLogo"] == null) {
+                throw Exception()
+            } else {
+                val websiteLogoFile =
+                    File(configManager.config.fileUploadsFolder + File.separator + config.filePaths["websiteLogo"])
+
+                if (websiteLogoFile.exists()) {
+                    websiteLogoFile.inputStream().hash()
+                } else {
+                    throw Exception()
+                }
+            }
+        } catch (_: Exception) {
+            systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!.hash()
+        }
+
+        val faviconHash = try {
+            if (config.filePaths["favicon"] == null) {
+                throw Exception()
+            } else {
+                val faviconFile =
+                    File(configManager.config.fileUploadsFolder + File.separator + config.filePaths["favicon"])
+
+                if (faviconFile.exists()) {
+                    faviconFile.inputStream().hash()
+                } else {
+                    throw Exception()
+                }
+            }
+        } catch (_: Exception) {
+            systemClassLoader.getResourceAsStream(DEFAULT_FAVICON_FILE)!!.hash()
+        }
 
         response["locale"] = config.locale
         response["websiteName"] = config.websiteName
@@ -45,6 +76,7 @@ class GetSiteInfoAPI(
         response["keywords"] = config.keywords
         response["panoVersion"] = VERSION
         response["websiteLogoHash"] = websiteLogoHash
+        response["faviconHash"] = faviconHash
 
         response["plugins"] = pluginUiManager.getRegisteredPlugins().toList().associate {
             it.first.pluginId to mapOf(

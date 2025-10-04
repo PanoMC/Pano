@@ -21,6 +21,8 @@ import java.io.File
 class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
     override val paths = listOf(Path("/api/websiteLogo", RouteType.GET))
 
+    private val systemClassLoader = ClassLoader.getSystemClassLoader()
+
     companion object {
         private const val CACHE_TTL_SECONDS = 7 * 24 * 60 * 60 // 1 week
     }
@@ -38,7 +40,7 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
         val websiteLogoPath = configManager.config.filePaths["websiteLogo"]
 
         if (websiteLogoPath == null) {
-            sendDefault(context)
+            sendDefault(context, requestedHash)
 
             return null
         }
@@ -49,7 +51,7 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
         val file = File(path)
 
         if (!file.exists()) {
-            sendDefault(context)
+            sendDefault(context, requestedHash)
 
             return null
         }
@@ -101,7 +103,53 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
         return null
     }
 
-    private fun sendDefault(context: RoutingContext) {
-        context.response().sendFile(DEFAULT_WEBSITE_LOGO_FILE)
+    private fun sendDefault(context: RoutingContext, requestedHash: String?) {
+        val path = DEFAULT_WEBSITE_LOGO_FILE
+
+        val file = systemClassLoader.getResourceAsStream(path)!!
+
+        if (requestedHash == null) {
+            // No hash → calculate and route to canonical URL
+            val actualHash = file.hash()
+
+            val redirectUrl = "${context.request().path()}?hash=$actualHash"
+            context.response()
+                .setStatusCode(302)
+                .putHeader("Location", redirectUrl)
+                .putHeader("Cache-Control", "no-store") // Do not cache this one
+                .end()
+            return
+        }
+
+        val etag = "\"$requestedHash\"" // strong ETag
+        val ifNoneMatch = context.request().getHeader("If-None-Match")
+        if (ifNoneMatch?.split(',')?.map { it.trim() }?.contains(etag) == true) {
+            context.response()
+                .setStatusCode(304)
+                .putHeader("ETag", etag)
+                .putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS, immutable")
+                .end()
+            return
+        }
+
+        val actualHash = file.hash()
+
+        if (!requestedHash.equals(actualHash, ignoreCase = true)) {
+            // Wrong hash → route to correct one
+            val redirectUrl = "${context.request().path()}?hash=$actualHash"
+            context.response()
+                .setStatusCode(302)
+                .putHeader("Location", redirectUrl)
+                .putHeader("Cache-Control", "no-store")
+                .end()
+            return
+        }
+        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(path)
+
+        val response = context.response()
+        response.putHeader("Content-Type", mimeType)
+        response.putHeader("ETag", etag)
+        response.putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS, immutable")
+        response.sendFile(path)
     }
 }

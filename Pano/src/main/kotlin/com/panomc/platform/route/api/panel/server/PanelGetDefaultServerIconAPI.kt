@@ -1,6 +1,6 @@
 package com.panomc.platform.route.api.panel.server
 
-import com.panomc.platform.AppConstants.DEFAULT_WEBSITE_ICON_FILE
+import com.panomc.platform.AppConstants.DEFAULT_FAVICON_FILE
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
@@ -16,7 +16,7 @@ class PanelGetDefaultServerIconAPI : PanelApi() {
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result? {
-        context.response().sendFile(DEFAULT_WEBSITE_ICON_FILE)
+        context.response().sendFile(DEFAULT_FAVICON_FILE)
 
         return null
     }

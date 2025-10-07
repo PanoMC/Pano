@@ -36,8 +36,6 @@ open class SpringConfig {
         }
     }
 
-    private val pluginsDir = System.getProperty("pf4j.pluginsDir", "./plugins")
-
     @Autowired
     private lateinit var applicationContext: AnnotationConfigApplicationContext
 

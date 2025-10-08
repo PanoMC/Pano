@@ -74,6 +74,7 @@ class PanelGetSettingsAPI(
         if (settingType == SettingType.WEBSITE) {
             result["websiteName"] = configManager.config.websiteName
             result["websiteDescription"] = configManager.config.websiteDescription
+            result["registerAgreement"] = configManager.config.registerAgreement
             result["supportEmail"] = configManager.config.supportEmail
             result["serverIpAddress"] = configManager.config.serverIpAddress
             result["serverGameVersion"] = configManager.config.serverGameVersion

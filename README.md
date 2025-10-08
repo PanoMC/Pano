@@ -14,7 +14,8 @@
   <a href="https://discord.gg/6vVy72wgXT"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=for-the-badge" alt="Chat"></a>
 </p>
 
----
+<hr/>
+<br/>
 
 ## 🚀 Project Status
 **Current Status:** Alpha - Pano is actively developed and early in its lifecycle.  
@@ -23,16 +24,12 @@ Announcements and updates are shared via our [Discord](https://discord.gg/6vVy72
 
 * As an Alpha project, Pano **may contain breaking changes** and its final release could differ significantly.  
 
----
-
 ## 📦 Other Pano Repositories
 - [**panel-ui**](https://github.com/PanoMC/panel-ui) - Pano's official management panel interface  
 - [**setup-ui**](https://github.com/PanoMC/setup-ui) - Pano's setup wizard interface  
 - [**vanilla-theme**](https://github.com/PanoMC/vanilla-theme) - Default official free theme for Pano  
 - [**pano-mc-plugin**](https://github.com/PanoMC/pano-mc-plugin) - Minecraft in-game integration plugin (supports Spigot/Paper/Bungeecord/Velocity/Folia)  
 - [**docs**](https://github.com/PanoMC/docs) - Open-source documentation for Pano  
-
----
 
 ## ⚡ Trying Pano
 You can try Pano by downloading the latest release from [Releases](https://github.com/PanoMC/pano/releases).  
@@ -54,16 +51,12 @@ java -jar Pano-<version>.jar -nogui
 
 For detailed guidance, visit [dev.panomc.com/docs](https://dev.panomc.com/docs).  
 
----
-
 ## 🛠️ Requirements
 **For contributors / development:**  
 - **JDK 11+** or **JRE 11+**  
 - **MySQL 5.5+** / MariaDB  
 
 * **Docker & Docker Compose** are optional and only required for contributors.  
-
----
 
 ## 🤝 Contributing
 Everyone can open issues in the repository.  
@@ -89,8 +82,6 @@ Or use Docker:
 ```bash
 docker-compose up
 ```
-
----
 
 ## 📄 License
 Pano is licensed under **GNU GPLv3**, meaning it is fully open source. See the [LICENSE](LICENSE) file for details.

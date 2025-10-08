@@ -53,6 +53,7 @@ class PanelGetBasicDataAPI(
             "website" to mapOf(
                 "name" to configManager.config.websiteName,
                 "description" to configManager.config.websiteDescription,
+                "websiteUrl" to configManager.config.websiteUrl,
                 "registerAgreement" to configManager.config.registerAgreement
             ),
             "notificationCount" to count,

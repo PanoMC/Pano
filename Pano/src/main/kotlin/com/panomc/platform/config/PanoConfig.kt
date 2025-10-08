@@ -17,6 +17,7 @@ data class PanoConfig(
 
     @SerializedName("website-name") var websiteName: String = "",
     @SerializedName("website-description") var websiteDescription: String = "",
+    @SerializedName("website-url") var websiteUrl: String = "",
     @SerializedName("register-agreement") var registerAgreement: String = "",
     @SerializedName("support-email") var supportEmail: String = "",
     @SerializedName("server-ip-address") var serverIpAddress: String = "play.ipadress.com",

@@ -32,6 +32,7 @@ class UpdateStepAPI(
 
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
+                        .optionalProperty("websiteUrl", stringSchema())
 
                         .optionalProperty("hostname", stringSchema())
                         .optionalProperty("port", intSchema())
@@ -80,6 +81,7 @@ class UpdateStepAPI(
 
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
+        val websiteUrl = data.getString("websiteUrl")
 
         val hostname = data.getString("hostname")
         val port = data.getInteger("port")
@@ -119,10 +121,12 @@ class UpdateStepAPI(
 
         if (clientStep == 1 &&
             !websiteName.isNullOrEmpty() &&
-            !websiteDescription.isNullOrEmpty()
+            !websiteDescription.isNullOrEmpty() &&
+            !websiteUrl.isNullOrEmpty()
         ) {
             configManager.config.websiteName = websiteName
             configManager.config.websiteDescription = websiteDescription
+            configManager.config.websiteUrl = websiteUrl
 
             configManager.saveConfig()
             return true

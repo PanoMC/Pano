@@ -30,6 +30,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         if (step == 1 || step == 4) {
             data.put("websiteName", configManager.config.websiteName)
             data.put("websiteDescription", configManager.config.websiteDescription)
+            data.put("websiteUrl", configManager.config.websiteUrl)
         }
 
         if (step == 2) {

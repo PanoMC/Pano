@@ -80,6 +80,7 @@ class PanelUpdateSettingsAPI(
                         .optionalProperty("locale", stringSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
+                        .optionalProperty("websiteUrl", stringSchema())
                         .optionalProperty("registerAgreement", stringSchema())
                         .optionalProperty("supportEmail", stringSchema())
                         .optionalProperty("serverIpAddress", stringSchema())
@@ -119,6 +120,7 @@ class PanelUpdateSettingsAPI(
         val locale = data.getString("locale")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
+        val websiteUrl = data.getString("websiteUrl")
         val registerAgreement = data.getString("registerAgreement")
         val supportEmail = data.getString("supportEmail")
         val serverIpAddress = data.getString("serverIpAddress")
@@ -182,6 +184,10 @@ class PanelUpdateSettingsAPI(
 
         if (websiteDescription != null) {
             configManager.config.websiteDescription = websiteDescription
+        }
+
+        if (websiteUrl != null) {
+            configManager.config.websiteUrl = websiteUrl
         }
 
         if (registerAgreement != null) {

@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/maintenance/yes/2026?style=for-the-badge" alt="Maintained">
-  <a href="https://github.com/panocms/pano/blob/main/LICENSE"><img src="https://img.shields.io/github/license/panocms/pano?style=for-the-badge" alt="License"></a>
+  <a href="https://github.com/PanoMC/pano/blob/main/LICENSE"><img src="https://img.shields.io/github/license/PanoMC/pano?style=for-the-badge" alt="License"></a>
   <a href="https://discord.gg/6vVy72wgXT"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=for-the-badge" alt="Chat"></a>
 </p>
 
@@ -26,16 +26,16 @@ Announcements and updates are shared via our [Discord](https://discord.gg/6vVy72
 ---
 
 ## 📦 Other Pano Repositories
-- [**panel-ui**](https://github.com/panocms/panel-ui) - Pano's official management panel interface  
-- [**setup-ui**](https://github.com/panocms/setup-ui) - Pano's setup wizard interface  
-- [**vanilla-theme**](https://github.com/panocms/vanilla-theme) - Default official free theme for Pano  
-- [**pano-mc-plugin**](https://github.com/panocms/pano-mc-plugin) - Minecraft in-game integration plugin (supports Spigot/Paper/Bungeecord/Velocity/Folia)  
-- [**docs**](https://github.com/panocms/docs) - Open-source documentation for Pano  
+- [**panel-ui**](https://github.com/PanoMC/panel-ui) - Pano's official management panel interface  
+- [**setup-ui**](https://github.com/PanoMC/setup-ui) - Pano's setup wizard interface  
+- [**vanilla-theme**](https://github.com/PanoMC/vanilla-theme) - Default official free theme for Pano  
+- [**pano-mc-plugin**](https://github.com/PanoMC/pano-mc-plugin) - Minecraft in-game integration plugin (supports Spigot/Paper/Bungeecord/Velocity/Folia)  
+- [**docs**](https://github.com/PanoMC/docs) - Open-source documentation for Pano  
 
 ---
 
 ## ⚡ Trying Pano
-You can try Pano by downloading the latest release from [Releases](https://github.com/panocms/pano/releases).  
+You can try Pano by downloading the latest release from [Releases](https://github.com/PanoMC/pano/releases).  
 
 To run Pano:  
 
@@ -74,7 +74,7 @@ Everyone can open issues in the repository.
 Clone the repository for development:
 
 ```bash
-git clone --recursive https://github.com/panocms/pano.git
+git clone --recursive https://github.com/PanoMC/pano.git
 cd pano
 ```
 

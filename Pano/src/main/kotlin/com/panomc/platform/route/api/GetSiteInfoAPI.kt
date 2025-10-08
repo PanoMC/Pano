@@ -72,6 +72,8 @@ class GetSiteInfoAPI(
         response["locale"] = config.locale
         response["websiteName"] = config.websiteName
         response["websiteDescription"] = config.websiteDescription
+        response["websiteUrl"] = config.websiteUrl
+        response["registerAgreement"] = config.registerAgreement
         response["supportEmail"] = config.supportEmail
         response["keywords"] = config.keywords
         response["panoVersion"] = VERSION

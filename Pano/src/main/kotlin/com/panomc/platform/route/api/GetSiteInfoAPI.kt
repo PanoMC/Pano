@@ -72,6 +72,7 @@ class GetSiteInfoAPI(
         response["locale"] = config.locale
         response["websiteName"] = config.websiteName
         response["websiteDescription"] = config.websiteDescription
+        response["ipAddress"] = config.serverIpAddress
         response["websiteUrl"] = config.websiteUrl
         response["registerAgreement"] = config.registerAgreement
         response["supportEmail"] = config.supportEmail

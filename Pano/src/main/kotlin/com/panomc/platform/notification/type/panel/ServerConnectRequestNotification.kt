@@ -6,5 +6,5 @@ import com.panomc.platform.notification.PanelUserNotificationType
 @NotificationDefinition
 data class ServerConnectRequestNotification(
     val id: Long? = null,
-    val favicon: String? = null
+    val image: String? = null
 ) : PanelUserNotificationType()

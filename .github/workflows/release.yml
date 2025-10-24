@@ -20,14 +20,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
 
       - name: Dry run to get next release version
         id: get_next_version
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
         run: |
-          export NEXT_TAG_VERSION=$(bunx semantic-release --dry-run | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
+          export NEXT_TAG_VERSION=$(npx semantic-release --dry-run | grep 'next release version is ' | awk -F"next release version is " '{print $2}')
           echo "new_tag_version=${NEXT_TAG_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Echo new_tag_version
@@ -80,6 +82,10 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+
       # Generate UI changelog from ZIP names and UI repos
       - name: Generate UI changelog
         env:
@@ -96,7 +102,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
         run: |
-          bunx semantic-release
+          npx semantic-release
 
       # Append UI changelog to latest release with a Markdown separator
       - name: Append UI changelog to latest release

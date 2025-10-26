@@ -1,5 +1,6 @@
 package com.panomc.platform.server
 
+import com.google.gson.Gson
 import com.panomc.platform.annotation.Event
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
@@ -25,7 +26,7 @@ class ServerManager(
     private val eventListeners by lazy {
         val beans = applicationContext.getBeansWithAnnotation(Event::class.java)
 
-        beans.filter { it.value is ServerEventListener }.map { it.value as ServerEventListener }
+        beans.filter { it.value is ServerEvent<*> }.map { it.value as ServerEvent<*> }
     }
 
     suspend fun init() {
@@ -54,19 +55,18 @@ class ServerManager(
         val body = JsonObject(text)
         val event = body.getString("event")
 
-        if (!ServerEvent.values().any { it.name == event }) {
-            return
-        }
+        val eventListener = eventListeners.find { it.getEventName() == event } ?: return
 
-        val serverEvent = ServerEvent.valueOf(event)
+        val requestObj = Gson().fromJson(text, eventListener.requestClass)
 
-        eventListeners
-            .filter {
-                it.serverEvent == serverEvent
-            }
-            .forEach {
-                it.handle(body, server)
-            }
+        @Suppress("UNCHECKED_CAST")
+        val typedListener = eventListener as ServerEvent<ServerEventRequest>
+
+        typedListener.handle(requestObj, server)
+    }
+
+    fun sendMessage(platformMessage: PlatformMessage, server: Server) {
+        getConnectedServers()[server]!!.writeTextMessage(platformMessage.encode())
     }
 
     fun closeConnection(id: Long) {

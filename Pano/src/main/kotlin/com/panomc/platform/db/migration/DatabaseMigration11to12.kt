@@ -12,7 +12,7 @@ class DatabaseMigration11to12 :
         renamePropertiesColumnToDetailsInNotificationsTable(),
         renameDateColumnToCreatedAtInNotificationsTable(),
         addUpdatedAtColumnToNotificationsTable(),
-        updateUpdateddAtColumnToNotificationsTable(),
+        updateUpdatedAtColumnToNotificationsTable(),
 
         renamePropertiesColumnToDetailsInPanelNotificationsTable(),
         renameDateColumnToCreatedAtInPanelNotificationsTable(),
@@ -50,7 +50,7 @@ class DatabaseMigration11to12 :
                 .coAwait()
         }
 
-    private fun updateUpdateddAtColumnToNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
+    private fun updateUpdatedAtColumnToNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
             val query = "UPDATE `${getTablePrefix()}notification` SET updatedAt = createdAt;"
 

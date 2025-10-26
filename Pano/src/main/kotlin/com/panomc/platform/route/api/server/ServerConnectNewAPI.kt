@@ -6,6 +6,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InvalidPlatformCode
+import com.panomc.platform.error.InvalidPublicKey
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.type.panel.ServerConnectRequestNotification
@@ -15,6 +16,8 @@ import com.panomc.platform.server.ServerType
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
+import com.panomc.platform.util.Aes256GcmUtil
+import com.panomc.platform.util.EncryptUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -22,6 +25,9 @@ import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import java.security.KeyFactory
+import java.security.spec.X509EncodedKeySpec
+import java.util.*
 
 @Endpoint
 class ServerConnectNewAPI(
@@ -52,6 +58,7 @@ class ServerConnectNewAPI(
                         )
                         .requiredProperty("serverVersion", stringSchema())
                         .requiredProperty("startTime", numberSchema())
+                        .requiredProperty("publicKey", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -70,6 +77,23 @@ class ServerConnectNewAPI(
         }
 
         val favicon = data.getString("favicon")
+        val publicKey = data.getString("publicKey")
+
+        val encodedAesKey = Aes256GcmUtil.generateBase64Key256()
+
+        val encryptedAesKey = try {
+            val decodedPublicKey = Base64.getDecoder().decode(publicKey)
+
+            val keySpec = X509EncodedKeySpec(decodedPublicKey)
+            val keyFactory = KeyFactory.getInstance("RSA")
+            val restoredPublicKey = keyFactory.generatePublic(keySpec)
+
+            val encryptedData = EncryptUtil.encryptData(encodedAesKey, restoredPublicKey)
+
+            String(Base64.getEncoder().encode(encryptedData))
+        } catch (_: Exception) {
+            throw InvalidPublicKey()
+        }
 
         val server = Server(
             name = data.getString("serverName"),
@@ -82,7 +106,8 @@ class ServerConnectNewAPI(
             version = data.getString("serverVersion"),
             favicon = favicon ?: "",
             status = ServerStatus.OFFLINE,
-            startTime = data.getLong("startTime")
+            startTime = data.getLong("startTime"),
+            aesKey = encodedAesKey
         )
 
         val sqlClient = getSqlClient()
@@ -101,7 +126,8 @@ class ServerConnectNewAPI(
 
         return Successful(
             mapOf(
-                "token" to token
+                "token" to token,
+                "encryptionKey" to encryptedAesKey
             )
         )
     }

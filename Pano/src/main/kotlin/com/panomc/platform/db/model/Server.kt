@@ -20,7 +20,8 @@ data class Server(
     val addedTime: Long = System.currentTimeMillis(),
     val acceptedTime: Long = 0,
     val startTime: Long,
-    val stopTime: Long = 0
+    val stopTime: Long = 0,
+    val aesKey: String
 ) : DBEntity() {
     override fun hashCode(): Int {
         return id.hashCode()

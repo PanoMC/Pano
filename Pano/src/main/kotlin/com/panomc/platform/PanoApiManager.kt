@@ -10,7 +10,7 @@ import com.panomc.platform.error.*
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
-import com.panomc.platform.util.HashUtil
+import com.panomc.platform.util.EncryptUtil
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import io.vertx.core.Vertx
@@ -117,8 +117,8 @@ class PanoApiManager(
         try {
             val decodedData = Base64.getDecoder().decode(encodedData)
 
-            decryptedData = HashUtil.decryptData(decodedData, privateKey)
-        } catch (e: Exception) {
+            decryptedData = EncryptUtil.decryptData(decodedData, privateKey)
+        } catch (_: Exception) {
             throw PanoConnectFailed()
         }
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="120" src="https://i.ibb.co/wy0LVmD/Pano-Icon.png" alt="Pano Logo">
+  <img width="120" height="120" src="https://i.ibb.co/T97B4HN/Discord-Avatar.png" alt="Pano Logo">
 </p>
 
 <h1 align="center">Pano</h1>

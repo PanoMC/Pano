@@ -7,5 +7,5 @@ interface ServerEventResponse : PlatformMessage {
     val eventId: UUID
 
     override fun getResponseName() =
-        this.javaClass.simpleName.replace("ServerEventResponse", "").convertToSnakeCase().uppercase()
+        this.javaClass.simpleName.replace("EventResponse", "").convertToSnakeCase().uppercase()
 }

@@ -11,7 +11,7 @@ abstract class ServerEvent<R : ServerEventRequest> {
         superclass.actualTypeArguments[0] as Class<R>
     }
 
-    abstract suspend fun handle(request: R, server: Server)
+    abstract suspend fun handle(request: R, server: Server): PlatformMessage?
 
     fun getEventName() = this.javaClass.simpleName.replace("Event", "").convertToSnakeCase().uppercase()
 }

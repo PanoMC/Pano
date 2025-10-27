@@ -69,7 +69,9 @@ class ServerManager(
         @Suppress("UNCHECKED_CAST")
         val typedListener = eventListener as ServerEvent<ServerEventRequest>
 
-        typedListener.handle(requestObj, server)
+        val message = typedListener.handle(requestObj, server) ?: return
+
+        sendMessage(message, server)
     }
 
     fun sendMessage(platformMessage: PlatformMessage, server: Server) {

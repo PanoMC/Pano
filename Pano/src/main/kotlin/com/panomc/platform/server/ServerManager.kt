@@ -23,7 +23,7 @@ class ServerManager(
     private val databaseManager: DatabaseManager,
     private val applicationContext: AnnotationConfigApplicationContext
 ) {
-    private val connectedServers = mutableMapOf<Server, ServerWebSocket>()
+    internal val connectedServers = mutableMapOf<Server, ServerWebSocket>()
     private val serverSecretKeyMap = mutableMapOf<Server, SecretKey>()
 
     private val eventListeners by lazy {

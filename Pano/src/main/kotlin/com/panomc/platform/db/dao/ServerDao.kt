@@ -95,4 +95,10 @@ abstract class ServerDao : Dao<Server>(Server::class.java) {
         startTime: Long,
         sqlClient: SqlClient
     )
+
+    abstract suspend fun updateSettingsById(
+        serverSettings: Server.Companion.ServerSettings,
+        id: Long,
+        sqlClient: SqlClient
+    )
 }

@@ -37,6 +37,7 @@ class ServerDaoImpl : ServerDao() {
                               `startTime` bigint NOT NULL,
                               `stopTime` bigint NOT NULL,
                               `aesKey` text NOT NULL,
+                              `settings` text DEFAULT '{}',
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Server table.';
                         """
@@ -51,7 +52,7 @@ class ServerDaoImpl : ServerDao() {
     ): Long {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`, `aesKey`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -71,7 +72,8 @@ class ServerDaoImpl : ServerDao() {
                     0,
                     server.startTime,
                     0,
-                    server.aesKey
+                    server.aesKey,
+                    server.settings.encode()
                 )
             ).coAwait()
 
@@ -301,6 +303,24 @@ class ServerDaoImpl : ServerDao() {
                     favicon,
                     status.name,
                     startTime,
+                    id
+                )
+            )
+            .coAwait()
+    }
+
+    override suspend fun updateSettingsById(
+        serverSettings: Server.Companion.ServerSettings,
+        id: Long,
+        sqlClient: SqlClient
+    ) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `settings` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    serverSettings.encode(),
                     id
                 )
             )

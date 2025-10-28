@@ -27,7 +27,7 @@ class UserDaoImpl : UserDao() {
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `username` varchar(16) NOT NULL UNIQUE,
-                              `email` varchar(255) NOT NULL UNIQUE,
+                              `email` varchar(255) UNIQUE,
                               `password` varchar(255) NOT NULL,
                               `permissionGroupId` bigint NOT NULL,
                               `registeredIp` varchar(255) NOT NULL,

@@ -5,14 +5,14 @@ import com.panomc.platform.db.DBEntity
 data class User(
     val id: Long = -1,
     val username: String,
-    val email: String,
+    val email: String? = null,
     val registeredIp: String,
     val permissionGroupId: Long = -1,
     val registerDate: Long = System.currentTimeMillis(),
-    val lastLoginDate: Long = System.currentTimeMillis(),
+    val lastLoginDate: Long = 0,
     val emailVerified: Boolean = false,
     val banned: Boolean = false,
     val canCreateTicket: Boolean = true,
-    val lastActivityTime: Long = System.currentTimeMillis(),
-    val lastPanelActivityTime: Long = System.currentTimeMillis(),
+    val lastActivityTime: Long = 0L,
+    val lastPanelActivityTime: Long = 0L,
 ) : DBEntity()

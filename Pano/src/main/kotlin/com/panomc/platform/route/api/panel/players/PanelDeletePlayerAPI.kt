@@ -62,7 +62,7 @@ class PanelDeletePlayerAPI(
         }
 
         val isCurrentPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
+            databaseManager.userDao.isPasswordCorrectWithId(authUserId, DigestUtils.md5Hex(currentPassword), sqlClient)
 
         if (!isCurrentPasswordCorrect) {
             throw CurrentPasswordNotCorrect()

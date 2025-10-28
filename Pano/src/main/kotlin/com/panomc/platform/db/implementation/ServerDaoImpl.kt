@@ -51,7 +51,7 @@ class ServerDaoImpl : ServerDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`, `aesKey`) " +
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`, `aesKey`, `settings`) " +
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient

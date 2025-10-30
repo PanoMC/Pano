@@ -15,8 +15,8 @@ object TimeUtil {
 
     fun getStartupTime() = secondsWithPrecision(calculateStartTime())
 
-    fun getStartOfLast2WeekAtMidnightInMillis(): Long {
-        val oneWeekAgo = LocalDate.now(ZoneId.systemDefault()).minusWeeks(2)
+    fun getStartOfLastWeekAtMidnightInMillis(): Long {
+        val oneWeekAgo = LocalDate.now(ZoneId.systemDefault()).minusWeeks(1)
         return oneWeekAgo
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
@@ -24,7 +24,7 @@ object TimeUtil {
     }
 
     fun getStartOfLastMonthAtMidnightInMillis(): Long {
-        val oneMonthAgo = LocalDate.now(ZoneId.systemDefault()).minusMonths(2)
+        val oneMonthAgo = LocalDate.now(ZoneId.systemDefault()).minusMonths(1)
         return oneMonthAgo
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
@@ -33,7 +33,7 @@ object TimeUtil {
 
     fun getTimeToCompareByDashboardPeriodType(dashboardPeriodType: DashboardPeriodType) =
         if (dashboardPeriodType == DashboardPeriodType.WEEK) {
-            getStartOfLast2WeekAtMidnightInMillis()
+            getStartOfLastWeekAtMidnightInMillis()
         } else {
             getStartOfLastMonthAtMidnightInMillis()
         }

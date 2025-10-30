@@ -7,7 +7,6 @@ import com.panomc.platform.server.PlatformMessage
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.event.request.ChangePasswordEventRequest
 import com.panomc.platform.server.response.ChangePasswordEventResponse
-import org.apache.commons.codec.digest.DigestUtils
 
 @Event
 class ChangePasswordEvent(
@@ -18,9 +17,7 @@ class ChangePasswordEvent(
 
         val userId = databaseManager.userDao.getUserIdFromUsername(request.username, sqlClient)!!
 
-        val hashedPassword = DigestUtils.md5Hex(request.password)
-
-        databaseManager.userDao.setPasswordById(userId, hashedPassword, sqlClient)
+        databaseManager.userDao.setPasswordById(userId, request.password, sqlClient)
 
         return ChangePasswordEventResponse(request.eventId, null)
     }

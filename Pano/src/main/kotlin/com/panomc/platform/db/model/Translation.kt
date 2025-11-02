@@ -15,7 +15,9 @@ data class Translation(
         enum class TranslationType {
             PANEL,
             THEME,
-            PLUGIN
+            PLUGIN,
+            PLATFORM,
+            MC_PLUGIN
         }
     }
 }

@@ -22,6 +22,12 @@ abstract class TranslationDao : Dao<Translation>(Translation::class.java) {
         sqlClient: SqlClient
     ): List<Translation>
 
+    abstract suspend fun getByLocaleCodeAndType(
+        localeCode: String,
+        type: Translation.Companion.TranslationType,
+        sqlClient: SqlClient
+    ): List<Translation>
+
     abstract suspend fun addAll(
         translations: List<Translation>,
         sqlClient: SqlClient

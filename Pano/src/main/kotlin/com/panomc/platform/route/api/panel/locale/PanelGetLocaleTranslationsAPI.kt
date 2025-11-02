@@ -10,6 +10,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.JsonObjectUtil
 import io.vertx.ext.web.RoutingContext
@@ -29,6 +30,7 @@ class PanelGetLocaleTranslationsAPI(
     private val uiManager: UIManager,
     private val pluginManager: PluginManager,
     private val authProvider: AuthProvider,
+    private val i18nManager: I18nManager,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/locales/:localeId/types/:type/translations", RouteType.GET))
 
@@ -69,59 +71,72 @@ class PanelGetLocaleTranslationsAPI(
         val routeType = when (type) {
             TranslationType.PANEL -> Type.PANEL_UI
             TranslationType.THEME -> Type.THEME_UI
-            TranslationType.PLUGIN -> null
+            else -> null
         }
 
         val translations = mutableListOf<Translation>()
 
         var originalTranslations: MutableMap<String, Any>
 
-        if (routeType != null) {
-            val activatedUI = uiManager.activatedUIList[routeType]!!
-            val panelPrefix = if (routeType == Type.PANEL_UI) "/panel" else ""
-            val url =
-                "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${locale.code}.json"
+        when (type) {
+            TranslationType.PLATFORM, TranslationType.MC_PLUGIN -> {
+                // Get original translations from I18nManager (internal JAR resources)
+                originalTranslations = i18nManager.getOriginalTranslations(type, locale.code)
+                    .mapValues { it.value as Any }
+                    .toMutableMap()
+            }
 
-            originalTranslations = getTranslationsFromUI(url)
-
-            if (locale.code != AppConstants.DEFAULT_LOCALE_CODE) {
+            TranslationType.PANEL, TranslationType.THEME -> {
+                // Get original translations from UI (runtime SvelteKit applications)
+                val activatedUI = uiManager.activatedUIList[routeType]!!
+                val panelPrefix = if (routeType == Type.PANEL_UI) "/panel" else ""
                 val url =
-                    "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${AppConstants.DEFAULT_LOCALE_CODE}.json"
-
-                val originalTranslationsCopy = originalTranslations.toMap()
+                    "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${locale.code}.json"
 
                 originalTranslations = getTranslationsFromUI(url)
 
-                originalTranslationsCopy.forEach {
-                    originalTranslations[it.key] = it.value
-                }
-            }
-        } else { // plugins
-            originalTranslations = pluginManager.getPluginWrappers()
-                .mapNotNull { wrapper ->
-                    val pluginTranslations =
-                        wrapper.pluginLocales[locale.code] ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
-                    if (pluginTranslations == null) return@mapNotNull null
+                if (locale.code != AppConstants.DEFAULT_LOCALE_CODE) {
+                    val url =
+                        "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${AppConstants.DEFAULT_LOCALE_CODE}.json"
 
-                    JsonObjectUtil.flattenJsonObject(pluginTranslations)
-                        .map { (key, value) -> "plugins.${wrapper.pluginId}.$key" to value }
-                }
-                .flatten()
-                .toMap()
-                .toMutableMap()
+                    val originalTranslationsCopy = originalTranslations.toMap()
 
-            pluginManager.getPluginWrappers()
-                .mapNotNull { wrapper ->
-                    val pluginTranslations =
-                        wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE] ?: return@mapNotNull null
+                    originalTranslations = getTranslationsFromUI(url)
 
-                    JsonObjectUtil.flattenJsonObject(pluginTranslations)
-                        .map { (key, value) -> "plugins.${wrapper.pluginId}.$key" to value }
-                }.flatten().toMap().forEach { pluginTranslation ->
-                    if (originalTranslations[pluginTranslation.key] == null) {
-                        originalTranslations[pluginTranslation.key] = pluginTranslation.value
+                    originalTranslationsCopy.forEach {
+                        originalTranslations[it.key] = it.value
                     }
                 }
+            }
+
+            TranslationType.PLUGIN -> {
+                // Get original translations from PluginManager (loaded plugins)
+                originalTranslations = pluginManager.getPluginWrappers()
+                    .mapNotNull { wrapper ->
+                        val pluginTranslations =
+                            wrapper.pluginLocales[locale.code] ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+                        if (pluginTranslations == null) return@mapNotNull null
+
+                        JsonObjectUtil.flattenJsonObject(pluginTranslations)
+                            .map { (key, value) -> "plugins.${wrapper.pluginId}.$key" to value }
+                    }
+                    .flatten()
+                    .toMap()
+                    .toMutableMap()
+
+                pluginManager.getPluginWrappers()
+                    .mapNotNull { wrapper ->
+                        val pluginTranslations =
+                            wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE] ?: return@mapNotNull null
+
+                        JsonObjectUtil.flattenJsonObject(pluginTranslations)
+                            .map { (key, value) -> "plugins.${wrapper.pluginId}.$key" to value }
+                    }.flatten().toMap().forEach { pluginTranslation ->
+                        if (originalTranslations[pluginTranslation.key] == null) {
+                            originalTranslations[pluginTranslation.key] = pluginTranslation.value
+                        }
+                    }
+            }
         }
 
         originalTranslations.forEach {

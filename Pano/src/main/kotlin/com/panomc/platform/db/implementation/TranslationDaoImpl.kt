@@ -151,6 +151,32 @@ class TranslationDaoImpl : TranslationDao() {
         return rows.toEntities()
     }
 
+    override suspend fun getByLocaleCodeAndType(
+        localeCode: String,
+        type: Translation.Companion.TranslationType,
+        sqlClient: SqlClient
+    ): List<Translation> {
+        val localeTableName = getTablePrefix() + "locale"
+        val translationTableName = getTablePrefix() + tableName
+
+        val fieldsWithPrefix = fields.joinToString(", ") { "`$translationTableName`.`$it`" }
+
+        val query = """
+            SELECT $fieldsWithPrefix
+            FROM `$translationTableName`
+            INNER JOIN `$localeTableName` ON `$translationTableName`.`localeId` = `$localeTableName`.`id`
+            WHERE `$localeTableName`.`code` = ? AND `$translationTableName`.`type` = ?
+            ORDER BY `$translationTableName`.`createdAt` DESC, `$translationTableName`.`id` DESC
+        """.trimIndent()
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(localeCode, type.name))
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun deleteByLocaleId(
         localeId: Long,
         sqlClient: SqlClient

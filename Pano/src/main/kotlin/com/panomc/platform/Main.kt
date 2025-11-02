@@ -3,6 +3,7 @@ package com.panomc.platform
 import com.panomc.platform.annotation.Boot
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.*
@@ -124,6 +125,7 @@ class Main : CoroutineVerticle() {
     private lateinit var configManager: ConfigManager
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
+    private lateinit var i18nManager: I18nManager
     private var stopping = false
 
     suspend fun shutdown() {
@@ -247,6 +249,8 @@ class Main : CoroutineVerticle() {
         if (isPlatformInstalled) {
             initDatabaseManager()
 
+            initI18nManager()
+
             initServerManager()
 
             initUpdateManager()
@@ -259,6 +263,14 @@ class Main : CoroutineVerticle() {
         }
 
         hookCommands()
+    }
+
+    private suspend fun initI18nManager() {
+        logger.info("Initializing i18n manager")
+
+        i18nManager = applicationContext.getBean(I18nManager::class.java)
+
+        i18nManager.init()
     }
 
     private suspend fun initUpdateManager() {

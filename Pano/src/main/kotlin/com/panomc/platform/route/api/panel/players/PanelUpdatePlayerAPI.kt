@@ -37,6 +37,7 @@ class PanelUpdatePlayerAPI(
                         .requiredProperty("newPasswordRepeat", stringSchema())
                         .requiredProperty("isEmailVerified", booleanSchema())
                         .requiredProperty("canCreateTicket", booleanSchema())
+                        .requiredProperty("localeCode", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -53,6 +54,7 @@ class PanelUpdatePlayerAPI(
         val newPasswordRepeat = data.getString("newPasswordRepeat")
         val isEmailVerified = data.getBoolean("isEmailVerified")
         val canCreateTicket = data.getBoolean("canCreateTicket")
+        val localeCode = data.getString("localeCode")
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -70,6 +72,14 @@ class PanelUpdatePlayerAPI(
 
         if (!exists) {
             throw NotExists()
+        }
+
+        if (localeCode != null && localeCode.isNotBlank()) {
+            val localeExists = databaseManager.localeDao.existsByCode(localeCode, sqlClient)
+
+            if (!localeExists) {
+                throw NotExists()
+            }
         }
 
         val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)!!
@@ -109,6 +119,10 @@ class PanelUpdatePlayerAPI(
 
         if (email != user.email) {
             databaseManager.userDao.setEmailById(user.id, username, sqlClient)
+        }
+
+        if (localeCode != user.localeCode) {
+            databaseManager.userDao.setLocaleCodeById(localeCode.ifBlank { null }, user.id, sqlClient)
         }
 
         if (newPassword.isNotEmpty()) {

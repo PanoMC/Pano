@@ -15,4 +15,5 @@ data class User(
     val canCreateTicket: Boolean = true,
     val lastActivityTime: Long = 0L,
     val lastPanelActivityTime: Long = 0L,
+    val localeCode: String? = null,
 ) : DBEntity()

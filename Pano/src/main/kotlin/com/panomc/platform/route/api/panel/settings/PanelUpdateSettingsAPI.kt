@@ -78,6 +78,7 @@ class PanelUpdateSettingsAPI(
                             enumSchema(*UpdatePeriod.entries.map { it.name }.toTypedArray())
                         )
                         .optionalProperty("locale", stringSchema())
+                        .optionalProperty("allowUserLocaleSelection", booleanSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("websiteUrl", stringSchema())
@@ -118,6 +119,7 @@ class PanelUpdateSettingsAPI(
         val updatePeriod =
             if (data.getString("updatePeriod") == null) null else UpdatePeriod.valueOf(data.getString("updatePeriod"))
         val locale = data.getString("locale")
+        val allowUserLocaleSelection = data.getBoolean("allowUserLocaleSelection")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
         val websiteUrl = data.getString("websiteUrl")
@@ -176,6 +178,10 @@ class PanelUpdateSettingsAPI(
             }
 
             configManager.config.locale = locale
+        }
+
+        if (allowUserLocaleSelection != null) {
+            configManager.config.allowUserLocaleSelection = allowUserLocaleSelection
         }
 
         if (websiteName != null) {

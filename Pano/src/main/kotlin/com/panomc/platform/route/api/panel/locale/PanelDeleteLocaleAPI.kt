@@ -70,6 +70,8 @@ class PanelDeleteLocaleAPI(
             configManager.saveConfig()
         }
 
+        databaseManager.userDao.setLocaleCodeByLocaleCode(null, locale.code, sqlClient)
+
         return Successful()
     }
 }

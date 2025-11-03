@@ -95,6 +95,8 @@ class PanelUpdateLocaleAPI(
             configManager.saveConfig()
         }
 
+        databaseManager.userDao.setLocaleCodeByLocaleCode(code, locale.code, sqlClient)
+
         return Successful()
     }
 

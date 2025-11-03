@@ -40,6 +40,7 @@ class UserDaoImpl : UserDao() {
                               `lastActivityTime` BIGINT NOT NULL DEFAULT 0,
                               `lastPanelActivityTime` BIGINT NOT NULL DEFAULT 0,
                               `pendingEmail` varchar(255) NOT NULL DEFAULT '',
+                              `localeCode` varchar(10) NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User Table';
                         """
@@ -55,8 +56,8 @@ class UserDaoImpl : UserDao() {
         isSetup: Boolean
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registeredIp, permissionGroupId, registerDate, `lastLoginDate`, `emailVerified`, `lastActivityTime`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registeredIp, permissionGroupId, registerDate, `lastLoginDate`, `emailVerified`, `lastActivityTime`, `localeCode`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -70,7 +71,8 @@ class UserDaoImpl : UserDao() {
                     user.registerDate,
                     user.lastLoginDate,
                     if (isSetup) 1 else 0,
-                    user.lastActivityTime
+                    user.lastActivityTime,
+                    user.localeCode
                 )
             )
             .coAwait()
@@ -251,7 +253,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): User? {
         val query =
-            "SELECT `id`, `username`, `email`, `registeredIp`, `permissionGroupId`, `registerDate`, `lastLoginDate`, `emailVerified`, `banned`, `canCreateTicket`, `lastActivityTime`, `lastPanelActivityTime` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -272,7 +274,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): User? {
         val query =
-            "SELECT `id`, `username`, `email`, `registeredIp`, `permissionGroupId`, `registerDate`, `lastLoginDate`, `emailVerified`, `banned`, `canCreateTicket`, `lastActivityTime`, `lastPanelActivityTime` FROM `${getTablePrefix() + tableName}` where `username` = ?"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -317,7 +319,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): List<User> {
         val query =
-            "SELECT `id`, `username`, `email`, `registeredIp`, `permissionGroupId`, `registerDate`, `lastLoginDate`, `emailVerified`, `banned`, `canCreateTicket`, `lastActivityTime`, `lastPanelActivityTime` FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE `permissionGroupId` != ? " else if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE `permissionGroupId` != ? " else if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -341,7 +343,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): List<User> {
         val query =
-            "SELECT `id`, `username`, `email`, `registeredIp`, `permissionGroupId`, `registerDate`, `lastLoginDate`, `emailVerified`, `banned`, `canCreateTicket`, `lastActivityTime`, `lastPanelActivityTime` FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -648,6 +650,59 @@ class UserDaoImpl : UserDao() {
             .coAwait()
     }
 
+    override suspend fun setLocaleCodeById(
+        localeCode: String?,
+        id: Long,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `localeCode` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    localeCode,
+                    id
+                )
+            )
+            .coAwait()
+    }
+
+    override suspend fun setLocaleCodeByLocaleCode(
+        newLocaleCode: String?,
+        oldLocaleCode: String?,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `localeCode` = ? WHERE `localeCode` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    newLocaleCode,
+                    oldLocaleCode
+                )
+            )
+            .coAwait()
+    }
+
+    override suspend fun getLocaleCodeById(
+        id: Long,
+        sqlClient: SqlClient
+    ): String? {
+        val query =
+            "SELECT `localeCode` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(id))
+            .coAwait()
+
+        return rows.toList()[0].getString(0)
+    }
+
     override suspend fun setPasswordById(
         id: Long,
         password: String,
@@ -828,7 +883,7 @@ class UserDaoImpl : UserDao() {
 
     override suspend fun getOnlineAdmins(limit: Long, sqlClient: SqlClient): List<User> {
         val query =
-            "SELECT `id`, `username`, `email`, `registeredIp`, `permissionGroupId`, `registerDate`, `lastLoginDate`, `emailVerified`, `banned`, `canCreateTicket`, `lastActivityTime`, `lastPanelActivityTime` FROM `${getTablePrefix() + tableName}` WHERE `lastPanelActivityTime` > ? ${if (limit == -1L) "" else "LIMIT $limit"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `lastPanelActivityTime` > ? ${if (limit == -1L) "" else "LIMIT $limit"}"
 
         val fiveMinutesAgoInMillis = System.currentTimeMillis() - 5 * 60 * 1000
 

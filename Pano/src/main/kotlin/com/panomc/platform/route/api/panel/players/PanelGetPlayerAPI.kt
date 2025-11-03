@@ -65,7 +65,8 @@ class PanelGetPlayerAPI(
             "isEmailVerified" to user.emailVerified,
             "permissionGroup" to "-",
             "lastActivityTime" to user.lastActivityTime,
-            "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient)
+            "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient),
+            "localeCode" to user.localeCode,
         )
 
         if (user.permissionGroupId != -1L) {

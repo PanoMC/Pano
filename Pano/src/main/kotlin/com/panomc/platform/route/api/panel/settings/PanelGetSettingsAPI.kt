@@ -61,6 +61,7 @@ class PanelGetSettingsAPI(
         if (settingType == SettingType.GENERAL) {
             result["updatePeriod"] = configManager.config.updatePeriod.name
             result["locale"] = configManager.config.locale
+            result["allowUserLocaleSelection"] = configManager.config.allowUserLocaleSelection
 
             val emailConfig = configManager.config.email
 

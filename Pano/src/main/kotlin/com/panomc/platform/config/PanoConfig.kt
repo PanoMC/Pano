@@ -15,6 +15,8 @@ data class PanoConfig(
     @SerializedName("development-mode") var developmentMode: Boolean = true,
     var locale: String = "en-US",
 
+    @SerializedName("allow-user-locale-selection") var allowUserLocaleSelection: Boolean = true,
+
     @SerializedName("website-name") var websiteName: String = "",
     @SerializedName("website-description") var websiteDescription: String = "",
     @SerializedName("website-url") var websiteUrl: String = "",

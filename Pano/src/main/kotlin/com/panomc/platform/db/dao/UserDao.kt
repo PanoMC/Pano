@@ -164,6 +164,23 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     )
 
+    abstract suspend fun setLocaleCodeById(
+        localeCode: String?,
+        id: Long,
+        sqlClient: SqlClient
+    )
+
+    abstract suspend fun setLocaleCodeByLocaleCode(
+        newLocaleCode: String?,
+        oldLocaleCode: String?,
+        sqlClient: SqlClient
+    )
+
+    abstract suspend fun getLocaleCodeById(
+        id: Long,
+        sqlClient: SqlClient
+    ): String?
+
     abstract suspend fun setPasswordById(
         id: Long,
         password: String,

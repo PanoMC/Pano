@@ -57,7 +57,6 @@ class PanelGetBasicDataAPI(
                 "registerAgreement" to configManager.config.registerAgreement
             ),
             "notificationCount" to count,
-            "locale" to configManager.config.locale,
             "connectedServerCount" to connectedServerCount
         )
 

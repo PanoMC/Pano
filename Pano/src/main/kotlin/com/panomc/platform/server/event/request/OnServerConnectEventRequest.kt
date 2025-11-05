@@ -14,4 +14,4 @@ data class OnServerConnectEventRequest(
     val startTime: Long,
     val favicon: String?,
     val motd: String?
-) : ServerEventRequest
+) : ServerEventRequest()

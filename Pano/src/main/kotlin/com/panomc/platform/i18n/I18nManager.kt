@@ -1,6 +1,8 @@
 package com.panomc.platform.i18n
 
+import com.github.jknack.handlebars.Handlebars
 import com.panomc.platform.AppConstants
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.util.JsonObjectUtil
@@ -48,13 +50,17 @@ import org.springframework.stereotype.Component
 @Lazy
 @Component
 class I18nManager(
-    @get:Lazy private val databaseManager: DatabaseManager
+    @get:Lazy private val databaseManager: DatabaseManager,
+    @get:Lazy private val configManager: ConfigManager
 ) {
     @Autowired
     private lateinit var logger: Logger
 
     // Structure: Map<TranslationType, Map<LocaleCode, Map<Key, Value>>>
     private val translations = mutableMapOf<TranslationType, MutableMap<String, Map<String, String>>>()
+    
+    // Handlebars instance for rendering translations with variables
+    private val handlebars by lazy { Handlebars() }
 
     suspend fun init() {
         logger.info("Loading platform translations from resources")
@@ -223,6 +229,89 @@ class I18nManager(
         }
 
         return result
+    }
+    /**
+     * Returns translations (including custom overrides) grouped by locale code.
+     * Structure: Map<LocaleCode, Map<Key, Value>>
+     */
+    suspend fun getTranslationsByLocale(type: TranslationType): Map<String, Map<String, String>> {
+        val result = mutableMapOf<String, Map<String, String>>()
+
+        for (localeCode in AppConstants.AVAILABLE_LOCALES) {
+            result[localeCode] = getTranslations(type, localeCode)
+        }
+
+        return result
+    }
+
+    /**
+     * Translates a key with variable substitution using Handlebars template engine.
+     * The translation string can contain Handlebars syntax like {{variableName}}.
+     *
+     * @param type Translation type (PLATFORM or MC_PLUGIN)
+     * @param localeCode Locale code (e.g., "en-US", "tr")
+     * @param key Translation key
+     * @param variables Map of variables to be used in the template (default: empty map)
+     * @return The rendered translation string or null if translation not found
+     *
+     * @example
+     * ```kotlin
+     * // Translation: "Welcome, {{username}}!"
+     * val result = i18nManager.translate(
+     *     TranslationType.PLATFORM,
+     *     "en-US",
+     *     "welcome.message",
+     *     mapOf("username" to "John")
+     * )
+     * // Result: "Welcome, John!"
+     * ```
+     */
+    suspend fun translate(
+        type: TranslationType,
+        localeCode: String,
+        key: String,
+        variables: Map<String, Any> = emptyMap()
+    ): String? {
+        val translationTemplate = getTranslation(type, localeCode, key) ?: return null
+
+        // If no variables provided, return the translation as-is
+        if (variables.isEmpty()) {
+            return translationTemplate
+        }
+
+        return try {
+            val template = handlebars.compileInline(translationTemplate)
+            template.apply(variables)
+        } catch (e: Exception) {
+            logger.error("Failed to render translation template for key: $key", e)
+            translationTemplate // Return original template on error
+        }
+    }
+
+    suspend fun getLocaleCode(console: Boolean, adminId: Long?, userId: Long): String {
+        if (console) {
+            return configManager.config.locale
+        }
+
+        val sqlClient = databaseManager.getSqlClient()
+
+        if (adminId != null) {
+            val adminLocale = databaseManager.userDao.getLocaleCodeById(adminId, sqlClient)
+
+            if (adminLocale != null) {
+                return adminLocale
+            }
+
+            return configManager.config.locale
+        }
+
+        val userLocale = databaseManager.userDao.getLocaleCodeById(userId, sqlClient)
+
+        if (userLocale != null) {
+            return userLocale
+        }
+
+        return configManager.config.locale
     }
 }
 

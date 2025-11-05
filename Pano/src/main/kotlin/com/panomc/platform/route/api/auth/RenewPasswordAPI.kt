@@ -3,12 +3,13 @@ package com.panomc.platform.route.api.auth
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.error.*
+import com.panomc.platform.error.InvalidLink
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.notification.PasswordUpdatedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
+import com.panomc.platform.util.RegisterUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -74,20 +75,6 @@ class RenewPasswordAPI(
             throw InvalidLink()
         }
 
-        if (newPassword.isBlank()) {
-            throw NewPasswordEmpty()
-        }
-
-        if (newPassword.length < 6) {
-            throw NewPasswordTooShort()
-        }
-
-        if (newPassword.length > 128) {
-            throw NewPasswordTooLong()
-        }
-
-        if (newPassword != newPasswordRepeat) {
-            throw NewPasswordRepeatDoesntMatch()
-        }
+        RegisterUtil.validatePassword(newPassword, newPasswordRepeat)
     }
 }

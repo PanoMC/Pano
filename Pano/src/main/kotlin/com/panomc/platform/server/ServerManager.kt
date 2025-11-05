@@ -29,7 +29,7 @@ class ServerManager(
     private val eventListeners by lazy {
         val beans = applicationContext.getBeansWithAnnotation(Event::class.java)
 
-        beans.filter { it.value is ServerEvent<*> }.map { it.value as ServerEvent<*> }
+        beans.filter { it.value is ServerEvent<*, *> }.map { it.value as ServerEvent<*, *> }
     }
 
     suspend fun init() {
@@ -64,12 +64,14 @@ class ServerManager(
 
         val eventListener = eventListeners.find { it.getEventName() == event } ?: return
 
-        val requestObj = Gson().fromJson(text, eventListener.requestClass)
+        val requestObj = Gson().fromJson(text, eventListener.requestClass) as ServerEventRequest
 
         @Suppress("UNCHECKED_CAST")
-        val typedListener = eventListener as ServerEvent<ServerEventRequest>
+        val typedListener = eventListener as ServerEvent<ServerEventRequest, ServerEventResponse>
 
         val message = typedListener.handle(requestObj, server) ?: return
+
+        message.eventId = requestObj.eventId
 
         sendMessage(message, server)
     }

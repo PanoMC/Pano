@@ -1,3 +1,7 @@
 package com.panomc.platform.server
 
-interface ServerEventRequest
+import java.util.UUID
+
+abstract class ServerEventRequest() {
+    val eventId: UUID? = null
+}

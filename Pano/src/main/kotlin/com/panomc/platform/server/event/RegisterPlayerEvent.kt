@@ -5,7 +5,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.User
 import com.panomc.platform.error.RegisterUsernameNotAvailable
-import com.panomc.platform.server.PlatformMessage
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.event.request.RegisterPlayerEventRequest
 import com.panomc.platform.server.response.RegisterPlayerEventResponse
@@ -14,14 +13,14 @@ import org.apache.commons.codec.digest.DigestUtils
 @Event
 class RegisterPlayerEvent(
     private val databaseManager: DatabaseManager,
-) : ServerEvent<RegisterPlayerEventRequest>() {
-    override suspend fun handle(request: RegisterPlayerEventRequest, server: Server): PlatformMessage {
+) : ServerEvent<RegisterPlayerEventRequest, RegisterPlayerEventResponse>() {
+    override suspend fun handle(request: RegisterPlayerEventRequest, server: Server): RegisterPlayerEventResponse {
         val sqlClient = databaseManager.getSqlClient()
 
         val isUsernameExists = databaseManager.userDao.existsByUsername(request.username, sqlClient)
 
         if (isUsernameExists) {
-            return RegisterPlayerEventResponse(request.eventId, RegisterUsernameNotAvailable().getErrorCode())
+            return RegisterPlayerEventResponse( RegisterUsernameNotAvailable().getErrorCode())
         }
 
         val user = User(username = request.username, email = null, registeredIp = request.ipAddress)
@@ -30,6 +29,6 @@ class RegisterPlayerEvent(
 
         databaseManager.userDao.add(user, hashedPassword, sqlClient, false)
 
-        return RegisterPlayerEventResponse(request.eventId, null)
+        return RegisterPlayerEventResponse(null)
     }
 }

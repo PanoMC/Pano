@@ -1,10 +1,11 @@
 package com.panomc.platform.server.event.request
 
 import com.panomc.platform.server.ServerEventRequest
-import java.util.*
 
 data class ChangePasswordEventRequest(
-    val eventId: UUID,
     val username: String,
     val password: String,
-) : ServerEventRequest
+    val passwordRepeat: String,
+    val admin: String?,
+    val console: Boolean
+) : ServerEventRequest()

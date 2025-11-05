@@ -2,8 +2,6 @@ package com.panomc.platform.server.event.request
 
 import com.panomc.platform.server.ServerEventRequest
 
-data class RegisterPlayerEventRequest(
-    val username: String,
-    val password: String,
-    val ipAddress: String
+data class GetPlayerInfoEventRequest(
+    val username: String
 ) : ServerEventRequest()

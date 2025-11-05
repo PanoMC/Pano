@@ -3,8 +3,11 @@ package com.panomc.platform.route.api.panel.server
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.response.GetServerSettingsEventResponse
@@ -16,13 +19,14 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
-import java.util.*
 
 @Endpoint
 class PanelUpdateServerSettingsAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val serverManager: ServerManager
+    private val serverManager: ServerManager,
+    private val i18nManager: I18nManager,
+    private val configManager: ConfigManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id/settings", RouteType.PUT))
 
@@ -67,11 +71,16 @@ class PanelUpdateServerSettingsAPI(
         if (foundServer != null) {
             foundServer.settings = settings
 
+            val platformLocale = configManager.config.locale
+            val translationsByLocale = i18nManager.getTranslationsByLocale(TranslationType.MC_PLUGIN)
+
             val response = GetServerSettingsEventResponse(
-                UUID.randomUUID(),
                 settings.authIntegration,
                 settings.banIntegration,
-                settings.permissionIntegration
+                settings.permissionIntegration,
+                translationsByLocale,
+                platformLocale,
+
             )
             serverManager.sendMessage(response, foundServer)
         }

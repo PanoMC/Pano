@@ -141,4 +141,22 @@ object RegisterUtil {
 
         return userId
     }
+
+    fun validatePassword(newPassword: String, newPasswordRepeat: String) {
+        if (newPassword.isBlank()) {
+            throw NewPasswordEmpty()
+        }
+
+        if (newPassword.length < 6) {
+            throw NewPasswordTooShort()
+        }
+
+        if (newPassword.length > 128) {
+            throw NewPasswordTooLong()
+        }
+
+        if (newPassword != newPasswordRepeat) {
+            throw NewPasswordRepeatDoesntMatch()
+        }
+    }
 }

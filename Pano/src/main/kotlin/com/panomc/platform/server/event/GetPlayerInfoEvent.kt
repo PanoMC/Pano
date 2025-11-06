@@ -14,19 +14,19 @@ class GetPlayerInfoEvent(
     override suspend fun handle(request: IsPlayerRegisteredEventRequest, server: Server): GetPlayerInfoEventResponse {
         val sqlClient = databaseManager.getSqlClient()
 
-        val userId = databaseManager.userDao.getUserIdFromUsername(request.username, sqlClient)!!
+        val userId = databaseManager.userDao.getUserIdFromUsername(request.username, sqlClient)
 
-        val registered = databaseManager.userDao.existsById(userId, sqlClient)
-        val banned = databaseManager.userDao.isBanned(userId, sqlClient)
-        val verified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
-        val pendingEmail = databaseManager.userDao.getPendingEmailById(userId, sqlClient)
-        val locale = databaseManager.userDao.getLocaleCodeById(userId, sqlClient)
+        val registered = if (userId == null) false else databaseManager.userDao.existsById(userId, sqlClient)
+        val banned = if (userId == null) false else databaseManager.userDao.isBanned(userId, sqlClient)
+        val verified = if (userId == null) false else databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
+        val pendingEmail = if (userId == null) null else databaseManager.userDao.getPendingEmailById(userId, sqlClient)
+        val locale = if (userId == null) null else databaseManager.userDao.getLocaleCodeById(userId, sqlClient)
 
         return GetPlayerInfoEventResponse(
             registered,
             banned,
             verified,
-            pendingEmail.ifBlank { null },
+            pendingEmail?.ifBlank { null },
             locale
         )
     }

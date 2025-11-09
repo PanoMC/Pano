@@ -16,7 +16,7 @@ object TimeUtil {
     fun getStartupTime() = secondsWithPrecision(calculateStartTime())
 
     fun getStartOfLastWeekAtMidnightInMillis(): Long {
-        val oneWeekAgo = LocalDate.now(ZoneId.systemDefault()).minusWeeks(1)
+        val oneWeekAgo = LocalDate.now(ZoneId.systemDefault()).minusWeeks(1).minusDays(1)
         return oneWeekAgo
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
@@ -24,7 +24,7 @@ object TimeUtil {
     }
 
     fun getStartOfLastMonthAtMidnightInMillis(): Long {
-        val oneMonthAgo = LocalDate.now(ZoneId.systemDefault()).minusMonths(1)
+        val oneMonthAgo = LocalDate.now(ZoneId.systemDefault()).minusMonths(1).minusDays(1)
         return oneMonthAgo
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()

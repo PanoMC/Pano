@@ -1,3 +1,5 @@
 {
-  "not-verified-kick-message": "You did not verify your e-mail! Please check your e-mail and verify it."
+  "auth": {
+    "not-verified": "&cPlease check your e-mail and verify it: &6{{email}}"
+  }
 }

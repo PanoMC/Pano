@@ -57,7 +57,8 @@ class PanelGetBasicDataAPI(
                 "registerAgreement" to configManager.config.registerAgreement
             ),
             "notificationCount" to count,
-            "connectedServerCount" to connectedServerCount
+            "connectedServerCount" to connectedServerCount,
+            "acceptPluginAuth" to configManager.config.acceptPluginAuth
         )
 
         if (authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {

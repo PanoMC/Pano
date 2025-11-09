@@ -50,6 +50,8 @@ data class PanoConfig(
 
     @SerializedName("pano-api-url") var panoApiUrl: String = getPanoApiUrl(),
     @SerializedName("pano-website-url") var panoWebsiteUrl: String = getPanoWebsiteUrl(),
+
+    @SerializedName("accept-plugin-auth") var acceptPluginAuth: Boolean = true,
 ) {
     companion object {
         data class SetupConfig(var step: Int = 0)

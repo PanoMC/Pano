@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.server
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.error.InstallationRequired
@@ -35,7 +36,8 @@ class ServerConnectNewAPI(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
     private val setupManager: SetupManager,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val configManager: ConfigManager
 ) : Api() {
     override val paths = listOf(Path("/api/server/connect", RouteType.POST))
 
@@ -73,6 +75,10 @@ class ServerConnectNewAPI(
         val data = parameters.body().jsonObject
 
         if (data.getString("platformCode", "") != platformCodeManager.getPlatformKey().toString()) {
+            throw InvalidPlatformCode()
+        }
+
+        if (!configManager.config.acceptPluginAuth) {
             throw InvalidPlatformCode()
         }
 

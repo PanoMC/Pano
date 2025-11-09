@@ -26,6 +26,8 @@ class TogglePlatformConnectAuthAPI(
 
         configManager.config.acceptPluginAuth = !configManager.config.acceptPluginAuth
 
+        configManager.saveConfig()
+
         return Successful(
             mapOf(
                 "acceptPluginAuth" to configManager.config.acceptPluginAuth

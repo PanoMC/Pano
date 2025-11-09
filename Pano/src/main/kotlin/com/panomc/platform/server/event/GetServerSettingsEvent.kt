@@ -24,6 +24,8 @@ class GetServerSettingsEvent(
             settings.authIntegration,
             settings.banIntegration,
             settings.permissionIntegration,
+            settings.authRequireVerified,
+            settings.authKickAfterRegister,
             translationsByLocale,
             platformLocale
         )

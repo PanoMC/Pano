@@ -37,6 +37,8 @@ class PanelUpdateServerSettingsAPI(
                 json(
                     objectSchema()
                         .requiredProperty("authIntegration", booleanSchema())
+                        .requiredProperty("authRequireVerified", booleanSchema())
+                        .requiredProperty("authKickAfterRegister", booleanSchema())
                         .requiredProperty("banIntegration", booleanSchema())
                         .requiredProperty("permissionIntegration", booleanSchema())
                 )
@@ -52,6 +54,8 @@ class PanelUpdateServerSettingsAPI(
 
         val id = parameters.pathParameter("id").long
         val authIntegration = data.getBoolean("authIntegration")
+        val authRequireVerified = data.getBoolean("authRequireVerified")
+        val authKickAfterRegister = data.getBoolean("authKickAfterRegister")
         val banIntegration = data.getBoolean("banIntegration")
         val permissionIntegration = data.getBoolean("permissionIntegration")
 
@@ -61,6 +65,8 @@ class PanelUpdateServerSettingsAPI(
         val settings = server.settings
 
         settings.authIntegration = authIntegration
+        settings.authRequireVerified = authRequireVerified
+        settings.authKickAfterRegister = authKickAfterRegister
         settings.banIntegration = banIntegration
         settings.permissionIntegration = permissionIntegration
 
@@ -78,6 +84,8 @@ class PanelUpdateServerSettingsAPI(
                 settings.authIntegration,
                 settings.banIntegration,
                 settings.permissionIntegration,
+                settings.authRequireVerified,
+                settings.authKickAfterRegister,
                 translationsByLocale,
                 platformLocale,
 

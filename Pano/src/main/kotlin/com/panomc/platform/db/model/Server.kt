@@ -36,6 +36,8 @@ data class Server(
     companion object {
         data class ServerSettings(
             var authIntegration: Boolean = true,
+            var authRequireVerified: Boolean = true,
+            var authKickAfterRegister: Boolean = true,
             var banIntegration: Boolean = true,
             var permissionIntegration: Boolean = true
         ) {

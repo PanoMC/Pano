@@ -19,14 +19,14 @@ class GetPlayerInfoEvent(
         val registered = if (userId == null) false else databaseManager.userDao.existsById(userId, sqlClient)
         val banned = if (userId == null) false else databaseManager.userDao.isBanned(userId, sqlClient)
         val verified = if (userId == null) false else databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
-        val pendingEmail = if (userId == null) null else databaseManager.userDao.getPendingEmailById(userId, sqlClient)
+        val email = if (userId == null) null else databaseManager.userDao.getEmailFromUserId(userId, sqlClient)
         val locale = if (userId == null) null else databaseManager.userDao.getLocaleCodeById(userId, sqlClient)
 
         return GetPlayerInfoEventResponse(
             registered,
             banned,
             verified,
-            pendingEmail?.ifBlank { null },
+            email?.ifBlank { null },
             locale
         )
     }

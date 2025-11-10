@@ -46,6 +46,7 @@ class AuthProvider(
     suspend fun authenticate(
         usernameOrEmail: String,
         password: String,
+        dontCheckVerified: Boolean = false,
         sqlClient: SqlClient
     ) {
         val isLoginCorrect = databaseManager.userDao.isLoginCorrect(usernameOrEmail, password, sqlClient)
@@ -57,10 +58,12 @@ class AuthProvider(
         val userId =
             databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)!!
 
-        val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
+        if (!dontCheckVerified) {
+            val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
 
-        if (!isVerified) {
-            throw LoginEmailNotVerified()
+            if (!isVerified) {
+                throw LoginEmailNotVerified()
+            }
         }
 
         val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)

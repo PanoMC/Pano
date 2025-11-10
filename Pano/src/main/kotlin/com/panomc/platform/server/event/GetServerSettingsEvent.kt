@@ -22,10 +22,10 @@ class GetServerSettingsEvent(
 
         return GetServerSettingsEventResponse(
             settings.authIntegration,
-            settings.banIntegration,
-            settings.permissionIntegration,
             settings.authRequireVerified,
             settings.authKickAfterRegister,
+            settings.banIntegration,
+            settings.permissionIntegration,
             translationsByLocale,
             platformLocale
         )

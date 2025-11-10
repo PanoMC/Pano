@@ -82,10 +82,10 @@ class PanelUpdateServerSettingsAPI(
 
             val response = GetServerSettingsEventResponse(
                 settings.authIntegration,
-                settings.banIntegration,
-                settings.permissionIntegration,
                 settings.authRequireVerified,
                 settings.authKickAfterRegister,
+                settings.banIntegration,
+                settings.permissionIntegration,
                 translationsByLocale,
                 platformLocale,
 

@@ -1,5 +1,6 @@
 {
   "auth": {
-    "not-verified": "&cPlease check your e-mail and verify it: &6{{email}}"
+    "not-verified": "&cPlease check your e-mail and verify it: &6{{email}}",
+    "register-kick": "&6Please login in website to add an e-mail."
   }
 }

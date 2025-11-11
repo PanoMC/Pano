@@ -83,6 +83,8 @@ class PanelDeleteServerAPI(
             )
         }
 
+        databaseManager.panelConfigDao.deleteByOptionAndValue("selected_server", id.toString(), sqlClient)
+
         databaseManager.serverPlayerDao.deleteByServerId(id, sqlClient)
 
         databaseManager.serverDao.deleteById(id, sqlClient)

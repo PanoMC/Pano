@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.PanelConfig
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -32,6 +33,8 @@ class PanelAcceptServerConnectRequestAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+
         val sqlClient = getSqlClient()
 
         val exists = databaseManager.serverDao.existsById(id, sqlClient)
@@ -43,19 +46,21 @@ class PanelAcceptServerConnectRequestAPI(
         databaseManager.serverDao.updatePermissionGrantedById(id, true, sqlClient)
         databaseManager.serverDao.updateAcceptedTimeById(id, System.currentTimeMillis(), sqlClient)
 
-        val mainServerId = databaseManager.systemPropertyDao.getByOption(
-            "main_server",
-            sqlClient
-        )!!.value.toLong()
+        val panelConfig = databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlClient)
 
-        if (mainServerId == -1L) {
-            databaseManager.systemPropertyDao.update(
-                "main_server",
-                id.toString(),
-                sqlClient
-            )
+        if (panelConfig != null) {
+            return Successful()
         }
 
-        return Successful()
+        databaseManager.panelConfigDao.add(
+            PanelConfig(
+                userId = userId,
+                option = "selected_server",
+                value = "$id"
+            ),
+            sqlClient
+        )
+
+        return Successful(mapOf("selected" to true))
     }
 }

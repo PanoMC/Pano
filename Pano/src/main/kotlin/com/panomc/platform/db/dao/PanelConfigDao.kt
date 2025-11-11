@@ -26,4 +26,10 @@ abstract class PanelConfigDao : Dao<PanelConfig>(PanelConfig::class.java) {
         userId: Long,
         sqlClient: SqlClient
     )
+
+    abstract suspend fun deleteByOptionAndValue(
+        option: String,
+        value: String,
+        sqlClient: SqlClient
+    )
 }

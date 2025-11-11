@@ -42,6 +42,7 @@ class PanelGetBasicDataAPI(
 //        Since it's a panel API, it calls AuthProvider#hasAccessPanel method and these context fields are created
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
         val permissions = context.get<List<Permission>>("permissions") ?: listOf()
+        val panelTheme = databaseManager.panelConfigDao.byUserIdAndOption(userId, "panel_theme", sqlClient)?.value
 
         val result: MutableMap<String, Any?> = mutableMapOf(
             "user" to mapOf(
@@ -58,7 +59,8 @@ class PanelGetBasicDataAPI(
             ),
             "notificationCount" to count,
             "connectedServerCount" to connectedServerCount,
-            "acceptPluginAuth" to configManager.config.acceptPluginAuth
+            "acceptPluginAuth" to configManager.config.acceptPluginAuth,
+            "panelTheme" to panelTheme
         )
 
         if (authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {

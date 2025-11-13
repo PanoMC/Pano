@@ -2,7 +2,8 @@
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
+import java.net.URLEncoder
 
 val vertxVersion: String by project
 val gsonVersion: String by project
@@ -121,7 +122,7 @@ tasks {
                 val apiUrl = "https://api.github.com/repos/$repo/releases"
 
                 // Send API request
-                val connection = URL(apiUrl).openConnection() as HttpURLConnection
+                val connection = URI(apiUrl).toURL().openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
 
                 // Read the response
@@ -154,7 +155,7 @@ tasks {
 
                 // Download & save the file
                 val outputFile = File(outputDir, asset.asJsonObject["name"].asString)
-                URL(downloadUrl).openStream().use { input ->
+                URI(downloadUrl).toURL().openStream().use { input: java.io.InputStream ->
                     outputFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
@@ -264,4 +265,185 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 // Ensure Pano's processResources waits for the Updater zip to be produced and copied
 tasks.named<ProcessResources>("processResources") {
     dependsOn(":Updater:copyUpdaterZip")
+    dependsOn("generateLicenses")
+}
+
+// Task to generate licenses.json from Gradle dependencies
+tasks.register("generateLicenses") {
+    group = "build"
+    description = "Generates licenses.json file from Gradle dependencies"
+
+    val outputDir = file("src/main/resources")
+    val outputFile = File(outputDir, "licenses.json")
+
+    // Ensure this task runs after dependencies are resolved
+    dependsOn(configurations.runtimeClasspath)
+
+    doLast {
+        println("Generating licenses from Gradle dependencies...")
+
+        val licenses = mutableListOf<Map<String, Any?>>()
+
+        // Get all resolved dependencies
+        val allConfigurations = listOf(
+            configurations.runtimeClasspath.get(),
+            configurations.compileClasspath.get(),
+            configurations.testRuntimeClasspath.get(),
+            configurations.testCompileClasspath.get()
+        )
+
+        val seenDependencies = mutableSetOf<String>()
+
+        allConfigurations.forEach { configuration ->
+            configuration.resolvedConfiguration.resolvedArtifacts.forEach { artifact ->
+                val moduleVersion = artifact.moduleVersion
+                val group = moduleVersion.id.group
+                val name = moduleVersion.id.name
+                val version = moduleVersion.id.version
+                val key = "$group:$name:$version"
+
+                if (seenDependencies.add(key)) {
+                    // Try to get license info from Maven Central API
+                    val licenseInfo = try {
+                        getLicenseFromMavenCentral(group, name, version)
+                    } catch (e: Exception) {
+                        println("⚠️  Could not fetch license info for $key: ${e.message}")
+                        null
+                    }
+
+                    if (licenseInfo != null) {
+                        licenses.add(licenseInfo)
+                    } else {
+                        // Add with unknown license if we can't fetch
+                        licenses.add(
+                            mapOf(
+                                "name" to "$group:$name",
+                                "version" to version,
+                                "license" to "Unknown",
+                                "licenseText" to null,
+                                "repository" to "https://mvnrepository.com/artifact/$group/$name",
+                                "homepage" to null,
+                                "author" to null
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Sort by name
+        licenses.sortBy { it["name"] as? String ?: "" }
+
+        // Create JSON array (same format as panel-ui)
+        val gson = com.google.gson.GsonBuilder()
+            .setPrettyPrinting()
+            .serializeNulls() // Include null values (same format as panel-ui)
+            .create()
+        val licensesArray = com.google.gson.JsonArray()
+
+        licenses.forEach { license ->
+            val licenseObj = JsonObject()
+            licenseObj.addProperty("name", license["name"] as? String)
+            licenseObj.addProperty("version", license["version"] as? String)
+            licenseObj.addProperty("license", license["license"] as? String)
+            // Always add all fields, even if null (same format as panel-ui)
+            // serializeNulls() ensures null values are included
+            licenseObj.addProperty("licenseText", license["licenseText"] as? String)
+            licenseObj.addProperty("repository", license["repository"] as? String)
+            licenseObj.addProperty("homepage", license["homepage"] as? String)
+            licenseObj.addProperty("author", license["author"] as? String)
+            licensesArray.add(licenseObj)
+        }
+
+        // Write to file (array format, same as panel-ui)
+        outputDir.mkdirs()
+        outputFile.writeText(gson.toJson(licensesArray))
+
+        println("✅ ${licenses.size} dependency licenses collected and saved to ${outputFile.absolutePath}")
+    }
+
+    outputs.file(outputFile)
+}
+
+// Helper function to get license info from Maven Central
+fun getLicenseFromMavenCentral(group: String, name: String, version: String): Map<String, Any?>? {
+    try {
+        // Use Maven Central Search API - properly encode URL
+        val query = "g:\"$group\" AND a:\"$name\" AND v:\"$version\""
+        val encodedQuery = URLEncoder.encode(query, "UTF-8")
+        val searchUrl = "https://search.maven.org/solrsearch/select?q=$encodedQuery&wt=json"
+        val connection = URI(searchUrl).toURL().openConnection() as HttpURLConnection
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 5000
+        connection.readTimeout = 5000
+
+        val response = connection.inputStream.bufferedReader().use { it.readText() }
+        val jsonResponse = JsonParser.parseString(response).asJsonObject
+
+        // Try to get POM URL
+        val docs = jsonResponse.getAsJsonObject("response")?.getAsJsonArray("docs")
+        if (docs != null && docs.size() > 0) {
+            val doc = docs[0].asJsonObject
+            val groupId = doc.get("g")?.asString ?: group
+            val artifactId = doc.get("a")?.asString ?: name
+
+            // Try to fetch POM file
+            val pomUrl = "https://repo1.maven.org/maven2/${
+                groupId.replace(
+                    '.',
+                    '/'
+                )
+            }/$artifactId/$version/$artifactId-$version.pom"
+            return try {
+                val pomConnection = URI(pomUrl).toURL().openConnection() as HttpURLConnection
+                pomConnection.requestMethod = "GET"
+                pomConnection.connectTimeout = 5000
+                pomConnection.readTimeout = 5000
+
+                val pomContent = pomConnection.inputStream.bufferedReader().use { it.readText() }
+                parseLicenseFromPom(pomContent, groupId, artifactId, version)
+            } catch (e: Exception) {
+                // Fallback: return basic info
+                mapOf(
+                    "name" to "$groupId:$artifactId",
+                    "version" to version,
+                    "license" to "Unknown",
+                    "licenseText" to null,
+                    "repository" to "https://mvnrepository.com/artifact/$groupId/$artifactId/$version",
+                    "homepage" to null,
+                    "author" to null
+                )
+            }
+        }
+    } catch (e: Exception) {
+        // Return null to use fallback
+    }
+
+    return null
+}
+
+// Helper function to parse license from POM XML
+fun parseLicenseFromPom(pomContent: String, groupId: String, artifactId: String, version: String): Map<String, Any?> {
+    val licenses = mutableListOf<String>()
+    val namePattern = Regex("<name>(.*?)</name>")
+
+    // Extract license information from POM
+    val licenseMatches = Regex("<license>.*?</license>", RegexOption.DOT_MATCHES_ALL).findAll(pomContent)
+    licenseMatches.forEach { match ->
+        val licenseBlock = match.value
+        val nameMatch = namePattern.find(licenseBlock)
+
+        val licenseName = nameMatch?.groupValues?.get(1) ?: "Unknown"
+        licenses.add(licenseName)
+    }
+
+    return mapOf(
+        "name" to "$groupId:$artifactId",
+        "version" to version,
+        "license" to if (licenses.isNotEmpty()) licenses.joinToString(", ") else "Unknown",
+        "licenseText" to null,
+        "repository" to "https://mvnrepository.com/artifact/$groupId/$artifactId/$version",
+        "homepage" to null,
+        "author" to null
+    )
 }

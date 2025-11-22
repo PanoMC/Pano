@@ -404,6 +404,8 @@ class UpdateManager(
                 "--restart"
             )
 
+            println("isGui:  $IS_GUI")
+
             if (!IS_GUI) {
                 args.add("-nogui")
             }

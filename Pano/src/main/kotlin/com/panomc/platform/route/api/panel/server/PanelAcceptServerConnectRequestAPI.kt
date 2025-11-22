@@ -46,6 +46,19 @@ class PanelAcceptServerConnectRequestAPI(
         databaseManager.serverDao.updatePermissionGrantedById(id, true, sqlClient)
         databaseManager.serverDao.updateAcceptedTimeById(id, System.currentTimeMillis(), sqlClient)
 
+        val mainServerId = databaseManager.systemPropertyDao.getByOption(
+            "main_server",
+            sqlClient
+        )!!.value.toLong()
+
+        if (mainServerId == -1L) {
+            databaseManager.systemPropertyDao.update(
+                "main_server",
+                id.toString(),
+                sqlClient
+            )
+        }
+
         val panelConfig = databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlClient)
 
         if (panelConfig != null) {

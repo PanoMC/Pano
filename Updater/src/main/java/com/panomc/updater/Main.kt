@@ -153,10 +153,13 @@ class Main {
                             map[a] = next
                             i++
                         } else {
-                            // unnecessary flag -> "true"
+                            // flag without value -> "true"
                             map[a] = "true"
                         }
                     }
+                } else if (a.startsWith("-")) {
+                    // Support single-dash flags like -nogui
+                    map[a] = "true"
                 }
                 i++
             }

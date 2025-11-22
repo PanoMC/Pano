@@ -92,8 +92,12 @@ class Main : CoroutineVerticle() {
         var IS_GUI = false
             private set
 
+        var STARTUP_ARGS: Array<String> = emptyArray()
+            private set
+
         @JvmStatic
         fun main(args: Array<String>) {
+            STARTUP_ARGS = args
             val noGui = Args.hasFlag(args, "-nogui")
 
             if (!noGui) {

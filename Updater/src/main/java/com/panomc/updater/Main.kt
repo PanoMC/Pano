@@ -135,7 +135,6 @@ class Main {
                 .start()
         }
 
-        // --- Utils ---
         private fun parseArgs(args: Array<String>): Map<String, String> {
             val map = mutableMapOf<String, String>()
             var i = 0
@@ -149,7 +148,7 @@ class Main {
                     } else {
                         // --flag [value?]
                         val next = args.getOrNull(i + 1)
-                        if (next != null && !next.startsWith("--")) {
+                        if (next != null && !next.startsWith("-")) {
                             map[a] = next
                             i++
                         } else {
@@ -158,8 +157,14 @@ class Main {
                         }
                     }
                 } else if (a.startsWith("-")) {
-                    // Support single-dash flags like -nogui
-                    map[a] = "true"
+                    // Single-dash flag [value?]
+                    val next = args.getOrNull(i + 1)
+                    if (next != null && !next.startsWith("-")) {
+                        map[a] = next
+                        i++
+                    } else {
+                        map[a] = "true"
+                    }
                 }
                 i++
             }

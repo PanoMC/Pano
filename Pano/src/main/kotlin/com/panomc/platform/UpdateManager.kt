@@ -405,7 +405,10 @@ class UpdateManager(
             )
 
             if (!IS_GUI) {
+                logger.info("Starting update in non-gui mode.")
                 args.add("-nogui")
+            } else {
+                logger.info("Starting update in gui mode.")
             }
 
             ProcessBuilder(args)

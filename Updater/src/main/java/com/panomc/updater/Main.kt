@@ -29,7 +29,7 @@ class Main {
             val launchArgs = splitArgsPreservingQuotes(argMap["--launch-args"])
 
             // Check for -nogui
-            val noGui = argMap["-nogui"]?.toBoolean() == true
+            val noGui = argMap.containsKey("-nogui")
 
             val childArgs = buildList {
                 addAll(launchArgs)

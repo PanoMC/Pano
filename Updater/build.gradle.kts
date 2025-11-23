@@ -1,8 +1,8 @@
 val appMainClass = "com.panomc.updater.Main"
 
 plugins {
-    kotlin("jvm") version "2.1.0"
-    id("com.gradleup.shadow") version "8.3.8"
+    kotlin("jvm") version "2.2.21"
+    id("com.gradleup.shadow") version "9.2.2"
     application
 }
 

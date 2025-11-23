@@ -7,8 +7,8 @@ buildscript {
 }
 
 plugins {
-    kotlin("jvm") version "2.1.0"
-    kotlin("kapt") version "2.1.0"
+    kotlin("jvm") version "2.2.21"
+    kotlin("kapt") version "2.2.21"
     application
 }
 

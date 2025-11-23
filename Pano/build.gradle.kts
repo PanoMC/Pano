@@ -15,9 +15,9 @@ val pf4jVersion: String by project
 val pluginsDir: File? by rootProject.extra
 
 plugins {
-    kotlin("jvm") version "2.1.0"
-    kotlin("kapt") version "2.1.0"
-    id("com.gradleup.shadow") version "8.3.8"
+    kotlin("jvm") version "2.2.21"
+    kotlin("kapt") version "2.2.21"
+    id("com.gradleup.shadow") version "9.2.2"
     application
     `maven-publish`
 }
@@ -68,10 +68,10 @@ dependencies {
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.18.0")
+    implementation(group = "commons-codec", name = "commons-codec", version = "1.20.0")
 
     // https://mvnrepository.com/artifact/commons-io/commons-io
-    implementation("commons-io:commons-io:2.19.0")
+    implementation("commons-io:commons-io:2.21.0")
 
     // https://mvnrepository.com/artifact/org.apache.tika/tika-core
     implementation("org.apache.tika:tika-core:2.9.4")

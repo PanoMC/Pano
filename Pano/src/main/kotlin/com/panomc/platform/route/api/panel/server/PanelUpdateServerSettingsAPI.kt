@@ -6,6 +6,7 @@ import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
+import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
@@ -36,11 +37,15 @@ class PanelUpdateServerSettingsAPI(
             .body(
                 json(
                     objectSchema()
-                        .requiredProperty("authIntegration", booleanSchema())
-                        .requiredProperty("authRequireVerified", booleanSchema())
-                        .requiredProperty("authKickAfterRegister", booleanSchema())
-                        .requiredProperty("banIntegration", booleanSchema())
-                        .requiredProperty("permissionIntegration", booleanSchema())
+                        .optionalProperty(
+                            "settings", objectSchema()
+                                .requiredProperty("authIntegration", booleanSchema())
+                                .requiredProperty("authRequireVerified", booleanSchema())
+                                .requiredProperty("authKickAfterRegister", booleanSchema())
+                                .requiredProperty("banIntegration", booleanSchema())
+                                .requiredProperty("permissionIntegration", booleanSchema())
+                        )
+                        .optionalProperty("customName", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -53,44 +58,62 @@ class PanelUpdateServerSettingsAPI(
         val data = parameters.body().jsonObject
 
         val id = parameters.pathParameter("id").long
-        val authIntegration = data.getBoolean("authIntegration")
-        val authRequireVerified = data.getBoolean("authRequireVerified")
-        val authKickAfterRegister = data.getBoolean("authKickAfterRegister")
-        val banIntegration = data.getBoolean("banIntegration")
-        val permissionIntegration = data.getBoolean("permissionIntegration")
+        val settings = data.getJsonObject("settings")
+        val customName = data.getString("customName")
 
         val sqlClient = getSqlClient()
+
         val server = databaseManager.serverDao.getById(id, sqlClient) ?: throw NotFound()
+        var updated = false
 
-        val settings = server.settings
+        if (customName != null) {
+            if (customName.isBlank() || customName.length > 64) {
+                throw BadRequest()
+            }
 
-        settings.authIntegration = authIntegration
-        settings.authRequireVerified = authRequireVerified
-        settings.authKickAfterRegister = authKickAfterRegister
-        settings.banIntegration = banIntegration
-        settings.permissionIntegration = permissionIntegration
+            server.customName = customName
 
-        databaseManager.serverDao.updateSettingsById(settings, id, sqlClient)
+            updated = true
+        }
 
-        val foundServer = serverManager.connectedServers.keys.find { it.id == id }
-
-        if (foundServer != null) {
-            foundServer.settings = settings
-
-            val platformLocale = configManager.config.locale
-            val translationsByLocale = i18nManager.getTranslationsByLocale(TranslationType.MC_PLUGIN)
-
-            val response = GetServerSettingsEventResponse(
-                settings.authIntegration,
-                settings.authRequireVerified,
-                settings.authKickAfterRegister,
-                settings.banIntegration,
-                settings.permissionIntegration,
-                translationsByLocale,
-                platformLocale,
-
+        if (updated) {
+            databaseManager.serverDao.update(
+                server,
+                sqlClient
             )
-            serverManager.sendMessage(response, foundServer)
+        }
+
+        if (settings != null) {
+            val serverSettings = server.settings
+
+            serverSettings.authIntegration = settings.getBoolean("authIntegration")
+            serverSettings.authRequireVerified = settings.getBoolean("authRequireVerified")
+            serverSettings.authKickAfterRegister = settings.getBoolean("authKickAfterRegister")
+            serverSettings.banIntegration = settings.getBoolean("banIntegration")
+            serverSettings.permissionIntegration = settings.getBoolean("permissionIntegration")
+
+            databaseManager.serverDao.updateSettingsById(serverSettings, id, sqlClient)
+
+            val foundServer = serverManager.connectedServers.keys.find { it.id == id }
+
+            if (foundServer != null) {
+                foundServer.settings = serverSettings
+
+                val platformLocale = configManager.config.locale
+                val translationsByLocale = i18nManager.getTranslationsByLocale(TranslationType.MC_PLUGIN)
+
+                val response = GetServerSettingsEventResponse(
+                    serverSettings.authIntegration,
+                    serverSettings.authRequireVerified,
+                    serverSettings.authKickAfterRegister,
+                    serverSettings.banIntegration,
+                    serverSettings.permissionIntegration,
+                    translationsByLocale,
+                    platformLocale,
+                )
+
+                serverManager.sendMessage(response, foundServer)
+            }
         }
 
         return Successful()

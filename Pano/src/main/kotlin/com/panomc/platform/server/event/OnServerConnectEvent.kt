@@ -13,21 +13,19 @@ class OnServerConnectEvent(private val databaseManager: DatabaseManager) : Serve
     override suspend fun handle(request: OnServerConnectEventRequest, server: Server): ServerEventResponse? {
         val sqlClient = databaseManager.getSqlClient()
 
-        databaseManager.serverDao.updateById(
-            server.id,
-            request.serverName,
-            request.motd ?: "",
-            request.host,
-            request.port,
-            request.playerCount,
-            request.maxPlayerCount,
-            request.serverType,
-            request.serverVersion,
-            request.favicon ?: "",
-            ServerStatus.ONLINE,
-            request.startTime,
-            sqlClient
-        )
+        server.name = request.serverName
+        server.motd = request.motd ?: ""
+        server.host = request.host
+        server.port = request.port
+        server.playerCount = request.playerCount
+        server.maxPlayerCount = request.maxPlayerCount
+        server.type = request.serverType
+        server.version = request.serverVersion
+        server.favicon = request.favicon ?: ""
+        server.status = ServerStatus.ONLINE
+        server.startTime = request.startTime
+
+        databaseManager.serverDao.update(server, sqlClient)
 
         return null
     }

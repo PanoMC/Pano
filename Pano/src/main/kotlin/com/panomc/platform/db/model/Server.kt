@@ -7,23 +7,24 @@ import io.vertx.core.json.JsonObject
 
 data class Server(
     val id: Long = -1,
-    val name: String,
-    val motd: String,
-    val host: String,
-    val port: Int,
-    val playerCount: Long,
-    val maxPlayerCount: Long,
-    val type: ServerType,
-    val version: String,
-    val favicon: String,
+    var name: String,
+    var motd: String,
+    var host: String,
+    var port: Int,
+    var playerCount: Long,
+    var maxPlayerCount: Long,
+    var type: ServerType,
+    var version: String,
+    var favicon: String,
     val permissionGranted: Boolean = false,
-    val status: ServerStatus,
+    var status: ServerStatus,
     val addedTime: Long = System.currentTimeMillis(),
     val acceptedTime: Long = 0,
-    val startTime: Long,
+    var startTime: Long,
     val stopTime: Long = 0,
     val aesKey: String,
-    var settings: ServerSettings = ServerSettings()
+    var settings: ServerSettings = ServerSettings(),
+    var customName: String? = null
 ) : DBEntity() {
     override fun hashCode(): Int {
         return id.hashCode()

@@ -46,14 +46,14 @@ class ServerManager(
         connectedServers[server] = serverWebSocket
         serverSecretKeyMap[server] = Aes256GcmUtil.base64ToSecretKey(server.aesKey)
 
-        logger.info("\"${server.name}\" Minecraft server is connected!")
+        logger.info("\"${server.customName ?: server.name}\" Minecraft server is connected!")
     }
 
     fun onServerDisconnect(server: Server) {
         connectedServers.remove(server)
         serverSecretKeyMap.remove(server)
 
-        logger.warn("\"${server.name}\" Minecraft server is disconnected!")
+        logger.warn("\"${server.customName ?: server.name}\" Minecraft server is disconnected!")
     }
 
     suspend fun onServerWrite(encryptedText: String, server: Server) {

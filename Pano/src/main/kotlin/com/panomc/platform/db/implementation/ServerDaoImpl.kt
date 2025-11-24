@@ -38,6 +38,7 @@ class ServerDaoImpl : ServerDao() {
                               `stopTime` bigint NOT NULL,
                               `aesKey` text NOT NULL,
                               `settings` text DEFAULT '{}',
+                              `customName` varchar(255),
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Server table.';
                         """
@@ -270,40 +271,30 @@ class ServerDaoImpl : ServerDao() {
             .coAwait()
     }
 
-    override suspend fun updateById(
-        id: Long,
-        name: String,
-        motd: String,
-        host: String,
-        port: Int,
-        playerCount: Long,
-        maxPlayerCount: Long,
-        type: ServerType,
-        version: String,
-        favicon: String,
-        status: ServerStatus,
-        startTime: Long,
+    override suspend fun update(
+        server: Server,
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `playerCount` = ?, `maxPlayerCount` = ?, `type` = ?, `version` = ?, `favicon` = ?, `status` = ?, `startTime` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `playerCount` = ?, `maxPlayerCount` = ?, `type` = ?, `version` = ?, `favicon` = ?, `status` = ?, `startTime` = ?, `customName` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    name,
-                    motd,
-                    host,
-                    port,
-                    playerCount,
-                    maxPlayerCount,
-                    type,
-                    version,
-                    favicon,
-                    status.name,
-                    startTime,
-                    id
+                    server.name,
+                    server.motd,
+                    server.host,
+                    server.port,
+                    server.playerCount,
+                    server.maxPlayerCount,
+                    server.type,
+                    server.version,
+                    server.favicon,
+                    server.status.name,
+                    server.startTime,
+                    server.customName,
+                    server.id
                 )
             )
             .coAwait()

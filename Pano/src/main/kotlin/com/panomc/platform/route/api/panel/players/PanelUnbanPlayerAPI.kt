@@ -52,15 +52,17 @@ class PanelUnbanPlayerAPI(
             throw NotBanned()
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)!!
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)
 
-        val userPermissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
+        if (userPermissionGroupId != null && userPermissionGroupId != -1L) {
+            val userPermissionGroup =
+                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
 
-        val isAdmin = context.get<Boolean>("isAdmin") ?: false
+            val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
-        if (userPermissionGroup.name == "admin" && !isAdmin) {
-            throw NoPermission()
+            if (userPermissionGroup.name == "admin" && !isAdmin) {
+                throw NoPermission()
+            }
         }
 
         databaseManager.userDao.unbanPlayer(playerId, sqlClient)

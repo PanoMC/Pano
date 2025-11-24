@@ -199,6 +199,8 @@ abstract class UserDao : Dao<User>(User::class.java) {
 
     abstract suspend fun banPlayer(
         userId: Long,
+        banMessage: String?,
+        bannedUntil: Long?,
         sqlClient: SqlClient
     )
 

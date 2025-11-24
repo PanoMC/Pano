@@ -12,6 +12,8 @@ data class User(
     val lastLoginDate: Long = 0,
     val emailVerified: Boolean = false,
     val banned: Boolean = false,
+    val banMessage: String? = null,
+    val bannedUntil: Long? = null,
     val canCreateTicket: Boolean = true,
     val lastActivityTime: Long = 0L,
     val lastPanelActivityTime: Long = 0L,

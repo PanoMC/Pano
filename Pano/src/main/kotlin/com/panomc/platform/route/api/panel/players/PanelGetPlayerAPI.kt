@@ -30,14 +30,16 @@ class PanelGetPlayerAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .pathParameter(param("username", stringSchema()))
-            .queryParameter(optionalParam("page", numberSchema()))
+            .queryParameter(optionalParam("ticketsPage", numberSchema()))
+            .queryParameter(optionalParam("banHistoryPage", numberSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
         val username = parameters.pathParameter("username").string
-        val page = parameters.queryParameter("page")?.long ?: 1L
+        val ticketsPage = parameters.queryParameter("ticketsPage")?.long ?: 1L
+        val banHistoryPage = parameters.queryParameter("banHistoryPage")?.long ?: 1L
 
         val sqlClient = getSqlClient()
 
@@ -79,29 +81,44 @@ class PanelGetPlayerAPI(
             (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
         }
 
+        val banHistoryCount = databaseManager.banHistoryDao.countByUserId(user.id, sqlClient)
+
+        var banHistoryTotalPage = ceil(banHistoryCount.toDouble() / 10).toLong()
+
+        if (banHistoryTotalPage < 1)
+            banHistoryTotalPage = 1
+
+        if (banHistoryPage !in 1..banHistoryTotalPage) {
+            throw PageNotFound()
+        }
+
+        result["banHistoryCount"] = banHistoryCount
+        result["banHistoryTotalPage"] = banHistoryTotalPage
+        result["banHistory"] = databaseManager.banHistoryDao.getAllByUserIdAndPage(user.id, banHistoryPage, sqlClient)
+
         if (!authProvider.hasPermission(ManageTicketsPermission(), context)) {
             return Successful(result)
         }
 
-        val count = databaseManager.ticketDao.countByUserId(user.id, sqlClient)
+        val ticketsCount = databaseManager.ticketDao.countByUserId(user.id, sqlClient)
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
+        var ticketsTotalPage = ceil(ticketsCount.toDouble() / 10).toLong()
 
-        if (totalPage < 1)
-            totalPage = 1
+        if (ticketsTotalPage < 1)
+            ticketsTotalPage = 1
 
-        if (page > totalPage || page < 1) {
+        if (ticketsPage !in 1..ticketsTotalPage) {
             throw PageNotFound()
         }
 
-        result["ticketCount"] = count
-        result["ticketTotalPage"] = totalPage
+        result["ticketCount"] = ticketsCount
+        result["ticketTotalPage"] = ticketsTotalPage
 
-        if (count == 0L) {
+        if (ticketsCount == 0L) {
             return getTickets(result, listOf(), mapOf(), user.username)
         }
 
-        val tickets = databaseManager.ticketDao.getAllByUserIdAndPage(user.id, page, sqlClient)
+        val tickets = databaseManager.ticketDao.getAllByUserIdAndPage(user.id, ticketsPage, sqlClient)
 
         val categoryIdList = tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 

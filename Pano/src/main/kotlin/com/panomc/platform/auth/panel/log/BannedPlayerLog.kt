@@ -7,7 +7,17 @@ class BannedPlayerLog(
     userId: Long,
     username: String,
     player: String,
+    reason: String,
+    duration: Long,
+    permanent: Boolean,
+    bySystem: Boolean
 ) : PanelActivityLog(
     userId = userId,
-    details = JsonObject().put("username", username).put("player", player)
+    details = JsonObject()
+        .put("username", username)
+        .put("player", player)
+        .put("reason", reason)
+        .put("duration", duration)
+        .put("permanent", permanent)
+        .put("bySystem", bySystem)
 )

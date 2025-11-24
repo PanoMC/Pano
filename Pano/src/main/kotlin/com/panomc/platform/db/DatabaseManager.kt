@@ -44,7 +44,8 @@ class DatabaseManager(
     @Lazy val resourceHashDao: ResourceHashDao,
     @Lazy val panelActivityLogDao: PanelActivityLogDao,
     @Lazy val localeDao: LocaleDao,
-    @Lazy val translationDao: TranslationDao
+    @Lazy val translationDao: TranslationDao,
+    @Lazy val banHistoryDao: BanHistoryDao
 ) {
 
     @Autowired

@@ -35,6 +35,8 @@ class UserDaoImpl : UserDao() {
                               `lastLoginDate` BIGINT(20) NOT NULL,
                               `emailVerified` TINYINT(1) NOT NULL DEFAULT 0,
                               `banned` TINYINT(1) NOT NULL DEFAULT 0,
+                              `banMessage` varchar(255),
+                              `bannedUntil` BIGINT,
                               `canCreateTicket` TINYINT(1) NOT NULL DEFAULT 1,
                               `mcUuid` varchar(255) NOT NULL DEFAULT '',
                               `lastActivityTime` BIGINT NOT NULL DEFAULT 0,
@@ -759,15 +761,17 @@ class UserDaoImpl : UserDao() {
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun banPlayer(userId: Long, sqlClient: SqlClient) {
+    override suspend fun banPlayer(userId: Long, banMessage: String?, bannedUntil: Long?, sqlClient: SqlClient) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `banned` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `banned` = ?, `banMessage` = ?, `bannedUntil` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     1,
+                    banMessage,
+                    bannedUntil,
                     userId
                 )
             )
@@ -776,13 +780,15 @@ class UserDaoImpl : UserDao() {
 
     override suspend fun unbanPlayer(userId: Long, sqlClient: SqlClient) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `banned` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `banned` = ?, `banMessage` = ?, `bannedUntil` = ?  WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     0,
+                    null,
+                    null,
                     userId
                 )
             )

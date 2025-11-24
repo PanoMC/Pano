@@ -20,6 +20,7 @@ abstract class DBEntity {
 
             builder.registerTypeAdapterFactory(LenientListStringAdapterFactory())
             builder.registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
+            builder.registerTypeAdapter(java.lang.Boolean::class.java, BooleanDeserializer())
             builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
             builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer())
             builder.registerTypeAdapter(Server.Companion.ServerSettings::class.java, ServerSettingsDeserializer())

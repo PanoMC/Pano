@@ -5,9 +5,12 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.*
 import com.panomc.platform.db.model.SchemeVersion
+import io.netty.channel.AbstractChannel
 import io.vertx.core.Vertx
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLBuilder
 import io.vertx.mysqlclient.MySQLConnectOptions
+import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
 import io.vertx.sqlclient.SqlClient
 import org.slf4j.Logger
@@ -15,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
+import kotlin.system.exitProcess
 
 @Lazy
 @Component
@@ -67,47 +71,53 @@ class DatabaseManager(
 
     fun getTablePrefix(): String = configManager.config.database.prefix
 
-    fun getSqlClient(): SqlClient {
-        if (!::sqlClient.isInitialized) {
-            val databaseConfig = configManager.config.database
-
-            var port = 3306
-            var host = databaseConfig.host
-
-            if (host.contains(":")) {
-                val splitHost = host.split(":")
-
-                host = splitHost[0]
-
-                port = splitHost[1].toInt()
-            }
-
-            val connectOptions = MySQLConnectOptions()
-                .setPort(port)
-                .setHost(host)
-                .setDatabase(databaseConfig.name)
-                .setUser(databaseConfig.username)
-
-            if (databaseConfig.password != "")
-                connectOptions.password = databaseConfig.password
-
-            val poolOptions = PoolOptions()
-                .setMaxSize(100)
-
-            sqlClient = MySQLBuilder.pool()
-                .with(poolOptions)
-                .connectingTo(connectOptions)
-                .using(vertx)
-                .build()
-        }
-
-        try {
+    suspend fun getSqlClient(): SqlClient {
+        if (::sqlClient.isInitialized) {
             return sqlClient
-        } catch (e: Exception) {
-            logger.error("Failed to connect database! Please check your configuration! Error is: $e")
-
-            throw e
         }
+
+        val databaseConfig = configManager.config.database
+
+        var port = 3306
+        var host = databaseConfig.host
+
+        if (host.contains(":")) {
+            val splitHost = host.split(":")
+
+            host = splitHost[0]
+
+            port = splitHost[1].toInt()
+        }
+
+        val connectOptions = MySQLConnectOptions()
+            .setPort(port)
+            .setHost(host)
+            .setDatabase(databaseConfig.name)
+            .setUser(databaseConfig.username)
+
+        if (databaseConfig.password != "")
+            connectOptions.password = databaseConfig.password
+
+        val poolOptions = PoolOptions()
+            .setMaxSize(100)
+
+        sqlClient = MySQLBuilder.pool()
+            .with(poolOptions)
+            .connectingTo(connectOptions)
+            .using(vertx)
+            .build()
+
+        val pooledClient = sqlClient as Pool
+
+        pooledClient.connection.onFailure {
+            logger.error("Failed to connect database! Please check your configuration!")
+
+            it.printStackTrace()
+
+            exitProcess(0)
+        }.coAwait().close().coAwait()
+
+        return sqlClient
     }
 
     internal suspend fun init() {
@@ -125,15 +135,8 @@ class DatabaseManager(
     private suspend fun checkMigration() {
         logger.info("Checking available database migrations")
 
-        val sqlClient: SqlClient
+        val sqlClient = getSqlClient()
 
-        try {
-            sqlClient = getSqlClient()
-        } catch (e: Exception) {
-            logger.info("Connection to database failed! Database migration is skipped.")
-
-            return
-        }
         val lastSchemeVersion: SchemeVersion?
 
         try {
@@ -141,7 +144,9 @@ class DatabaseManager(
         } catch (e: Exception) {
             logger.error("Database Error: Database scheme is not correct, please reinstall platform")
 
-            return
+            e.printStackTrace()
+
+            exitProcess(1)
         }
 
         val databaseVersion = lastSchemeVersion?.key?.toIntOrNull() ?: 0

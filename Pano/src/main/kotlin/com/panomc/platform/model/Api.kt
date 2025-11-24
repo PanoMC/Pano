@@ -34,7 +34,7 @@ abstract class Api : Route() {
     @Autowired
     private lateinit var authProvider: AuthProvider
 
-    fun getSqlClient(): SqlClient {
+    suspend fun getSqlClient(): SqlClient {
         return databaseManager.getSqlClient()
     }
 

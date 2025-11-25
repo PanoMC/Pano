@@ -20,7 +20,13 @@ class PlayerAuthenticateEvent(
         var success = true
 
         try {
-            authProvider.authenticate(request.username, request.password, true, sqlClient)
+            authProvider.authenticate(
+                request.username,
+                request.password,
+                dontCheckVerified = true,
+                dontCheckBanned = true,
+                sqlClient = sqlClient
+            )
         } catch (_: Error) {
             success = false
         }

@@ -47,7 +47,13 @@ class LoginAPI(
 
         val sqlClient = getSqlClient()
 
-        authProvider.authenticate(usernameOrEmail, password, false, sqlClient)
+        authProvider.authenticate(
+            usernameOrEmail,
+            password,
+            dontCheckVerified = false,
+            dontCheckBanned = false,
+            sqlClient = sqlClient
+        )
 
         val token = authProvider.login(usernameOrEmail, sqlClient)
 

@@ -48,6 +48,7 @@ class AuthProvider(
         usernameOrEmail: String,
         password: String,
         dontCheckVerified: Boolean = false,
+        dontCheckBanned: Boolean = false,
         sqlClient: SqlClient
     ) {
         val isLoginCorrect = databaseManager.userDao.isLoginCorrect(usernameOrEmail, password, sqlClient)
@@ -65,6 +66,10 @@ class AuthProvider(
             if (!isVerified) {
                 throw LoginEmailNotVerified()
             }
+        }
+
+        if (dontCheckBanned) {
+            return
         }
 
         val player = databaseManager.userDao.getById(userId, sqlClient)!!

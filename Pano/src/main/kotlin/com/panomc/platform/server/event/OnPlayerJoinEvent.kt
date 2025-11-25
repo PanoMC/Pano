@@ -26,6 +26,12 @@ class OnPlayerJoinEvent(private val databaseManager: DatabaseManager) : ServerEv
         databaseManager.serverPlayerDao.add(serverPlayer, sqlClient)
         databaseManager.serverDao.updatePlayerCountById(server.id, request.playerCount, sqlClient)
 
+        val userId = databaseManager.userDao.getUserIdFromUsername(player.username, sqlClient)
+
+        if (userId != null) {
+            databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
+        }
+
         return null
     }
 }

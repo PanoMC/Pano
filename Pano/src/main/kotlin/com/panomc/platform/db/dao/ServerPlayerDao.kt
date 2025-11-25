@@ -21,6 +21,11 @@ abstract class ServerPlayerDao : Dao<ServerPlayer>(ServerPlayer::class.java) {
         sqlClient: SqlClient
     ): Boolean
 
+    abstract suspend fun getByUsername(
+        username: String,
+        sqlClient: SqlClient
+    ): List<ServerPlayer>
+
     abstract suspend fun existsByUsernameList(
         usernameList: List<String>,
         sqlClient: SqlClient

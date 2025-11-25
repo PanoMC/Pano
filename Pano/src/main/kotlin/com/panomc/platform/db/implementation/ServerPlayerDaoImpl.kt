@@ -3,6 +3,7 @@ package com.panomc.platform.db.implementation
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.ServerPlayerDao
 import com.panomc.platform.db.model.ServerPlayer
+import com.panomc.platform.db.model.Ticket
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -71,14 +72,29 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
         username: String,
         sqlClient: SqlClient
     ): Boolean {
-        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` = ?"
+        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where LOWER(`username`) = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute(Tuple.of(username))
+            .execute(Tuple.of(username.lowercase()))
             .coAwait()
 
         return rows.toList()[0].getLong(0) > 0
+    }
+
+    override suspend fun getByUsername(
+        username: String,
+        sqlClient: SqlClient
+    ): List<ServerPlayer> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE LOWER(`username`) = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(username.lowercase()))
+            .coAwait()
+
+        return rows.toEntities()
     }
 
     override suspend fun existsByUsernameList(

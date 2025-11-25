@@ -4,7 +4,7 @@ import com.panomc.platform.util.TextUtil.convertToSnakeCase
 import io.vertx.core.json.JsonObject
 
 interface PlatformMessage {
-    fun getResponseName() = this.javaClass.simpleName.convertToSnakeCase().uppercase()
+    fun getResponseName() = this.javaClass.simpleName.replace("Message", "").convertToSnakeCase().uppercase()
 
     fun encode(): String {
         val response = mutableMapOf<String, Any?>(

@@ -11,6 +11,8 @@ import com.panomc.platform.error.*
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.notification.BannedMail
 import com.panomc.platform.model.*
+import com.panomc.platform.server.ServerManager
+import com.panomc.platform.server.message.BanPlayerMessage
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.BanUtil
@@ -28,7 +30,8 @@ class PanelBanPlayerAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val mailManager: MailManager,
-    private val tokenProvider: TokenProvider
+    private val tokenProvider: TokenProvider,
+    private val serverManager: ServerManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/ban", RouteType.POST))
 
@@ -135,6 +138,14 @@ class PanelBanPlayerAPI(
                 false
             ), sqlClient
         )
+
+        val serverPlayerList = databaseManager.serverPlayerDao.getByUsername(username, sqlClient)
+
+        serverPlayerList.forEach { serverPlayer ->
+            val server = serverManager.connectedServers.keys.firstOrNull { it.id == serverPlayer.serverId } ?: return@forEach
+
+            serverManager.sendMessage(BanPlayerMessage(username,  player.localeCode, banMessage, duration), server)
+        }
 
         if (sendNotification) {
             mailManager.sendMail(sqlClient, userId, BannedMail())

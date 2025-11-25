@@ -19,7 +19,7 @@ class GetPlayerInfoEvent(
         val player = if (userId == null) null else databaseManager.userDao.getById(userId, sqlClient)
 
         val registered = userId != null
-        val banned = if (player == null) false else BanUtil.isBannedByUntil(player)
+        val banned = if (player == null) false else BanUtil.isBanned(player)
         val banReason = player?.banMessage
         val bannedUntil = player?.bannedUntil
         val verified = player?.emailVerified ?: false

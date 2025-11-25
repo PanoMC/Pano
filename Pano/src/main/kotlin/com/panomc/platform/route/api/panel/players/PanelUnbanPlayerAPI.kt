@@ -47,7 +47,7 @@ class PanelUnbanPlayerAPI(
         val player =
             databaseManager.userDao.getByUsername(username, sqlClient) ?: throw NotExists()
 
-        if (!BanUtil.isBannedByUntil(player)) {
+        if (!BanUtil.isBanned(player)) {
             throw NotBanned()
         }
 

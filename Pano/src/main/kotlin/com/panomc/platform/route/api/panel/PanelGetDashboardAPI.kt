@@ -7,6 +7,7 @@ import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.model.*
+import com.panomc.platform.util.BanUtil
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
@@ -104,7 +105,7 @@ class PanelGetDashboardAPI(
             result["lastRegisters"] = users.map {
                 val user = JsonObject.mapFrom(it)
 
-                user.put("isBanned", it.banned)
+                user.put("isBanned", BanUtil.isBanned(it))
                 user.put("inGame", usernameInGameMap[it.username])
                 user.put("permissionGroup", permissions[it.permissionGroupId]?.name ?: "-")
                 user.put("ticketCount", userIdTicketCountMap[it.id])

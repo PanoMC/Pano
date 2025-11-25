@@ -69,7 +69,7 @@ class AuthProvider(
 
         val player = databaseManager.userDao.getById(userId, sqlClient)!!
 
-        if (BanUtil.isBannedByUntil(player)) {
+        if (BanUtil.isBanned(player)) {
             throw LoginUserIsBanned()
         }
     }

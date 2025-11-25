@@ -24,7 +24,7 @@ object BanUtil {
      * @param user The user object to check
      * @return true if the user is currently banned, false otherwise
      */
-        fun isBannedByUntil(user: User): Boolean {
+        fun isBanned(user: User): Boolean {
         // If user is not banned, return false
         if (!user.banned) {
             return false

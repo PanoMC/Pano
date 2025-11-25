@@ -63,7 +63,7 @@ class PanelGetPlayerAPI(
             "email" to user.email,
             "registerDate" to user.registerDate,
             "lastLoginDate" to user.lastLoginDate,
-            "isBanned" to BanUtil.isBannedByUntil(user),
+            "isBanned" to BanUtil.isBanned(user),
             "canCreateTicket" to user.canCreateTicket,
             "isEmailVerified" to user.emailVerified,
             "permissionGroup" to "-",

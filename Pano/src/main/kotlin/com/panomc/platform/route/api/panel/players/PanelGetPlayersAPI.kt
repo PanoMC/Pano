@@ -9,6 +9,7 @@ import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
+import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -118,7 +119,7 @@ class PanelGetPlayersAPI(
         result["players"] = userList.map {
             val user = JsonObject.mapFrom(it)
 
-            user.put("isBanned", it.banned)
+            user.put("isBanned", BanUtil.isBannedByUntil(it))
             user.put("inGame", usernameInGameMap[it.username])
             user.put("permissionGroup", permissions[it.permissionGroupId]?.name ?: "-")
             user.put("ticketCount", userIdTicketCountMap[it.id])

@@ -744,23 +744,6 @@ class UserDaoImpl : UserDao() {
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun isBanned(userId: Long, sqlClient: SqlClient): Boolean {
-        val query =
-            "SELECT COUNT(email) FROM `${getTablePrefix() + tableName}` WHERE `id` = ? and `banned` = ?"
-
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    userId,
-                    1
-                )
-            )
-            .coAwait()
-
-        return rows.toList()[0].getLong(0) == 1L
-    }
-
     override suspend fun banPlayer(userId: Long, banMessage: String?, bannedUntil: Long?, sqlClient: SqlClient) {
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `banned` = ?, `banMessage` = ?, `bannedUntil` = ? WHERE `id` = ?"

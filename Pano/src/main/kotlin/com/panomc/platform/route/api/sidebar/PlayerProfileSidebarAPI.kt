@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
+import com.panomc.platform.util.BanUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
@@ -48,7 +49,7 @@ class PlayerProfileSidebarAPI(private val databaseManager: DatabaseManager) : Ap
         response["inGame"] = databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient)
 
         response["permissionGroupName"] = name
-        response["banned"] = user.banned
+        response["banned"] = BanUtil.isBannedByUntil(user)
 
         return Successful(response)
     }

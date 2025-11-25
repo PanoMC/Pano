@@ -10,6 +10,7 @@ import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
+import com.panomc.platform.util.BanUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -62,7 +63,7 @@ class PanelGetPlayerAPI(
             "email" to user.email,
             "registerDate" to user.registerDate,
             "lastLoginDate" to user.lastLoginDate,
-            "isBanned" to user.banned,
+            "isBanned" to BanUtil.isBannedByUntil(user),
             "canCreateTicket" to user.canCreateTicket,
             "isEmailVerified" to user.emailVerified,
             "permissionGroup" to "-",

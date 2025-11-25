@@ -10,6 +10,7 @@ import com.panomc.platform.error.LoginUserIsBanned
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
+import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlClient
@@ -66,9 +67,9 @@ class AuthProvider(
             }
         }
 
-        val isBanned = databaseManager.userDao.isBanned(userId, sqlClient)
+        val player = databaseManager.userDao.getById(userId, sqlClient)!!
 
-        if (isBanned) {
+        if (BanUtil.isBannedByUntil(player)) {
             throw LoginUserIsBanned()
         }
     }

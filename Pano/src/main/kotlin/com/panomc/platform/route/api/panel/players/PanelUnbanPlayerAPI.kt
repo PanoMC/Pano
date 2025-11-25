@@ -9,6 +9,7 @@ import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotBanned
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
+import com.panomc.platform.util.BanUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
@@ -33,26 +34,24 @@ class PanelUnbanPlayerAPI(
 
         val parameters = getParameters(context)
 
-        val player = parameters.pathParameter("username").string
+        val username = parameters.pathParameter("username").string
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.userDao.existsByUsername(player, sqlClient)
+        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
         if (!exists) {
             throw NotExists()
         }
 
-        val playerId =
-            databaseManager.userDao.getUserIdFromUsername(player, sqlClient) ?: throw NotExists()
+        val player =
+            databaseManager.userDao.getByUsername(username, sqlClient) ?: throw NotExists()
 
-        val isBanned = databaseManager.userDao.isBanned(playerId, sqlClient)
-
-        if (!isBanned) {
+        if (!BanUtil.isBannedByUntil(player)) {
             throw NotBanned()
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)
+        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(player.id, sqlClient)
 
         if (userPermissionGroupId != null && userPermissionGroupId != -1L) {
             val userPermissionGroup =
@@ -65,12 +64,12 @@ class PanelUnbanPlayerAPI(
             }
         }
 
-        databaseManager.userDao.unbanPlayer(playerId, sqlClient)
+        databaseManager.userDao.unbanPlayer(player.id, sqlClient)
 
-        val userId = authProvider.getUserIdFromRoutingContext(context)
-        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+        val authUserId = authProvider.getUserIdFromRoutingContext(context)
+        val authUsername = databaseManager.userDao.getUsernameFromUserId(authUserId, sqlClient)!!
 
-        databaseManager.panelActivityLogDao.add(UnbannedPlayerLog(userId, username, player), sqlClient)
+        databaseManager.panelActivityLogDao.add(UnbannedPlayerLog(authUserId, authUsername, username), sqlClient)
 
         return Successful()
     }

@@ -118,7 +118,7 @@ class PanelUpdatePlayerAPI(
         }
 
         if (email != user.email) {
-            databaseManager.userDao.setEmailById(user.id, username, sqlClient)
+            databaseManager.userDao.setEmailById(user.id, email, sqlClient)
         }
 
         if (localeCode != user.localeCode) {

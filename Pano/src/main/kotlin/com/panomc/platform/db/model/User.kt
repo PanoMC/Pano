@@ -9,7 +9,7 @@ data class User(
     val registeredIp: String,
     val permissionGroupId: Long = -1,
     val registerDate: Long = System.currentTimeMillis(),
-    val lastLoginDate: Long = 0,
+    val lastLoginDate: Long = System.currentTimeMillis(),
     val emailVerified: Boolean = false,
     val banned: Boolean = false,
     val banMessage: String? = null,

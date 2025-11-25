@@ -48,6 +48,7 @@ class PlayerProfileSidebarAPI(private val databaseManager: DatabaseManager) : Ap
         response["inGame"] = databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient)
 
         response["permissionGroupName"] = name
+        response["banned"] = user.banned
 
         return Successful(response)
     }

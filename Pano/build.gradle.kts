@@ -4,6 +4,8 @@ import com.google.gson.JsonParser
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
+import java.util.zip.ZipInputStream
+import java.io.FileInputStream
 
 val vertxVersion: String by project
 val gsonVersion: String by project
@@ -93,7 +95,9 @@ dependencies {
 
 val organization = "PanoMC"
 val repositories = listOf("$organization/panel-ui", "$organization/setup-ui", "$organization/vanilla-theme")
+val mailTemplatesRepo = "$organization/pano-email"
 val outputDir = file("src/main/resources/UIFiles")
+val mailTemplatesOutputDir = file("src/main/resources")
 
 tasks {
     register("downloadUIReleases") {
@@ -162,6 +166,93 @@ tasks {
                 }
                 println("Downloaded asset saved to: ${outputFile.absolutePath}")
             }
+        }
+    }
+
+    register("downloadMailTemplates") {
+        doFirst {
+            println("Fetching latest release for mail templates...")
+
+            // Create the resources directory if it doesn't exist
+            if (!mailTemplatesOutputDir.exists()) {
+                mailTemplatesOutputDir.mkdirs()
+            }
+
+            val repo = mailTemplatesRepo
+            println("Processing repository: $repo")
+
+            // GitHub API URL
+            val apiUrl = "https://api.github.com/repos/$repo/releases"
+
+            // Send API request
+            val connection = URI(apiUrl).toURL().openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+
+            // Read the response
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val releases = JsonParser.parseString(response).asJsonArray
+
+            // Get the latest release (including prereleases)
+            val latestRelease = releases.firstOrNull()?.asJsonObject
+                ?: throw IllegalStateException("No releases found in repository: $repo")
+
+            // Check asset files and get the first zip file
+            val assets = latestRelease["assets"].asJsonArray
+            val asset = assets.firstOrNull { asset ->
+                val name = asset.asJsonObject["name"].asString
+                name.endsWith(".zip")
+            }
+                ?: throw IllegalStateException("No zip file found in the latest release of $repo")
+
+            // Get the download URL
+            val downloadUrl = asset.asJsonObject["browser_download_url"].asString
+            println("Downloading asset from: $downloadUrl")
+
+            // Download & save the file as mail-templates.zip
+            val outputFile = File(mailTemplatesOutputDir, "mail-templates.zip")
+            URI(downloadUrl).toURL().openStream().use { input: java.io.InputStream ->
+                outputFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            println("Downloaded mail templates saved to: ${outputFile.absolutePath}")
+
+            // Extract the zip file to src/main/resources/mail
+            val mailDir = File(mailTemplatesOutputDir, "mail")
+
+            // Delete existing mail directory contents if it exists
+            if (mailDir.exists()) {
+                println("Deleting existing mail directory contents...")
+                mailDir.deleteRecursively()
+            }
+
+            // Create mail directory
+            mailDir.mkdirs()
+
+            // Extract zip file
+            println("Extracting mail templates to: ${mailDir.absolutePath}")
+            FileInputStream(outputFile).use { fis ->
+                ZipInputStream(fis).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        val file = File(mailDir, entry.name)
+                        if (entry.isDirectory) {
+                            file.mkdirs()
+                        } else {
+                            file.parentFile?.mkdirs()
+                            file.outputStream().use { fos ->
+                                zis.copyTo(fos)
+                            }
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                }
+            }
+
+            // Delete the zip file after extraction
+            outputFile.delete()
+            println("Mail templates extracted successfully")
         }
     }
 

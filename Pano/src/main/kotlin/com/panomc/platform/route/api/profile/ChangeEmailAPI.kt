@@ -8,8 +8,9 @@ import com.panomc.platform.error.CurrentPasswordNotCorrect
 import com.panomc.platform.error.InvalidEmail
 import com.panomc.platform.error.NewEmailExists
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.mails.ChangeEmailMail
+import com.panomc.platform.mail.templates.ChangeEmailMail
 import com.panomc.platform.model.*
+import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
@@ -26,7 +27,8 @@ import org.apache.commons.codec.digest.DigestUtils
 class ChangeEmailAPI(
     private val databaseManager: DatabaseManager,
     private val mailManager: MailManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val tokenProvider: TokenProvider
 ) : LoggedInApi() {
     override val paths = listOf(Path("/api/profile/changeEmail", RouteType.POST))
 
@@ -83,7 +85,13 @@ class ChangeEmailAPI(
 
         databaseManager.userDao.updatePendingEmailById(userId, newEmail, sqlClient)
 
-        mailManager.sendMail(sqlClient, userId, ChangeEmailMail(), newEmail)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.CHANGE_EMAIL, sqlClient)
+
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.CHANGE_EMAIL)
+
+        tokenProvider.saveToken(token, userId.toString(), TokenType.CHANGE_EMAIL, expireDate, sqlClient)
+
+        mailManager.sendMail(sqlClient, userId, ChangeEmailMail(token), newEmail)
 
         return Successful()
     }

@@ -10,8 +10,10 @@ import com.panomc.platform.error.EmailAlreadyVerified
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.mails.ActivationMail
+import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
@@ -23,7 +25,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 class PanelSendValidationEmailAPI(
     private val databaseManager: DatabaseManager,
     private val mailManager: MailManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val tokenProvider: TokenProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/verificationMail", RouteType.POST))
 
@@ -69,7 +72,13 @@ class PanelSendValidationEmailAPI(
 
         val email = databaseManager.userDao.getEmailFromUserId(playerId, sqlClient)!!
 
-        mailManager.sendMail(sqlClient, playerId, ActivationMail(), email)
+        tokenProvider.invalidateTokensBySubjectAndType(playerId.toString(), TokenType.ACTIVATION, sqlClient)
+
+        val (token, expireDate) = tokenProvider.generateToken(playerId.toString(), TokenType.ACTIVATION)
+
+        tokenProvider.saveToken(token, playerId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
+
+        mailManager.sendMail(sqlClient, playerId, ActivationMail(token), email)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

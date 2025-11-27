@@ -27,7 +27,6 @@ class MailManager(
     private val configManager: ConfigManager,
     private val templateEngine: HandlebarsTemplateEngine,
     private val databaseManager: DatabaseManager,
-    private val tokenProvider: TokenProvider,
     private val logger: Logger,
     private val vertx: Vertx
 ) {
@@ -56,14 +55,7 @@ class MailManager(
         message.setTo(emailAddress)
 
         message.html = templateEngine.render(
-            mail.parameterGenerator(
-                emailAddress,
-                userId,
-                configManager.config.uiAddress,
-                databaseManager,
-                sqlClient,
-                tokenProvider
-            ),
+            mail.generateParameters(configManager.config.uiAddress),
             mail.templatePath
         ).coAwait().toString()
 

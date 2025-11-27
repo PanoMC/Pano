@@ -3,8 +3,10 @@ package com.panomc.platform.route.api.auth
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.mails.ActivationMail
+import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.RegisterUtil
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.ext.web.RoutingContext
@@ -19,7 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas
 class RegisterAPI(
     private val reCaptcha: ReCaptcha,
     private val databaseManager: DatabaseManager,
-    private val mailManager: MailManager
+    private val mailManager: MailManager,
+    private val tokenProvider: TokenProvider
 ) : Api() {
     override val paths = listOf(Path("/api/auth/register", RouteType.POST))
 
@@ -67,7 +70,13 @@ class RegisterAPI(
             isSetup = false
         )
 
-        mailManager.sendMail(sqlClient, userId, ActivationMail())
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlClient)
+
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.ACTIVATION)
+
+        tokenProvider.saveToken(token, userId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
+
+        mailManager.sendMail(sqlClient, userId, ActivationMail(token))
 
         return Successful()
     }

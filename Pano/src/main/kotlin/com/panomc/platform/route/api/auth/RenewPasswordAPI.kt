@@ -5,7 +5,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InvalidLink
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.notification.PasswordUpdatedMail
+import com.panomc.platform.mail.templates.PasswordUpdatedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
@@ -65,7 +65,9 @@ class RenewPasswordAPI(
 
         tokenProvider.invalidateToken(token, sqlClient)
 
-        mailManager.sendMail(sqlClient, userId, PasswordUpdatedMail())
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        mailManager.sendMail(sqlClient, userId, PasswordUpdatedMail(username))
 
         return Successful()
     }

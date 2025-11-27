@@ -5,8 +5,9 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.CantResetPasswordWait15Minutes
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.mails.ResetPasswordMail
+import com.panomc.platform.mail.templates.ResetPasswordMail
 import com.panomc.platform.model.*
+import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
@@ -15,7 +16,8 @@ import io.vertx.json.schema.SchemaRepository
 class SendResetPasswordEmailAPI(
     private val databaseManager: DatabaseManager,
     private val mailManager: MailManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val tokenProvider: TokenProvider
 ) : LoggedInApi() {
     override val paths = listOf(Path("/api/profile/resetPassword", RouteType.POST))
 
@@ -37,7 +39,19 @@ class SendResetPasswordEmailAPI(
             }
         }
 
-        mailManager.sendMail(sqlClient, userId, ResetPasswordMail())
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
+
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.RESET_PASSWORD)
+
+        tokenProvider.saveToken(
+            token,
+            userId.toString(),
+            TokenType.RESET_PASSWORD,
+            expireDate,
+            sqlClient
+        )
+
+        mailManager.sendMail(sqlClient, userId, ResetPasswordMail(token))
 
         return Successful()
     }

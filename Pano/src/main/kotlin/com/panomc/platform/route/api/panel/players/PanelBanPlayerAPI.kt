@@ -9,7 +9,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.BanHistory
 import com.panomc.platform.error.*
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.notification.BannedMail
+import com.panomc.platform.mail.templates.BannedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.message.BanPlayerMessage
@@ -148,7 +148,7 @@ class PanelBanPlayerAPI(
         }
 
         if (sendNotification) {
-            mailManager.sendMail(sqlClient, userId, BannedMail())
+            mailManager.sendMail(sqlClient, userId, BannedMail(player.username))
         }
 
         return Successful()

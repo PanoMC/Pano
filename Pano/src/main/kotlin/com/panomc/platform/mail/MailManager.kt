@@ -115,7 +115,7 @@ class MailManager(
         )
         message.setTo(emailAddress)
 
-        val mailParameters = mail.generateParameters(SystemParameters(config.websiteUrl, config.websiteName), i18nManager, locale)
+        val mailParameters = mail.generateParameters(SystemParameters(config.websiteName, config.websiteUrl), i18nManager, locale)
 
         // Convert MailParameters to Map<String, Any> using JsonObject
         val jsonObject = JsonObject(gson.toJson(mailParameters))

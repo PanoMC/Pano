@@ -270,7 +270,7 @@ class I18nManager(
         type: TranslationType,
         localeCode: String,
         key: String,
-        variables: Map<String, Any> = emptyMap()
+        variables: Map<String, Any?> = emptyMap()
     ): String? {
         val translationTemplate = getTranslation(type, localeCode, key) ?: return null
 

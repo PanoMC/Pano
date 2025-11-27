@@ -148,7 +148,7 @@ class PanelBanPlayerAPI(
         }
 
         if (sendNotification) {
-            mailManager.sendMail(sqlClient, userId, BannedMail(player.username))
+            mailManager.sendMail(sqlClient, userId, BannedMail(player.username, banMessage, duration))
         }
 
         return Successful()

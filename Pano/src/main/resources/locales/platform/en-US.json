@@ -1,1 +1,92 @@
-{}
+{
+  "mail": {
+    "activation": {
+      "subject": "{{websiteName}} — Activate your e-mail",
+      "preview": "Activate your e-mail",
+      "activate-email": "Activate Your E-mail",
+      "hello-text": "Hello",
+      "activation-text": "Please activate your e-mail by clicking the button below to get started:",
+      "activate-email-button": "Activate E-mail",
+      "activation-code-instruction": "Or, copy and paste this activation code:",
+      "activation-expires": "This activation link will expire in {{minutes}} minutes. If you didn't create an account, you can safely ignore this email.",
+      "support-contact": "If you have any questions, please contact our support team."
+    },
+    "banned": {
+      "subject": "{{websiteName}} — Your account has been banned!",
+      "preview": "Banned account notice",
+      "account-suspended": "Account Banned",
+      "hello": "Hello",
+      "banned-notice": "We are writing to inform you that your account has been banned.",
+      "reason": "Reason",
+      "suspension-until": "Suspension until:",
+      "permanent-suspension": "This suspension is permanent.",
+      "banned-support": "If you have any questions or concerns, please contact our support team."
+    },
+    "change-email": {
+      "subject": "{{websiteName}} — Confirm your new email address",
+      "preview": "Confirm your new email address",
+      "hello": "Hello",
+      "confirm-new-email": "Confirm New Email Address",
+      "change-email-request": "You have requested to change your email address to:",
+      "confirm-change-instruction": "Please confirm this change by clicking the button below:",
+      "confirm-email-change-button": "Confirm Email Change",
+      "change-email-expires": "This confirmation link will expire in {{minutes}} minutes. If you didn't request this change, please ignore this email and consider securing your account.",
+      "support-contact": "If you have any questions, please contact our support team."
+    },
+    "password-updated": {
+      "subject": "{{websiteName}} — Your password has been updated",
+      "preview": "Your password has been updated",
+      "password-updated": "Password Updated Successfully",
+      "hello": "Hello",
+      "password-updated-confirmation": "Your password has been successfully updated. Your account is now secure with your new password.",
+      "security-tip": "🔒 Security Tip",
+      "password-security-tip": "If you didn't make this change, please contact our support team immediately and secure your account.",
+      "go-to-login": "Go to Login",
+      "password-updated-support": "If you have any questions or concerns about this password change, please contact our support team.",
+      "support-contact": "If you have any questions, please contact our support team."
+    },
+    "reset-password": {
+      "subject": "{{websiteName}} — Reset your password",
+      "preview": "Reset your password",
+      "reset-password": "Reset Your Password",
+      "reset-password-request": "We received a request to reset your password. Click the button below to create a new password:",
+      "reset-password-button": "Reset Password",
+      "reset-password-code-instruction": "Or, copy and paste this reset code:",
+      "expiration-notice": "⏰ Expiration Notice",
+      "reset-password-expires": "This password reset link will expire in {{minutes}} minutes.",
+      "reset-password-ignore": "If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.",
+      "reset-password-security": "For security reasons, if you didn't request this password reset, we recommend that you review your account security settings.",
+      "support-contact": "If you have any questions, please contact our support team."
+    },
+    "login": {
+      "subject": "{{websiteName}} — New login detected",
+      "preview": "New login detected on",
+      "our-server": "our Minecraft server",
+      "suspicious-login": "⚠️ Suspicious Login Detected",
+      "new-login": "New Login Detected",
+      "suspicious-login-notice": "We detected a login to your account that appears suspicious.",
+      "new-login-notice": "We detected a new login to your account.",
+      "login-details": "Login Details:",
+      "time": "Time:",
+      "location": "Location:",
+      "ip-address": "IP Address:",
+      "device": "Device:",
+      "security-alert": "⚠️ Security Alert",
+      "security-alert-instruction": "If this wasn't you, please secure your account immediately by changing your password and enabling two-factor authentication.",
+      "login-ignore": "If this was you, you can safely ignore this email. If you don't recognize this activity, please contact our support team immediately.",
+      "security-support": "For security concerns, please contact our support team immediately."
+    },
+    "register-success": {
+      "subject": "{{websiteName}} — Welcome to our community!",
+      "preview": "Welcome to",
+      "welcome": "Welcome!",
+      "register-success": "Your account has been successfully created. We're excited to have you on board!",
+      "register-success-instruction": "You can now log in to your account and start exploring all the features we have to offer.",
+      "go-to-login": "Go to Login",
+      "ready-to-play": "🎮 Ready to play?",
+      "join-community": "Join our community and start your adventure today!",
+      "register-support": "If you have any questions or need help getting started, don't hesitate to contact our support team.",
+      "see-you-ingame": "We're excited to have you on board. See you in-game!"
+    }
+  }
+}

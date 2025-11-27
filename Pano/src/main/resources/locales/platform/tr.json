@@ -1,1 +1,92 @@
-{}
+{
+  "mail": {
+    "activation": {
+      "subject": "{{websiteName}} — E-posta adresinizi etkinleştirin",
+      "preview": "E-posta adresinizi etkinleştirin",
+      "activate-email": "E-posta Adresinizi Etkinleştirin",
+      "hello-text": "Merhaba",
+      "activation-text": "Başlamak için lütfen aşağıdaki düğmeye tıklayarak e-posta adresinizi etkinleştirin:",
+      "activate-email-button": "E-posta Etkinleştir",
+      "activation-code-instruction": "Veya bu etkinleştirme kodunu kopyalayıp yapıştırın:",
+      "activation-expires": "Bu etkinleştirme bağlantısı {{minutes}} dakika içinde sona erecektir. Eğer bir hesap oluşturmadıysanız, bu e-postayı güvenle yok sayabilirsiniz.",
+      "support-contact": "Herhangi bir sorunuz varsa, lütfen destek ekibimizle iletişime geçin."
+    },
+    "banned": {
+      "subject": "{{websiteName}} — Hesabınız yasaklandı!",
+      "preview": "Hesap yasaklama bildirimi",
+      "account-suspended": "Hesap Yasaklandı",
+      "hello": "Merhaba",
+      "banned-notice": "Hesabınızın yasaklandığını bildirmek için yazıyoruz.",
+      "reason": "Sebep",
+      "suspension-until": "Yasaklanma süresi:",
+      "permanent-suspension": "Bu yasaklama kalıcıdır.",
+      "banned-support": "Herhangi bir sorunuz veya endişeniz varsa, lütfen destek ekibimizle iletişime geçin."
+    },
+    "change-email": {
+      "subject": "{{websiteName}} — Yeni e-posta adresinizi onaylayın",
+      "preview": "Yeni e-posta adresinizi onaylayın",
+      "hello": "Merhaba",
+      "confirm-new-email": "Yeni E-posta Adresini Onayla",
+      "change-email-request": "E-posta adresinizi şununla değiştirmek istediniz:",
+      "confirm-change-instruction": "Lütfen aşağıdaki düğmeye tıklayarak bu değişikliği onaylayın:",
+      "confirm-email-change-button": "E-posta Değişikliğini Onayla",
+      "change-email-expires": "Bu onay bağlantısı {{minutes}} dakika içinde sona erecektir. Eğer bu değişikliği siz istemediyseniz, lütfen bu e-postayı yok sayın ve hesabınızı güvence altına alın.",
+      "support-contact": "Herhangi bir sorunuz varsa, lütfen destek ekibimizle iletişime geçin."
+    },
+    "password-updated": {
+      "subject": "{{websiteName}} — Şifreniz güncellendi",
+      "preview": "Şifreniz güncellendi",
+      "password-updated": "Şifre Başarıyla Güncellendi",
+      "hello": "Merhaba",
+      "password-updated-confirmation": "Şifreniz başarıyla güncellendi. Hesabınız artık yeni şifrenizle güvence altındadır.",
+      "security-tip": "🔒 Güvenlik İpucu",
+      "password-security-tip": "Eğer bu değişikliği siz yapmadıysanız, lütfen hemen destek ekibimizle iletişime geçin ve hesabınızı güvence altına alın.",
+      "go-to-login": "Giriş Sayfasına Git",
+      "password-updated-support": "Bu şifre değişikliği hakkında herhangi bir sorunuz veya endişeniz varsa, lütfen destek ekibimizle iletişime geçin.",
+      "support-contact": "Herhangi bir sorunuz varsa, lütfen destek ekibimizle iletişime geçin."
+    },
+    "reset-password": {
+      "subject": "{{websiteName}} — Şifrenizi sıfırlayın",
+      "preview": "Şifrenizi sıfırlayın",
+      "reset-password": "Şifrenizi Sıfırlayın",
+      "reset-password-request": "Şifre sıfırlama isteği aldık. Yeni bir şifre oluşturmak için aşağıdaki düğmeye tıklayın:",
+      "reset-password-button": "Şifre Sıfırla",
+      "reset-password-code-instruction": "Veya bu sıfırlama kodunu kopyalayıp yapıştırın:",
+      "expiration-notice": "⏰ Son Kullanma Bildirimi",
+      "reset-password-expires": "Bu şifre sıfırlama bağlantısı {{minutes}} dakika içinde sona erecektir.",
+      "reset-password-ignore": "Eğer şifre sıfırlama isteği yapmadıysanız, bu e-postayı güvenle yok sayabilirsiniz. Şifreniz değişmeyecektir.",
+      "reset-password-security": "Güvenlik nedeniyle, eğer bu şifre sıfırlama isteğini siz yapmadıysanız, hesap güvenlik ayarlarınızı gözden geçirmenizi öneririz.",
+      "support-contact": "Herhangi bir sorunuz varsa, lütfen destek ekibimizle iletişime geçin."
+    },
+    "login": {
+      "subject": "{{websiteName}} — Yeni giriş algılandı",
+      "preview": "Şu tarihte yeni giriş algılandı:",
+      "our-server": "Minecraft sunucumuzda",
+      "suspicious-login": "⚠️ Şüpheli Giriş Algılandı",
+      "new-login": "Yeni Giriş Algılandı",
+      "suspicious-login-notice": "Hesabınıza şüpheli görünen bir giriş algıladık.",
+      "new-login-notice": "Hesabınıza yeni bir giriş algıladık.",
+      "login-details": "Giriş Detayları:",
+      "time": "Zaman:",
+      "location": "Konum:",
+      "ip-address": "IP Adresi:",
+      "device": "Cihaz:",
+      "security-alert": "⚠️ Güvenlik Uyarısı",
+      "security-alert-instruction": "Eğer bu siz değilseniz, lütfen hemen şifrenizi değiştirerek ve iki faktörlü kimlik doğrulamayı etkinleştirerek hesabınızı güvence altına alın.",
+      "login-ignore": "Eğer bu sizseniz, bu e-postayı güvenle yok sayabilirsiniz. Eğer bu etkinliği tanımadıysanız, lütfen hemen destek ekibimizle iletişime geçin.",
+      "security-support": "Güvenlik endişeleri için, lütfen hemen destek ekibimizle iletişime geçin."
+    },
+    "register-success": {
+      "subject": "{{websiteName}} — Topluluğumuza hoş geldiniz!",
+      "preview": "Hoş geldiniz",
+      "welcome": "Hoş Geldiniz!",
+      "register-success": "Hesabınız başarıyla oluşturuldu. Sizi aramızda görmekten heyecan duyuyoruz!",
+      "register-success-instruction": "Artık hesabınıza giriş yapabilir ve sunduğumuz tüm özellikleri keşfetmeye başlayabilirsiniz.",
+      "go-to-login": "Giriş Sayfasına Git",
+      "ready-to-play": "🎮 Oynamaya hazır mısınız?",
+      "join-community": "Topluluğumuza katılın ve maceranıza bugün başlayın!",
+      "register-support": "Başlangıç konusunda herhangi bir sorunuz varsa veya yardıma ihtiyacınız olursa, destek ekibimizle iletişime geçmekten çekinmeyin.",
+      "see-you-ingame": "Sizi aramızda görmekten heyecan duyuyoruz. Oyun içinde görüşürüz!"
+    }
+  }
+}

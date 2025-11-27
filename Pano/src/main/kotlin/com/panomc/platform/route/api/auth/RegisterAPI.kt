@@ -76,7 +76,7 @@ class RegisterAPI(
 
         tokenProvider.saveToken(token, userId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
 
-        mailManager.sendMail(sqlClient, userId, ActivationMail(token))
+        mailManager.sendMail(sqlClient, userId, ActivationMail(token, username, email,""))
 
         return Successful()
     }

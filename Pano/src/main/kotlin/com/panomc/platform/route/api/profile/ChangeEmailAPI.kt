@@ -91,7 +91,9 @@ class ChangeEmailAPI(
 
         tokenProvider.saveToken(token, userId.toString(), TokenType.CHANGE_EMAIL, expireDate, sqlClient)
 
-        mailManager.sendMail(sqlClient, userId, ChangeEmailMail(token), newEmail)
+        val user = databaseManager.userDao.getById(userId, sqlClient)!!
+
+        mailManager.sendMail(sqlClient, userId, ChangeEmailMail(token, user.username, newEmail), newEmail)
 
         return Successful()
     }

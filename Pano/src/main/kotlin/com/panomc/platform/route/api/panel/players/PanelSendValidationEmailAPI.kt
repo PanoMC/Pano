@@ -70,7 +70,7 @@ class PanelSendValidationEmailAPI(
             throw EmailAlreadyVerified()
         }
 
-        val email = databaseManager.userDao.getEmailFromUserId(playerId, sqlClient)!!
+        val user = databaseManager.userDao.getById(playerId, sqlClient)!!
 
         tokenProvider.invalidateTokensBySubjectAndType(playerId.toString(), TokenType.ACTIVATION, sqlClient)
 
@@ -78,12 +78,12 @@ class PanelSendValidationEmailAPI(
 
         tokenProvider.saveToken(token, playerId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
 
-        mailManager.sendMail(sqlClient, playerId, ActivationMail(token), email)
+        mailManager.sendMail(sqlClient, playerId, ActivationMail(token, user.username, user.email!!, ""), user.email)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
-        databaseManager.panelActivityLogDao.add(SentManualValidationEmailLog(playerId, username, email), sqlClient)
+        databaseManager.panelActivityLogDao.add(SentManualValidationEmailLog(playerId, username, user.email), sqlClient)
 
         return Successful()
     }

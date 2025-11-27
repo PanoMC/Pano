@@ -1,11 +1,22 @@
 package com.panomc.platform
 
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.db.DBEntity
+import com.panomc.platform.db.model.Server
+import com.panomc.platform.notification.NotificationType
+import com.panomc.platform.notification.NotificationTypeDeserializer
+import com.panomc.platform.notification.ServerSettingsDeserializer
 import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.util.deserializer.BooleanDeserializer
+import com.panomc.platform.util.deserializer.JsonObjectDeserializer
+import com.panomc.platform.util.deserializer.LenientListStringAdapterFactory
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClient
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.WebClientOptions
 import io.vertx.ext.web.templ.handlebars.HandlebarsTemplateEngine
@@ -101,4 +112,24 @@ open class SpringConfig {
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun providePluginEventManager(): PluginEventManager = pluginEventManager
+
+    @Bean
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun gson(): Gson {
+        val builder = GsonBuilder()
+
+        builder.registerTypeAdapterFactory(LenientListStringAdapterFactory())
+        builder.registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
+        builder.registerTypeAdapter(java.lang.Boolean::class.java, BooleanDeserializer())
+        builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
+        builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer())
+        builder.registerTypeAdapter(Server.Companion.ServerSettings::class.java, ServerSettingsDeserializer())
+
+        val gson = builder.create()
+
+        // Initialize DBEntity gson
+        DBEntity.gson = gson
+
+        return gson
+    }
 }

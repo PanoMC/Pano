@@ -44,7 +44,6 @@ data class PanoConfig(
 
     @SerializedName("update-period") var updatePeriod: UpdatePeriod = UpdatePeriod.ONCE_PER_DAY,
 
-    @SerializedName("ui-address") var uiAddress: String = "http://localhost:3000",
     @SerializedName("file-uploads-folder") var fileUploadsFolder: String = "file-uploads",
     @SerializedName("file-paths") var filePaths: MutableMap<String, String> = mutableMapOf(),
 

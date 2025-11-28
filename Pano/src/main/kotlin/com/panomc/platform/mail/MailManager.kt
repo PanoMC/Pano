@@ -9,6 +9,7 @@ import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.InvalidData
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.util.HashUtil.hash
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.mail.MailClient
@@ -23,8 +24,6 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.io.File
-import java.io.InputStream
-import java.util.*
 
 @Lazy
 @Component
@@ -47,47 +46,6 @@ class MailManager(
     }
 
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
-
-    private fun getWebsiteLogo(): InputStream {
-        val config = configManager.config
-
-        return try {
-            if (config.filePaths["websiteLogo"] == null) {
-                throw Exception()
-            } else {
-                val websiteLogoFile =
-                    File(configManager.config.fileUploadsFolder + File.separator + config.filePaths["websiteLogo"])
-
-                if (websiteLogoFile.exists()) {
-                    websiteLogoFile.inputStream()
-                } else {
-                    throw Exception()
-                }
-            }
-        } catch (_: Exception) {
-            systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!
-        }
-    }
-
-    private fun getWebsiteLogoMimeType(): String {
-        val config = configManager.config
-
-        return if (config.filePaths["websiteLogo"] == null) {
-            return "image/png" // default logo is PNG
-        } else {
-            val filePath = config.filePaths["websiteLogo"] as String
-            val extension = filePath.substringAfterLast('.', "").lowercase()
-
-            when (extension) {
-                "png" -> "image/png"
-                "jpg", "jpeg" -> "image/jpeg"
-                "gif" -> "image/gif"
-                "webp" -> "image/webp"
-                "svg" -> "image/svg+xml"
-                else -> "image/png" // fallback to PNG
-            }
-        }
-    }
 
     suspend fun sendMail(sqlClient: SqlClient, userId: Long?, mail: Mail, email: String? = null) {
         val config = configManager.config
@@ -117,18 +75,29 @@ class MailManager(
 
         val mailParameters = mail.generateParameters(SystemParameters(config.websiteName, config.websiteUrl), i18nManager, locale)
 
+        val websiteLogoHash = try {
+            if (config.filePaths["websiteLogo"] == null) {
+                throw Exception()
+            } else {
+                val websiteLogoFile =
+                    File(configManager.config.fileUploadsFolder + File.separator + config.filePaths["websiteLogo"])
+
+                if (websiteLogoFile.exists()) {
+                    websiteLogoFile.inputStream().hash()
+                } else {
+                    throw Exception()
+                }
+            }
+        } catch (_: Exception) {
+            systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!.hash()
+        }
+
         // Convert MailParameters to Map<String, Any> using JsonObject
         val jsonObject = JsonObject(gson.toJson(mailParameters))
         val parameters = jsonObject.map.toMutableMap()
 
-        val websiteLogoInputStream = getWebsiteLogo()
-        val websiteLogoMimeType = getWebsiteLogoMimeType()
-
         parameters["websiteUrl"] = config.websiteUrl
-        parameters["websiteLogo"] = websiteLogoInputStream.use { inputStream ->
-            val bytes = inputStream.readBytes()
-            "data:$websiteLogoMimeType;base64,${Base64.getEncoder().encodeToString(bytes)}"
-        }
+        parameters["websiteLogo"] = "${config.websiteUrl}/api/websiteLogo"
         parameters["websiteName"] = config.websiteName
 
         val template = mail.getTemplate(handlebars)

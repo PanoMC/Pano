@@ -23,7 +23,6 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
-import java.io.File
 
 @Lazy
 @Component
@@ -73,23 +72,13 @@ class MailManager(
         )
         message.setTo(emailAddress)
 
-        val mailParameters = mail.generateParameters(SystemParameters(config.websiteName, config.websiteUrl), i18nManager, locale)
+        val mailParameters =
+            mail.generateParameters(SystemParameters(config.websiteName, config.websiteUrl), i18nManager, locale)
 
-        val websiteLogoHash = try {
-            if (config.filePaths["websiteLogo"] == null) {
-                throw Exception()
-            } else {
-                val websiteLogoFile =
-                    File(configManager.config.fileUploadsFolder + File.separator + config.filePaths["websiteLogo"])
-
-                if (websiteLogoFile.exists()) {
-                    websiteLogoFile.inputStream().hash()
-                } else {
-                    throw Exception()
-                }
-            }
-        } catch (_: Exception) {
+        val websiteLogoHash = if (config.filePaths.websiteLogoFile == null) {
             systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!.hash()
+        } else {
+            config.filePaths.websiteLogoFile!!.hash
         }
 
         // Convert MailParameters to Map<String, Any> using JsonObject
@@ -97,7 +86,7 @@ class MailManager(
         val parameters = jsonObject.map.toMutableMap()
 
         parameters["websiteUrl"] = config.websiteUrl
-        parameters["websiteLogo"] = "${config.websiteUrl}/api/websiteLogo"
+        parameters["websiteLogo"] = "${config.websiteUrl}/api/websiteLogo?hash=${websiteLogoHash}"
         parameters["websiteName"] = config.websiteName
 
         val template = mail.getTemplate(handlebars)

@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api
 
-import com.panomc.platform.AppConstants.DEFAULT_FAVICON_FILE
 import com.panomc.platform.AppConstants.DEFAULT_WEBSITE_LOGO_FILE
 import com.panomc.platform.Main.Companion.VERSION
 import com.panomc.platform.PluginManager
@@ -16,7 +15,6 @@ import com.panomc.platform.util.HashUtil.hash
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
-import java.io.File
 
 @Endpoint
 class GetSiteInfoAPI(
@@ -37,38 +35,16 @@ class GetSiteInfoAPI(
         val response = mutableMapOf<String, Any?>()
         val config = configManager.config
 
-        val websiteLogoHash = try {
-            if (config.filePaths["websiteLogo"] == null) {
-                throw Exception()
-            } else {
-                val websiteLogoFile =
-                    File(configManager.config.fileUploadsFolder + File.separator + config.filePaths["websiteLogo"])
-
-                if (websiteLogoFile.exists()) {
-                    websiteLogoFile.inputStream().hash()
-                } else {
-                    throw Exception()
-                }
-            }
-        } catch (_: Exception) {
+        val websiteLogoHash = if (config.filePaths.websiteLogoFile == null) {
             systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!.hash()
+        } else {
+            config.filePaths.websiteLogoFile!!.hash
         }
 
-        val faviconHash = try {
-            if (config.filePaths["favicon"] == null) {
-                throw Exception()
-            } else {
-                val faviconFile =
-                    File(configManager.config.fileUploadsFolder + File.separator + config.filePaths["favicon"])
-
-                if (faviconFile.exists()) {
-                    faviconFile.inputStream().hash()
-                } else {
-                    throw Exception()
-                }
-            }
-        } catch (_: Exception) {
-            systemClassLoader.getResourceAsStream(DEFAULT_FAVICON_FILE)!!.hash()
+        val faviconHash = if (config.filePaths.faviconFile == null) {
+            systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!.hash()
+        } else {
+            config.filePaths.faviconFile!!.hash
         }
 
         var locale = config.locale

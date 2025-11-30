@@ -37,16 +37,15 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
 
         val requestedHash = parameters.queryParameter("hash")?.string
 
-        val faviconPath = configManager.config.filePaths["favicon"]
+        val favicon = configManager.config.filePaths.faviconFile
 
-        if (faviconPath == null) {
+        if (favicon == null) {
             sendDefault(context, requestedHash)
 
             return null
         }
 
-        val path = configManager.config.fileUploadsFolder + File.separator +
-                faviconPath
+        val path = configManager.config.fileUploadsFolder + File.separator + favicon.path
 
         val file = File(path)
 
@@ -56,10 +55,10 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
             return null
         }
 
+        val actualHash = favicon.hash
+
         if (requestedHash == null) {
             // No hash → calculate and route to canonical URL
-            val actualHash = File(path).inputStream().hash()
-
             val redirectUrl = "${context.request().path()}?hash=$actualHash"
             context.response()
                 .setStatusCode(302)
@@ -79,8 +78,6 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
                 .end()
             return null
         }
-
-        val actualHash = File(path).inputStream().hash()
 
         if (!requestedHash.equals(actualHash, ignoreCase = true)) {
             // Wrong hash → route to correct one
@@ -103,7 +100,6 @@ class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
 
         return null
     }
-
 
     private fun sendDefault(context: RoutingContext, requestedHash: String?) {
         val path = DEFAULT_FAVICON_FILE

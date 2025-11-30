@@ -4,10 +4,12 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUploadUtil
+import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
 import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
@@ -137,10 +139,16 @@ class PanelUpdateSettingsAPI(
             savedFiles.forEach { savedFile ->
                 val filePathsInConfig = configManager.config.filePaths
 
-                if (filePathsInConfig[savedFile.field.name] != savedFile.path) {
+                val fileInfo = when (savedFile.field.name) {
+                    "favicon" -> filePathsInConfig.faviconFile
+                    "websiteLogo" -> filePathsInConfig.websiteLogoFile
+                    else -> throw BadRequest()
+                }
+
+                if (fileInfo != null && fileInfo.path != savedFile.path) {
                     val oldFile = File(
                         configManager.config
-                            .fileUploadsFolder + File.separator + filePathsInConfig[savedFile.field.name]
+                            .fileUploadsFolder + File.separator + fileInfo.path
                     )
 
                     if (oldFile.exists()) {
@@ -162,7 +170,23 @@ class PanelUpdateSettingsAPI(
                     }
                 }
 
-                filePathsInConfig[savedFile.field.name] = savedFile.path
+                when (savedFile.field.name) {
+                    "favicon" -> filePathsInConfig.faviconFile =
+                        PanoConfig.Companion.FileInfo(
+                            savedFile.path,
+                            File(
+                                configManager.config.fileUploadsFolder + File.separator + savedFile.path
+                            ).inputStream().hash()
+                        )
+
+                    "websiteLogo" -> filePathsInConfig.websiteLogoFile =
+                        PanoConfig.Companion.FileInfo(
+                            savedFile.path,
+                            File(
+                                configManager.config.fileUploadsFolder + File.separator + savedFile.path
+                            ).inputStream().hash()
+                        )
+                }
             }
         }
 

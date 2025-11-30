@@ -45,7 +45,7 @@ data class PanoConfig(
     @SerializedName("update-period") var updatePeriod: UpdatePeriod = UpdatePeriod.ONCE_PER_DAY,
 
     @SerializedName("file-uploads-folder") var fileUploadsFolder: String = "file-uploads",
-    @SerializedName("file-paths") var filePaths: MutableMap<String, String> = mutableMapOf(),
+    @SerializedName("file-paths") var filePaths: FilePaths = FilePaths(),
 
     @SerializedName("pano-api-url") var panoApiUrl: String = getPanoApiUrl(),
     @SerializedName("pano-website-url") var panoWebsiteUrl: String = getPanoWebsiteUrl(),
@@ -92,6 +92,16 @@ data class PanoConfig(
         data class ServerConfig(
             var host: String = "0.0.0.0",
             var port: Int = 8088
+        )
+
+        data class FilePaths(
+            var websiteLogoFile: FileInfo? = null,
+            var faviconFile: FileInfo? = null
+        )
+
+        data class FileInfo(
+            val path: String,
+            val hash: String
         )
 
         private fun generateJwtKey(): String {

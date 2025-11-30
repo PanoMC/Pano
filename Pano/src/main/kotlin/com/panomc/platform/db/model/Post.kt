@@ -44,14 +44,24 @@ data class Post(
         )
 
         fun Post.deleteThumbnailFile(configManager: ConfigManager) {
-            val oldThumbnailFile = File(
-                configManager.config.fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + thumbnailUrl.split(
-                    File.separator
-                ).last()
-            )
+            val path =configManager.config.fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + thumbnailUrl.split(
+                File.separator
+            ).last()
+            val oldThumbnailFile = File(path)
+            val oldThumbnailPreviewFile = File(path.lastIndexOf('.').let { dotIndex ->
+                if (dotIndex > 0) {
+                    path.take(dotIndex) + "-preview" + path.substring(dotIndex)
+                } else {
+                    "$path-preview"
+                }
+            })
 
             if (oldThumbnailFile.exists()) {
                 oldThumbnailFile.delete()
+            }
+
+            if (oldThumbnailPreviewFile.exists()) {
+                oldThumbnailPreviewFile.delete()
             }
         }
     }

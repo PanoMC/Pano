@@ -21,7 +21,7 @@ abstract class Dao<T : DBEntity>(private val entityClass: Class<T>) {
 
     protected val tableName = entityClass.simpleName.convertToSnakeCase().lowercase()
 
-    protected val fields by lazy {
+    open val fields by lazy {
         entityClass.declaredFields
             .filter {
                 it.name != "Companion" &&

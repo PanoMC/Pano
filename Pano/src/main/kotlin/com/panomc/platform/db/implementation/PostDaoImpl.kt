@@ -14,6 +14,8 @@ import io.vertx.sqlclient.Tuple
 @Dao
 class PostDaoImpl : PostDao() {
 
+    override val fields: List<String> = super.fields.filter { it != "acceptedFileFields"}
+
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
             .query(
@@ -93,7 +95,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): Post? {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -115,7 +117,7 @@ class PostDaoImpl : PostDao() {
 
     override suspend fun getByUrl(url: String, sqlClient: SqlClient): Post? {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -340,7 +342,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT id, title, categoryId, writerUserId, text, `date`, moveDate, status, thumbnailUrl, views, `url` FROM `${getTablePrefix() + tableName}` WHERE categoryId = ? ORDER BY `date` DESC LIMIT 5"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE categoryId = ? ORDER BY `date` DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -362,7 +364,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -385,7 +387,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `categoryId` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `categoryId` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -438,7 +440,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -456,7 +458,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `categoryId` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `categoryId` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -477,7 +479,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE `categoryId` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `categoryId` = ? ORDER BY `date` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -567,7 +569,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): Post? {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` < ? GROUP BY `id` ) order by `date` DESC limit 1"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN ( SELECT `id`, max(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` < ? GROUP BY `id` ) order by `date` DESC limit 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -593,7 +595,7 @@ class PostDaoImpl : PostDao() {
         sqlClient: SqlClient
     ): Post? {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `writerUserId`, `text`, `date`, `moveDate`, `status`, `thumbnailUrl`, `views`, `url` FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN (SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` > ? GROUP BY `id` ) order by `date` limit 1"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE (`id`,`date`) IN (SELECT `id`, MIN(`date`) FROM `${getTablePrefix() + tableName}` where `status` = ? and `date` > ? GROUP BY `id` ) order by `date` limit 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

@@ -24,7 +24,10 @@ import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import org.imgscalr.Scalr
+import java.awt.image.BufferedImage
 import java.io.File
+import javax.imageio.ImageIO
 
 @Endpoint
 class PanelCreateOrUpdatePostAPI(
@@ -138,6 +141,38 @@ class PanelCreateOrUpdatePostAPI(
             postInDb?.deleteThumbnailFile(configManager)
 
             thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split(File.separator).last()
+            val path = configManager.config
+                .fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + savedFiles[0].path.split(File.separator).last()
+            val thumbnailFile = File(path)
+            val thumbnailPreviewFile = File(path.lastIndexOf('.').let { dotIndex ->
+                if (dotIndex > 0) {
+                    path.take(dotIndex) + "-preview" + path.substring(dotIndex)
+                } else {
+                    "$path-preview"
+                }
+            })
+
+            var image: BufferedImage? = null
+
+            try {
+                image = ImageIO.read(thumbnailFile)
+            } catch (_: Exception) {
+            }
+
+            if (image != null) {
+                val bufferedImage = if (image.type != BufferedImage.TYPE_INT_ARGB) {
+                    val tmp = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
+                    val g = tmp.createGraphics()
+                    g.composite = java.awt.AlphaComposite.Src
+                    g.drawImage(image, 0, 0, null)
+                    g.dispose()
+                    tmp
+                } else image
+
+                val scaled = Scalr.resize(bufferedImage, Scalr.Method.QUALITY, Scalr.Mode.AUTOMATIC, 100)
+
+                ImageIO.write(scaled, "png", thumbnailPreviewFile)
+            }
         }
 
         return thumbnailUrl

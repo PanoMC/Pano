@@ -10,7 +10,6 @@ import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.FileResourceUtil.writeToResponse
-import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.MimeTypeUtil
 import com.panomc.platform.util.PlaceholderUtil
 import io.vertx.ext.web.RoutingContext
@@ -50,16 +49,18 @@ class PanelGetThemeScreenshotAPI(
         val requestedHash = parameters.queryParameter("hash")?.string
 
         val theme = uiManager.installedThemeList.find { it.id == themeId } ?: throw NotFound()
+        val themeScreenshot = theme.screenshots[fileName]
 
-        if (!theme.screenshots.contains(fileName)) {
+        if (themeScreenshot == null) {
             sendPlaceHolder(context, themeId)
 
             return null
         }
 
+        val actualHash = themeScreenshot
+
         if (requestedHash == null) {
             // No hash → calculate and route to canonical URL
-            val actualHash = uiManager.getThemeFileAsStream(themeId, fileName)?.hash() ?: throw NotFound()
 
             val redirectUrl = "${context.request().path()}?hash=$actualHash"
             context.response()
@@ -80,8 +81,6 @@ class PanelGetThemeScreenshotAPI(
                 .end()
             return null
         }
-
-        val actualHash = uiManager.getThemeFileAsStream(themeId, fileName)?.hash() ?: throw NotFound()
 
         if (!requestedHash.equals(actualHash, ignoreCase = true)) {
             // Wrong hash → route to correct one

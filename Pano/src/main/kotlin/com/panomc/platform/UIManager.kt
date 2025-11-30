@@ -290,6 +290,13 @@ class UIManager(
         // Create manifest file
         val manifestFile = File(targetDir, manifestFileName)
         val themeManifest = parseThemeManifest(manifestFile)
+        val screenshots = themeManifest.screenshots.map { it to File(targetDir, it) }.mapNotNull {
+            if (it.second.exists()) {
+                it.first to it.second.inputStream().hash()
+            } else {
+                null
+            }
+        }.toMap()
 
         val installedTheme = InstalledTheme(
             themeManifest.id,
@@ -300,7 +307,7 @@ class UIManager(
             themeManifest.license,
             themeManifest.sourceUrl,
             themeManifest.panoVersion,
-            themeManifest.screenshots,
+            screenshots,
             hash,
             System.currentTimeMillis(),
             System.currentTimeMillis(),
@@ -721,7 +728,7 @@ class UIManager(
             val license: String? = null,
             val sourceUrl: String? = null,
             val panoVersion: String,
-            val screenshots: List<String>,
+            val screenshots: Map<String, String>,
             val hash: String,
             val createdAt: Long,
             val updatedAt: Long,

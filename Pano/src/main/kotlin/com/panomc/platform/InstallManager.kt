@@ -185,6 +185,14 @@ class InstallManager(
                         System.currentTimeMillis()
                     }
 
+                    val screenshots = manifest.screenshots.map { it to File(tempThemeFolder, it) }.mapNotNull {
+                        if (it.second.exists()) {
+                            it.first to it.second.inputStream().hash()
+                        } else {
+                            null
+                        }
+                    }.toMap()
+
                     parsedInstalledTheme = InstalledTheme(
                         manifest.id,
                         manifest.title,
@@ -194,7 +202,7 @@ class InstallManager(
                         manifest.license,
                         manifest.sourceUrl,
                         manifest.panoVersion,
-                        manifest.screenshots,
+                        screenshots,
                         calculatedHash,
                         createdAt,
                         System.currentTimeMillis(),

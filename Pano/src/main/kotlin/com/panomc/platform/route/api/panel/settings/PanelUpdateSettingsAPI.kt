@@ -41,7 +41,6 @@ class PanelUpdateSettingsAPI(
                 acceptedContentTypes = listOf(
                     "image/x-icon",
                     "image/vnd.microsoft.icon",
-                    "image/svg+xml",
                     "image/png",
                     "image/gif",
                     "image/jpeg"
@@ -60,7 +59,6 @@ class PanelUpdateSettingsAPI(
                     "image/png",
                     "image/jpeg",
                     "image/gif",
-                    "image/svg+xml",
                 ),
                 contentTypeError = WebsiteLogoWrongContentType(),
                 fileSizeError = WebsiteLogoExceedsSize(),

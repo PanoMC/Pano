@@ -162,10 +162,12 @@ class PanelUpdateSettingsAPI(
                             configManager.config
                                 .fileUploadsFolder + File.separator + savedFile.path
                         )
-                        val original = ImageIO.read(file)
-                        val resized = Scalr.resize(original, 128, 128)
+                        file.inputStream().use { input ->
+                            val original = ImageIO.read(input)
+                            val resized = Scalr.resize(original, 128, 128)
 
-                        ImageIO.write(resized, "PNG", file)
+                            ImageIO.write(resized, "PNG", file)
+                        }
                     } catch (_: Exception) {
                     }
                 }
@@ -176,7 +178,7 @@ class PanelUpdateSettingsAPI(
                             savedFile.path,
                             File(
                                 configManager.config.fileUploadsFolder + File.separator + savedFile.path
-                            ).inputStream().hash()
+                            ).inputStream().use {it.hash()}
                         )
 
                     "websiteLogo" -> filePathsInConfig.websiteLogoFile =
@@ -184,7 +186,7 @@ class PanelUpdateSettingsAPI(
                             savedFile.path,
                             File(
                                 configManager.config.fileUploadsFolder + File.separator + savedFile.path
-                            ).inputStream().hash()
+                            ).inputStream().use {it.hash()}
                         )
                 }
             }

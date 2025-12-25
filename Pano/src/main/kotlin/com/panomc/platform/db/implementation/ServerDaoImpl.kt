@@ -37,7 +37,7 @@ class ServerDaoImpl : ServerDao() {
                               `startTime` bigint NOT NULL,
                               `stopTime` bigint NOT NULL,
                               `aesKey` text NOT NULL,
-                              `settings` text DEFAULT '{}',
+                              `settings` text NOT NULL,
                               `customName` varchar(255),
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Server table.';

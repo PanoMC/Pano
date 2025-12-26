@@ -7,7 +7,6 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
 import com.panomc.platform.server.PlatformCodeManager
@@ -41,14 +40,14 @@ class PanelGetBasicDataAPI(
 
 //        Since it's a panel API, it calls AuthProvider#hasAccessPanel method and these context fields are created
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
-        val permissions = context.get<List<Permission>>("permissions") ?: listOf()
+        val permissions = context.get<List<String>>("permissions") ?: listOf()
         val panelTheme = databaseManager.panelConfigDao.byUserIdAndOption(userId, "panel_theme", sqlClient)?.value
 
         val result: MutableMap<String, Any?> = mutableMapOf(
             "user" to mapOf(
                 "username" to user.username,
                 "email" to user.email,
-                "permissions" to permissions.map { it.name },
+                "permissions" to permissions,
                 "admin" to isAdmin
             ),
             "website" to mapOf(

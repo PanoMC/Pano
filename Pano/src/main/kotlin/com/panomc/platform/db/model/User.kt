@@ -7,7 +7,6 @@ data class User(
     val username: String,
     val email: String? = null,
     val registeredIp: String,
-    val permissionGroupId: Long = -1,
     val registerDate: Long = System.currentTimeMillis(),
     val lastLoginDate: Long = System.currentTimeMillis(),
     val emailVerified: Boolean = false,

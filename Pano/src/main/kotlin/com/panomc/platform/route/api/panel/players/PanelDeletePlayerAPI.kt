@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.log.DeletedPlayerLog
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
@@ -26,7 +27,8 @@ import org.apache.commons.codec.digest.DigestUtils
 class PanelDeletePlayerAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val tokenProvider: TokenProvider
+    private val tokenProvider: TokenProvider,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/delete", RouteType.POST))
 
@@ -68,27 +70,19 @@ class PanelDeletePlayerAPI(
             throw CurrentPasswordNotCorrect()
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(userId, sqlClient)!!
+        val isUserAdmin = authProvider.isUserAdmin(userId)
 
-        if (userPermissionGroupId != -1L) {
-            val userPermissionGroup =
-                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
+        if (isUserAdmin) {
+            val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
-            if (userPermissionGroup.name == "admin") {
-                val isAdmin = context.get<Boolean>("isAdmin") ?: false
+            if (!isAdmin) {
+                throw NoPermission()
+            }
 
-                if (!isAdmin) {
-                    throw NoPermission()
-                }
+            val usersInAdminGroup = permissionManager.getUserIdsWithNode("*")
 
-                val count = databaseManager.userDao.getCountOfUsersByPermissionGroupId(
-                    userPermissionGroupId,
-                    sqlClient
-                )
-
-                if (count == 1L) {
-                    throw LastAdmin()
-                }
+            if (usersInAdminGroup.size == 1) {
+                throw LastAdmin()
             }
         }
 

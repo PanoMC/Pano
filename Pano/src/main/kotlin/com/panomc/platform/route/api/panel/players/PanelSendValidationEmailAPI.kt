@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.log.SentManualValidationEmailLog
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
@@ -26,7 +27,8 @@ class PanelSendValidationEmailAPI(
     private val databaseManager: DatabaseManager,
     private val mailManager: MailManager,
     private val authProvider: AuthProvider,
-    private val tokenProvider: TokenProvider
+    private val tokenProvider: TokenProvider,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/verificationMail", RouteType.POST))
 
@@ -53,14 +55,11 @@ class PanelSendValidationEmailAPI(
         val playerId =
             databaseManager.userDao.getUserIdFromUsername(player, sqlClient) ?: throw NotExists()
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)!!
-
-        val userPermissionGroup =
-            databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
+        val isUserAdmin = authProvider.isUserAdmin(playerId)
 
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
-        if (userPermissionGroup.name == "admin" && !isAdmin) {
+        if (isUserAdmin && !isAdmin) {
             throw NoPermission()
         }
 

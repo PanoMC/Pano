@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
@@ -24,7 +25,8 @@ import kotlin.math.ceil
 @Endpoint
 class PanelGetPlayerAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username", RouteType.GET))
 
@@ -72,15 +74,8 @@ class PanelGetPlayerAPI(
             "localeCode" to user.localeCode,
         )
 
-        if (user.permissionGroupId != -1L) {
-            val permissionGroup = databaseManager.permissionGroupDao.getPermissionGroupById(
-                user.permissionGroupId,
-                sqlClient
-            )!!
-
-            @Suppress("UNCHECKED_CAST")
-            (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionGroup.name
-        }
+        @Suppress("UNCHECKED_CAST")
+        (result["player"] as MutableMap<String, Any?>)["permissionGroup"] = permissionManager.getPermissionGroup(user.id)
 
         val banHistoryCount = databaseManager.banHistoryDao.countByUserId(user.id, sqlClient)
 

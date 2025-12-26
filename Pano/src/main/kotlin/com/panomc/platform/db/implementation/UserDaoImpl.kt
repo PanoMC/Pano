@@ -1,10 +1,7 @@
 package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
-import com.panomc.platform.auth.PanelPermission
-import com.panomc.platform.db.DBEntity.Companion.from
 import com.panomc.platform.db.dao.UserDao
-import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
@@ -29,7 +26,6 @@ class UserDaoImpl : UserDao() {
                               `username` varchar(16) NOT NULL UNIQUE,
                               `email` varchar(255) UNIQUE,
                               `password` varchar(255) NOT NULL,
-                              `permissionGroupId` bigint NOT NULL,
                               `registeredIp` varchar(255) NOT NULL,
                               `registerDate` BIGINT(20) NOT NULL,
                               `lastLoginDate` BIGINT(20) NOT NULL,
@@ -51,6 +47,31 @@ class UserDaoImpl : UserDao() {
             .coAwait()
     }
 
+    override suspend fun searchIdsAndUsernamesByUsername(
+        query: String,
+        limit: Int,
+        sqlClient: SqlClient
+    ): List<Pair<Long, String>> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty() || limit <= 0) return emptyList()
+
+        val like = "%${trimmed.lowercase()}%"
+        val q = """
+            SELECT `id`, `username`
+            FROM `${getTablePrefix() + tableName}`
+            WHERE LOWER(`username`) LIKE ?
+            ORDER BY `username` ASC
+            LIMIT ?
+        """.trimIndent()
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(q)
+            .execute(Tuple.of(like, limit))
+            .coAwait()
+
+        return rows.toList().map { it.getLong("id") to it.getString("username") }
+    }
+
     override suspend fun add(
         user: User,
         hashedPassword: String,
@@ -58,8 +79,8 @@ class UserDaoImpl : UserDao() {
         isSetup: Boolean
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registeredIp, permissionGroupId, registerDate, `lastLoginDate`, `emailVerified`, `lastActivityTime`, `localeCode`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registeredIp, registerDate, `lastLoginDate`, `emailVerified`, `lastActivityTime`, `localeCode`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -69,7 +90,6 @@ class UserDaoImpl : UserDao() {
                     user.email,
                     hashedPassword,
                     user.registeredIp,
-                    user.permissionGroupId,
                     user.registerDate,
                     user.lastLoginDate,
                     if (isSetup) 1 else 0,
@@ -107,52 +127,6 @@ class UserDaoImpl : UserDao() {
     ): Long? {
         val query =
             "SELECT id FROM `${getTablePrefix() + tableName}` where username = ?"
-
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    username
-                )
-            )
-            .coAwait()
-
-        if (rows.size() == 0) {
-            return null
-        }
-
-        return rows.toList()[0].getLong(0)
-    }
-
-    override suspend fun getPermissionGroupIdFromUserId(
-        userId: Long,
-        sqlClient: SqlClient
-    ): Long? {
-        val query =
-            "SELECT permissionGroupId FROM `${getTablePrefix() + tableName}` where `id` = ?"
-
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    userId
-                )
-            )
-            .coAwait()
-
-        if (rows.size() == 0) {
-            return null
-        }
-
-        return rows.toList()[0].getLong(0)
-    }
-
-    override suspend fun getPermissionGroupIdFromUsername(
-        username: String,
-        sqlClient: SqlClient
-    ): Long? {
-        val query =
-            "SELECT permissionGroupId FROM `${getTablePrefix() + tableName}` where `username` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -297,12 +271,9 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE permissionGroupId != ?" else if (status == PlayerStatus.BANNED) "WHERE banned = ?" else ""}"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE banned = ?" else ""}"
 
         val parameters = Tuple.tuple()
-
-        if (status == PlayerStatus.HAS_PERM)
-            parameters.addInteger(-1)
 
         if (status == PlayerStatus.BANNED)
             parameters.addInteger(1)
@@ -321,35 +292,12 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): List<User> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.HAS_PERM) "WHERE `permissionGroupId` != ? " else if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
-
-        if (status == PlayerStatus.HAS_PERM)
-            parameters.addInteger(-1)
 
         if (status == PlayerStatus.BANNED)
             parameters.addInteger(1)
-
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(parameters)
-            .coAwait()
-
-        return rows.toEntities()
-    }
-
-    override suspend fun getAllByPageAndPermissionGroup(
-        page: Long,
-        permissionGroupId: Long,
-        sqlClient: SqlClient
-    ): List<User> {
-        val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ? ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
-
-        val parameters = Tuple.tuple()
-
-        parameters.addLong(permissionGroupId)
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -513,105 +461,169 @@ class UserDaoImpl : UserDao() {
         return rows.toList()[0].getLong(0) == 1L
     }
 
-    override suspend fun getUsernamesByPermissionGroupId(
-        permissionGroupId: Long,
-        limit: Long,
-        sqlClient: SqlClient
-    ): List<String> {
-        val query =
-            "SELECT username FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ? ${if (limit == -1L) "" else "LIMIT $limit"}"
+    override suspend fun getAllIds(sqlClient: SqlClient): List<Long> {
+        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` ORDER BY `id`"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute(Tuple.of(permissionGroupId))
+            .execute()
             .coAwait()
 
-        val listOfUsernames = mutableListOf<String>()
-
-        rows.forEach { row ->
-            listOfUsernames.add(row.getString(0))
-        }
-
-        return listOfUsernames
+        return rows.toList().map { it.getLong(0) }
     }
 
-    override suspend fun getCountOfUsersByPermissionGroupId(
-        permissionGroupId: Long,
-        sqlClient: SqlClient
-    ): Long {
-        val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `permissionGroupId` = ?"
+    override suspend fun getAllIdsExcluding(excludeList: List<Long>, sqlClient: SqlClient): List<Long> {
+        if (excludeList.isEmpty()) {
+            return listOf()
+        }
+
+        var listText = ""
+        excludeList.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
+
+        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) ORDER BY `id`"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute(Tuple.of(permissionGroupId))
+            .execute()
+            .coAwait()
+
+        return rows.toList().map { it.getLong(0) }
+    }
+
+    override suspend fun getIdsByPage(
+        page: Long,
+        pageSize: Int,
+        sqlClient: SqlClient
+    ): List<Long> {
+        val offset = ((page - 1) * pageSize).toInt()
+        val query =
+            "SELECT `id` FROM `${getTablePrefix() + tableName}` ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toList().map { it.getLong(0) }
+    }
+
+    override suspend fun getAllByIds(
+        ids: List<Long>,
+        sqlClient: SqlClient
+    ): List<User> {
+        if (ids.isEmpty()) return listOf()
+
+        var listText = ""
+        ids.forEach { id ->
+            if (listText == "")
+                listText = "'$id'"
+            else
+                listText += ", '$id'"
+        }
+
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) ORDER BY `id`"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun countByIds(ids: List<Long>, sqlClient: SqlClient): Long {
+        if (ids.isEmpty()) return 0
+
+        var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
+
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText)"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
             .coAwait()
 
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun removePermissionGroupByPermissionGroupId(
-        permissionGroupId: Long,
+    override suspend fun getByIdsPage(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
         sqlClient: SqlClient
-    ) {
-        val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `permissionGroupId` = ? WHERE `permissionGroupId` = ?"
+    ): List<User> {
+        if (ids.isEmpty()) return listOf()
 
-        sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    -1,
-                    permissionGroupId
-                )
-            )
-            .coAwait()
-    }
-
-    override suspend fun setPermissionGroupByUsername(
-        permissionGroupId: Long,
-        username: String,
-        sqlClient: SqlClient
-    ) {
-        val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `permissionGroupId` = ? WHERE `username` = ?"
-
-        sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    permissionGroupId,
-                    username
-                )
-            )
-            .coAwait()
-    }
-
-    override suspend fun setPermissionGroupByUsernames(
-        permissionGroupId: Long,
-        usernames: List<String>,
-        sqlClient: SqlClient
-    ) {
         var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
 
-        usernames.forEach { username ->
-            if (listText == "")
-                listText = "'$username'"
-            else
-                listText += ", '$username'"
+        val offset = ((page - 1) * pageSize).toInt()
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun countExcludingIds(ids: List<Long>, sqlClient: SqlClient): Long {
+        if (ids.isEmpty()) {
+            return count(sqlClient)
+        }
+
+        var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
         }
 
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `permissionGroupId` = ? WHERE `username` IN ($listText)"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText)"
 
-        sqlClient
+        val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    permissionGroupId
-                )
-            )
+            .execute()
             .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getByPageExcludingIds(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
+        sqlClient: SqlClient
+    ): List<User> {
+        if (ids.isEmpty()) {
+            return getAllByPageAndStatus(page, PlayerStatus.ALL, sqlClient)
+        }
+
+        var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
+
+        val offset = ((page - 1) * pageSize).toInt()
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toEntities()
     }
 
     override suspend fun setUsernameById(
@@ -884,71 +896,6 @@ class UserDaoImpl : UserDao() {
             .coAwait()
 
         return rows.toEntities()
-    }
-
-    override suspend fun getPermissionsById(userId: Long, sqlClient: SqlClient): List<Permission> {
-        val query = """SELECT p.id, p.name, p.iconName
-                    FROM `${getTablePrefix() + tableName}` u
-                    JOIN `${getTablePrefix()}permission_group` p_group ON u.permissionGroupId = p_group.id
-                    JOIN `${getTablePrefix()}permission_group_perms` p_group_perms ON p_group.id = p_group_perms.permissionGroupId
-                    JOIN `${getTablePrefix()}permission` p ON p_group_perms.permissionId = p.id
-                    WHERE u.id = ?"""
-
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(userId)
-            )
-            .coAwait()
-
-        return Permission::class.java.from(rows)
-    }
-
-    override suspend fun getPermissionGroupNameById(userId: Long, sqlClient: SqlClient): String? {
-        val query = """SELECT p_group.name
-                    FROM `${getTablePrefix() + tableName}` u
-                    JOIN `${getTablePrefix()}permission_group` p_group ON u.permissionGroupId = p_group.id
-                    WHERE u.id = ?"""
-
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(userId)
-            )
-            .coAwait()
-
-        if (rows.size() == 0) {
-            return null
-        }
-
-        return rows.toList()[0].getString(0)
-    }
-
-    override suspend fun getIdsByPermission(
-        panelPermission: PanelPermission,
-        sqlClient: SqlClient
-    ): List<Long> {
-        val query = """SELECT u.id
-                        FROM `${getTablePrefix() + tableName}` u
-                        JOIN `${getTablePrefix()}permission_group` p_group ON u.permissionGroupId = p_group.id
-                        JOIN `${getTablePrefix()}permission_group_perms` p_group_perms ON p_group.id = p_group_perms.permissionGroupId
-                        JOIN `${getTablePrefix()}permission` p ON p_group_perms.permissionId = p.id
-                        WHERE p.name = ?"""
-
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(
-                Tuple.of(panelPermission.toString())
-            )
-            .coAwait()
-
-        val listOfUsernames = mutableListOf<Long>()
-
-        rows.forEach { row ->
-            listOfUsernames.add(row.getLong(0))
-        }
-
-        return listOfUsernames
     }
 
     override suspend fun updateEmailVerifyStatusById(userId: Long, verified: Boolean, sqlClient: SqlClient) {

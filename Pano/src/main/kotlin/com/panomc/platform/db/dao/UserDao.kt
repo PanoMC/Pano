@@ -1,8 +1,6 @@
 package com.panomc.platform.db.dao
 
-import com.panomc.platform.auth.PanelPermission
 import com.panomc.platform.db.Dao
-import com.panomc.platform.db.model.Permission
 import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.PlayerStatus
@@ -23,16 +21,6 @@ abstract class UserDao : Dao<User>(User::class.java) {
     ): Boolean
 
     abstract suspend fun getUserIdFromUsername(
-        username: String,
-        sqlClient: SqlClient
-    ): Long?
-
-    abstract suspend fun getPermissionGroupIdFromUserId(
-        userId: Long,
-        sqlClient: SqlClient
-    ): Long?
-
-    abstract suspend fun getPermissionGroupIdFromUsername(
         username: String,
         sqlClient: SqlClient
     ): Long?
@@ -78,12 +66,6 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): List<User>
 
-    abstract suspend fun getAllByPageAndPermissionGroup(
-        page: Long,
-        permissionGroupId: Long,
-        sqlClient: SqlClient
-    ): List<User>
-
     abstract suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlClient: SqlClient
@@ -124,33 +106,49 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): Boolean
 
-    abstract suspend fun getUsernamesByPermissionGroupId(
-        permissionGroupId: Long,
-        limit: Long,
+    abstract suspend fun getAllIds(
         sqlClient: SqlClient
-    ): List<String>
+    ): List<Long>
 
-    abstract suspend fun getCountOfUsersByPermissionGroupId(
-        permissionGroupId: Long,
+    abstract suspend fun getAllIdsExcluding(
+        excludeList: List<Long>,
+        sqlClient: SqlClient
+    ): List<Long>
+
+    abstract suspend fun getIdsByPage(
+        page: Long,
+        pageSize: Int,
+        sqlClient: SqlClient
+    ): List<Long>
+
+    abstract suspend fun countByIds(
+        ids: List<Long>,
         sqlClient: SqlClient
     ): Long
 
-    abstract suspend fun removePermissionGroupByPermissionGroupId(
-        permissionGroupId: Long,
+    abstract suspend fun getByIdsPage(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
         sqlClient: SqlClient
-    )
+    ): List<User>
 
-    abstract suspend fun setPermissionGroupByUsername(
-        permissionGroupId: Long,
-        username: String,
+    abstract suspend fun countExcludingIds(
+        ids: List<Long>,
         sqlClient: SqlClient
-    )
+    ): Long
 
-    abstract suspend fun setPermissionGroupByUsernames(
-        permissionGroupId: Long,
-        usernames: List<String>,
+    abstract suspend fun getByPageExcludingIds(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
         sqlClient: SqlClient
-    )
+    ): List<User>
+
+    abstract suspend fun getAllByIds(
+        ids: List<Long>,
+        sqlClient: SqlClient
+    ): List<User>
 
     abstract suspend fun setUsernameById(
         id: Long,
@@ -238,21 +236,6 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): List<User>
 
-    abstract suspend fun getPermissionsById(
-        userId: Long,
-        sqlClient: SqlClient
-    ): List<Permission>
-
-    abstract suspend fun getPermissionGroupNameById(
-        userId: Long,
-        sqlClient: SqlClient
-    ): String?
-
-    abstract suspend fun getIdsByPermission(
-        panelPermission: PanelPermission,
-        sqlClient: SqlClient
-    ): List<Long>
-
     abstract suspend fun updateEmailVerifyStatusById(
         userId: Long,
         verified: Boolean,
@@ -285,4 +268,11 @@ abstract class UserDao : Dao<User>(User::class.java) {
     abstract suspend fun countOfOnline(sqlClient: SqlClient): Long
 
     abstract suspend fun deleteById(id: Long, sqlClient: SqlClient)
+
+    // Search users by username (case-insensitive substring), limited result count.
+    abstract suspend fun searchIdsAndUsernamesByUsername(
+        query: String,
+        limit: Int,
+        sqlClient: SqlClient
+    ): List<Pair<Long, String>>
 }

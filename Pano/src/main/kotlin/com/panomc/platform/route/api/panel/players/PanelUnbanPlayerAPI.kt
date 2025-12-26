@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.log.UnbannedPlayerLog
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
@@ -20,7 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 @Endpoint
 class PanelUnbanPlayerAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/unban", RouteType.POST))
 
@@ -51,15 +53,12 @@ class PanelUnbanPlayerAPI(
             throw NotBanned()
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(player.id, sqlClient)
+        val isUserAdmin = authProvider.isUserAdmin(player.id)
 
-        if (userPermissionGroupId != null && userPermissionGroupId != -1L) {
-            val userPermissionGroup =
-                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
-
+        if (isUserAdmin) {
             val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
-            if (userPermissionGroup.name == "admin" && !isAdmin) {
+            if (!isAdmin) {
                 throw NoPermission()
             }
         }

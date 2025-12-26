@@ -1,6 +1,8 @@
 package com.panomc.platform.util
 
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.PermissionNode
+import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.error.*
@@ -98,25 +100,19 @@ object RegisterUtil {
 
         val hashedPassword = DigestUtils.md5Hex(password)
 
-        if (!isAdmin) {
-            userId = databaseManager.userDao.add(user, hashedPassword, sqlClient, isSetup)
+        userId = databaseManager.userDao.add(user, hashedPassword, sqlClient, isSetup)
 
+        if (!isAdmin) {
             return userId
         }
 
-        val adminPermissionGroupId = databaseManager.permissionGroupDao.getPermissionGroupIdByName(
-            "admin",
-            sqlClient
-        )!!
+        databaseManager.permissionNodeDao.add(PermissionNode(
+            holderType = HolderType.USER,
+            holderId = userId,
+            node = "group.admin",
+            active = true
+        ), sqlClient)
 
-        val adminUser = User(
-            username = username,
-            email = email,
-            registeredIp = remoteIP,
-            permissionGroupId = adminPermissionGroupId
-        )
-
-        userId = databaseManager.userDao.add(adminUser, hashedPassword, sqlClient, isSetup)
         val property = SystemProperty(option = "who_installed_user_id", value = userId.toString())
 
         val isPropertyExists = databaseManager.systemPropertyDao.existsByOption(

@@ -13,6 +13,7 @@ import io.vertx.sqlclient.Tuple
 @Dao
 class PermissionGroupDaoImpl : PermissionGroupDao() {
     private val adminPermissionName = "admin"
+    private val defaultPermissionName = "default"
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -21,6 +22,9 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `name` varchar(32) NOT NULL UNIQUE,
+                              `displayName` varchar(64) NOT NULL,
+                              `createdAt` BIGINT(20) NOT NULL,
+                              `updatedAt` BIGINT(20) NOT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Permission Group Table';
                         """
@@ -29,6 +33,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
             .coAwait()
 
         createAdminPermission(sqlClient)
+        createDefaultPermissionGroup(sqlClient)
     }
 
     override suspend fun isThereByName(
@@ -87,13 +92,17 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         permissionGroup: PermissionGroup,
         sqlClient: SqlClient
     ): Long {
-        val query = "INSERT INTO `${getTablePrefix() + tableName}` (name) VALUES (?)"
+        val query =
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `displayName`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    permissionGroup.name
+                    permissionGroup.name,
+                    permissionGroup.displayName,
+                    permissionGroup.createdAt,
+                    permissionGroup.updatedAt
                 )
             ).coAwait()
 
@@ -105,7 +114,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         sqlClient: SqlClient
     ): PermissionGroup? {
         val query =
-            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` where `id` = ?"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -150,7 +159,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         sqlClient: SqlClient
     ): List<PermissionGroup> {
         val query =
-            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `id` ASC"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `id` ASC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -162,7 +171,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
 
     override suspend fun getPermissionGroupsByPage(page: Long, sqlClient: SqlClient): List<PermissionGroup> {
         val query =
-            "SELECT `id`, `name` FROM `${getTablePrefix() + tableName}` ORDER BY `id` ASC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `id` ASC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -206,13 +215,15 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `displayName` = ?, `updatedAt` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     permissionGroup.name,
+                    permissionGroup.displayName,
+                    permissionGroup.updatedAt,
                     permissionGroup.id
                 )
             )
@@ -262,6 +273,30 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
             return
         }
 
-        add(PermissionGroup(name = adminPermissionName), sqlClient)
+        add(
+            PermissionGroup(
+                name = adminPermissionName,
+                displayName = adminPermissionName
+            ),
+            sqlClient
+        )
+    }
+
+    private suspend fun createDefaultPermissionGroup(
+        sqlClient: SqlClient
+    ) {
+        val exists = isThereByName(defaultPermissionName, sqlClient)
+
+        if (exists) {
+            return
+        }
+
+        add(
+            PermissionGroup(
+                name = defaultPermissionName,
+                displayName = defaultPermissionName
+            ),
+            sqlClient
+        )
     }
 }

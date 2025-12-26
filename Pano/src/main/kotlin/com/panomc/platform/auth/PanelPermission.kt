@@ -2,18 +2,14 @@ package com.panomc.platform.auth
 
 import com.panomc.platform.util.TextUtil.convertToSnakeCase
 
-open class PanelPermission(val iconName: String = "") {
-    private fun String.replaceLastUsingReverse(
-        oldValue: String,
-        newValue: String,
-        ignoreCase: Boolean = false
-    ): String {
-        return this.reversed()
-            .replaceFirst(oldValue.reversed(), newValue.reversed(), ignoreCase)
-            .reversed()
-    }
-
+open class PanelPermission(iconName: String = "") : Permission(iconName) {
     override fun toString(): String {
-        return this::class.java.simpleName.replaceLastUsingReverse("Permission", "").convertToSnakeCase().uppercase()
+        val rawName = this::class.java.simpleName.replace("Permission", "")
+        val nodeName = rawName
+            .convertToSnakeCase()
+            .lowercase()
+            .replace("_", ".")
+
+        return "pano.panel.$nodeName"
     }
 }

@@ -17,7 +17,7 @@ class DatabaseMigration14to15 : DatabaseMigration(
 
     private fun addSettingsColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            // 1️⃣ Kolonu ekle (TEXT olarak, DEFAULT veremiyoruz MySQL nedeniyle)
+            // 1️⃣ Add the column (TEXT; MySQL doesn't allow DEFAULT here)
             val addColumnQuery = """
             ALTER TABLE `${getTablePrefix()}server`
             ADD COLUMN `settings` TEXT NULL;
@@ -26,13 +26,13 @@ class DatabaseMigration14to15 : DatabaseMigration(
             try {
                 sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
             } catch (e: Exception) {
-                // Eğer kolon zaten varsa, sessizce geç (örneğin migration tekrar çalışırsa)
+                // If the column already exists, ignore (e.g., migration re-run)
                 if (!e.message.orEmpty().contains("Duplicate column name")) {
                     throw e
                 }
             }
 
-            // 2️⃣ Tüm NULL veya boş değerleri '{}' yap
+            // 2️⃣ Set all NULL/empty values to '{}'
             val updateExistingQuery = """
             UPDATE `${getTablePrefix()}server`
             SET `settings` = '{}'

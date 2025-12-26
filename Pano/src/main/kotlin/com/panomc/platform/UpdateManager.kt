@@ -560,7 +560,7 @@ class UpdateManager(
     private suspend fun sendPanoUpdateFoundNotification(sqlClient: SqlClient) {
         notificationManager.sendNotificationToAllWithPermission(
             notificationType = PanoUpdateFoundNotification(),
-            panelPermission = ManagePlatformSettingsPermission(),
+            permission = ManagePlatformSettingsPermission(),
             sqlClient = sqlClient
         )
     }

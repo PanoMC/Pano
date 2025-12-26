@@ -4,7 +4,6 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.Permission
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
@@ -26,7 +25,7 @@ class GetCredentialsAPI(
         val user = databaseManager.userDao.getById(userId, sqlClient)!!
 
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
-        val permissions = context.get<List<Permission>>("permissions") ?: listOf()
+        val permissions = context.get<List<String>>("permissions") ?: listOf()
 
         return Successful(
             mapOf(

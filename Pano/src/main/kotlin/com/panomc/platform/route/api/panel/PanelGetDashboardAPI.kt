@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.panel
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
@@ -15,7 +16,8 @@ import io.vertx.json.schema.SchemaRepository
 @Endpoint
 class PanelGetDashboardAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/dashboard", RouteType.GET))
 
@@ -95,10 +97,8 @@ class PanelGetDashboardAPI(
 
         if (authProvider.hasPermission(ManagePlayersPermission(), context)) {
             val users = databaseManager.userDao.getLast5Register(sqlClient)
-            val permissionGroupIdList = users.map { it.permissionGroupId }
             val userIdList = users.map { it.id }
             val usernameList = users.map { it.username }
-            val permissions = databaseManager.permissionGroupDao.byListOfId(permissionGroupIdList, sqlClient)
             val userIdTicketCountMap = databaseManager.ticketDao.countByUserIdList(userIdList, sqlClient)
             val usernameInGameMap = databaseManager.serverPlayerDao.existsByUsernameList(usernameList, sqlClient)
 
@@ -107,7 +107,7 @@ class PanelGetDashboardAPI(
 
                 user.put("isBanned", BanUtil.isBanned(it))
                 user.put("inGame", usernameInGameMap[it.username])
-                user.put("permissionGroup", permissions[it.permissionGroupId]?.name ?: "-")
+                user.put("permissionGroup", permissionManager.getPermissionGroup(it.id))
                 user.put("ticketCount", userIdTicketCountMap[it.id])
                 user.put("isEmailVerified", it.emailVerified)
 

@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.log.UpdatedPlayerLog
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
@@ -21,7 +22,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 @Endpoint
 class PanelUpdatePlayerAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:id", RouteType.PUT))
 
@@ -82,15 +84,12 @@ class PanelUpdatePlayerAPI(
             }
         }
 
-        val userPermissionGroupId = databaseManager.userDao.getPermissionGroupIdFromUserId(playerId, sqlClient)!!
+        val isUserAdmin = authProvider.isUserAdmin(playerId)
 
-        if (userPermissionGroupId != -1L) {
-            val userPermissionGroup =
-                databaseManager.permissionGroupDao.getPermissionGroupById(userPermissionGroupId, sqlClient)!!
-
+        if (isUserAdmin) {
             val isAdmin = context.get<Boolean>("isAdmin") ?: false
 
-            if (userPermissionGroup.name == "admin" && !isAdmin) {
+            if (!isAdmin) {
                 throw NoPermission()
             }
         }

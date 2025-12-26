@@ -5,7 +5,6 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.*
 import com.panomc.platform.db.model.SchemeVersion
-import io.netty.channel.AbstractChannel
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLBuilder
@@ -25,7 +24,6 @@ import kotlin.system.exitProcess
 class DatabaseManager(
     @Lazy val schemeVersionDao: SchemeVersionDao,
     @Lazy val userDao: UserDao,
-    @Lazy val permissionDao: PermissionDao,
     @Lazy val panelConfigDao: PanelConfigDao,
     @Lazy val serverDao: ServerDao,
     @Lazy val systemPropertyDao: SystemPropertyDao,
@@ -36,7 +34,8 @@ class DatabaseManager(
     @Lazy val ticketCategoryDao: TicketCategoryDao,
     @Lazy val ticketMessageDao: TicketMessageDao,
     @Lazy val permissionGroupDao: PermissionGroupDao,
-    @Lazy val permissionGroupPermsDao: PermissionGroupPermsDao,
+    @Lazy val permissionTrackDao: PermissionTrackDao,
+    @Lazy val permissionNodeDao: PermissionNodeDao,
     @Lazy val websiteViewDao: WebsiteViewDao,
     @Lazy val tokenDao: TokenDao,
     @Lazy val notificationDao: NotificationDao,
@@ -45,7 +44,7 @@ class DatabaseManager(
     @Lazy val panelActivityLogDao: PanelActivityLogDao,
     @Lazy val localeDao: LocaleDao,
     @Lazy val translationDao: TranslationDao,
-    @Lazy val banHistoryDao: BanHistoryDao
+    @Lazy val banHistoryDao: BanHistoryDao,
 ) {
 
     @Autowired

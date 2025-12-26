@@ -3,9 +3,9 @@ package com.panomc.platform.route.api.panel.players
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
@@ -23,7 +23,8 @@ import kotlin.math.ceil
 @Endpoint
 class PanelGetPlayersAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players", RouteType.GET))
 
@@ -54,30 +55,25 @@ class PanelGetPlayersAPI(
 
         val sqlClient = databaseManager.getSqlClient()
 
-        var permissionGroup: PermissionGroup? = null
+        var userIdsWithGroup: List<Long>? = null
 
-        if (permissionGroupName != null && permissionGroupName != "-") {
-            val isTherePermission =
-                databaseManager.permissionGroupDao.isThereByName(permissionGroupName, sqlClient)
+        if (permissionGroupName != null) {
+            userIdsWithGroup = permissionManager.getUserIdsInGroup(permissionGroupName).toList()
 
-            if (!isTherePermission) {
-                throw NotExists()
+            if (permissionGroupName != "-") {
+                val exists = permissionManager.groupExists(permissionGroupName)
+                if (!exists) throw NotExists()
             }
-
-            val permissionGroupId =
-                databaseManager.permissionGroupDao.getPermissionGroupIdByName(permissionGroupName, sqlClient)!!
-
-            permissionGroup = PermissionGroup(permissionGroupId, permissionGroupName)
-        }
-
-        if (permissionGroupName != null && permissionGroupName == "-") {
-            permissionGroup = PermissionGroup(name = "-")
         }
 
         val count =
-            if (permissionGroup != null)
-                databaseManager.userDao.getCountOfUsersByPermissionGroupId(permissionGroup.id, sqlClient)
-            else
+            if (permissionGroupName != null) {
+                if (permissionGroupName == "-") {
+                    databaseManager.userDao.countExcludingIds(userIdsWithGroup!!, sqlClient)
+                } else {
+                    databaseManager.userDao.countByIds(userIdsWithGroup!!, sqlClient)
+                }
+            } else
                 databaseManager.userDao.countByStatus(playerStatus, sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
@@ -85,34 +81,32 @@ class PanelGetPlayersAPI(
         if (totalPage < 1)
             totalPage = 1
 
-        if (page > totalPage || page < 1) {
+        if (page !in 1..totalPage) {
             throw PageNotFound()
         }
 
         val userList =
-            if (permissionGroup != null)
-                databaseManager.userDao.getAllByPageAndPermissionGroup(page, permissionGroup.id, sqlClient)
-            else
+            if (permissionGroupName != null) {
+                if (permissionGroupName == "-") {
+                    databaseManager.userDao.getByPageExcludingIds(userIdsWithGroup!!, page, 10, sqlClient)
+                } else {
+                    databaseManager.userDao.getByIdsPage(userIdsWithGroup!!, page, 10, sqlClient)
+                }
+            } else
                 databaseManager.userDao.getAllByPageAndStatus(page, playerStatus, sqlClient)
-
 
         val result = mutableMapOf<String, Any?>(
             "playerCount" to count,
-            "totalPage" to totalPage
+            "totalPage" to totalPage,
+            "permissionGroup" to if (permissionGroupName != null) permissionManager.getPermissionGroupByName(permissionGroupName) else null
         )
-
-        if (permissionGroup != null) {
-            result["permissionGroup"] = permissionGroup
-        }
 
         if (userList.isEmpty()) {
             return Successful(result)
         }
 
-        val permissionGroupIdList = userList.map { it.permissionGroupId }
         val userIdList = userList.map { it.id }
         val usernameList = userList.map { it.username }
-        val permissions = databaseManager.permissionGroupDao.byListOfId(permissionGroupIdList, sqlClient)
         val userIdTicketCountMap = databaseManager.ticketDao.countByUserIdList(userIdList, sqlClient)
         val usernameInGameMap = databaseManager.serverPlayerDao.existsByUsernameList(usernameList, sqlClient)
 
@@ -121,7 +115,7 @@ class PanelGetPlayersAPI(
 
             user.put("isBanned", BanUtil.isBanned(it))
             user.put("inGame", usernameInGameMap[it.username])
-            user.put("permissionGroup", permissions[it.permissionGroupId]?.name ?: "-")
+            user.put("permissionGroup", permissionManager.getPermissionGroup(it.id))
             user.put("ticketCount", userIdTicketCountMap[it.id])
             user.put("isEmailVerified", it.emailVerified)
 

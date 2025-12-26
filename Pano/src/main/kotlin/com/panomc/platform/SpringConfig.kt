@@ -12,6 +12,7 @@ import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.deserializer.BooleanDeserializer
 import com.panomc.platform.util.deserializer.JsonObjectDeserializer
+import com.panomc.platform.util.deserializer.LenientListLongAdapterFactory
 import com.panomc.platform.util.deserializer.LenientListStringAdapterFactory
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
@@ -118,6 +119,7 @@ open class SpringConfig {
     open fun gson(): Gson {
         val builder = GsonBuilder()
 
+        builder.registerTypeAdapterFactory(LenientListLongAdapterFactory())
         builder.registerTypeAdapterFactory(LenientListStringAdapterFactory())
         builder.registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
         builder.registerTypeAdapter(java.lang.Boolean::class.java, BooleanDeserializer())

@@ -127,7 +127,7 @@ object UiConsole {
             )
             font = pickMonospaceFont().deriveFont(14f)
             text = placeholderText
-            // 1) Açılışta fokus almasın
+            // 1) Don't take focus on startup
             isFocusable = false
             isRequestFocusEnabled = false
         }
@@ -149,7 +149,7 @@ object UiConsole {
             }
         })
 
-        // 2) Send her zaman koyu
+        // 2) Keep "Send" button always dark
         val send = JButton("Send").apply {
             background = Color(0x2d2d30)
             foreground = fg
@@ -157,7 +157,7 @@ object UiConsole {
             isFocusPainted = false
             isOpaque = true
             isContentAreaFilled = true
-            // LAF'ın disabled gri boyamasını minimize etmek için basic UI
+            // Use Basic UI to minimize LAF disabled-gray painting
             setUI(BasicButtonUI())
             addActionListener { submitCommand() }
         }
@@ -179,7 +179,7 @@ object UiConsole {
         f.setSize(1000, 600)
         f.setLocationByPlatform(true)
 
-        // 4) X ile kapanırken önce stop
+        // 4) Stop first when closing via X
         f.defaultCloseOperation = JFrame.DO_NOTHING_ON_CLOSE
         f.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosing(e: java.awt.event.WindowEvent?) {
@@ -194,7 +194,7 @@ object UiConsole {
                         }
                     }
                 } finally {
-                    // İsteğe göre stream'leri eski haline almak istersen:
+                    // If you want to restore the streams to their previous state:
                     restoreSystemStreams()
                     f.dispose()
                 }
@@ -220,14 +220,14 @@ object UiConsole {
         inputLockReason = "Starting…"
         applyInputLockUI()
 
-        // Açılışta input yerine output alanına fokus ver
+        // On startup, focus the output area instead of the input
         f.isVisible = true
         SwingUtilities.invokeLater {
             pane.requestFocusInWindow()
             updateSendEnabled()
         }
 
-        // 3) Boşluk kontrolü için dinleyici
+        // 3) Listener for whitespace / empty-input checks
         input.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(e: DocumentEvent?) = updateSendEnabled()
             override fun removeUpdate(e: DocumentEvent?) = updateSendEnabled()
@@ -241,7 +241,7 @@ object UiConsole {
         inputLockReason = ""
         applyInputLockUI()
         SwingUtilities.invokeLater {
-            // Artık fokus alabilir
+            // Can take focus now
             inputField?.isFocusable = true
             inputField?.isRequestFocusEnabled = true
             inputField?.requestFocusInWindow()
@@ -305,7 +305,7 @@ object UiConsole {
         btn.isEnabled = enabled
         // 2) Arka plan koyu kalmaya devam etsin
         btn.background = Color(0x2d2d30)
-        // Disabled olsa bile okunaklı dursun
+        // Keep it readable even when disabled
         btn.foreground = fg
         btn.isOpaque = true
         btn.isContentAreaFilled = true
@@ -333,7 +333,7 @@ object UiConsole {
 
         val editable = inputEnabled
         field.isEnabled = true
-        // Başlangıçta fokus kapalı olsun; markReady() açar
+        // Keep focus disabled initially; markReady() enables it
         field.isFocusable = editable
         field.isRequestFocusEnabled = editable
         field.isEditable = editable
@@ -352,7 +352,7 @@ object UiConsole {
             field.toolTipText = inputLockReason.ifBlank { "Input is locked" }
         }
 
-        // btn enable durumu boşluk kontrolünden da geçecek
+        // Button enable state should also respect whitespace checks
         btn?.isEnabled = editable && !stopped
         updateSendEnabled()
     }

@@ -1,7 +1,8 @@
 package com.panomc.platform.notification
 
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PanelPermission
+import com.panomc.platform.auth.Permission
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.NotificationDao
 import com.panomc.platform.db.dao.PanelNotificationDao
@@ -18,7 +19,11 @@ import org.springframework.stereotype.Component
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class NotificationManager(databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
+class NotificationManager(
+    databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider,
+    private val permissionManager: PermissionManager
+) {
     private val notificationDao: NotificationDao = databaseManager.notificationDao
     private val panelNotificationDao: PanelNotificationDao = databaseManager.panelNotificationDao
     private val userDao: UserDao = databaseManager.userDao
@@ -103,11 +108,11 @@ class NotificationManager(databaseManager: DatabaseManager, private val authProv
 
     suspend fun sendNotificationToAllWithPermission(
         notificationType: PanelUserNotificationType,
-        panelPermission: PanelPermission,
+        permission: Permission,
         sqlClient: SqlClient
     ) {
         val users = mutableSetOf<Long>()
-        val usersWithPermission = userDao.getIdsByPermission(panelPermission, sqlClient)
+        val usersWithPermission = permissionManager.getUserIdsWithPermission(permission)
         val adminList = authProvider.getAdminList(sqlClient)
 
         val adminUserIdList = userDao.getIdsByListOfUsername(adminList, sqlClient).map { it.value }

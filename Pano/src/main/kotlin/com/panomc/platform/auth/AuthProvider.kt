@@ -3,7 +3,6 @@ package com.panomc.platform.auth
 import com.panomc.platform.AppConstants
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.Permission
 import com.panomc.platform.error.LoginEmailNotVerified
 import com.panomc.platform.error.LoginIsInvalid
 import com.panomc.platform.error.LoginUserIsBanned
@@ -26,16 +25,17 @@ import org.springframework.stereotype.Component
 class AuthProvider(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
+    private val permissionManager: PermissionManager,
     applicationContext: AnnotationConfigApplicationContext
 ) {
     companion object {
         const val HEADER_PREFIX = "Bearer "
     }
 
-    private val permissions = mutableListOf<PanelPermission>()
+    private val permissions = mutableListOf<Permission>()
 
     init {
-        permissions.addAll(applicationContext.getBeansOfType(PanelPermission::class.java).map { it.value })
+        permissions.addAll(applicationContext.getBeansOfType(Permission::class.java).map { it.value })
     }
 
     fun getPermissions() = permissions.toList()
@@ -212,65 +212,53 @@ class AuthProvider(
     }
 
     suspend fun getAdminList(sqlClient: SqlClient): List<String> {
-        val adminPermissionId = databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlClient)!!
-
-        val admins = databaseManager.userDao.getUsernamesByPermissionGroupId(adminPermissionId, -1, sqlClient)
-
-        return admins
+        val adminUserIdList = permissionManager.getUserIdsInGroup("admin")
+        return databaseManager.userDao.getUsernameByListOfId(adminUserIdList.toList(), sqlClient).values.toList()
     }
 
     suspend fun applyPermissionsTo(context: RoutingContext) {
-        val isAdmin = context.get<Boolean>("isAdmin")
-        val existingPermissionsList = context.get<List<Permission>>("permissions")
+        val isAdminExisting = context.get<Boolean>("isAdmin")
+        val existingPermissionsList = context.get<List<String>>("permissions")
 
-        if (isAdmin != null && existingPermissionsList != null) {
+        if (isAdminExisting != null && existingPermissionsList != null) {
             return
         }
 
         val userId = getUserIdFromRoutingContext(context)
-        val sqlClient = databaseManager.getSqlClient()
 
-        if (isAdmin == null) {
-            val permissionGroupName = databaseManager.userDao.getPermissionGroupNameById(userId, sqlClient)
+        val grantedNodes = permissionManager.getGrantedNodes(userId)
+        val isAdmin = grantedNodes.contains("*")
 
-            if (permissionGroupName == "admin") {
-                context.put("isAdmin", true)
-            }
-        }
-
-        if (existingPermissionsList == null) {
-            val permissions = databaseManager.userDao.getPermissionsById(userId, sqlClient)
-
-            context.put("permissions", permissions)
-        }
+        context.put("permissions", grantedNodes.toList())
+        context.put("isAdmin", isAdmin)
     }
 
-    suspend fun hasPermission(panelPermission: PanelPermission, context: RoutingContext): Boolean {
-        val existingPermissionsList = context.get<List<Permission>>("permissions")
+    fun isUserAdmin(userId: Long, grantedNodes: Set<String>): Boolean {
+        return grantedNodes.contains("*")
+    }
 
-        if (existingPermissionsList == null) {
-            applyPermissionsTo(context)
-        }
+    suspend fun isUserAdmin(userId: Long): Boolean {
+        return isUserAdmin(userId, permissionManager.getGrantedNodes(userId))
+    }
+
+    suspend fun hasPermission(permission: Permission, context: RoutingContext): Boolean {
+        val userId = getUserIdFromRoutingContext(context)
 
         val isAdmin = context.get<Boolean>("isAdmin")
 
-        if (isAdmin != null) {
-            return isAdmin
+        if (isAdmin != null && isAdmin) {
+            return true
         }
 
-        if (existingPermissionsList != null) {
-            return existingPermissionsList.hasPermission(panelPermission)
-        }
-
-        return false
+        return permissionManager.hasPermission(userId, permission)
     }
 
-    suspend fun requirePermission(panelPermission: PanelPermission, context: RoutingContext) {
-        if (!hasPermission(panelPermission, context)) {
+    suspend fun requirePermission(permission: Permission, context: RoutingContext) {
+        if (!hasPermission(permission, context)) {
             throw NoPermission()
         }
     }
 
-    private fun List<Permission>.hasPermission(panelPermission: PanelPermission) =
-        this.any { it.name == panelPermission.toString() }
+    private fun List<String>.hasPermission(permission: Permission) =
+        this.any { it == permission.toString() }
 }

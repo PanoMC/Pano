@@ -4,10 +4,9 @@ import com.panomc.platform.PluginManager
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.panel.permission.AccessPanelPermission
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.Permission
 import com.panomc.platform.model.*
 import com.panomc.platform.util.DashboardPeriodType
 import com.panomc.platform.util.TimeUtil.toGroupGetCountAndDates
@@ -25,7 +24,8 @@ class PanelGetStatisticsAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/statistics", RouteType.GET))
 
@@ -83,33 +83,7 @@ class PanelGetStatisticsAPI(
             }
         }
 
-        val permissionId = databaseManager.permissionDao.getPermissionId(
-            Permission(name = AccessPanelPermission().toString(), iconName = ""),
-            sqlClient
-        )
-        val permissionGroupsByPermissionId =
-            databaseManager.permissionGroupPermsDao.getPermissionGroupPermsByPermissionId(permissionId, sqlClient)
-
-        var adminCount = 0L
-
-        val permissionGroupList = permissionGroupsByPermissionId.toMutableList()
-
-        val adminPermissionGroupId =
-            databaseManager.permissionGroupDao.getPermissionGroupIdByName("admin", sqlClient)
-
-        val userCountOfAdminPermission =
-            databaseManager.userDao.getCountOfUsersByPermissionGroupId(adminPermissionGroupId!!, sqlClient)
-
-        adminCount += userCountOfAdminPermission
-
-        permissionGroupList.forEach { permissionGroupPerm ->
-            adminCount += databaseManager.userDao.getCountOfUsersByPermissionGroupId(
-                permissionGroupPerm.permissionGroupId,
-                sqlClient
-            )
-        }
-
-        result["adminCount"] = adminCount
+        result["adminCount"] = permissionManager.getUserIdsInGroup("admin").size
 
         result["newRegisterCount"] = databaseManager.userDao.countOfRegisterByPeriod(period, sqlClient)
 

@@ -8,6 +8,7 @@ import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.model.*
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
@@ -77,6 +78,10 @@ class PanelUpdateSettingsAPI(
                             "updatePeriod",
                             enumSchema(*UpdatePeriod.entries.map { it.name }.toTypedArray())
                         )
+                        .optionalProperty(
+                            "releaseChannel",
+                            enumSchema(*ReleaseStage.entries.map { it.name }.toTypedArray())
+                        )
                         .optionalProperty("locale", stringSchema())
                         .optionalProperty("allowUserLocaleSelection", booleanSchema())
                         .optionalProperty("websiteName", stringSchema())
@@ -118,6 +123,8 @@ class PanelUpdateSettingsAPI(
 
         val updatePeriod =
             if (data.getString("updatePeriod") == null) null else UpdatePeriod.valueOf(data.getString("updatePeriod"))
+        val releaseChannel =
+            if (data.getString("releaseChannel") == null) null else ReleaseStage.valueOf(data.getString("releaseChannel"))
         val locale = data.getString("locale")
         val allowUserLocaleSelection = data.getBoolean("allowUserLocaleSelection")
         val websiteName = data.getString("websiteName")
@@ -196,6 +203,10 @@ class PanelUpdateSettingsAPI(
             configManager.config.updatePeriod = updatePeriod
         }
 
+        if (releaseChannel != null) {
+            configManager.config.releaseChannel = releaseChannel
+        }
+
         if (locale != null) {
             if (!databaseManager.localeDao.existsByCode(locale, sqlClient)) {
                 throw InvalidLocaleCode()
@@ -257,7 +268,7 @@ class PanelUpdateSettingsAPI(
             }
         }
 
-        if (updatePeriod != null || websiteName != null || websiteDescription != null || keywords != null || email != null) {
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null) {
             configManager.saveConfig()
         }
 

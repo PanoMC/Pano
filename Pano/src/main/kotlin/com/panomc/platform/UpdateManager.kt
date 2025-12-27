@@ -4,7 +4,6 @@ import com.panomc.platform.AppConstants.UPDATER_JAR
 import com.panomc.platform.AppConstants.UPDATE_ICON_FOLDER
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.Main.Companion.IS_GUI
-import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.auth.panel.log.UpdatedPlatformLog
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
@@ -79,7 +78,8 @@ class UpdateManager(
 
     suspend fun checkPlatformUpdate(background: Boolean) {
         try {
-            val latestRelease = if (STAGE == ReleaseStage.RELEASE) {
+            val channel = configManager.config.releaseChannel
+            val latestRelease = if (channel == ReleaseStage.RELEASE) {
                 val getLatestReleaseResponse = webClient
                     .getAbs("https://api.github.com/repos/${AppConstants.REPO}/releases/latest")
                     .send()
@@ -114,7 +114,19 @@ class UpdateManager(
                     return
                 }
 
-                releases.first()
+                // For alpha/beta channels, pick the latest release matching the selected pre-release type
+                val desiredType = channel.stage // "alpha" | "beta"
+                val match = releases.firstOrNull { r ->
+                    val tag = r.getString("tag_name") ?: ""
+                    VersionUtil.getReleaseType(tag) == desiredType
+                }
+
+                if (match == null) {
+                    deletePlatformUpdateInfo(background)
+                    return
+                }
+
+                match
             }
 
             val changelog = latestRelease.getString("body")

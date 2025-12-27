@@ -60,6 +60,7 @@ class PanelGetSettingsAPI(
 
         if (settingType == SettingType.GENERAL) {
             result["updatePeriod"] = configManager.config.updatePeriod.name
+            result["releaseChannel"] = configManager.config.releaseChannel.name
             result["locale"] = configManager.config.locale
             result["allowUserLocaleSelection"] = configManager.config.allowUserLocaleSelection
 

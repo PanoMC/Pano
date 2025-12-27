@@ -3,6 +3,7 @@ package com.panomc.platform.config
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
 import com.panomc.platform.Main
+import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.ReleaseStage
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
@@ -43,6 +44,10 @@ data class PanoConfig(
     @SerializedName("jwt-key") var jwtKey: String = generateJwtKey(),
 
     @SerializedName("update-period") var updatePeriod: UpdatePeriod = UpdatePeriod.ONCE_PER_DAY,
+
+    // Which release channel to track for platform updates (alpha/beta/stable)
+    // NOTE: "stable" maps to ReleaseStage.RELEASE in code.
+    @SerializedName("release-channel") var releaseChannel: ReleaseStage = STAGE,
 
     @SerializedName("file-uploads-folder") var fileUploadsFolder: String = "file-uploads",
     @SerializedName("file-paths") var filePaths: FilePaths = FilePaths(),

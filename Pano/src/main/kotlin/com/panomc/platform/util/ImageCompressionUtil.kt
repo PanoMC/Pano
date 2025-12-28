@@ -304,7 +304,7 @@ object ImageCompressionUtil {
                 return bestBytes
             }
         } catch (e: Exception) {
-            logger?.warn("Failed to compress JPEG with quality settings: ${e.message}", e)
+            logger?.debug("Failed to compress JPEG with quality settings: ${e.message}", e)
         }
         
         return currentBytes

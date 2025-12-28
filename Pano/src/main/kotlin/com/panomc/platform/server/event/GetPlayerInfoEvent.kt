@@ -4,15 +4,15 @@ import com.panomc.platform.annotation.Event
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.server.ServerEvent
-import com.panomc.platform.server.event.request.IsPlayerRegisteredEventRequest
+import com.panomc.platform.server.event.request.GetPlayerInfoEventRequest
 import com.panomc.platform.server.response.GetPlayerInfoEventResponse
 import com.panomc.platform.util.BanUtil
 
 @Event
 class GetPlayerInfoEvent(
     private val databaseManager: DatabaseManager
-) : ServerEvent<IsPlayerRegisteredEventRequest, GetPlayerInfoEventResponse>() {
-    override suspend fun handle(request: IsPlayerRegisteredEventRequest, server: Server): GetPlayerInfoEventResponse {
+) : ServerEvent<GetPlayerInfoEventRequest, GetPlayerInfoEventResponse>() {
+    override suspend fun handle(request: GetPlayerInfoEventRequest, server: Server): GetPlayerInfoEventResponse {
         val sqlClient = databaseManager.getSqlClient()
 
         val userId = databaseManager.userDao.getUserIdFromUsername(request.username, sqlClient)

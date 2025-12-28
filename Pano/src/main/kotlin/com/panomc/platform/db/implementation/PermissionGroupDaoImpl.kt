@@ -294,7 +294,7 @@ class PermissionGroupDaoImpl : PermissionGroupDao() {
         add(
             PermissionGroup(
                 name = defaultPermissionName,
-                displayName = defaultPermissionName
+                displayName = "Player"
             ),
             sqlClient
         )

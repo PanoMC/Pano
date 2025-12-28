@@ -9,6 +9,7 @@ import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionNode
 import com.panomc.platform.db.model.PermissionTrack
 import com.panomc.platform.model.*
+import com.panomc.platform.server.ServerManager
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -20,7 +21,8 @@ import io.vertx.sqlclient.SqlClient
 class PanelPermissionSnapshotSaveAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val serverManager: ServerManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/permission/snapshot", RouteType.POST))
 
@@ -115,6 +117,15 @@ class PanelPermissionSnapshotSaveAPI(
         }
 
         permissionManager.refresh()
+
+        // Broadcast to connected servers that permission snapshot has changed.
+        // Only send to servers where permission integration is enabled.
+        val msg = com.panomc.platform.server.message.PermissionsSnapshotUpdatedMessage()
+        serverManager.getConnectedServers().keys
+            .filter { it.settings.permissionIntegration }
+            .forEach { srv ->
+                serverManager.sendMessage(msg, srv)
+            }
 
         return Successful()
     }

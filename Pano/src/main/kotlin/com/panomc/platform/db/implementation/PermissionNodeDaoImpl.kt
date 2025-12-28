@@ -38,8 +38,10 @@ class PermissionNodeDaoImpl : PermissionNodeDao() {
         addPermissionNodeForGroup("admin", "*", sqlClient)
         addPermissionNodeForGroup("admin", "weight.100", sqlClient)
         addPermissionNodeForGroup("admin", "group.default", sqlClient)
+        addPermissionNodeForGroup("admin", "displayname.admin", sqlClient)
 
         addPermissionNodeForGroup("default", "weight.10", sqlClient)
+        addPermissionNodeForGroup("default", "displayname.Player", sqlClient)
     }
 
     private suspend fun addPermissionNodeForGroup(

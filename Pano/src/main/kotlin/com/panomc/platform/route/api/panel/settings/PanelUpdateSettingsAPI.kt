@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
@@ -8,7 +9,6 @@ import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.model.*
-import com.panomc.platform.ReleaseStage
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
@@ -84,6 +84,7 @@ class PanelUpdateSettingsAPI(
                         )
                         .optionalProperty("locale", stringSchema())
                         .optionalProperty("allowUserLocaleSelection", booleanSchema())
+                        .optionalProperty("developmentMode", booleanSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("websiteUrl", stringSchema())
@@ -127,6 +128,7 @@ class PanelUpdateSettingsAPI(
             if (data.getString("releaseChannel") == null) null else ReleaseStage.valueOf(data.getString("releaseChannel"))
         val locale = data.getString("locale")
         val allowUserLocaleSelection = data.getBoolean("allowUserLocaleSelection")
+        val developmentMode = data.getBoolean("developmentMode")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
         val websiteUrl = data.getString("websiteUrl")
@@ -217,6 +219,10 @@ class PanelUpdateSettingsAPI(
 
         if (allowUserLocaleSelection != null) {
             configManager.config.allowUserLocaleSelection = allowUserLocaleSelection
+        }
+
+        if (developmentMode != null) {
+            configManager.config.developmentMode = developmentMode
         }
 
         if (websiteName != null) {

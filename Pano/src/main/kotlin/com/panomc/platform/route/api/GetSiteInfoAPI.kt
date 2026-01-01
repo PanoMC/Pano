@@ -71,6 +71,7 @@ class GetSiteInfoAPI(
         response["locale"] = locale
         response["platformLocale"] = config.locale
         response["allowUserLocaleSelection"] = config.allowUserLocaleSelection
+        response["developmentMode"] = config.developmentMode
         response["websiteName"] = config.websiteName
         response["websiteDescription"] = config.websiteDescription
         response["ipAddress"] = config.serverIpAddress

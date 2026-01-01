@@ -13,7 +13,7 @@ import java.util.*
 
 data class PanoConfig(
     @SerializedName("config-version") var version: Int,
-    @SerializedName("development-mode") var developmentMode: Boolean = true,
+    @SerializedName("development-mode") var developmentMode: Boolean = false,
     var locale: String = "en-US",
 
     @SerializedName("allow-user-locale-selection") var allowUserLocaleSelection: Boolean = true,

@@ -63,6 +63,7 @@ class PanelGetSettingsAPI(
             result["releaseChannel"] = configManager.config.releaseChannel.name
             result["locale"] = configManager.config.locale
             result["allowUserLocaleSelection"] = configManager.config.allowUserLocaleSelection
+            result["developmentMode"] = configManager.config.developmentMode
 
             val emailConfig = configManager.config.email
 

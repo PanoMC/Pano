@@ -2,6 +2,7 @@ package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.PermissionNodeDao
+import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionNode
 import com.panomc.platform.util.TextUtil.convertToSnakeCase
 import io.vertx.kotlin.coroutines.coAwait
@@ -49,7 +50,7 @@ class PermissionNodeDaoImpl : PermissionNodeDao() {
         node: String,
         sqlClient: SqlClient
     ) {
-        val groupIdQuery = "SELECT `id` FROM `${getTablePrefix() + PermissionNode::class.simpleName!!.convertToSnakeCase().lowercase()}` WHERE `name` = ?"
+        val groupIdQuery = "SELECT `id` FROM `${getTablePrefix() + PermissionGroup::class.simpleName!!.convertToSnakeCase().lowercase()}` WHERE `name` = ?"
         val groupIdRows = sqlClient.preparedQuery(groupIdQuery).execute(Tuple.of(groupName)).coAwait()
         if (groupIdRows.size() == 0) return
         val groupId = groupIdRows.first().getLong(0)

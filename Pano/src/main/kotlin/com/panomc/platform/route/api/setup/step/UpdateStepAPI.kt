@@ -62,8 +62,8 @@ class UpdateStepAPI(
         val isInputValid = validateInput(data)
 
         if (isInputValid) {
-//            if step lower than current step, go to that step
-            if (step != null && step < setupManager.getCurrentStep()) {
+//            if step lower than or equal to current step, go to that step
+            if (step != null && (step < setupManager.getCurrentStep() || step == setupManager.getCurrentStep())) {
                 setupManager.goStep(step)
             } else {
                 setupManager.nextStep()

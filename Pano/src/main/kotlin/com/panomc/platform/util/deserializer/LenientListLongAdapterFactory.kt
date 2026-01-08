@@ -71,7 +71,3 @@ class LenientListLongAdapterFactory : TypeAdapterFactory {
         }.nullSafe()
     }
 }
-
-
-
-

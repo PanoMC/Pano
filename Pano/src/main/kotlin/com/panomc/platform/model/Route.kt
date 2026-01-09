@@ -1,5 +1,6 @@
 package com.panomc.platform.model
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.config.ConfigManager
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
@@ -8,13 +9,13 @@ import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import org.springframework.beans.factory.annotation.Autowired
 import java.io.File
 import java.net.URI
 
 abstract class Route {
-    @Autowired
-    private lateinit var configManager: ConfigManager
+    private val configManager by lazy {
+        applicationContext.getBean(ConfigManager::class.java)
+    }
 
     open val order = 1
 

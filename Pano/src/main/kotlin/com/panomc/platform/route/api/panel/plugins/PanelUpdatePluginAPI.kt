@@ -85,16 +85,17 @@ class PanelUpdatePluginAPI(
                         return Successful()
                     }
 
-                    pluginManager.stopPlugin(pluginId)
-                    pluginManager.disablePlugin(pluginId)
-
                     val dependents =
                         pluginManager.plugins.filter { it.pluginState != PluginState.DISABLED && it.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
                             .map { it.pluginId }
 
                     dependents.forEach {
+                        pluginManager.stopPlugin(it)
                         pluginManager.disablePlugin(it)
                     }
+
+                    pluginManager.stopPlugin(pluginId)
+                    pluginManager.disablePlugin(pluginId)
 
                     val sqlClient = databaseManager.getSqlClient()
                     val userId = authProvider.getUserIdFromRoutingContext(context)

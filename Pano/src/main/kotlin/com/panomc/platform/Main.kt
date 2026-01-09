@@ -1,9 +1,11 @@
 package com.panomc.platform
 
 import com.panomc.platform.annotation.Boot
+import com.panomc.platform.api.PluginDatabaseManager
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.*
@@ -234,11 +236,13 @@ class Main : CoroutineVerticle() {
 
         executeBlocking {
             initDependencyInjection()
-
-            initPlugins()
         }
 
         initConfigManager()
+
+        executeBlocking {
+            initPlugins()
+        }
 
         executeBlocking {
             clearTempFiles()
@@ -294,7 +298,7 @@ class Main : CoroutineVerticle() {
 
         pluginManager.loadPlugins()
 
-        logger.info("Enabling plugins")
+        logger.info("Starting enabled plugins")
 
         pluginManager.startPlugins()
     }
@@ -357,6 +361,10 @@ class Main : CoroutineVerticle() {
         val databaseManager = applicationContext.getBean(DatabaseManager::class.java)
 
         databaseManager.init()
+
+        val pluginDatabaseManager = applicationContext.getBean(PluginDatabaseManager::class.java)
+
+        pluginDatabaseManager.checkOrphanedPlugins()
     }
 
     private suspend fun initServerManager() {
@@ -371,6 +379,8 @@ class Main : CoroutineVerticle() {
         logger.info("Initializing routes")
 
         try {
+            val routerProvider = applicationContext.getBean(RouterProvider::class.java)
+            routerProvider.initialize()
             router = applicationContext.getBean(Router::class.java)
         } catch (e: Exception) {
             e.printStackTrace()

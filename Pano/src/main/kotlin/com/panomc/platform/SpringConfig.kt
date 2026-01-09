@@ -64,13 +64,9 @@ open class SpringConfig {
     open fun recaptcha() = ReCaptcha(SECRET_KEY)
 
     @Bean
-    @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun router(
+    open fun routerProvider(
         schemaRepository: SchemaRepository,
-        configManager: ConfigManager,
-        httpClient: HttpClient,
-        setupManager: SetupManager,
         pluginManager: PluginManager,
         uiManager: UIManager
     ) =
@@ -81,7 +77,9 @@ open class SpringConfig {
             pluginManager,
             uiManager
         )
-            .provide()
+
+    @Bean
+    open fun router(routerProvider: RouterProvider) = routerProvider.provide()
 
     @Bean
     @Lazy

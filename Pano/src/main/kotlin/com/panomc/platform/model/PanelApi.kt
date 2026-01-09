@@ -1,18 +1,20 @@
 package com.panomc.platform.model
 
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
 import io.vertx.ext.web.RoutingContext
-import org.springframework.beans.factory.annotation.Autowired
 
 abstract class PanelApi : LoggedInApi() {
-    @Autowired
-    private lateinit var authProvider: AuthProvider
+    private val authProvider by lazy {
+        applicationContext.getBean(AuthProvider::class.java)
+    }
 
-    @Autowired
-    private lateinit var databaseManager: DatabaseManager
+    private val databaseManager  by lazy {
+        applicationContext.getBean(DatabaseManager::class.java)
+    }
 
     private suspend fun updateLastPanelActivityTime(context: RoutingContext) {
         val sqlClient = getSqlClient()

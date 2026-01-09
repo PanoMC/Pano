@@ -1,9 +1,11 @@
 package com.panomc.platform.model
 
-enum class RouteType {
-    ROUTE,
-    GET,
-    POST,
-    DELETE,
-    PUT
+import io.vertx.core.http.HttpMethod
+
+enum class RouteType(val vertxHttpMethod: HttpMethod?) {
+    ROUTE(null),
+    GET(HttpMethod.GET),
+    POST(HttpMethod.POST),
+    DELETE(HttpMethod.DELETE),
+    PUT(HttpMethod.PUT)
 }

@@ -1,22 +1,25 @@
 package com.panomc.platform.model
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.NotLoggedIn
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
-import org.springframework.beans.factory.annotation.Autowired
 
 abstract class LoggedInApi : Api() {
-    @Autowired
-    private lateinit var databaseManager: DatabaseManager
+    private val databaseManager by lazy {
+        applicationContext.getBean(DatabaseManager::class.java)
+    }
 
-    @Autowired
-    private lateinit var setupManager: SetupManager
+    private val setupManager by lazy {
+        applicationContext.getBean(SetupManager::class.java)
+    }
 
-    @Autowired
-    private lateinit var authProvider: AuthProvider
+    private val authProvider by lazy {
+        applicationContext.getBean(AuthProvider::class.java)
+    }
 
     private fun checkSetup() {
         if (!setupManager.isSetupDone()) {

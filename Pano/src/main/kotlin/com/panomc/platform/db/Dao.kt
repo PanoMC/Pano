@@ -1,15 +1,16 @@
 package com.panomc.platform.db
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.annotation.Ignore
 import com.panomc.platform.util.TextUtil.convertToSnakeCase
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
-import org.springframework.beans.factory.annotation.Autowired
 
 abstract class Dao<T : DBEntity>(private val entityClass: Class<T>) {
-    @Autowired
-    private lateinit var databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager by lazy {
+        applicationContext.getBean(DatabaseManager::class.java)
+    }
 
     companion object {
         inline fun <reified T : Dao<*>> get(tableList: List<Dao<*>>): T = tableList.find { it is T } as T
@@ -37,6 +38,8 @@ abstract class Dao<T : DBEntity>(private val entityClass: Class<T>) {
     protected fun List<String>.toTableQuery() = this.joinToString(", ") { "`$it`" }
 
     abstract suspend fun init(sqlClient: SqlClient)
+
+    open suspend fun uninstall(sqlClient: SqlClient) {}
 
     fun getTablePrefix(): String = databaseManager.getTablePrefix()
 }

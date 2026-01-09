@@ -32,7 +32,6 @@ class PluginFactory(private val pluginEventManager: PluginEventManager, private 
             runBlocking {
                 plugin.load()
                 plugin.onCreate()
-                plugin.onStart()
             }
 
             return plugin

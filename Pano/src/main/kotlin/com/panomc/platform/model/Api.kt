@@ -1,5 +1,6 @@
 package com.panomc.platform.model
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
@@ -11,28 +12,22 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.*
 import io.vertx.ext.web.validation.ValidationHandler.REQUEST_CONTEXT_KEY
 import io.vertx.json.schema.SchemaRepository
-
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.sqlclient.SqlClient
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.slf4j.Logger
-import org.springframework.beans.factory.annotation.Autowired
 import java.io.IOException
 
 abstract class Api : Route() {
-    @Autowired
-    private lateinit var logger: Logger
+    private val logger by lazy {
+        applicationContext.getBean(Logger::class.java)
+    }
 
-    @Autowired
-    private lateinit var databaseManager: DatabaseManager
-
-    @Autowired
-    private lateinit var setupManager: SetupManager
-
-    @Autowired
-    private lateinit var authProvider: AuthProvider
+    private val databaseManager by lazy {
+        applicationContext.getBean(DatabaseManager::class.java)
+    }
 
     suspend fun getSqlClient(): SqlClient {
         return databaseManager.getSqlClient()

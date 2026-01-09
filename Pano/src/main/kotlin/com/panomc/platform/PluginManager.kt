@@ -3,6 +3,7 @@ package com.panomc.platform
 import com.panomc.platform.SpringConfig.Companion.pluginEventManager
 import com.panomc.platform.SpringConfig.Companion.pluginUiManager
 import com.panomc.platform.api.PanoPlugin
+import com.panomc.platform.api.event.PluginLifecycleListener
 import kotlinx.coroutines.runBlocking
 import org.pf4j.*
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
@@ -25,6 +26,12 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
             pluginGlobalBeanContext
         }
+
+        internal val lifecycleListeners = mutableSetOf<PluginLifecycleListener>()
+    }
+
+    fun addLifecycleListener(listener: PluginLifecycleListener) {
+        lifecycleListeners.add(listener)
     }
 
     override fun createPluginRepository(): PluginRepository {
@@ -76,10 +83,18 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
         if (result) {
             plugin?.let {
-                runBlocking {
-                    it.load()
-                    it.onEnable()
-                    it.onStart()
+                try {
+                    runBlocking {
+                        it.load()
+
+                        lifecycleListeners.forEach { listener ->
+                            listener.onPluginEnable(it)
+                        }
+
+                        it.onEnable()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
         }
@@ -87,11 +102,18 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
         return result
     }
 
+    override fun startPlugin(pluginId: String?): PluginState? {
+            return super.startPlugin(pluginId)
+    }
+
     override fun disablePlugin(pluginId: String): Boolean {
         val plugin = getPlugin(pluginId).plugin as PanoPlugin
 
         runBlocking {
-            plugin.onStop()
+            lifecycleListeners.forEach { listener ->
+                listener.onPluginDisable(plugin)
+            }
+
             plugin.onDisable()
             plugin.unload()
         }

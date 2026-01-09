@@ -21,6 +21,7 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
             .query(
                 """
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
+                              `pluginId` varchar(255),
                               `when` timestamp not null default CURRENT_TIMESTAMP,
                               `key` varchar(255) not null,
                               `extra` varchar(255),
@@ -38,8 +39,8 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
             add(
                 sqlClient,
                 SchemeVersion(
-                    (latestMigration?.to ?: 1).toString(),
-                    "Init"
+                    key = (latestMigration?.to ?: 1).toString(),
+                    extra = "Init"
                 )
             )
 
@@ -52,8 +53,8 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
             add(
                 sqlClient,
                 SchemeVersion(
-                    latestMigration!!.to.toString(),
-                    latestMigration.info
+                    key =latestMigration!!.to.toString(),
+                    extra = latestMigration.info
                 )
             )
         }
@@ -64,9 +65,10 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
         schemeVersion: SchemeVersion
     ) {
         sqlClient
-            .preparedQuery("INSERT INTO `${getTablePrefix() + tableName}` (`key`, `extra`) VALUES (?, ?)")
+            .preparedQuery("INSERT INTO `${getTablePrefix() + tableName}` (`pluginId`, `key`, `extra`) VALUES (?, ?, ?)")
             .execute(
                 Tuple.of(
+                    schemeVersion.pluginId,
                     schemeVersion.key,
                     schemeVersion.extra
                 )
@@ -77,23 +79,50 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
     override suspend fun getLastSchemeVersion(
         sqlClient: SqlClient
     ): SchemeVersion? {
-        val query = "SELECT `key`, `extra` FROM `${getTablePrefix() + tableName}`"
+        val query = "SELECT `pluginId`, `when`, `key`, `extra` FROM `${getTablePrefix() + tableName}` WHERE `pluginId` IS NULL"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .coAwait()
 
-        if (rows.size() == 0) {
-            return null
-        }
+        return rows.maxByOrNull { it.getString("key")?.toIntOrNull() ?: 0 }?.toEntity()
+    }
 
-        val row = rows.toList().maxBy { it.getString(0).toInt() }
+    override suspend fun getLastSchemeVersion(
+        pluginId: String,
+        sqlClient: SqlClient,
+    ): SchemeVersion? {
+        val query = "SELECT `pluginId`, `when`, `key`, `extra` FROM `${getTablePrefix() + tableName}` WHERE `pluginId` = ?"
 
-        if (row.getString(0) == null) {
-            return null
-        }
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(pluginId))
+            .coAwait()
 
-        return row.toEntity()
+        return rows.maxByOrNull { it.getString("key")?.toIntOrNull() ?: 0 }?.toEntity()
+    }
+
+    override suspend fun deleteByPluginId(
+        pluginId: String,
+        sqlClient: SqlClient
+    ) {
+        val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `pluginId` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(pluginId))
+            .coAwait()
+    }
+
+    override suspend fun getAllPluginIds(sqlClient: SqlClient): List<String> {
+        val query = "SELECT DISTINCT `pluginId` FROM `${getTablePrefix() + tableName}` WHERE `pluginId` IS NOT NULL"
+
+        val rows: RowSet<Row> = sqlClient
+            .query(query)
+            .execute()
+            .coAwait()
+
+        return rows.map { it.getString("pluginId") }
     }
 }

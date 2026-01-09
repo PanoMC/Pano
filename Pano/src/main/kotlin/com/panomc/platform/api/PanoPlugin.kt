@@ -3,11 +3,15 @@ package com.panomc.platform.api
 import com.panomc.platform.*
 import com.panomc.platform.api.event.PluginEventListener
 import io.vertx.core.Vertx
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.pf4j.Plugin
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import java.io.File
 
 abstract class PanoPlugin : Plugin() {
     lateinit var pluginId: String
@@ -27,7 +31,23 @@ abstract class PanoPlugin : Plugin() {
     lateinit var pluginGlobalBeanContext: AnnotationConfigApplicationContext
         internal set
 
-    internal lateinit var applicationContext: AnnotationConfigApplicationContext
+    lateinit var applicationContext: AnnotationConfigApplicationContext
+        internal set
+
+    private val pluginManager by lazy {
+        applicationContext.getBean(PluginManager::class.java)
+    }
+    private val pluginsFolder: String by lazy { pluginManager.pluginsRoot.toAbsolutePath().toString() }
+    private val pluginsDataDir: String by lazy { System.getProperty("pano.pluginDataDir", pluginsFolder) }
+
+    val pluginDataFolder: File by lazy {
+        val folder = pluginsDataDir + File.separator + pluginId
+        val file = File(folder)
+        if (!file.exists()) {
+            file.mkdirs()
+        }
+        file
+    }
 
     val logger: Logger = LoggerFactory.getLogger(this::class.java)
 
@@ -65,10 +85,20 @@ abstract class PanoPlugin : Plugin() {
 
     @Deprecated("Use onStart method.")
     override fun start() {
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                onStart()
+            }
+        }
     }
 
     @Deprecated("Use onStop method.")
     override fun stop() {
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                onStop()
+            }
+        }
     }
 
     internal fun load() {
@@ -94,6 +124,9 @@ abstract class PanoPlugin : Plugin() {
 
         pluginEventManager.initializePlugin(this, pluginBeanContext)
         pluginUiManager.initializePlugin(this)
+        runBlocking {
+            PluginManager.lifecycleListeners.forEach { it.onPluginLoad(this@PanoPlugin) }
+        }
     }
 
     internal fun unload() {
@@ -109,11 +142,15 @@ abstract class PanoPlugin : Plugin() {
 
         pluginEventManager.unregisterPlugin(this)
         pluginUiManager.unRegisterPlugin(this)
+        runBlocking {
+            PluginManager.lifecycleListeners.forEach { it.onPluginUnload(this@PanoPlugin) }
+        }
     }
 
     open suspend fun onCreate() {}
     open suspend fun onEnable() {}
-    open suspend fun onDisable() {}
     open suspend fun onStart() {}
     open suspend fun onStop() {}
+    open suspend fun onDisable() {}
+    open suspend fun onUninstall() {}
 }

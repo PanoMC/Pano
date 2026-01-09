@@ -22,7 +22,7 @@ import java.time.format.DateTimeFormatter
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-class ConfigManager(
+open class ConfigManager(
     vertx: Vertx,
     private val logger: Logger,
     applicationContext: AnnotationConfigApplicationContext

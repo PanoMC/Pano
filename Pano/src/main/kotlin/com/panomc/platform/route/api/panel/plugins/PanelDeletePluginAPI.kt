@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.plugins
 
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.DeletedPluginLog
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
@@ -44,6 +45,10 @@ class PanelDeletePluginAPI(
         }
 
         val pluginFile = pluginWrapper.pluginPath.toFile()
+        val plugin = (pluginWrapper.plugin as PanoPlugin)
+
+        plugin.onUninstall()
+        PluginManager.lifecycleListeners.forEach { it.onPluginUnload(plugin) }
 
         pluginManager.stopPlugin(pluginId)
 
@@ -55,7 +60,6 @@ class PanelDeletePluginAPI(
             pluginManager.disablePlugin(it)
         }
 
-        pluginManager.disablePlugin(pluginId)
         pluginManager.unloadPlugin(pluginId)
 
         pluginFile.delete()

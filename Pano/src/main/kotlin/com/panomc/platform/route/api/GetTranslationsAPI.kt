@@ -17,6 +17,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import org.pf4j.PluginState
 
 @Endpoint
 class GetTranslationsAPI(
@@ -72,6 +73,7 @@ class GetTranslationsAPI(
 
         translations.putAll(
             pluginManager.getPluginWrappers()
+                .filter { it.pluginState == PluginState.STARTED }
                 .mapNotNull { wrapper ->
                     val pluginTranslations =
                         wrapper.pluginLocales[code] ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]

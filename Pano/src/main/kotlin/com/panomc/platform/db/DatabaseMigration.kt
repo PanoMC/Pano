@@ -23,7 +23,7 @@ abstract class DatabaseMigration(val from: Int, val to: Int, val info: String) {
     ) {
         databaseManager.schemeVersionDao.add(
             sqlClient,
-            SchemeVersion(to.toString(), info)
+            SchemeVersion(key = to.toString(), extra = info)
         )
     }
 

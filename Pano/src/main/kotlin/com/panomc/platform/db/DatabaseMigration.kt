@@ -1,14 +1,15 @@
 package com.panomc.platform.db
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.db.model.SchemeVersion
 import io.vertx.sqlclient.SqlClient
-import org.springframework.beans.factory.annotation.Autowired
 
 abstract class DatabaseMigration(val from: Int, val to: Int, val info: String) {
     abstract val handlers: List<suspend (sqlClient: SqlClient) -> Unit>
 
-    @Autowired
-    lateinit var databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager by lazy {
+        applicationContext.getBean(DatabaseManager::class.java)
+    }
 
     fun isMigratable(version: Int) = version == from
 

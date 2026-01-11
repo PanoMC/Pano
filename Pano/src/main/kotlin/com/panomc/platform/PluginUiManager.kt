@@ -9,6 +9,8 @@ class PluginUiManager {
 
     internal fun getRegisteredPlugins() = pluginUiRegisterList.toList()
 
+    internal fun getRegisteredPlugin(plugin: PanoPlugin) = pluginUiRegisterList[plugin]
+
     internal fun initializePlugin(plugin: PanoPlugin) {
         calculatePluginUiHash(plugin)
     }

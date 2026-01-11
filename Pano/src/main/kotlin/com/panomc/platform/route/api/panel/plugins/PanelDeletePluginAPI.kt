@@ -60,6 +60,7 @@ class PanelDeletePluginAPI(
             pluginManager.disablePlugin(it)
         }
 
+        plugin.unload()
         pluginManager.unloadPlugin(pluginId)
 
         pluginFile.delete()

@@ -124,7 +124,7 @@ class RouterProvider private constructor(
             return
         }
 
-        pluginRoutes[plugin]?.forEach { it.remove() }
+        pluginRoutes[plugin]?.forEach { it.disable(); it.remove() }
         pluginRoutes.remove(plugin)
     }
 

@@ -3,6 +3,7 @@ package com.panomc.platform.auth
 import com.panomc.platform.util.TextUtil.convertToSnakeCase
 
 open class Permission(val iconName: String = "") {
+    internal var source: String? = null
     private fun String.replaceLastUsingReverse(
         oldValue: String,
         newValue: String,
@@ -13,12 +14,15 @@ open class Permission(val iconName: String = "") {
             .reversed()
     }
 
-    override fun toString(): String {
-        val rawName = this::class.java.simpleName.replaceLastUsingReverse("Permission", "")
-        val nodeName = rawName
+    val key: String by lazy {
+        this::class.java.simpleName
+            .replaceLastUsingReverse("Permission", "")
             .convertToSnakeCase()
-            .lowercase()
-            .replace("_", ".")
+            .uppercase()
+    }
+
+    override fun toString(): String {
+        val nodeName = key.lowercase().replace("_", ".")
 
         return "pano.$nodeName"
     }

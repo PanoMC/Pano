@@ -2,6 +2,7 @@ package com.panomc.platform
 
 import com.panomc.platform.annotation.Boot
 import com.panomc.platform.api.PluginDatabaseManager
+import com.panomc.platform.auth.PermissionRegistry
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.i18n.I18nManager
@@ -241,6 +242,10 @@ class Main : CoroutineVerticle() {
         initConfigManager()
 
         executeBlocking {
+            initPluginManager()
+
+            initPermissionRegistry()
+
             initPlugins()
         }
 
@@ -289,11 +294,13 @@ class Main : CoroutineVerticle() {
         updateManager.init()
     }
 
-    private fun initPlugins() {
+    private fun initPluginManager() {
         logger.info("Initializing plugin manager")
 
         pluginManager = applicationContext.getBean(PluginManager::class.java)
+    }
 
+    private fun initPlugins() {
         logger.info("Loading plugins")
 
         pluginManager.loadPlugins()
@@ -301,6 +308,16 @@ class Main : CoroutineVerticle() {
         logger.info("Starting enabled plugins")
 
         pluginManager.startPlugins()
+    }
+
+    private fun initPermissionRegistry() {
+        logger.info("Initializing permission registry")
+
+        val permissionRegistry = applicationContext.getBean(PermissionRegistry::class.java)
+
+        permissionRegistry.initialize(applicationContext)
+
+        pluginManager.addLifecycleListener(permissionRegistry)
     }
 
     private fun clearTempFiles() {

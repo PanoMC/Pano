@@ -4,11 +4,11 @@ import com.panomc.platform.util.TextUtil.convertToSnakeCase
 
 open class PanelPermission(iconName: String = "") : Permission(iconName) {
     override fun toString(): String {
-        val rawName = this::class.java.simpleName.replace("Permission", "")
-        val nodeName = rawName
-            .convertToSnakeCase()
-            .lowercase()
-            .replace("_", ".")
+        val nodeName = key.lowercase().replace("_", ".")
+
+        if (source != null && source != "platform") {
+            return "pano.plugin.$source.$nodeName"
+        }
 
         return "pano.panel.$nodeName"
     }

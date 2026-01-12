@@ -7,6 +7,7 @@ import io.vertx.core.json.JsonObject
 open class PanelActivityLog(
     val id: Long = -1,
     val userId: Long? = null,
+    val pluginId: String? = null,
     var type: String? = null,
     val details: JsonObject = JsonObject(),
     val createdAt: Long = System.currentTimeMillis(),

@@ -25,6 +25,7 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
                             CREATE TABLE IF NOT EXISTS `${getTablePrefix() + tableName}` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `userId` bigint,
+                              `pluginId` varchar(255),
                               `type` varchar(255) NOT NULL,
                               `details` mediumtext NOT NULL,
                               `createdAt` BIGINT(20) NOT NULL,
@@ -42,14 +43,15 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `type`, `details`, `createdAt`, `updatedAt`) " +
-                    "VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `pluginId`, `type`, `details`, `createdAt`, `updatedAt`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     panelActivityLog.userId,
+                    panelActivityLog.pluginId,
                     panelActivityLog.type,
                     panelActivityLog.details.toString(),
                     panelActivityLog.createdAt,

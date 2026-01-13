@@ -2,8 +2,7 @@ package com.panomc.platform.auth
 
 import com.panomc.platform.util.TextUtil.convertToSnakeCase
 
-open class Permission(val iconName: String = "") {
-    internal var source: String? = null
+open class Permission(val iconName: String = "", internal var source: String? = null) {
     private fun String.replaceLastUsingReverse(
         oldValue: String,
         newValue: String,

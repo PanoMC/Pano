@@ -15,7 +15,8 @@ import org.springframework.stereotype.Component
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class PermissionManager(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val permissionRegistry: PermissionRegistry
 ) {
     // In-memory snapshot of groups + nodes; refreshed lazily after TTL.
     private data class Cache(
@@ -352,6 +353,9 @@ class PermissionManager(
         userId: Long,
         permission: Permission
     ): Boolean {
+        val source = permissionRegistry.getSource(permission)
+        permission.source = source
+
         val cache = getCache()
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
         val nodes = validNodes(cache).filter { it.isPanoContextAllowed() } // active=true/false + pano context

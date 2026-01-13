@@ -38,6 +38,13 @@ class PermissionRegistry() : PluginLifecycleListener {
         permissions.remove(source)
     }
 
+    fun getSource(permission: Permission): String? {
+        val packageName = permission.javaClass.`package`.name
+        return permissions.entries.find { (_, perms) ->
+            perms.any { it.javaClass.`package`.name == packageName }
+        }?.key
+    }
+
     fun getAllPermissions(): Map<String, List<Permission>> {
         return permissions.mapValues { it.value.toList() }
     }

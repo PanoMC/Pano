@@ -25,7 +25,7 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
                               `when` timestamp not null default CURRENT_TIMESTAMP,
                               `key` varchar(255) not null,
                               `extra` varchar(255),
-                              PRIMARY KEY (`key`)
+                              UNIQUE INDEX `pluginId_key_idx` (`pluginId`, `key`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Database scheme version table.';
                         """
             )

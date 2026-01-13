@@ -32,4 +32,9 @@ abstract class PanelConfigDao : Dao<PanelConfig>(PanelConfig::class.java) {
         value: String,
         sqlClient: SqlClient
     )
+
+    abstract suspend fun deleteByOption(
+        option: String,
+        sqlClient: SqlClient
+    )
 }

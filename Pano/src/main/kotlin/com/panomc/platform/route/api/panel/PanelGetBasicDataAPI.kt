@@ -59,8 +59,19 @@ class PanelGetBasicDataAPI(
             "notificationCount" to count,
             "connectedServerCount" to connectedServerCount,
             "acceptPluginAuth" to configManager.config.acceptPluginAuth,
-            "panelTheme" to panelTheme
+            "panelTheme" to panelTheme,
+            "showDevModeAlert" to false
         )
+
+        if (configManager.config.developmentMode) {
+            val option = "dismissed_dev_mode_alert"
+            val dismissedProperty = databaseManager.panelConfigDao.byUserIdAndOption(userId, option, sqlClient)
+            result["showDevModeAlert"] = dismissedProperty == null || dismissedProperty.value != "true"
+        } else {
+            // If development mode is disabled, clear any previous dismissals so they reappear if enabled again
+            val option = "dismissed_dev_mode_alert"
+            databaseManager.panelConfigDao.deleteByOption(option, sqlClient)
+        }
 
         if (authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {
             val platformUpdate = updateManager.getPlatformUpdateInfo()

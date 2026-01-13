@@ -221,8 +221,12 @@ class PanelUpdateSettingsAPI(
             configManager.config.allowUserLocaleSelection = allowUserLocaleSelection
         }
 
-        if (developmentMode != null) {
+        if (developmentMode != null && developmentMode != configManager.config.developmentMode) {
             configManager.config.developmentMode = developmentMode
+
+            // If development mode is toggled, clear any previous dismissals so they reappear for all users
+            val option = "dismissed_dev_mode_alert"
+            databaseManager.panelConfigDao.deleteByOption(option, sqlClient)
         }
 
         if (websiteName != null) {
@@ -274,7 +278,7 @@ class PanelUpdateSettingsAPI(
             }
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null) {
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null) {
             configManager.saveConfig()
         }
 

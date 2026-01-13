@@ -106,4 +106,17 @@ class PanelConfigDaoImpl : PanelConfigDao() {
             )
             .coAwait()
     }
+
+    override suspend fun deleteByOption(option: String, sqlClient: SqlClient) {
+        val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `option` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    option
+                )
+            )
+            .coAwait()
+    }
 }

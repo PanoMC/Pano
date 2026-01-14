@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.panel.settings
 
 import com.panomc.platform.Main
 import com.panomc.platform.PanoApiManager
+import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -24,9 +25,13 @@ class PanelGetSettingsAPI(
     private val authProvider: AuthProvider,
     private val panoApiManager: PanoApiManager,
     private val databaseManager: DatabaseManager,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val platformStateManager: PlatformStateManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/settings", RouteType.GET))
+    override val paths = listOf(
+        Path("/api/panel/settings", RouteType.GET),
+        Path("/api/panel/settings/reveal-ssl", RouteType.POST)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -37,6 +42,21 @@ class PanelGetSettingsAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
+
+        if (context.request().method().name() == "POST") {
+            val parameters = getParameters(context)
+            val body = parameters.body().jsonObject
+            val password = body.getString("password")
+
+            authProvider.requirePassword(password, context)
+
+            return Successful(
+                mapOf(
+                    "sslCert" to configManager.config.server.sslCert,
+                    "sslKey" to configManager.config.server.sslKey
+                )
+            )
+        }
 
         val parameters = getParameters(context)
 
@@ -83,6 +103,14 @@ class PanelGetSettingsAPI(
             result["serverIpAddress"] = configManager.config.serverIpAddress
             result["serverGameVersion"] = configManager.config.serverGameVersion
             result["keywords"] = configManager.config.keywords
+
+            val serverConfig = configManager.config.server
+            result["httpPort"] = serverConfig.httpPort
+            result["httpsPort"] = serverConfig.httpsPort
+            result["sslMode"] = serverConfig.sslMode.name
+            result["sslCert"] = if (!configManager.config.server.sslCert.isNullOrBlank()) "****************" else null
+            result["sslKey"] = if (!configManager.config.server.sslKey.isNullOrBlank()) "****************" else null
+            result["restartRequired"] = platformStateManager.restartRequired
         }
 
         if (settingType == SettingType.UPDATES) {

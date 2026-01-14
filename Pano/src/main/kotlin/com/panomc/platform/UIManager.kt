@@ -339,7 +339,7 @@ class UIManager(
         val config = configManager.config
         val serverConfig = config.server
         val serverHost = serverConfig.host
-        val serverPort = serverConfig.port
+        val serverPort = serverConfig.httpPort
 
         environment["PORT"] = port.toString()
         environment["HOST"] = serverHost

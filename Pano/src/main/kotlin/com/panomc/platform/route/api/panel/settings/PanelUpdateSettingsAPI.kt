@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.ReleaseStage
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -28,7 +29,8 @@ import javax.imageio.ImageIO
 class PanelUpdateSettingsAPI(
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val platformStateManager: PlatformStateManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
@@ -93,6 +95,14 @@ class PanelUpdateSettingsAPI(
                         .optionalProperty("serverIpAddress", stringSchema())
                         .optionalProperty("serverGameVersion", stringSchema())
                         .optionalProperty("keywords", arraySchema().items(stringSchema()))
+                        .optionalProperty("httpPort", intSchema())
+                        .optionalProperty("httpsPort", intSchema())
+                        .optionalProperty("sslCert", stringSchema())
+                        .optionalProperty("sslKey", stringSchema())
+                        .optionalProperty(
+                            "sslMode",
+                            enumSchema(*PanoConfig.Companion.SslMode.entries.map { it.name }.toTypedArray())
+                        )
                         .optionalProperty(
                             "email",
                             objectSchema()
@@ -109,6 +119,7 @@ class PanelUpdateSettingsAPI(
                                 .requiredProperty("sender", stringSchema())
                                 .optionalProperty("authMethods", stringSchema())
                         )
+                        .optionalProperty("password", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -137,6 +148,14 @@ class PanelUpdateSettingsAPI(
         val serverIpAddress = data.getString("serverIpAddress")
         val serverGameVersion = data.getString("serverGameVersion")
         val keywords = context.request().getFormAttribute("keywords")?.split(",")
+
+        val httpPort = data.getInteger("httpPort")
+        val httpsPort = data.getInteger("httpsPort")
+        val sslMode = if (data.getString("sslMode") == null) null else PanoConfig.Companion.SslMode.valueOf(data.getString("sslMode"))
+        val sslCert = data.getString("sslCert")
+        val sslKey = data.getString("sslKey")
+
+        val password = data.getString("password")
 
         val email = data.getJsonObject("email")
 
@@ -237,8 +256,10 @@ class PanelUpdateSettingsAPI(
             configManager.config.websiteDescription = websiteDescription
         }
 
-        if (websiteUrl != null) {
+        if (websiteUrl != null && websiteUrl != configManager.config.websiteUrl) {
+            authProvider.requirePassword(password, context)
             configManager.config.websiteUrl = websiteUrl
+            platformStateManager.restartRequired = true
         }
 
         if (registerAgreement != null) {
@@ -278,7 +299,37 @@ class PanelUpdateSettingsAPI(
             }
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null) {
+        if (httpPort != null && httpPort != configManager.config.server.httpPort) {
+            authProvider.requirePassword(password, context)
+            configManager.config.server.httpPort = httpPort
+            platformStateManager.restartRequired = true
+        }
+
+        if (httpsPort != null && httpsPort != configManager.config.server.httpsPort) {
+            authProvider.requirePassword(password, context)
+            configManager.config.server.httpsPort = httpsPort
+            platformStateManager.restartRequired = true
+        }
+
+        if (sslMode != null && sslMode != configManager.config.server.sslMode) {
+            authProvider.requirePassword(password, context)
+            configManager.config.server.sslMode = sslMode
+            platformStateManager.restartRequired = true
+        }
+
+        if (sslCert != null && sslCert != "****************" && sslCert != configManager.config.server.sslCert) {
+            authProvider.requirePassword(password, context)
+            configManager.config.server.sslCert = sslCert
+            platformStateManager.restartRequired = true
+        }
+
+        if (sslKey != null && sslKey != "****************" && sslKey != configManager.config.server.sslKey) {
+            authProvider.requirePassword(password, context)
+            configManager.config.server.sslKey = sslKey
+            platformStateManager.restartRequired = true
+        }
+
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null) {
             configManager.saveConfig()
         }
 

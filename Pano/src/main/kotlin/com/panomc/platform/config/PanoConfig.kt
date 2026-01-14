@@ -96,8 +96,18 @@ data class PanoConfig(
 
         data class ServerConfig(
             var host: String = "0.0.0.0",
-            var port: Int = 8088
+            @SerializedName("http-port") var httpPort: Int = 8088,
+            @SerializedName("https-port") var httpsPort: Int = 8443,
+            @SerializedName("ssl-mode") var sslMode: SslMode = SslMode.DISABLED,
+            @SerializedName("ssl-cert") var sslCert: String? = null,
+            @SerializedName("ssl-key") var sslKey: String? = null
         )
+
+        enum class SslMode {
+            DISABLED,
+            LETS_ENCRYPT,
+            MANUAL
+        }
 
         data class FilePaths(
             var websiteLogoFile: FileInfo? = null,

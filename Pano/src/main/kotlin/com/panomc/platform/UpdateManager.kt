@@ -405,7 +405,7 @@ class UpdateManager(
             val config = configManager.config
             val serverConfig = config.server
             val host = serverConfig.host
-            val port = serverConfig.port
+            val port = serverConfig.httpPort
 
             val args = mutableListOf(
                 javaBin, "-jar", panoUpdaterJarPath.toAbsolutePath().toString(),

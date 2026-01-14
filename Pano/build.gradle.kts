@@ -91,6 +91,10 @@ dependencies {
 
     // https://mvnrepository.com/artifact/org.imgscalr/imgscalr-lib
     implementation("org.imgscalr:imgscalr-lib:4.2")
+
+    // Let's Encrypt / ACME
+    implementation("org.shredzone.acme4j:acme4j-client:3.5.0")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
 }
 
 val organization = "PanoMC"

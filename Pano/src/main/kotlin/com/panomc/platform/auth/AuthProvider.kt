@@ -259,6 +259,22 @@ class AuthProvider(
         }
     }
 
+    suspend fun requirePassword(password: String?, context: RoutingContext) {
+        if (password == null) {
+            throw NoPermission()
+        }
+
+        val sqlClient = databaseManager.getSqlClient()
+        val userId = getUserIdFromRoutingContext(context)
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient) ?: throw NoPermission()
+
+        val isLoginCorrect = databaseManager.userDao.isLoginCorrect(username, password, sqlClient)
+
+        if (!isLoginCorrect) {
+            throw NoPermission()
+        }
+    }
+
     private fun List<String>.hasPermission(permission: Permission) =
         this.any { it == permission.toString() }
 }

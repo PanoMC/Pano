@@ -1,6 +1,7 @@
 package com.panomc.platform.api
 
 import com.panomc.platform.PluginManager
+import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.DatabaseManager
@@ -20,7 +21,8 @@ import kotlin.system.exitProcess
 class PluginDatabaseManager(
     @get:Lazy private val databaseManager: DatabaseManager,
     @get:Lazy private val logger: Logger,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    @get:Lazy private val setupManager: SetupManager
 ): PluginLifecycleListener {
     init {
         pluginManager.addLifecycleListener(this)
@@ -150,6 +152,10 @@ class PluginDatabaseManager(
         if (!this.tables.contains(plugin) || !this.migrations.contains((plugin))) {
             logger.error("Can't initialize database of plugin \"${plugin.pluginId}\", because it's not enabled yet!")
             return
+        }
+
+        if (!setupManager.isSetupDone()) {
+            throw IllegalStateException("Can't initialize database of plugin \"${plugin.pluginId}\", because Pano setup is not finished yet!")
         }
 
         val sqlClient = databaseManager.getSqlClient()

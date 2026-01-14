@@ -21,6 +21,7 @@ class PluginFactory(private val pluginEventManager: PluginEventManager, private 
             val plugin = constructor.newInstance() as PanoPlugin
 
             plugin.pluginId = pluginWrapper.pluginId
+            plugin.pluginState = pluginWrapper.pluginState
             plugin.vertx = vertx
             plugin.pluginEventManager = pluginEventManager
             plugin.pluginUiManager = pluginUiManager

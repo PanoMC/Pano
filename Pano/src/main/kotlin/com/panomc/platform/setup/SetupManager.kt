@@ -1,6 +1,8 @@
 package com.panomc.platform.setup
 
 import com.panomc.platform.PanoApiManager
+import com.panomc.platform.PluginEventManager
+import com.panomc.platform.api.event.SetupEventListener
 import com.panomc.platform.config.ConfigManager
 import io.vertx.core.json.JsonObject
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -102,8 +104,12 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             updateStep(currentStep + 1)
     }
 
-    fun finishSetup() {
+    suspend fun finishSetup() {
         updateStep(5)
+
+        PluginEventManager.getPanoEventListeners<SetupEventListener>().forEach { eventHandler ->
+            eventHandler.onSetupFinished()
+        }
     }
 
     fun getCurrentStep() = configManager.config.setup.step

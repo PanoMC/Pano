@@ -242,14 +242,6 @@ class Main : CoroutineVerticle() {
         initConfigManager()
 
         executeBlocking {
-            initPluginManager()
-
-            initPermissionRegistry()
-
-            initPlugins()
-        }
-
-        executeBlocking {
             clearTempFiles()
         }
 
@@ -257,6 +249,14 @@ class Main : CoroutineVerticle() {
 
         executeBlocking {
             isPlatformInstalled = initSetupManager()
+        }
+
+        executeBlocking {
+            initPluginManager()
+
+            initPermissionRegistry()
+
+            initPlugins()
         }
 
         if (isPlatformInstalled) {

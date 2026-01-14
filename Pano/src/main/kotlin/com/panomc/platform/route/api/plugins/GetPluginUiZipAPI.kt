@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.plugins
 
 import com.panomc.platform.PluginUiManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.Api
 import com.panomc.platform.model.Path
@@ -10,6 +11,8 @@ import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.FileResourceUtil.getResource
 import com.panomc.platform.util.FileResourceUtil.writeToResponse
 import com.panomc.platform.util.MimeTypeUtil
+import com.panomc.platform.util.PluginDevUtil
+import com.panomc.platform.util.ZipUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -18,10 +21,13 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.withContext
+import org.slf4j.Logger
 
 @Endpoint
 class GetPluginUiZipAPI(
-    private val pluginUiManager: PluginUiManager
+    private val configManager: ConfigManager,
+    private val pluginUiManager: PluginUiManager,
+    private val logger: Logger
 ) : Api() {
     override val paths = listOf(Path("/api/plugins/:pluginId/resources/plugin-ui.zip", RouteType.GET))
 
@@ -35,23 +41,39 @@ class GetPluginUiZipAPI(
 
         val pluginId = parameters.pathParameter("pluginId").string
 
-        val plugin =
-            pluginUiManager.getRegisteredPlugins().toList().firstOrNull { it.first.pluginId == pluginId }?.first
+        val pluginIdWithPlugin =
+            pluginUiManager.getRegisteredPlugins().toList().firstOrNull { it.first.pluginId == pluginId }
+
+        val plugin = pluginIdWithPlugin?.first
 
         if (plugin == null) {
             throw NotFound()
         }
 
         val pluginUiZipFileName = "plugin-ui.zip"
-
-        val resource = plugin.getResource(pluginUiZipFileName) ?: throw NotFound()
-
         val response = context.response()
         val mimeType = MimeTypeUtil.getMimeTypeFromFileName(pluginUiZipFileName)
 
         response.putHeader("Content-Type", mimeType)
-
         response.isChunked = true
+
+        val config = configManager.config
+        if (config.developmentMode) {
+            val uiResourcesDir = PluginDevUtil.getPluginResourceDir(pluginId, "plugin-ui")
+
+            if (uiResourcesDir != null) {
+                val foldersToZip = mapOf("" to uiResourcesDir)
+                val zipBytes = ZipUtil.zipFoldersToBytes(foldersToZip)
+                logger.info("Zipping UI for $pluginId from directory: ${uiResourcesDir.absolutePath} (${zipBytes.size} bytes)")
+
+                response.isChunked = false
+                response.putHeader("Content-Length", zipBytes.size.toString())
+                response.end(io.vertx.core.buffer.Buffer.buffer(zipBytes))
+                return null
+            }
+        }
+
+        val resource = plugin.getResource(pluginUiZipFileName) ?: throw NotFound()
 
         resource.writeToResponse(response)
 

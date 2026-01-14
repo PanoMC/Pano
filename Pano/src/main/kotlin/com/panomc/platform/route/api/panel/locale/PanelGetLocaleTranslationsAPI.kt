@@ -6,6 +6,7 @@ import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTranslations
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.BadRequest
@@ -13,6 +14,7 @@ import com.panomc.platform.error.NotFound
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.JsonObjectUtil
+import com.panomc.platform.util.PluginDevUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.validation.ValidationHandler
@@ -31,6 +33,7 @@ class PanelGetLocaleTranslationsAPI(
     private val pluginManager: PluginManager,
     private val authProvider: AuthProvider,
     private val i18nManager: I18nManager,
+    private val configManager: ConfigManager,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/locales/:localeId/types/:type/translations", RouteType.GET))
 
@@ -113,8 +116,18 @@ class PanelGetLocaleTranslationsAPI(
                 // Get original translations from PluginManager (loaded plugins)
                 originalTranslations = pluginManager.getPluginWrappers()
                     .mapNotNull { wrapper ->
-                        val pluginTranslations =
-                            wrapper.pluginLocales[locale.code] ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+                        val pluginTranslationsFromDev = if (configManager.config.developmentMode) {
+                            val localesDir = PluginDevUtil.getPluginResourceDir(wrapper.pluginId, "locales")
+                            if (localesDir != null) {
+                                val locales = PluginDevUtil.getPluginLocalesFromDir(localesDir)
+                                locales[locale.code] ?: locales[AppConstants.DEFAULT_LOCALE_CODE]
+                            } else null
+                        } else null
+
+                        val pluginTranslations = pluginTranslationsFromDev
+                            ?: wrapper.pluginLocales[locale.code]
+                            ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+
                         if (pluginTranslations == null) return@mapNotNull null
 
                         JsonObjectUtil.flattenJsonObject(pluginTranslations)
@@ -126,8 +139,17 @@ class PanelGetLocaleTranslationsAPI(
 
                 pluginManager.getPluginWrappers()
                     .mapNotNull { wrapper ->
-                        val pluginTranslations =
-                            wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE] ?: return@mapNotNull null
+                        val pluginTranslationsFromDev = if (configManager.config.developmentMode) {
+                            val localesDir = PluginDevUtil.getPluginResourceDir(wrapper.pluginId, "locales")
+                            if (localesDir != null) {
+                                val locales = PluginDevUtil.getPluginLocalesFromDir(localesDir)
+                                locales[AppConstants.DEFAULT_LOCALE_CODE]
+                            } else null
+                        } else null
+
+                        val pluginTranslations = pluginTranslationsFromDev
+                            ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+                            ?: return@mapNotNull null
 
                         JsonObjectUtil.flattenJsonObject(pluginTranslations)
                             .map { (key, value) -> "plugins.${wrapper.pluginId}.$key" to value }

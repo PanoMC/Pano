@@ -20,7 +20,14 @@ class PluginUiManager {
     }
 
     private fun calculatePluginUiHash(plugin: PanoPlugin) {
-        val pluginUiZipFile = plugin.getResource("plugin-ui.zip") ?: return
+        val pluginUiZipFile = plugin.getResource("plugin-ui.zip")
+
+        if (pluginUiZipFile == null) {
+            if (Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT) {
+                pluginUiRegisterList[plugin] = "dev-build"
+            }
+            return
+        }
 
         pluginUiRegisterList[plugin] = pluginUiZipFile.hash()
 

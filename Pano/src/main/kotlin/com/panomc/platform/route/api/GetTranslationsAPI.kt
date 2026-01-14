@@ -4,6 +4,7 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.BadRequest
@@ -11,6 +12,7 @@ import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.JsonObjectUtil
+import com.panomc.platform.util.PluginDevUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -23,7 +25,8 @@ import org.pf4j.PluginState
 class GetTranslationsAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val pluginManager: PluginManager
+    private val pluginManager: PluginManager,
+    private val configManager: ConfigManager
 ) : Api() {
     override val paths = listOf(Path("/api/locales/:code/translations/types/:type", RouteType.GET))
 
@@ -75,8 +78,18 @@ class GetTranslationsAPI(
             pluginManager.getPluginWrappers()
                 .filter { it.pluginState == PluginState.STARTED }
                 .mapNotNull { wrapper ->
-                    val pluginTranslations =
-                        wrapper.pluginLocales[code] ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+                    val pluginTranslationsFromDev = if (configManager.config.developmentMode) {
+                        val localesDir = PluginDevUtil.getPluginResourceDir(wrapper.pluginId, "locales")
+                        if (localesDir != null) {
+                            val locales = PluginDevUtil.getPluginLocalesFromDir(localesDir)
+                            locales[code] ?: locales[AppConstants.DEFAULT_LOCALE_CODE]
+                        } else null
+                    } else null
+
+                    val pluginTranslations = pluginTranslationsFromDev
+                        ?: wrapper.pluginLocales[code]
+                        ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+
                     if (pluginTranslations == null) return@mapNotNull null
 
                     JsonObjectUtil.flattenJsonObject(pluginTranslations)

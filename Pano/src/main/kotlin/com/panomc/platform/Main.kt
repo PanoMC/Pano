@@ -12,10 +12,12 @@ import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.ssl.AcmeManager
 import com.panomc.platform.util.*
+import io.vertx.core.Handler
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpServerOptions
+import io.vertx.core.http.HttpServerRequest
 import io.vertx.core.net.PemKeyCertOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
@@ -424,93 +426,131 @@ class Main : CoroutineVerticle() {
 
     private fun startWebServer() {
         val serverConfig = configManager.config.server
-        val host = serverConfig.host
-        val httpPort = serverConfig.httpPort
-        val httpsPort = serverConfig.httpsPort
-        val sslMode = serverConfig.sslMode
 
-        if (sslMode == PanoConfig.Companion.SslMode.DISABLED) {
-            logger.info("Creating HTTP server")
-            vertx
-                .createHttpServer()
-                .requestHandler(router)
-                .listen(httpPort, host)
-                .onSuccess {
-                    logger.info("Started listening on http://$host:$httpPort, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
-                    UiConsole.markReady()
-                }
-                .onFailure { result ->
-                    logger.error("Failed to listen on http://$host:$httpPort, reason: " + result.cause.toString())
-                    exitProcess(1)
-                }
+        if (serverConfig.sslMode == PanoConfig.Companion.SslMode.DISABLED) {
+            startHttpServer(serverConfig, router)
         } else {
-            // Start HTTP server on httpPort (optionally redirect to HTTPS)
-            logger.info("Creating HTTP server on port $httpPort")
-            vertx
-                .createHttpServer()
-                .requestHandler(router)
-                .listen(httpPort, host)
-                .onSuccess {
-                    logger.info("HTTP server is listening on $httpPort. Ready for ACME challenges if needed.")
-                    if (sslMode == PanoConfig.Companion.SslMode.LETS_ENCRYPT) {
+            val httpHandler = if (serverConfig.redirectHttps) getHttpRedirectHandler(serverConfig) else router
+            startHttpServer(serverConfig, httpHandler)
+            startHttpsServer(serverConfig)
+        }
+    }
+
+    private fun startHttpServer(serverConfig: PanoConfig.Companion.ServerConfig, handler: Handler<HttpServerRequest>) {
+        val host = serverConfig.host
+        val port = serverConfig.httpPort
+        val isSslEnabled = serverConfig.sslMode != PanoConfig.Companion.SslMode.DISABLED
+
+        logger.info("Creating HTTP server on port $port")
+        vertx.createHttpServer()
+            .requestHandler(handler)
+            .listen(port, host)
+            .onSuccess {
+                if (isSslEnabled) {
+                    logger.info("HTTP server is listening on $port. Ready for ACME challenges if needed.")
+                    if (serverConfig.sslMode == PanoConfig.Companion.SslMode.LETS_ENCRYPT) {
                         acmeManager.prepareCertificates()
                     }
+                } else {
+                    logger.info("Started listening on http://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+                    UiConsole.markReady()
                 }
-                .onFailure { result ->
-                    logger.warn("Failed to listen on http://$host:$httpPort, reason: ${result.message ?: result.toString()}")
+            }
+            .onFailure { result ->
+                val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}"
+                if (isSslEnabled) {
+                    logger.warn(message)
+                    UiConsole.markReady()
+                } else {
+                    logger.error(message)
+                    exitProcess(1)
+                }
+            }
+    }
+
+    private fun startHttpsServer(serverConfig: PanoConfig.Companion.ServerConfig) {
+        val host = serverConfig.host
+        val port = serverConfig.httpsPort
+        val (options, canStart) = prepareHttpsOptions(serverConfig)
+
+        if (!canStart) {
+            UiConsole.markReady()
+            return
+        }
+
+        logger.info("Creating HTTPS server on port $port (Mode: ${serverConfig.sslMode})")
+        vertx.createHttpServer(options)
+            .requestHandler(router)
+            .listen(port, host)
+            .onSuccess {
+                logger.info("Started listening on https://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
+                UiConsole.markReady()
+            }
+            .onFailure { result ->
+                logger.error("Failed to listen on https://$host:$port, reason: ${result.message ?: result.toString()}")
+                UiConsole.markReady()
+            }
+    }
+
+    private fun getHttpRedirectHandler(serverConfig: PanoConfig.Companion.ServerConfig): Handler<HttpServerRequest> {
+        return Handler { req ->
+            if (req.path().startsWith("/.well-known/acme-challenge/")) {
+                router.handle(req)
+            } else {
+                val hostHeader = req.getHeader("Host")
+                val domain = if (hostHeader != null) {
+                    if (hostHeader.startsWith("[")) hostHeader.substringBefore("]:") + "]" else hostHeader.substringBefore(":")
+                } else {
+                    try { java.net.URI(configManager.config.websiteUrl).host } catch (e: Exception) { null }
                 }
 
-            // Start HTTPS server on httpsPort
-            val options = HttpServerOptions()
-            var canStartSsl = false
+                if (domain == null || domain == "0.0.0.0") {
+                    router.handle(req)
+                } else {
+                    val port = serverConfig.httpsPort
+                    val portSuffix = if (port == 443) "" else ":$port"
+                    val query = if (req.query().isNullOrBlank()) "" else "?" + req.query()
+                    val redirectTo = "https://$domain$portSuffix${req.path()}$query"
 
-            if (sslMode == PanoConfig.Companion.SslMode.MANUAL) {
-                val sslCert = serverConfig.sslCert
-                val sslKey = serverConfig.sslKey
+                    req.response()
+                        .setStatusCode(301)
+                        .putHeader("Location", redirectTo)
+                        .end()
+                }
+            }
+        }
+    }
 
-                if (!sslCert.isNullOrBlank() && !sslKey.isNullOrBlank()) {
+    private fun prepareHttpsOptions(serverConfig: PanoConfig.Companion.ServerConfig): Pair<HttpServerOptions, Boolean> {
+        val options = HttpServerOptions()
+        var canStart = false
+
+        when (serverConfig.sslMode) {
+            PanoConfig.Companion.SslMode.MANUAL -> {
+                val cert = serverConfig.sslCert
+                val key = serverConfig.sslKey
+                if (!cert.isNullOrBlank() && !key.isNullOrBlank()) {
                     try {
                         options.setSsl(true)
-                        options.setKeyCertOptions(
-                            PemKeyCertOptions()
-                                .setCertValue(Buffer.buffer(sslCert))
-                                .setKeyValue(Buffer.buffer(sslKey))
-                        )
-                        canStartSsl = true
+                            .setKeyCertOptions(PemKeyCertOptions()
+                                .setCertValue(Buffer.buffer(cert))
+                                .setKeyValue(Buffer.buffer(key)))
+                        canStart = true
                     } catch (e: Exception) {
                         logger.error("Failed to load SSL certificates: ${e.message}")
                     }
                 } else {
                     logger.error("SSL Mode is MANUAL but certificates are missing!")
                 }
-            } else if (sslMode == PanoConfig.Companion.SslMode.LETS_ENCRYPT) {
-                val letsEncryptOptions = acmeManager.getCertificateOptions()
-                if (letsEncryptOptions != null) {
-                    options.setSsl(true)
-                    options.setKeyCertOptions(letsEncryptOptions)
-                    canStartSsl = true
-                } else {
-                    logger.warn("Let's Encrypt certificates are not found locally. Requesting new ones...")
-                }
             }
-
-            if (canStartSsl) {
-                logger.info("Creating HTTPS server on port $httpsPort (Mode: $sslMode)")
-                vertx
-                    .createHttpServer(options)
-                    .requestHandler(router)
-                    .listen(httpsPort, host)
-                    .onSuccess {
-                        logger.info("Started listening on https://$host:$httpsPort, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
-                        UiConsole.markReady()
-                    }
-                    .onFailure { result ->
-                        logger.error("Failed to listen on https://$host:$httpsPort, reason: ${result.message ?: result.toString()}")
-                    }
-            } else if (sslMode != PanoConfig.Companion.SslMode.DISABLED) {
-                // If SSL is enabled but we can't start yet, we should still mark UI as ready for HTTP
-                UiConsole.markReady()
+            PanoConfig.Companion.SslMode.LETS_ENCRYPT -> {
+                acmeManager.getCertificateOptions()?.let {
+                    options.setSsl(true).setKeyCertOptions(it)
+                    canStart = true
+                } ?: logger.warn("Let's Encrypt certificates are not found locally. Requesting new ones...")
             }
+            else -> {}
         }
+        return options to canStart
     }
 }

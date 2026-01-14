@@ -99,6 +99,7 @@ data class PanoConfig(
             @SerializedName("http-port") var httpPort: Int = 8088,
             @SerializedName("https-port") var httpsPort: Int = 8443,
             @SerializedName("ssl-mode") var sslMode: SslMode = SslMode.DISABLED,
+            @SerializedName("redirect-https") var redirectHttps: Boolean = false,
             @SerializedName("ssl-cert") var sslCert: String? = null,
             @SerializedName("ssl-key") var sslKey: String? = null
         )

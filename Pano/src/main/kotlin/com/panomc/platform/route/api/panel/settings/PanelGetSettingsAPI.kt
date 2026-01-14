@@ -108,6 +108,7 @@ class PanelGetSettingsAPI(
             result["httpPort"] = serverConfig.httpPort
             result["httpsPort"] = serverConfig.httpsPort
             result["sslMode"] = serverConfig.sslMode.name
+            result["redirectHttps"] = serverConfig.redirectHttps
             result["sslCert"] = if (!configManager.config.server.sslCert.isNullOrBlank()) "****************" else null
             result["sslKey"] = if (!configManager.config.server.sslKey.isNullOrBlank()) "****************" else null
             result["restartRequired"] = platformStateManager.restartRequired

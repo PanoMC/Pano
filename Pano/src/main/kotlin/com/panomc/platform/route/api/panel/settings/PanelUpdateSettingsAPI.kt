@@ -103,6 +103,7 @@ class PanelUpdateSettingsAPI(
                             "sslMode",
                             enumSchema(*PanoConfig.Companion.SslMode.entries.map { it.name }.toTypedArray())
                         )
+                        .optionalProperty("redirectHttps", booleanSchema())
                         .optionalProperty(
                             "email",
                             objectSchema()
@@ -154,6 +155,7 @@ class PanelUpdateSettingsAPI(
         val sslMode = if (data.getString("sslMode") == null) null else PanoConfig.Companion.SslMode.valueOf(data.getString("sslMode"))
         val sslCert = data.getString("sslCert")
         val sslKey = data.getString("sslKey")
+        val redirectHttps = data.getBoolean("redirectHttps")
 
         val password = data.getString("password")
 
@@ -329,7 +331,13 @@ class PanelUpdateSettingsAPI(
             platformStateManager.restartRequired = true
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null) {
+        if (redirectHttps != null && redirectHttps != configManager.config.server.redirectHttps) {
+            authProvider.requirePassword(password, context)
+            configManager.config.server.redirectHttps = redirectHttps
+            platformStateManager.restartRequired = true
+        }
+
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null) {
             configManager.saveConfig()
         }
 

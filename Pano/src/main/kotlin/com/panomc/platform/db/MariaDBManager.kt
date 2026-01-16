@@ -225,7 +225,8 @@ class MariaDBManager : DisposableBean {
 
                 if (currentOs != OperatingSystem.WINDOWS) {
                     finalInstallBin.setExecutable(true)
-                    File(mariaDbFolder, "bin/mysqld").setExecutable(true)
+                    File(mariaDbFolder, "bin").listFiles()?.forEach { it.setExecutable(true) }
+                    File(mariaDbFolder, "scripts").listFiles()?.forEach { it.setExecutable(true) }
                 }
 
                 val installDbCmd = mutableListOf(
@@ -239,11 +240,18 @@ class MariaDBManager : DisposableBean {
                     installDbCmd.add("--port=$port")
                     installDbCmd.add("--default-user")
                 } else {
-                    installDbCmd.add(1, "--defaults-file=${myConf.absolutePath}")
-                    installDbCmd.add("--basedir=${mariaDbFolder.absolutePath}")
+                    // Use relative paths on Linux to avoid space-in-path issues in the mysql_install_db script
+                    installDbCmd.clear()
+                    installDbCmd.add("./" + finalInstallBin.relativeTo(mariaDbFolder).path)
+                    installDbCmd.add("--defaults-file=" + myConf.relativeTo(mariaDbFolder).path)
+                    installDbCmd.add("--datadir=" + dataFolder.relativeTo(mariaDbFolder).path)
+                    installDbCmd.add("--basedir=.")
                 }
 
                 val pb = ProcessBuilder(installDbCmd)
+                if (currentOs != OperatingSystem.WINDOWS) {
+                    pb.environment()["PATH"] = File(mariaDbFolder, "bin").absolutePath + File.pathSeparator + (System.getenv("PATH") ?: "")
+                }
                 pb.directory(mariaDbFolder) // Set working directory to basedir for script execution
                 pb.redirectErrorStream(true)
                 val p = pb.start()

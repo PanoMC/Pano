@@ -61,6 +61,7 @@ data class PanoConfig(
         data class SetupConfig(var step: Int = 0)
 
         data class DatabaseConfig(
+            var type: String = "mariadb",
             var host: String = "",
             var name: String = "",
             var username: String = "",

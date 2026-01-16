@@ -6,6 +6,7 @@ import com.panomc.platform.auth.PermissionRegistry
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.server.ServerManager
@@ -259,6 +260,11 @@ class Main : CoroutineVerticle() {
             isPlatformInstalled = initSetupManager()
         }
 
+        // Init MariaDB before plugins
+        executeBlocking {
+            initMariaDBManager()
+        }
+
         executeBlocking {
             initPluginManager()
 
@@ -390,6 +396,15 @@ class Main : CoroutineVerticle() {
         logger.info("Platform is installed")
 
         return true
+    }
+
+    private fun initMariaDBManager() {
+        val setupManager = applicationContext.getBean(SetupManager::class.java)
+        if (configManager.config.database.type == "portable" && setupManager.isSetupDone()) {
+             logger.info("Starting Portable MariaDB...")
+             val mariaDBManager = applicationContext.getBean(MariaDBManager::class.java)
+             mariaDBManager.start()
+        }
     }
 
     private suspend fun initDatabaseManager() {

@@ -58,6 +58,9 @@ class DatabaseManager(
     @Autowired
     private lateinit var applicationContext: AnnotationConfigApplicationContext
 
+    @Autowired
+    private lateinit var mariaDBManager: MariaDBManager
+
     private lateinit var sqlClient: SqlClient
 
     private val migrations by lazy {

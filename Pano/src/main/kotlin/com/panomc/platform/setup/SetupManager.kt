@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.net.InetAddress
+import com.panomc.platform.db.MariaDBManager
 
 @Lazy
 @Component
@@ -18,6 +19,10 @@ import java.net.InetAddress
 class SetupManager(private val configManager: ConfigManager, applicationContext: ApplicationContext) {
     private val panoApiManager by lazy {
         applicationContext.getBean(PanoApiManager::class.java)
+    }
+
+    private val mariaDBManager by lazy {
+        applicationContext.getBean(MariaDBManager::class.java)
     }
 
     fun isSetupDone() = getCurrentStep() == 5
@@ -37,6 +42,11 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
 
         if (step == 2) {
             val databaseConfig = configManager.config.database
+            
+            data.put("dbType", databaseConfig.type)
+            data.put("installed", mariaDBManager.isInstalled())
+            data.put("portableDatabaseSupported", mariaDBManager.isSupported())
+            data.put("supportedSystems", listOf("Windows (x64, ARM64)", "Linux (x64, ARM64)"))
 
             data.put(
                 "database", mapOf(

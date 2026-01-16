@@ -9,6 +9,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.InstalledPlatformLog
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
@@ -21,6 +22,7 @@ import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import io.vertx.kotlin.coroutines.coAwait
 import org.springframework.context.annotation.Lazy
 
 @Endpoint
@@ -30,7 +32,8 @@ class FinishAPI(
     private val configManager: ConfigManager,
     @Lazy private val router: Router,
     private val uiManager: UIManager,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val mariaDBManager: MariaDBManager
 ) : SetupApi() {
     override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
@@ -65,6 +68,13 @@ class FinishAPI(
         val setupLocale = data.getString("setupLocale")
 
         val remoteIP = context.request().remoteAddress().host()
+
+        if (configManager.config.database.type == "portable") {
+            context.vertx().executeBlocking {
+                mariaDBManager.start()
+                mariaDBManager.createDefaultDatabase()
+            }.coAwait()
+        }
 
         RegisterUtil.validateForm(
             username,

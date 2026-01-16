@@ -45,6 +45,7 @@ class UpdateStepAPI(
                         .optionalProperty("sender", stringSchema())
                         .optionalProperty("authMethods", stringSchema())
 
+                        .optionalProperty("dbType", stringSchema())
                         .optionalProperty("host", stringSchema())
                         .optionalProperty("dbName", stringSchema())
                         .optionalProperty("prefix", stringSchema())
@@ -139,6 +140,11 @@ class UpdateStepAPI(
             !username.isNullOrEmpty()
         ) {
             val databaseOptions = configManager.config.database
+
+            val dbType = data.getString("dbType")
+            if (!dbType.isNullOrEmpty()) {
+                databaseOptions.type = dbType
+            }
 
             databaseOptions.host = host
             databaseOptions.name = dbName

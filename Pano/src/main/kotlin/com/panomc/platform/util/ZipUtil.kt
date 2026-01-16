@@ -32,7 +32,28 @@ object ZipUtil {
                 }
             }
         }
-        logger.info("Successfully zipped $fileCount files into memory.")
+        logger.debug("Successfully zipped $fileCount files into memory.")
+        return baos.toByteArray()
+    }
+
+    fun zipFilesFromFolder(rootFolder: File, relativePaths: Set<String>): ByteArray {
+        val baos = ByteArrayOutputStream()
+        var fileCount = 0
+        ZipOutputStream(baos).use { zos ->
+            relativePaths.forEach { relativePath ->
+                val file = File(rootFolder, relativePath)
+                if (file.exists() && file.isFile) {
+                    val zipPath = relativePath.replace("\\", "/")
+                    val zipEntry = ZipEntry(zipPath)
+                    zos.putNextEntry(zipEntry)
+                    file.inputStream().use { it.copyTo(zos) }
+                    zos.closeEntry()
+                    fileCount++
+                    logger.debug("Zipping file: $zipPath")
+                }
+            }
+        }
+        logger.debug("Successfully zipped $fileCount/${relativePaths.size} files into memory.")
         return baos.toByteArray()
     }
 }

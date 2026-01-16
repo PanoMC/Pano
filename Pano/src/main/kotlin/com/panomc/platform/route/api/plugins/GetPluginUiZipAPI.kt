@@ -13,6 +13,7 @@ import com.panomc.platform.util.FileResourceUtil.writeToResponse
 import com.panomc.platform.util.MimeTypeUtil
 import com.panomc.platform.util.PluginDevUtil
 import com.panomc.platform.util.ZipUtil
+import com.panomc.platform.util.FileUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -22,6 +23,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.withContext
 import org.slf4j.Logger
+import java.io.File
+import io.vertx.core.json.JsonArray
 
 @Endpoint
 class GetPluginUiZipAPI(
@@ -62,9 +65,31 @@ class GetPluginUiZipAPI(
             val uiResourcesDir = PluginDevUtil.getPluginResourceDir(pluginId, "plugin-ui")
 
             if (uiResourcesDir != null) {
-                val foldersToZip = mapOf("" to uiResourcesDir)
-                val zipBytes = ZipUtil.zipFoldersToBytes(foldersToZip)
-                logger.info("Zipping UI for $pluginId from directory: ${uiResourcesDir.absolutePath} (${zipBytes.size} bytes)")
+                val filesToZip = mutableSetOf<String>()
+
+                listOf("server", "client").forEach { subDir ->
+                    val manifestFile = File(uiResourcesDir, "$subDir/manifest.json")
+                    if (manifestFile.exists()) {
+                        try {
+                            val manifest = JsonArray(manifestFile.readText())
+                            manifest.forEach { fileName ->
+                                if (fileName is String) {
+                                    filesToZip.add("$subDir/$fileName")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            logger.error("Failed to read manifest for $pluginId in $subDir", e)
+                        }
+                    }
+                }
+
+                val zipBytes = if (filesToZip.isNotEmpty()) {
+                    ZipUtil.zipFilesFromFolder(uiResourcesDir, filesToZip)
+                } else {
+                    ZipUtil.zipFoldersToBytes(mapOf("" to uiResourcesDir))
+                }
+                logger.info("Zipping UI for $pluginId (${FileUtil.formatSize(zipBytes.size.toLong())})")
+                logger.debug("UI Source Directory for $pluginId: ${uiResourcesDir.absolutePath}")
 
                 response.isChunked = false
                 response.putHeader("Content-Length", zipBytes.size.toString())

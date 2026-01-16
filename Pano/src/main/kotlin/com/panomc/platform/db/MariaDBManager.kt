@@ -240,9 +240,11 @@ class MariaDBManager : DisposableBean {
                     installDbCmd.add("--default-user")
                 } else {
                     installDbCmd.add(1, "--defaults-file=${myConf.absolutePath}")
+                    installDbCmd.add("--basedir=${mariaDbFolder.absolutePath}")
                 }
 
                 val pb = ProcessBuilder(installDbCmd)
+                pb.directory(mariaDbFolder) // Set working directory to basedir for script execution
                 pb.redirectErrorStream(true)
                 val p = pb.start()
                 val scanner = Scanner(p.inputStream)

@@ -4,6 +4,7 @@ import com.panomc.platform.PanoApiManager
 import com.panomc.platform.PluginEventManager
 import com.panomc.platform.api.event.SetupEventListener
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.db.MariaDBManager
 import io.vertx.core.json.JsonObject
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.ApplicationContext
@@ -11,7 +12,6 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.net.InetAddress
-import com.panomc.platform.db.MariaDBManager
 
 @Lazy
 @Component
@@ -46,7 +46,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             data.put("dbType", databaseConfig.type)
             data.put("installed", mariaDBManager.isInstalled())
             data.put("portableDatabaseSupported", mariaDBManager.isSupported())
-            data.put("supportedSystems", listOf("Windows (x64, ARM64)", "Linux (x64, ARM64)"))
+            data.put("supportedSystems", listOf("Windows (x64, ARM64)"))
 
             data.put(
                 "database", mapOf(

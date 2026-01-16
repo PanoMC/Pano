@@ -38,11 +38,7 @@ class MariaDBManager : DisposableBean {
     private val currentArch = Main.ARCHITECTURE
 
     fun isSupported(): Boolean {
-        return when (currentOs) {
-            OperatingSystem.WINDOWS -> currentArch == Architecture.X64 || currentArch == Architecture.AARCH64
-            OperatingSystem.LINUX -> currentArch == Architecture.X64 || currentArch == Architecture.AARCH64
-            else -> false
-        }
+        return currentOs == OperatingSystem.WINDOWS && (currentArch == Architecture.X64 || currentArch == Architecture.AARCH64)
     }
 
     private val downloadUrl: String
@@ -53,14 +49,6 @@ class MariaDBManager : DisposableBean {
             val base = "https://archive.mariadb.org/mariadb-$mariaDbVersion"
             return when (currentOs) {
                 OperatingSystem.WINDOWS -> "$base/winx64-packages/mariadb-$mariaDbVersion-winx64.zip"
-                OperatingSystem.LINUX -> {
-                    val arch = when (currentArch) {
-                        Architecture.X64 -> "x86_64"
-                        Architecture.AARCH64 -> "aarch64"
-                        else -> throw PortableDbNotSupportedOs()
-                    }
-                    "$base/bintar-linux-systemd-$arch/mariadb-$mariaDbVersion-linux-systemd-$arch.tar.gz"
-                }
                 else -> throw PortableDbNotSupportedOs()
             }
         }

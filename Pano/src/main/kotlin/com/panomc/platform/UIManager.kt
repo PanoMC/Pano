@@ -582,6 +582,10 @@ class UIManager(
                 CoroutineScope(context.vertx().dispatcher()).launch {
                     val isLoggedIn = authProvider.isLoggedIn(context)
 
+                    if (context.response().closed()) {
+                        return@launch
+                    }
+
                     if (isLoggedIn) {
                         authProvider.applyPermissionsTo(context)
 

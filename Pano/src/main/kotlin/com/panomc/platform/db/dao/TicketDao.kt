@@ -23,6 +23,13 @@ abstract class TicketDao : Dao<Ticket>(Ticket::class.java) {
         sqlClient: SqlClient
     ): List<Ticket>
 
+    abstract suspend fun getAllByPageAndPageTypeAndSearch(
+        page: Long,
+        pageType: TicketPageType,
+        search: String,
+        sqlClient: SqlClient
+    ): List<Ticket>
+
     abstract suspend fun getAllByPagePageTypeAndUserId(
         userId: Long,
         page: Long,
@@ -57,6 +64,12 @@ abstract class TicketDao : Dao<Ticket>(Ticket::class.java) {
     abstract suspend fun getCountByPageTypeAndUserId(
         userId: Long,
         pageType: TicketPageType,
+        sqlClient: SqlClient
+    ): Long
+
+    abstract suspend fun getCountByPageTypeAndSearch(
+        pageType: TicketPageType,
+        search: String,
         sqlClient: SqlClient
     ): Long
 

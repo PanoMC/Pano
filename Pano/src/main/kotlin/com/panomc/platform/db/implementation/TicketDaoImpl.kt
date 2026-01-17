@@ -97,6 +97,29 @@ class TicketDaoImpl : TicketDao() {
         return rows.toEntities()
     }
 
+    override suspend fun getAllByPageAndPageTypeAndSearch(
+        page: Long,
+        pageType: TicketPageType,
+        search: String,
+        sqlClient: SqlClient
+    ): List<Ticket> {
+        val query =
+            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+
+        val parameters = Tuple.tuple()
+        parameters.addString("%$search%")
+
+        if (pageType != TicketPageType.ALL)
+            parameters.addString(pageType.ticketStatus!!.name)
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(parameters)
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun getAllByPagePageTypeAndUserId(
         userId: Long,
         page: Long,
@@ -214,6 +237,28 @@ class TicketDaoImpl : TicketDao() {
         val parameters = Tuple.tuple()
 
         parameters.addLong(userId)
+
+        if (pageType != TicketPageType.ALL)
+            parameters.addString(pageType.ticketStatus!!.name)
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(parameters)
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getCountByPageTypeAndSearch(
+        pageType: TicketPageType,
+        search: String,
+        sqlClient: SqlClient
+    ): Long {
+        val query =
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? ${if (pageType != TicketPageType.ALL) "AND `status` = ?" else ""}"
+
+        val parameters = Tuple.tuple()
+        parameters.addString("%$search%")
 
         if (pageType != TicketPageType.ALL)
             parameters.addString(pageType.ticketStatus!!.name)

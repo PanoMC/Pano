@@ -77,6 +77,21 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         return rows.toList()[0].getLong(0)
     }
 
+    override suspend fun countBySearch(
+        search: String,
+        sqlClient: SqlClient
+    ): Long {
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of("%$search%", "%$search%"))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
     override suspend fun getByIdList(
         idList: List<Long>,
         sqlClient: SqlClient
@@ -110,6 +125,22 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun getByPageAndSearch(
+        page: Long,
+        search: String,
+        sqlClient: SqlClient
+    ): List<PostCategory> {
+        val query =
+            "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ? ORDER BY id DESC ${if (page != 0L) "LIMIT 10 OFFSET " + (page - 1) * 10 else ""}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of("%$search%", "%$search%"))
             .coAwait()
 
         return rows.toEntities()

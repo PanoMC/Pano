@@ -17,6 +17,11 @@ abstract class PostCategoryDao : Dao<PostCategory>(PostCategory::class.java) {
 
     abstract suspend fun getCount(sqlClient: SqlClient): Long
 
+    abstract suspend fun countBySearch(
+        search: String,
+        sqlClient: SqlClient
+    ): Long
+
     abstract suspend fun getByIdList(
         idList: List<Long>,
         sqlClient: SqlClient
@@ -28,6 +33,12 @@ abstract class PostCategoryDao : Dao<PostCategory>(PostCategory::class.java) {
 
     abstract suspend fun getCategories(
         page: Long,
+        sqlClient: SqlClient
+    ): List<PostCategory>
+
+    abstract suspend fun getByPageAndSearch(
+        page: Long,
+        search: String,
         sqlClient: SqlClient
     ): List<PostCategory>
 

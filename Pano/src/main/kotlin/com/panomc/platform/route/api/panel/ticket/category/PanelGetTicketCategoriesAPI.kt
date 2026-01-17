@@ -27,6 +27,7 @@ class PanelGetTicketCategoriesAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .queryParameter(Parameters.optionalParam("page", Schemas.numberSchema()))
+            .queryParameter(Parameters.optionalParam("search", Schemas.stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -34,10 +35,14 @@ class PanelGetTicketCategoriesAPI(
 
         val parameters = getParameters(context)
         val page = parameters.queryParameter("page")?.long ?: 1
+        val search = parameters.queryParameter("search")?.string
 
         val sqlClient = getSqlClient()
 
-        val count = databaseManager.ticketCategoryDao.count(sqlClient)
+        val count = if (search != null)
+            databaseManager.ticketCategoryDao.countBySearch(search, sqlClient)
+        else
+            databaseManager.ticketCategoryDao.count(sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -48,7 +53,10 @@ class PanelGetTicketCategoriesAPI(
             return PageNotFound()
         }
 
-        val categories = databaseManager.ticketCategoryDao.getByPage(page, sqlClient)
+        val categories = if (search != null)
+            databaseManager.ticketCategoryDao.getByPageAndSearch(page, search, sqlClient)
+        else
+            databaseManager.ticketCategoryDao.getByPage(page, sqlClient)
 
         val categoriesDataList = mutableListOf<Map<String, Any?>>()
 

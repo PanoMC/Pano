@@ -34,6 +34,7 @@ class PanelGetTicketsAPI(
             )
             .queryParameter(optionalParam("page", numberSchema()))
             .queryParameter(optionalParam("categoryUrl", stringSchema()))
+            .queryParameter(optionalParam("search", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -47,6 +48,7 @@ class PanelGetTicketsAPI(
             )
         val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
+        val search = parameters.queryParameter("search")?.string
 
         var ticketCategory: TicketCategory? = null
 
@@ -69,7 +71,9 @@ class PanelGetTicketsAPI(
             ticketCategory = TicketCategory()
         }
 
-        val count = if (ticketCategory != null)
+        val count = if (search != null)
+            databaseManager.ticketDao.getCountByPageTypeAndSearch(pageType, search, sqlClient)
+        else if (ticketCategory != null)
             databaseManager.ticketDao.countByCategory(ticketCategory.id, sqlClient)
         else
             databaseManager.ticketDao.getCountByPageType(pageType, sqlClient)
@@ -83,7 +87,9 @@ class PanelGetTicketsAPI(
             throw PageNotFound()
         }
 
-        val tickets = if (ticketCategory != null)
+        val tickets = if (search != null)
+            databaseManager.ticketDao.getAllByPageAndPageTypeAndSearch(page, pageType, search, sqlClient)
+        else if (ticketCategory != null)
             databaseManager.ticketDao.getAllByPageAndCategoryId(page, ticketCategory.id, sqlClient)
         else
             databaseManager.ticketDao.getAllByPageAndPageType(page, pageType, sqlClient)

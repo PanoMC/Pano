@@ -14,6 +14,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import kotlin.math.ceil
 
@@ -27,6 +28,7 @@ class PanelGetPostCategoriesAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .queryParameter(optionalParam("page", numberSchema()))
+            .queryParameter(optionalParam("search", Schemas.stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -35,10 +37,14 @@ class PanelGetPostCategoriesAPI(
         val parameters = getParameters(context)
 
         val page = parameters.queryParameter("page")?.long ?: 1L
+        val search = parameters.queryParameter("search")?.string
 
         val sqlClient = getSqlClient()
 
-        val count = databaseManager.postCategoryDao.getCount(sqlClient)
+        val count = if (search != null)
+            databaseManager.postCategoryDao.countBySearch(search, sqlClient)
+        else
+            databaseManager.postCategoryDao.getCount(sqlClient)
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
 
@@ -49,7 +55,10 @@ class PanelGetPostCategoriesAPI(
             throw PageNotFound()
         }
 
-        val categories = databaseManager.postCategoryDao.getCategories(page, sqlClient)
+        val categories = if (search != null)
+            databaseManager.postCategoryDao.getByPageAndSearch(page, search, sqlClient)
+        else
+            databaseManager.postCategoryDao.getCategories(page, sqlClient)
 
         val categoryDataList = mutableListOf<Map<String, Any?>>()
 

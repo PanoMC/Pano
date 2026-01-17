@@ -42,8 +42,19 @@ abstract class TicketCategoryDao : Dao<TicketCategory>(TicketCategory::class.jav
 
     abstract suspend fun count(sqlClient: SqlClient): Long
 
+    abstract suspend fun countBySearch(
+        search: String,
+        sqlClient: SqlClient
+    ): Long
+
     abstract suspend fun getByPage(
         page: Long,
+        sqlClient: SqlClient
+    ): List<TicketCategory>
+
+    abstract suspend fun getByPageAndSearch(
+        page: Long,
+        search: String,
         sqlClient: SqlClient
     ): List<TicketCategory>
 

@@ -37,6 +37,7 @@ class PanelGetPostsAPI(
             )
             .queryParameter(optionalParam("page", numberSchema()))
             .queryParameter(optionalParam("categoryUrl", stringSchema()))
+            .queryParameter(optionalParam("search", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -50,6 +51,7 @@ class PanelGetPostsAPI(
             )
         val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
+        val search = parameters.queryParameter("search")?.string
 
         var postCategory: PostCategory? = null
 
@@ -69,7 +71,9 @@ class PanelGetPostsAPI(
             postCategory = PostCategory()
         }
 
-        val count = if (postCategory != null)
+        val count = if (search != null)
+            databaseManager.postDao.countByPageTypeAndSearch(pageType, search, sqlClient)
+        else if (postCategory != null)
             databaseManager.postDao.countByPageTypeAndCategoryId(pageType, postCategory.id, sqlClient)
         else
             databaseManager.postDao.countByPageType(pageType, sqlClient)
@@ -83,7 +87,9 @@ class PanelGetPostsAPI(
             throw PageNotFound()
         }
 
-        val posts = if (postCategory != null)
+        val posts = if (search != null)
+            databaseManager.postDao.getByPageAndPageTypeAndSearch(page, pageType, search, sqlClient)
+        else if (postCategory != null)
             databaseManager.postDao.getByPagePageTypeAndCategoryId(page, pageType, postCategory.id, sqlClient)
         else
             databaseManager.postDao.getByPageAndPageType(page, pageType, sqlClient)

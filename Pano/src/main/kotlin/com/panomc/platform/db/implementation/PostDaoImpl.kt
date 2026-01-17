@@ -304,6 +304,24 @@ class PostDaoImpl : PostDao() {
         return rows.toList()[0].getLong(0)
     }
 
+    override suspend fun countByPageTypeAndSearch(
+        postStatus: PostStatus,
+        search: String,
+        sqlClient: SqlClient
+    ): Long {
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `title` LIKE ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(postStatus.name, "%$search%")
+            )
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
     override suspend fun countByPageTypeAndCategoryId(
         postStatus: PostStatus,
         categoryId: Long,
@@ -370,6 +388,29 @@ class PostDaoImpl : PostDao() {
             .preparedQuery(query)
             .execute(
                 Tuple.of(postStatus.name)
+            )
+            .coAwait()
+
+        val posts = mutableListOf<Post>()
+
+        posts.addAll(rows.toEntities())
+
+        return posts
+    }
+
+    override suspend fun getByPageAndPageTypeAndSearch(
+        page: Long,
+        postStatus: PostStatus,
+        search: String,
+        sqlClient: SqlClient
+    ): List<Post> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `title` LIKE ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(postStatus.name, "%$search%")
             )
             .coAwait()
 

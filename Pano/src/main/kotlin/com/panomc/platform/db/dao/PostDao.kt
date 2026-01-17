@@ -76,6 +76,12 @@ abstract class PostDao : Dao<Post>(Post::class.java) {
         sqlClient: SqlClient
     ): Long
 
+    abstract suspend fun countByPageTypeAndSearch(
+        postStatus: PostStatus,
+        search: String,
+        sqlClient: SqlClient
+    ): Long
+
     abstract suspend fun countByPageTypeAndCategoryId(
         postStatus: PostStatus,
         categoryId: Long,
@@ -92,6 +98,13 @@ abstract class PostDao : Dao<Post>(Post::class.java) {
     abstract suspend fun getByPageAndPageType(
         page: Long,
         postStatus: PostStatus,
+        sqlClient: SqlClient
+    ): List<Post>
+
+    abstract suspend fun getByPageAndPageTypeAndSearch(
+        page: Long,
+        postStatus: PostStatus,
+        search: String,
         sqlClient: SqlClient
     ): List<Post>
 

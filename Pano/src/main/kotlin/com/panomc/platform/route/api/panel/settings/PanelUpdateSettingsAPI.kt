@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.panel.settings
 
 import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.ReleaseStage
+import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
@@ -30,7 +31,8 @@ class PanelUpdateSettingsAPI(
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val platformStateManager: PlatformStateManager
+    private val platformStateManager: PlatformStateManager,
+    private val updateManager: UpdateManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
@@ -226,8 +228,10 @@ class PanelUpdateSettingsAPI(
             configManager.config.updatePeriod = updatePeriod
         }
 
-        if (releaseChannel != null) {
+        if (releaseChannel != null && releaseChannel != configManager.config.releaseChannel) {
             configManager.config.releaseChannel = releaseChannel
+
+            updateManager.checkUpdates(true)
         }
 
         if (locale != null) {

@@ -348,6 +348,10 @@ class UserDaoImpl : UserDao() {
     ): Map<Long, String> {
         var listText = ""
 
+        if (userIdList.isEmpty()) {
+            return emptyMap()
+        }
+
         userIdList.forEach { id ->
             if (listText == "")
                 listText = "'$id'"

@@ -36,6 +36,7 @@ class PanelGetThemesAPI(
                         .items(Schemas.enumSchema(*ResourceStatusType.entries.map { it.name }.toTypedArray()))
                 )
             )
+            .queryParameter(Parameters.optionalParam("search", Schemas.stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -47,12 +48,17 @@ class PanelGetThemesAPI(
             parameters.queryParameter("status")?.jsonArray?.first() as String? ?: ResourceStatusType.ALL.name
         )
 
+        val search = parameters.queryParameter("search")?.string
+
         val activeTheme = uiManager.activeTheme
 
         val themes = when (statusType) {
             ResourceStatusType.ACTIVE -> uiManager.installedThemeList.filter { it.id == activeTheme }
             ResourceStatusType.DISABLED -> uiManager.installedThemeList.filter { it.id != activeTheme }
             else -> uiManager.installedThemeList
+        }.filter {
+            if (search == null) return@filter true
+            it.title.contains(search, ignoreCase = true) || it.description?.contains(search, ignoreCase = true) == true
         }
 
         val hashList = themes.map { it.hash }

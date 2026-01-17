@@ -37,6 +37,7 @@ class PanelGetPluginsAPI(
                         .items(Schemas.enumSchema(*ResourceStatusType.entries.map { it.name }.toTypedArray()))
                 )
             )
+            .queryParameter(Parameters.optionalParam("search", Schemas.stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -48,11 +49,20 @@ class PanelGetPluginsAPI(
             parameters.queryParameter("status")?.jsonArray?.first() as String? ?: ResourceStatusType.ALL.name
         )
 
+        val search = parameters.queryParameter("search")?.string
+
         val plugins = when (statusType) {
             ResourceStatusType.ACTIVE -> pluginManager.plugins.filter { it.pluginState == PluginState.STARTED }
             ResourceStatusType.DISABLED -> pluginManager.plugins.filter { it.pluginState != PluginState.STARTED }
             else -> pluginManager.plugins
-        }.map { it as PanoPluginWrapper }
+        }.map { it as PanoPluginWrapper }.filter {
+            if (search == null) return@filter true
+            val descriptor = it.descriptor as PanoPluginDescriptor
+            descriptor.name.contains(search, ignoreCase = true) || descriptor.description?.contains(
+                search,
+                ignoreCase = true
+            ) == true
+        }
 
         val hashList = plugins.map { it.hash }
 

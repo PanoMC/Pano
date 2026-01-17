@@ -146,6 +146,20 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): List<User>
 
+    abstract suspend fun countByIdsAndSearch(
+        ids: List<Long>,
+        search: String,
+        sqlClient: SqlClient
+    ): Long
+
+    abstract suspend fun getByIdsPageAndSearch(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
+        search: String,
+        sqlClient: SqlClient
+    ): List<User>
+
     abstract suspend fun countExcludingIds(
         ids: List<Long>,
         sqlClient: SqlClient
@@ -155,6 +169,20 @@ abstract class UserDao : Dao<User>(User::class.java) {
         ids: List<Long>,
         page: Long,
         pageSize: Int,
+        sqlClient: SqlClient
+    ): List<User>
+
+    abstract suspend fun countExcludingIdsAndSearch(
+        ids: List<Long>,
+        search: String,
+        sqlClient: SqlClient
+    ): Long
+
+    abstract suspend fun getByPageExcludingIdsAndSearch(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
+        search: String,
         sqlClient: SqlClient
     ): List<User>
 

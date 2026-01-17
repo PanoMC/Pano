@@ -627,6 +627,55 @@ class UserDaoImpl : UserDao() {
         return rows.toEntities()
     }
 
+    override suspend fun countByIdsAndSearch(
+        ids: List<Long>,
+        search: String,
+        sqlClient: SqlClient
+    ): Long {
+        if (ids.isEmpty()) return 0
+
+        var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
+
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) AND `username` LIKE ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of("%$search%"))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getByIdsPageAndSearch(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
+        search: String,
+        sqlClient: SqlClient
+    ): List<User> {
+        if (ids.isEmpty()) return listOf()
+
+        var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
+
+        val offset = ((page - 1) * pageSize).toInt()
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) AND `username` LIKE ? ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of("%$search%"))
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun countExcludingIds(ids: List<Long>, sqlClient: SqlClient): Long {
         if (ids.isEmpty()) {
             return count(sqlClient)
@@ -670,6 +719,59 @@ class UserDaoImpl : UserDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun countExcludingIdsAndSearch(
+        ids: List<Long>,
+        search: String,
+        sqlClient: SqlClient
+    ): Long {
+        if (ids.isEmpty()) {
+            return countByStatusAndSearch(PlayerStatus.ALL, search, sqlClient)
+        }
+
+        var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
+
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) AND `username` LIKE ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of("%$search%"))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getByPageExcludingIdsAndSearch(
+        ids: List<Long>,
+        page: Long,
+        pageSize: Int,
+        search: String,
+        sqlClient: SqlClient
+    ): List<User> {
+        if (ids.isEmpty()) {
+            return getAllByPageAndStatusAndSearch(page, PlayerStatus.ALL, search, sqlClient)
+        }
+
+        var listText = ""
+        ids.forEach { id ->
+            listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
+        }
+
+        val offset = ((page - 1) * pageSize).toInt()
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) AND `username` LIKE ? ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of("%$search%"))
             .coAwait()
 
         return rows.toEntities()

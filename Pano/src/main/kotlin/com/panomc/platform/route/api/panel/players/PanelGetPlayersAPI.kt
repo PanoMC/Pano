@@ -4,6 +4,7 @@ package com.panomc.platform.route.api.panel.players
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
+import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
@@ -59,6 +60,10 @@ class PanelGetPlayersAPI(
 
         var userIdsWithGroup: List<Long>? = null
 
+        if (playerStatus == PlayerStatus.HAS_PERM) {
+            userIdsWithGroup = permissionManager.getUserIdsWithPermission(AccessPanelPermission()).toList()
+        }
+
         if (permissionGroupName != null) {
             userIdsWithGroup = permissionManager.getUserIdsInGroup(permissionGroupName).toList()
 
@@ -69,14 +74,22 @@ class PanelGetPlayersAPI(
         }
 
         val count =
-            if (search != null) {
-                databaseManager.userDao.countByStatusAndSearch(playerStatus, search, sqlClient)
-            } else if (permissionGroupName != null) {
+            if (userIdsWithGroup != null) {
                 if (permissionGroupName == "-") {
-                    databaseManager.userDao.countExcludingIds(userIdsWithGroup!!, sqlClient)
+                    if (search != null) {
+                        databaseManager.userDao.countExcludingIdsAndSearch(userIdsWithGroup, search, sqlClient)
+                    } else {
+                        databaseManager.userDao.countExcludingIds(userIdsWithGroup, sqlClient)
+                    }
                 } else {
-                    databaseManager.userDao.countByIds(userIdsWithGroup!!, sqlClient)
+                    if (search != null) {
+                        databaseManager.userDao.countByIdsAndSearch(userIdsWithGroup, search, sqlClient)
+                    } else {
+                        databaseManager.userDao.countByIds(userIdsWithGroup, sqlClient)
+                    }
                 }
+            } else if (search != null) {
+                databaseManager.userDao.countByStatusAndSearch(playerStatus, search, sqlClient)
             } else
                 databaseManager.userDao.countByStatus(playerStatus, sqlClient)
 
@@ -90,14 +103,28 @@ class PanelGetPlayersAPI(
         }
 
         val userList =
-            if (search != null) {
-                databaseManager.userDao.getAllByPageAndStatusAndSearch(page, playerStatus, search, sqlClient)
-            } else if (permissionGroupName != null) {
+            if (userIdsWithGroup != null) {
                 if (permissionGroupName == "-") {
-                    databaseManager.userDao.getByPageExcludingIds(userIdsWithGroup!!, page, 10, sqlClient)
+                    if (search != null) {
+                        databaseManager.userDao.getByPageExcludingIdsAndSearch(
+                            userIdsWithGroup,
+                            page,
+                            10,
+                            search,
+                            sqlClient
+                        )
+                    } else {
+                        databaseManager.userDao.getByPageExcludingIds(userIdsWithGroup, page, 10, sqlClient)
+                    }
                 } else {
-                    databaseManager.userDao.getByIdsPage(userIdsWithGroup!!, page, 10, sqlClient)
+                    if (search != null) {
+                        databaseManager.userDao.getByIdsPageAndSearch(userIdsWithGroup, page, 10, search, sqlClient)
+                    } else {
+                        databaseManager.userDao.getByIdsPage(userIdsWithGroup, page, 10, sqlClient)
+                    }
                 }
+            } else if (search != null) {
+                databaseManager.userDao.getAllByPageAndStatusAndSearch(page, playerStatus, search, sqlClient)
             } else
                 databaseManager.userDao.getAllByPageAndStatus(page, playerStatus, sqlClient)
 

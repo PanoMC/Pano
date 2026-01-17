@@ -39,6 +39,7 @@ class PanelGetPlayersAPI(
             )
             .queryParameter(optionalParam("permissionGroup", stringSchema()))
             .queryParameter(optionalParam("page", numberSchema()))
+            .queryParameter(optionalParam("search", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -52,6 +53,7 @@ class PanelGetPlayersAPI(
 
         val page = parameters.queryParameter("page")?.long ?: 1L
         val permissionGroupName = parameters.queryParameter("permissionGroup")?.string
+        val search = parameters.queryParameter("search")?.string
 
         val sqlClient = databaseManager.getSqlClient()
 
@@ -67,7 +69,9 @@ class PanelGetPlayersAPI(
         }
 
         val count =
-            if (permissionGroupName != null) {
+            if (search != null) {
+                databaseManager.userDao.countByStatusAndSearch(playerStatus, search, sqlClient)
+            } else if (permissionGroupName != null) {
                 if (permissionGroupName == "-") {
                     databaseManager.userDao.countExcludingIds(userIdsWithGroup!!, sqlClient)
                 } else {
@@ -86,7 +90,9 @@ class PanelGetPlayersAPI(
         }
 
         val userList =
-            if (permissionGroupName != null) {
+            if (search != null) {
+                databaseManager.userDao.getAllByPageAndStatusAndSearch(page, playerStatus, search, sqlClient)
+            } else if (permissionGroupName != null) {
                 if (permissionGroupName == "-") {
                     databaseManager.userDao.getByPageExcludingIds(userIdsWithGroup!!, page, 10, sqlClient)
                 } else {

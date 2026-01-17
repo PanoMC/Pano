@@ -307,6 +307,51 @@ class UserDaoImpl : UserDao() {
         return rows.toEntities()
     }
 
+    override suspend fun countByStatusAndSearch(
+        status: PlayerStatus,
+        search: String,
+        sqlClient: SqlClient
+    ): Long {
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ?" else ""}"
+
+        val parameters = Tuple.tuple()
+        parameters.addString("%$search%")
+
+        if (status == PlayerStatus.BANNED)
+            parameters.addInteger(1)
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(parameters)
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getAllByPageAndStatusAndSearch(
+        page: Long,
+        status: PlayerStatus,
+        search: String,
+        sqlClient: SqlClient
+    ): List<User> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+
+        val parameters = Tuple.tuple()
+        parameters.addString("%$search%")
+
+        if (status == PlayerStatus.BANNED)
+            parameters.addInteger(1)
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(parameters)
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun getUserIdFromUsernameOrEmail(
         usernameOrEmail: String,
         sqlClient: SqlClient

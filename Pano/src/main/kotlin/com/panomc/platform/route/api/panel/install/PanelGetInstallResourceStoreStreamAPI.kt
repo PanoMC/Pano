@@ -5,7 +5,12 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.error.BadRequest
-import com.panomc.platform.model.*
+import com.panomc.platform.model.PanelApi
+import com.panomc.platform.model.Path
+import com.panomc.platform.model.Progress
+import com.panomc.platform.model.Result
+import com.panomc.platform.model.RouteType
+import com.panomc.platform.model.Successful
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -50,7 +55,7 @@ class PanelGetInstallResourceStoreStreamAPI(
         panoApiManager.installResourceFromStore(context, versionId) {
             sendServerSentEventMessage(context, it)
 
-            if (it is Successful) {
+            if (it is Successful && it !is Progress) {
                 successAmount++
 
                 if (successAmount == 4) {

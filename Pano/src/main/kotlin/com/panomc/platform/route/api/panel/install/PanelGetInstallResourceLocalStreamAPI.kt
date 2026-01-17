@@ -93,7 +93,7 @@ class PanelGetInstallResourceLocalStreamAPI(
         installManager.installResource(userId, null, null, newFile, type) {
             sendServerSentEventMessage(context, it)
 
-            if (it is Successful) {
+            if (it is Successful && it !is Progress) {
                 successAmount++
 
                 if (successAmount == 3) {

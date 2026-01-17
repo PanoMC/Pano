@@ -8,10 +8,12 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.error.*
 import com.panomc.platform.model.Error
+import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.EncryptUtil
 import com.panomc.platform.util.KeyGeneratorUtil
+import com.panomc.platform.util.ProgressWriteStream
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
@@ -385,8 +387,13 @@ class PanoApiManager(
             OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
         )
 
+        val size = versionInfo.getLong("size") ?: -1L
+        val progressWriteStream = ProgressWriteStream(writeStream, size) {
+            progressHandler.invoke(Progress(it))
+        }
+
         val getFileResponse = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}/file")
-            .`as`(BodyCodec.pipe(writeStream))
+            .`as`(BodyCodec.pipe(progressWriteStream))
             .send()
             .coAwait()
 

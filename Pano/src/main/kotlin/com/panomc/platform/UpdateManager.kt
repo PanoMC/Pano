@@ -11,12 +11,14 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.*
 import com.panomc.platform.model.Error
+import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.type.panel.PanoUpdateFoundNotification
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil
+import com.panomc.platform.util.ProgressWriteStream
 import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.util.VersionUtil
 import io.vertx.core.Vertx
@@ -369,9 +371,13 @@ class UpdateManager(
                 OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
             )
 
+            val progressWriteStream = ProgressWriteStream(writeStream, platformUpdateInfo.getLong("size")) {
+                progressHandler.invoke(Progress(it))
+            }
+
             webClient
                 .getAbs(platformUpdateInfo.getString("downloadUrl"))
-                .`as`(BodyCodec.pipe(writeStream))
+                .`as`(BodyCodec.pipe(progressWriteStream))
                 .send()
                 .coAwait()
 
@@ -478,7 +484,7 @@ class UpdateManager(
             var successAmount = 0
 
             panoApiManager.installResourceFromStore(context, versionId) {
-                if (it is Successful) {
+                if (it is Successful && it !is Progress) {
                     successAmount++
 
                     if (successAmount == 4) {

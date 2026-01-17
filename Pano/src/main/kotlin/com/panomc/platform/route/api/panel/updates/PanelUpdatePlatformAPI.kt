@@ -46,7 +46,7 @@ class PanelUpdatePlatformAPI(
         updateManager.updatePlatform(userId, state) {
             sendServerSentEventMessage(context, it)
 
-            if (it is Successful) {
+            if (it is Successful && it !is Progress) {
                 successAmount++
 
                 if (successAmount == 5) {

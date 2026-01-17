@@ -50,7 +50,7 @@ class PanelUpdateResourceAPI(
         updateManager.updateResource(context, resourceId, state) { it ->
             sendServerSentEventMessage(context, it)
 
-            if (it is Successful) {
+            if (it is Successful && it !is Progress) {
                 successAmount++
 
                 if (successAmount == 4) {

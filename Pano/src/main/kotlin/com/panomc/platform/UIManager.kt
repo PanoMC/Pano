@@ -531,7 +531,7 @@ class UIManager(
             return
         }
 
-        val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
+        val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
 
         val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
@@ -558,7 +558,7 @@ class UIManager(
             return
         }
 
-        val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
+        val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
 
         val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
 
@@ -610,7 +610,7 @@ class UIManager(
             return
         }
 
-        val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(false), httpClient)
+        val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
 
         val startedThemeUI = startedUIList.find { it.id == id }
         activeTheme = id

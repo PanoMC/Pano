@@ -355,7 +355,13 @@ class PermissionManager(
     ): Boolean {
         val source = permissionRegistry.getSource(permission)
         permission.source = source
+        return hasPermissionNode(userId, permission.toString())
+    }
 
+    suspend fun hasPermissionNode(
+        userId: Long,
+        node: String
+    ): Boolean {
         val cache = getCache()
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
         val nodes = validNodes(cache).filter { it.isPanoContextAllowed() } // active=true/false + pano context
@@ -364,9 +370,7 @@ class PermissionManager(
         val userNodes = nodes.filter { it.holderType == HolderType.USER && it.holderId == userId }
         val groupNodes = nodes.filter { it.holderType == HolderType.GROUP && it.holderId in userGroups }
 
-        val targetNode = permission.toString()
-
-        return selectDecision(targetNode, userNodes, groupNodes, cache, activeNodes)
+        return selectDecision(node, userNodes, groupNodes, cache, activeNodes)
     }
 
     // Check if user is member of a group name (resolved via nodes + inheritance).

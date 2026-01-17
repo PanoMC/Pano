@@ -1,5 +1,6 @@
 package com.panomc.platform.db
 
+import com.panomc.platform.Main
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
@@ -61,6 +62,9 @@ class DatabaseManager(
     @Autowired
     private lateinit var mariaDBManager: MariaDBManager
 
+    @Autowired
+    private lateinit var main: Main
+
     private lateinit var sqlClient: SqlClient
 
     private val migrations by lazy {
@@ -116,7 +120,7 @@ class DatabaseManager(
 
             it.printStackTrace()
 
-            exitProcess(0)
+            exitProcess(1)
         }.coAwait().close().coAwait()
 
         return sqlClient

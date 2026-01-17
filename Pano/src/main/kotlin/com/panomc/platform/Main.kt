@@ -175,9 +175,7 @@ class Main : CoroutineVerticle() {
     private fun hookShutdown() {
         UiConsole.setInterruptHandler {
             // Graceful stop
-            runBlocking {
-                shutdown()
-            }
+            shutdown()
             // do not System.exit(); window stays open
         }
 

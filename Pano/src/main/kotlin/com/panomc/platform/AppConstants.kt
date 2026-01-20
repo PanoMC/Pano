@@ -17,7 +17,7 @@ object AppConstants {
 
     val CSRF_HEADER = "X-CSRF-Token".lowercase()
 
-    val AVAILABLE_LOCALES = listOf("tr", "en-US")
+    val AVAILABLE_LOCALES = listOf("tr", "en-US", "ru")
     val DEFAULT_LOCALE_CODE = "en-US"
 
     val pluginUiFolder = "plugin-ui/"
@@ -50,6 +50,12 @@ object AppConstants {
             name = "Türkçe (TR)",
             dateFnsCode = "tr",
             derivatives = listOf("tr-tr")
+        ),
+        Locale(
+            code = "ru",
+            name = "Русский (RU)",
+            dateFnsCode = "ru",
+            derivatives = listOf()
         )
     )
 }

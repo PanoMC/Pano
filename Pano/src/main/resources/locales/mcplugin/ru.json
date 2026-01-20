@@ -1,0 +1,8 @@
+{
+    "auth": {
+        "not-verified": "&cПожалуйста, проверьте свою почту и подтвердите ее: &6{{email}}",
+        "register-kick": "&6Пожалуйста, войдите на сайт, чтобы добавить E-Mail.",
+        "ban-kick-permanent": "&cВы были забанены навсегда!{{#if reason}}\n\n&fПричина: {{reason}}{{/if}}",
+        "ban-kick-temporary": "&cВы были временно забанены!{{#if reason}}\n\n&fПричина: {{reason}}{{/if}}\n\n&7До: {{untilTime}}"
+    }
+}

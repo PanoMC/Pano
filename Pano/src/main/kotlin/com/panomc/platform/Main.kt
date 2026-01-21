@@ -23,6 +23,9 @@ import io.vertx.core.net.PemKeyCertOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.coAwait
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
@@ -58,10 +61,8 @@ class Main : CoroutineVerticle() {
         }
 
         val ENVIRONMENT =
-            if (mode != "DEVELOPMENT" && System.getenv("EnvironmentType").isNullOrEmpty())
-                EnvironmentType.RELEASE
-            else
-                EnvironmentType.DEVELOPMENT
+            if (mode != "DEVELOPMENT" && System.getenv("EnvironmentType").isNullOrEmpty()) EnvironmentType.RELEASE
+            else EnvironmentType.DEVELOPMENT
 
         val VERSION by lazy {
             try {
@@ -73,8 +74,7 @@ class Main : CoroutineVerticle() {
 
         val STAGE by lazy {
             ReleaseStage.valueOf(
-                stage =
-                try {
+                stage = try {
                     manifest.mainAttributes.getValue("BUILD_TYPE").toString()
                 } catch (e: Exception) {
                     System.getenv("PanoBuildType").toString()
@@ -144,7 +144,7 @@ class Main : CoroutineVerticle() {
     private lateinit var acmeManager: AcmeManager
     private var stopping = false
 
-    suspend fun shutdown() {
+    fun shutdown(error: Boolean = false, vertx: Vertx = Companion.vertx) {
         if (stopping) {
             return
         }
@@ -152,10 +152,16 @@ class Main : CoroutineVerticle() {
         stopping = true
 
         logger.info("Gracefully shutting down Pano...")
-        try {
-            vertx.close().coAwait()
-        } catch (e: Exception) {
-            logger.error("Pano graceful shutdown failed", e)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Use IO dispatcher to avoid blocking the event loop or being cancelled by it
+                vertx.close().coAwait()
+            } catch (e: Exception) {
+                logger.error("Pano graceful shutdown failed", e)
+            }
+
+            exitProcess(if (error) 1 else 0)
         }
     }
 
@@ -175,8 +181,9 @@ class Main : CoroutineVerticle() {
     private fun hookShutdown() {
         UiConsole.setInterruptHandler {
             // Graceful stop
-            shutdown()
-            // do not System.exit(); window stays open
+            CoroutineScope(Dispatchers.IO).launch {
+                shutdown()
+            }
         }
 
         Runtime.getRuntime().addShutdownHook(Thread {
@@ -207,13 +214,7 @@ class Main : CoroutineVerticle() {
 
     override suspend fun start() {
         println(
-            "\n" +
-                    " ______   ______     __   __     ______    \n" +
-                    "/\\  == \\ /\\  __ \\   /\\ \"-.\\ \\   /\\  __ \\   \n" +
-                    "\\ \\  _-/ \\ \\  __ \\  \\ \\ \\-.  \\  \\ \\ \\/\\ \\  \n" +
-                    " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n" +
-                    "  \\/_/     \\/_/\\/_/   \\/_/ \\/_/   \\/_____/  v${VERSION}\n" +
-                    "                                           "
+            "\n" + " ______   ______     __   __     ______    \n" + "/\\  == \\ /\\  __ \\   /\\ \"-.\\ \\   /\\  __ \\   \n" + "\\ \\  _-/ \\ \\  __ \\  \\ \\ \\-.  \\  \\ \\ \\/\\ \\  \n" + " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n" + "  \\/_/     \\/_/\\/_/   \\/_/ \\/_/   \\/_____/  v${VERSION}\n" + "                                           "
         )
         logger.info("Hello World!")
 
@@ -399,9 +400,9 @@ class Main : CoroutineVerticle() {
     private fun initMariaDBManager() {
         val setupManager = applicationContext.getBean(SetupManager::class.java)
         if (configManager.config.database.type == "portable" && setupManager.isSetupDone()) {
-             logger.info("Starting Portable MariaDB...")
-             val mariaDBManager = applicationContext.getBean(MariaDBManager::class.java)
-             mariaDBManager.start()
+            logger.info("Starting Portable MariaDB...")
+            val mariaDBManager = applicationContext.getBean(MariaDBManager::class.java)
+            mariaDBManager.start()
         }
     }
 
@@ -455,10 +456,7 @@ class Main : CoroutineVerticle() {
         val isSslEnabled = serverConfig.sslMode != PanoConfig.Companion.SslMode.DISABLED
 
         logger.info("Creating HTTP server on port $port")
-        vertx.createHttpServer()
-            .requestHandler(handler)
-            .listen(port, host)
-            .onSuccess {
+        vertx.createHttpServer().requestHandler(handler).listen(port, host).onSuccess {
                 if (isSslEnabled) {
                     logger.info("HTTP server is listening on $port. Ready for ACME challenges if needed.")
                     if (serverConfig.sslMode == PanoConfig.Companion.SslMode.LETS_ENCRYPT) {
@@ -468,15 +466,16 @@ class Main : CoroutineVerticle() {
                     logger.info("Started listening on http://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
                     UiConsole.markReady()
                 }
-            }
-            .onFailure { result ->
+            }.onFailure { result ->
                 val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}"
                 if (isSslEnabled) {
                     logger.warn(message)
                     UiConsole.markReady()
                 } else {
                     logger.error(message)
-                    exitProcess(1)
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                        shutdown(true)
+                    }
                 }
             }
     }
@@ -492,14 +491,10 @@ class Main : CoroutineVerticle() {
         }
 
         logger.info("Creating HTTPS server on port $port (Mode: ${serverConfig.sslMode})")
-        vertx.createHttpServer(options)
-            .requestHandler(router)
-            .listen(port, host)
-            .onSuccess {
+        vertx.createHttpServer(options).requestHandler(router).listen(port, host).onSuccess {
                 logger.info("Started listening on https://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
                 UiConsole.markReady()
-            }
-            .onFailure { result ->
+            }.onFailure { result ->
                 logger.error("Failed to listen on https://$host:$port, reason: ${result.message ?: result.toString()}")
                 UiConsole.markReady()
             }
@@ -512,9 +507,15 @@ class Main : CoroutineVerticle() {
             } else {
                 val hostHeader = req.getHeader("Host")
                 val domain = if (hostHeader != null) {
-                    if (hostHeader.startsWith("[")) hostHeader.substringBefore("]:") + "]" else hostHeader.substringBefore(":")
+                    if (hostHeader.startsWith("[")) hostHeader.substringBefore("]:") + "]" else hostHeader.substringBefore(
+                        ":"
+                    )
                 } else {
-                    try { java.net.URI(configManager.config.websiteUrl).host } catch (e: Exception) { null }
+                    try {
+                        java.net.URI(configManager.config.websiteUrl).host
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
 
                 if (domain == null || domain == "0.0.0.0") {
@@ -525,10 +526,7 @@ class Main : CoroutineVerticle() {
                     val query = if (req.query().isNullOrBlank()) "" else "?" + req.query()
                     val redirectTo = "https://$domain$portSuffix${req.path()}$query"
 
-                    req.response()
-                        .setStatusCode(301)
-                        .putHeader("Location", redirectTo)
-                        .end()
+                    req.response().setStatusCode(301).putHeader("Location", redirectTo).end()
                 }
             }
         }
@@ -544,10 +542,9 @@ class Main : CoroutineVerticle() {
                 val key = serverConfig.sslKey
                 if (!cert.isNullOrBlank() && !key.isNullOrBlank()) {
                     try {
-                        options.setSsl(true)
-                            .setKeyCertOptions(PemKeyCertOptions()
-                                .setCertValue(Buffer.buffer(cert))
-                                .setKeyValue(Buffer.buffer(key)))
+                        options.setSsl(true).setKeyCertOptions(
+                                PemKeyCertOptions().setCertValue(Buffer.buffer(cert)).setKeyValue(Buffer.buffer(key))
+                            )
                         canStart = true
                     } catch (e: Exception) {
                         logger.error("Failed to load SSL certificates: ${e.message}")
@@ -556,12 +553,14 @@ class Main : CoroutineVerticle() {
                     logger.error("SSL Mode is MANUAL but certificates are missing!")
                 }
             }
+
             PanoConfig.Companion.SslMode.LETS_ENCRYPT -> {
                 acmeManager.getCertificateOptions()?.let {
                     options.setSsl(true).setKeyCertOptions(it)
                     canStart = true
                 } ?: logger.warn("Let's Encrypt certificates are not found locally. Requesting new ones...")
             }
+
             else -> {}
         }
         return options to canStart

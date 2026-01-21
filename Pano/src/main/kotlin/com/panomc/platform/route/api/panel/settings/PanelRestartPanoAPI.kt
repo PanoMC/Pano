@@ -1,39 +1,35 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.Main
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.RestartedPanoLog
-import com.panomc.platform.auth.panel.permission.ManageServersPermission
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.error.*
+import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
+import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.*
-import com.panomc.platform.Main
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
-import io.vertx.core.Vertx
-import io.vertx.kotlin.coroutines.coAwait
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.apache.commons.codec.digest.DigestUtils
-import java.nio.file.Path
 import java.nio.file.Paths
-import java.util.*
-import kotlin.system.exitProcess
 
 @Endpoint
 class PanelRestartPanoAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val vertx: Vertx
+    private val vertx: Vertx,
+    private val main: Main
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings/restart-pano", RouteType.POST))
 
@@ -113,8 +109,7 @@ class PanelRestartPanoAPI(
 
             delay(500)
 
-            vertx.close().coAwait()
-            exitProcess(0)
+            main.shutdown()
         } catch (e: Exception) {
             e.printStackTrace()
         }

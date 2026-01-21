@@ -35,7 +35,6 @@ import java.util.concurrent.Executors
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import kotlin.io.path.name
-import kotlin.system.exitProcess
 
 @Lazy
 @Component
@@ -45,7 +44,8 @@ class UIManager(
     private val configManager: ConfigManager,
     private val setupManager: SetupManager,
     private val httpClient: HttpClient,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val main: Main
 ) {
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
@@ -202,7 +202,8 @@ class UIManager(
             logger.info("Done.")
         } catch (e: Exception) {
             logger.error("Couldn't download Bun runtime: {}", e.message)
-            exitProcess(1)
+            main.shutdown(true)
+            return
         }
 
         if (!tryRun(bunFilePath)) {
@@ -244,7 +245,9 @@ class UIManager(
         if (!optionalZipFile.isPresent) {
             logger.error("No file matching $id-*.zip was found!")
 
-            exitProcess(1)
+            main.shutdown(true)
+
+            return Optional.empty()
         }
 
         return optionalZipFile
@@ -519,7 +522,8 @@ class UIManager(
             } catch (e: Exception) {
                 logger.error("Failed to start UI.", e)
 
-                exitProcess(1)
+                main.shutdown(true)
+                return
             }
         }
 

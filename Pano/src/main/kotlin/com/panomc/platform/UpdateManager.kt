@@ -54,7 +54,6 @@ import java.time.ZoneId
 import java.util.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
-import kotlin.system.exitProcess
 
 @Lazy
 @Component
@@ -74,6 +73,9 @@ class UpdateManager(
         const val RESOURCES_UPDATE_CHECK_INFO = "resources_update_check_info"
         const val UPDATE_LAST_CHECK = "update_last_checked_at"
     }
+
+    @Autowired
+    private lateinit var main: Main
 
     @Autowired
     private lateinit var logger: Logger
@@ -448,8 +450,7 @@ class UpdateManager(
                 )
             }
 
-            vertx.close().coAwait()
-            exitProcess(0)
+            main.shutdown()
         } catch (e: Error) {
             progressHandler.invoke(e)
         } catch (e: Exception) {

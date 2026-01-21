@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
-import kotlin.system.exitProcess
 
 @Lazy
 @Component
@@ -120,7 +119,7 @@ class DatabaseManager(
 
             it.printStackTrace()
 
-            exitProcess(1)
+            main.shutdown(true)
         }.coAwait().close().coAwait()
 
         return sqlClient
@@ -158,7 +157,8 @@ class DatabaseManager(
 
             e.printStackTrace()
 
-            exitProcess(1)
+            main.shutdown(true)
+            return
         }
 
         if (databaseVersion == 0) {

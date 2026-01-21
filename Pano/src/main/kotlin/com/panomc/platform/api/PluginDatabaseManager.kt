@@ -1,12 +1,13 @@
 package com.panomc.platform.api
 
+import com.panomc.platform.Main
 import com.panomc.platform.PluginManager
-import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.DatabaseMigration
 import com.panomc.platform.db.model.SchemeVersion
+import com.panomc.platform.setup.SetupManager
 import io.vertx.sqlclient.SqlClient
 import org.slf4j.Logger
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -14,7 +15,6 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.sql.BatchUpdateException
-import kotlin.system.exitProcess
 
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -22,7 +22,8 @@ class PluginDatabaseManager(
     @get:Lazy private val databaseManager: DatabaseManager,
     @get:Lazy private val logger: Logger,
     private val pluginManager: PluginManager,
-    @get:Lazy private val setupManager: SetupManager
+    @get:Lazy private val setupManager: SetupManager,
+    private val main: Main
 ): PluginLifecycleListener {
     init {
         pluginManager.addLifecycleListener(this)
@@ -123,9 +124,8 @@ class PluginDatabaseManager(
                 } catch (e: Exception) {
                     logger.error("Database Error: Migration failed from version ${it.from} to ${it.to}, error: " + e)
 
-                    logger.error("Shutting down...")
-
-                    exitProcess(1)
+                    main.shutdown(true)
+                    return
                 }
 
                 migrate(plugin, sqlClient, it.to)

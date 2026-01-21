@@ -1,32 +1,32 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.Main
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.StoppedPanoLog
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
-import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.error.*
+import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
+import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.*
-import io.vertx.kotlin.coroutines.coAwait
-import io.vertx.kotlin.coroutines.dispatcher
-import kotlinx.coroutines.CoroutineScope
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.apache.commons.codec.digest.DigestUtils
-import kotlin.system.exitProcess
 
 @Endpoint
 class PanelStopPanoAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val vertx: Vertx,
+    private val main: Main
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings/stop-pano", RouteType.POST))
 
@@ -67,11 +67,11 @@ class PanelStopPanoAPI(
             ), sqlClient
         )
 
-        CoroutineScope(context.vertx().dispatcher()).launch {
-            delay(500)
-            // Stop the application
-            context.vertx().close().coAwait()
-            exitProcess(0)
+        vertx.executeBlocking {
+            runBlocking {
+                delay(500)
+            }
+            main.shutdown()
         }
 
         return Successful()

@@ -3,7 +3,6 @@ package com.panomc.platform.model
 import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.NotLoggedIn
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
@@ -19,12 +18,6 @@ abstract class LoggedInApi : Api() {
 
     private val authProvider by lazy {
         applicationContext.getBean(AuthProvider::class.java)
-    }
-
-    private fun checkSetup() {
-        if (!setupManager.isSetupDone()) {
-            throw InstallationRequired()
-        }
     }
 
     private suspend fun checkLoggedIn(context: RoutingContext) {

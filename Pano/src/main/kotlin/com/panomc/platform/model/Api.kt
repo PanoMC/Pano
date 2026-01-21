@@ -1,9 +1,9 @@
 package com.panomc.platform.model
 
 import com.panomc.platform.Main.Companion.applicationContext
-import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
+import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InternalServerError
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
@@ -29,8 +29,18 @@ abstract class Api : Route() {
         applicationContext.getBean(DatabaseManager::class.java)
     }
 
+    private val setupManager by lazy {
+        applicationContext.getBean(SetupManager::class.java)
+    }
+
     suspend fun getSqlClient(): SqlClient {
         return databaseManager.getSqlClient()
+    }
+
+    fun checkSetup() {
+        if (!setupManager.isSetupDone()) {
+            throw InstallationRequired()
+        }
     }
 
     override fun getHandler() = Handler<RoutingContext> { context ->
@@ -115,5 +125,7 @@ abstract class Api : Route() {
 
     open suspend fun getFailureHandler(context: RoutingContext) = Unit
 
-    open suspend fun onBeforeHandle(context: RoutingContext) = Unit
+    open suspend fun onBeforeHandle(context: RoutingContext) {
+        checkSetup()
+    }
 }

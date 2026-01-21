@@ -7,7 +7,7 @@ import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 
 abstract class SetupApi : Api() {
-    val setupManager by lazy {
+    val setupManager: SetupManager by lazy {
         applicationContext.getBean(SetupManager::class.java)
     }
 

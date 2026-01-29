@@ -47,16 +47,26 @@ class PanelGetPluginLogoAPI(
 
         val pluginWrapper =
             pluginManager.getPluginWrappers().firstOrNull { it.pluginId == pluginId } ?: throw NotFound()
-        val pluginConfig = pluginWrapper.config ?: throw NotFound()
-        val logoFileName = pluginConfig.getString("logo-file")
-        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(logoFileName)
+        val pluginConfig = pluginWrapper.config
+        val logoFileName = pluginConfig?.getString("logo-file")
 
         val requestedHash = parameters.queryParameter("hash")?.string
 
+        // If logo is not configured or file not found in plugin resources, send default
+        if (logoFileName == null || pluginWrapper.getResource(logoFileName) == null) {
+            sendDefault(context, requestedHash)
+            return null
+        }
+
+        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(logoFileName)
+        val actualHash = pluginWrapper.getResource(logoFileName)?.hash() ?: run {
+            // Should be covered by if check above, but for safety
+            sendDefault(context, requestedHash)
+            return null
+        }
+
         if (requestedHash == null) {
             // No hash → calculate and route to canonical URL
-            val actualHash = pluginWrapper.getResource(logoFileName)?.hash() ?: throw NotFound()
-
             val redirectUrl = "${context.request().path()}?hash=$actualHash"
             context.response()
                 .setStatusCode(302)
@@ -76,8 +86,6 @@ class PanelGetPluginLogoAPI(
                 .end()
             return null
         }
-
-        val actualHash = pluginWrapper.getResource(logoFileName)?.hash() ?: throw NotFound()
 
         if (!requestedHash.equals(actualHash, ignoreCase = true)) {
             // Wrong hash → route to correct one
@@ -99,11 +107,66 @@ class PanelGetPluginLogoAPI(
         response.putHeader("Content-Disposition", "inline; filename=\"$logoFileName\"")
 
         response.isChunked = true
-        val resource: InputStream = pluginWrapper.getResource(logoFileName) ?: throw NotFound()
+        val resource: InputStream = pluginWrapper.getResource(logoFileName)!!
         resource.writeToResponse(response)
         response.end()
 
         return null
+    }
+
+    private fun sendDefault(context: RoutingContext, requestedHash: String?) {
+        val path = "assets/img/default-plugin.png"
+        val inputStream = this.javaClass.classLoader.getResourceAsStream(path)
+
+        if (inputStream == null) {
+            context.response().setStatusCode(404).end()
+            return
+        }
+
+        val actualHash = inputStream.use { it.hash() }
+
+        if (requestedHash == null) {
+            // No hash → calculate and route to canonical URL
+            val redirectUrl = "${context.request().path()}?hash=$actualHash"
+            context.response()
+                .setStatusCode(302)
+                .putHeader("Location", redirectUrl)
+                .putHeader("Cache-Control", "no-store") // Do not cache this one
+                .end()
+            return
+        }
+
+        val etag = "\"$requestedHash\"" // strong ETag
+        val ifNoneMatch = context.request().getHeader("If-None-Match")
+        if (ifNoneMatch?.split(',')?.map { it.trim() }?.contains(etag) == true) {
+            context.response()
+                .setStatusCode(304)
+                .putHeader("ETag", etag)
+                .putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS, immutable")
+                .end()
+            return
+        }
+
+        if (!requestedHash.equals(actualHash, ignoreCase = true)) {
+            // Wrong hash → route to correct one
+            val redirectUrl = "${context.request().path()}?hash=$actualHash"
+            context.response()
+                .setStatusCode(302)
+                .putHeader("Location", redirectUrl)
+                .putHeader("Cache-Control", "no-store")
+                .end()
+            return
+        }
+
+        val response = context.response()
+        response.putHeader("Content-Type", "image/png")
+        response.putHeader("ETag", etag)
+        response.putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS, immutable")
+        response.putHeader("Content-Disposition", "inline; filename=\"default-plugin.png\"")
+        response.isChunked = true
+
+        this.javaClass.classLoader.getResourceAsStream(path)?.writeToResponse(response)
+        response.end()
     }
 
 }

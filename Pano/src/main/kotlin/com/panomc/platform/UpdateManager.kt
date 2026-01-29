@@ -259,11 +259,19 @@ class UpdateManager(
                     .send()
                     .coAwait()
 
-                if (getFileResponse.statusCode() != 200) {
+                if (getFileResponse.statusCode() != 200 && getFileResponse.statusCode() != 404) {
                     throw PanoConnectFailed()
                 }
 
-                downloadedFiles[id] = temporaryFilePath
+                if (getFileResponse.statusCode() != 404) {
+                    downloadedFiles[id] = temporaryFilePath
+                } else {
+                    val file = File(temporaryFilePath)
+
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                }
             }
 
             val folder = File(updateIconFolder)
@@ -275,16 +283,18 @@ class UpdateManager(
             updates.map { it as JsonObject }.forEach {
                 val id = it.getString("id")
 
-                val iconFileName = UUID.randomUUID()
+                if (downloadedFiles[id] != null) {
+                    val iconFileName = UUID.randomUUID()
 
-                val target = File(updateIconFolder + iconFileName)
-                val file = File(downloadedFiles[id]!!)
+                    val target = File(updateIconFolder + iconFileName)
+                    val file = File(downloadedFiles[id]!!)
 
-                target.parentFile.mkdirs()
-                file.copyTo(target)
-                file.delete()
+                    target.parentFile.mkdirs()
+                    file.copyTo(target)
+                    file.delete()
 
-                it.put("iconFileName", iconFileName)
+                    it.put("iconFileName", iconFileName)
+                }
             }
 
             if (background) {

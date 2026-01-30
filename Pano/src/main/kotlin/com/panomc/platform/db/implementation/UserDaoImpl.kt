@@ -292,7 +292,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): List<User> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
@@ -336,7 +336,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): List<User> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? " else ""}ORDER BY `id` LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
         parameters.addString("%$search%")
@@ -511,7 +511,7 @@ class UserDaoImpl : UserDao() {
     }
 
     override suspend fun getAllIds(sqlClient: SqlClient): List<Long> {
-        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` ORDER BY `id`"
+        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` ORDER BY `registerDate` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -531,7 +531,7 @@ class UserDaoImpl : UserDao() {
             listText = if (listText.isEmpty()) "'$id'" else "$listText, '$id'"
         }
 
-        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) ORDER BY `id`"
+        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) ORDER BY `registerDate` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -548,7 +548,7 @@ class UserDaoImpl : UserDao() {
     ): List<Long> {
         val offset = ((page - 1) * pageSize).toInt()
         val query =
-            "SELECT `id` FROM `${getTablePrefix() + tableName}` ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+            "SELECT `id` FROM `${getTablePrefix() + tableName}` ORDER BY `registerDate` DESC, `id` DESC LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -573,7 +573,7 @@ class UserDaoImpl : UserDao() {
         }
 
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) ORDER BY `id`"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) ORDER BY `registerDate` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -617,7 +617,7 @@ class UserDaoImpl : UserDao() {
 
         val offset = ((page - 1) * pageSize).toInt()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) ORDER BY `registerDate` DESC, `id` DESC LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -666,7 +666,7 @@ class UserDaoImpl : UserDao() {
 
         val offset = ((page - 1) * pageSize).toInt()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) AND `username` LIKE ? ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` IN ($listText) AND `username` LIKE ? ORDER BY `registerDate` DESC, `id` DESC LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -714,7 +714,7 @@ class UserDaoImpl : UserDao() {
 
         val offset = ((page - 1) * pageSize).toInt()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) ORDER BY `registerDate` DESC, `id` DESC LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -767,7 +767,7 @@ class UserDaoImpl : UserDao() {
 
         val offset = ((page - 1) * pageSize).toInt()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) AND `username` LIKE ? ORDER BY `id` LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `id` NOT IN ($listText) AND `username` LIKE ? ORDER BY `registerDate` DESC, `id` DESC LIMIT $pageSize ${if (offset == 0) "" else "OFFSET $offset"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -958,7 +958,7 @@ class UserDaoImpl : UserDao() {
 
     override suspend fun getLastUsernames(limit: Long, sqlClient: SqlClient): List<String> {
         val query =
-            "SELECT username FROM `${getTablePrefix() + tableName}` ORDER BY `id` DESC ${if (limit == -1L) "" else "LIMIT $limit"}"
+            "SELECT username FROM `${getTablePrefix() + tableName}` ORDER BY `registerDate` DESC, `id` DESC ${if (limit == -1L) "" else "LIMIT $limit"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

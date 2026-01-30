@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ActivationMail
@@ -22,7 +23,8 @@ class RegisterAPI(
     private val reCaptcha: ReCaptcha,
     private val databaseManager: DatabaseManager,
     private val mailManager: MailManager,
-    private val tokenProvider: TokenProvider
+    private val tokenProvider: TokenProvider,
+    private val authProvider: AuthProvider
 ) : Api() {
     override val paths = listOf(Path("/api/auth/register", RouteType.POST))
 
@@ -53,7 +55,7 @@ class RegisterAPI(
         val agreement = data.getBoolean("agreement")
         val recaptchaToken = data.getString("recaptcha")
 
-        val remoteIP = context.request().remoteAddress().host()
+        val remoteIP = authProvider.getRemoteIP(context)
 
         RegisterUtil.validateForm(username, email, password, passwordRepeat, agreement, recaptchaToken, null)
 

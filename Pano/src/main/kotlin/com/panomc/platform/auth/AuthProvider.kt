@@ -152,7 +152,7 @@ class AuthProvider(
     }
 
     private fun resolveCookieDomain(routingContext: RoutingContext): String? {
-        val remoteIP = routingContext.request().remoteAddress()?.host()
+        val remoteIP = getRemoteIP(routingContext)
 
         if (remoteIP == null || remoteIP == "127.0.0.1" || remoteIP == "::1" || remoteIP == "localhost") {
             return null
@@ -182,6 +182,13 @@ class AuthProvider(
         }
     }
 
+    fun getRemoteIP(routingContext: RoutingContext): String {
+        val request = routingContext.request()
+        return request.getHeader("X-Forwarded-For")?.split(",")?.first()?.trim()
+            ?: request.getHeader("X-Real-IP")
+            ?: request.remoteAddress().host()
+    }
+    
     suspend fun isLoggedIn(
         routingContext: RoutingContext
     ): Boolean {

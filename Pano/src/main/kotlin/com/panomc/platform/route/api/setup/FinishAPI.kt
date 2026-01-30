@@ -67,7 +67,7 @@ class FinishAPI(
         val password = data.getString("password")
         val setupLocale = data.getString("setupLocale")
 
-        val remoteIP = context.request().remoteAddress().host()
+        val remoteIP = authProvider.getRemoteIP(context)
 
         if (configManager.config.database.type == "portable") {
             context.vertx().executeBlocking {

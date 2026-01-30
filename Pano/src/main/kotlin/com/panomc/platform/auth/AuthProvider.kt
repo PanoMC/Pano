@@ -2,6 +2,8 @@ package com.panomc.platform.auth
 
 import com.panomc.platform.AppConstants
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
+import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.LoginEmailNotVerified
 import com.panomc.platform.error.LoginIsInvalid
@@ -11,6 +13,8 @@ import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.Regexes
+import io.vertx.core.http.Cookie
+import io.vertx.core.http.CookieSameSite
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -26,6 +30,7 @@ class AuthProvider(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
     private val permissionManager: PermissionManager,
+    private val configManager: ConfigManager,
     applicationContext: AnnotationConfigApplicationContext
 ) {
     companion object {
@@ -93,6 +98,88 @@ class AuthProvider(
         tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlClient)
 
         return token
+    }
+
+    fun setCookies(
+        routingContext: RoutingContext, authToken: String, csrfToken: String
+    ): Boolean {
+        val response = routingContext.response()
+        val request = routingContext.request()
+        val domain = resolveCookieDomain(routingContext)
+        val config = configManager.config
+        val isSslConfigured = config.server.sslMode != PanoConfig.Companion.SslMode.DISABLED ||
+                             config.server.redirectHttps || 
+                             config.websiteUrl.startsWith("https://")
+        
+        val isSecure = request.isSSL || 
+                       request.getHeader("X-Forwarded-Proto")?.lowercase() == "https" ||
+                       (isSslConfigured && domain != null)
+
+        val authTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME, authToken)
+        val csrfTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME, csrfToken)
+
+        listOf(authTokenCookie, csrfTokenCookie).forEach { cookie ->
+            domain?.let { cookie.domain = it }
+            cookie.maxAge = 7776000
+            cookie.path = "/"
+            cookie.isSecure = isSecure
+            cookie.isHttpOnly = true
+            cookie.sameSite = CookieSameSite.LAX
+        }
+
+        response.addCookie(authTokenCookie)
+        response.addCookie(csrfTokenCookie)
+
+        return true
+    }
+
+    fun clearCookies(routingContext: RoutingContext): Boolean {
+        val response = routingContext.response()
+        val domain = resolveCookieDomain(routingContext)
+
+        listOf(
+            AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME,
+            AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME
+        ).forEach { cookieName ->
+            val cookie = Cookie.cookie(cookieName, "deleted")
+            domain?.let { cookie.domain = it }
+            cookie.maxAge = 0
+            cookie.path = "/"
+            response.addCookie(cookie)
+        }
+
+        return true
+    }
+
+    private fun resolveCookieDomain(routingContext: RoutingContext): String? {
+        val remoteIP = routingContext.request().remoteAddress()?.host()
+
+        if (remoteIP == null || remoteIP == "127.0.0.1" || remoteIP == "::1" || remoteIP == "localhost") {
+            return null
+        }
+
+        val websiteUrl = configManager.config.websiteUrl
+        if (websiteUrl.isEmpty()) {
+            return null
+        }
+
+        return try {
+            val websiteHost = websiteUrl
+                .replace("http://", "")
+                .replace("https://", "")
+                .split("/")
+                .first()
+                .split(":")
+                .first()
+
+            if (websiteHost.isNotEmpty() && websiteHost != "localhost" && websiteHost != "127.0.0.1") {
+                ".$websiteHost"
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun isLoggedIn(

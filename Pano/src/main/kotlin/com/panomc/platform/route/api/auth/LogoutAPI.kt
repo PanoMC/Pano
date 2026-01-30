@@ -22,14 +22,7 @@ class LogoutAPI(
 
         val response = context.response()
 
-        response.putHeader(
-            "Set-Cookie",
-            "${AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME}=deleted; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-        )
-        response.putHeader(
-            "Set-Cookie",
-            "${AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME}=deleted; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
-        )
+        authProvider.clearCookies(context)
 
         return Successful()
     }

@@ -123,17 +123,7 @@ class FinishAPI(
 
         val csrfToken = CSRFTokenGenerator.nextToken()
 
-        val jwtCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME, token)
-        val csrfTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME, csrfToken)
-
-        jwtCookie.path = "/"
-        jwtCookie.isHttpOnly = true
-
-        csrfTokenCookie.path = "/"
-        csrfTokenCookie.isHttpOnly = true
-
-        response.addCookie(jwtCookie)
-        response.addCookie(csrfTokenCookie)
+        authProvider.setCookies(context, token, csrfToken)
 
         return Successful(
             mapOf(

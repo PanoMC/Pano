@@ -55,7 +55,7 @@ class LoginAPI(
             sqlClient = sqlClient
         )
 
-        val token = authProvider.login(usernameOrEmail, sqlClient)
+        val token = authProvider.login(usernameOrEmail, context, sqlClient)
 
         val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)!!
 

@@ -27,4 +27,14 @@ abstract class TokenDao : Dao<Token>(Token::class.java) {
         type: TokenType,
         sqlClient: SqlClient
     ): Token?
+
+    abstract suspend fun getAllBySubjectAndType(
+        subject: String,
+        type: TokenType,
+        sqlClient: SqlClient
+    ): List<Token>
+
+    abstract suspend fun deleteById(id: Long, sqlClient: SqlClient)
+
+    abstract suspend fun getById(id: Long, sqlClient: SqlClient): Token?
 }

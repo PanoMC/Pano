@@ -9,5 +9,7 @@ data class Token(
     val token: String,
     val type: TokenType,
     val expireDate: Long,
-    val startDate: Long = System.currentTimeMillis()
+    val startDate: Long = System.currentTimeMillis(),
+    val ipAddress: String? = null,
+    val userAgent: String? = null
 ) : DBEntity()

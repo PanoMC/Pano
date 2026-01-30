@@ -86,6 +86,7 @@ class AuthProvider(
 
     suspend fun login(
         usernameOrEmail: String,
+        routingContext: RoutingContext,
         sqlClient: SqlClient
     ): String {
         val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(
@@ -95,7 +96,19 @@ class AuthProvider(
 
         val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.AUTHENTICATION)
 
-        tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlClient)
+        val ipAddress = getRemoteIP(routingContext)
+        val userAgent = routingContext.request().getHeader("User-Agent")
+
+        val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
+
+        if (tokens.size >= 5) {
+             val tokensToDelete = tokens.drop(4) // Keep 4, so including the new one it will be 5.
+             tokensToDelete.forEach {
+                 databaseManager.tokenDao.deleteByToken(it.token, sqlClient)
+             }
+        }
+
+        tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlClient, ipAddress, userAgent)
 
         return token
     }

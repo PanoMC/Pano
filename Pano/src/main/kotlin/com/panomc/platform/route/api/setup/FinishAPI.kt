@@ -101,7 +101,7 @@ class FinishAPI(
             isSetup = true
         )
 
-        val token = authProvider.login(username, sqlClient)
+        val token = authProvider.login(username, context, sqlClient)
 
         configManager.config.locale = setupLocale
 

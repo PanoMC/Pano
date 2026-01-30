@@ -44,9 +44,18 @@ class TokenProvider(
         subject: String,
         tokenType: TokenType,
         expireDate: Long,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        ipAddress: String? = null,
+        userAgent: String? = null
     ) {
-        val tokenObject = Token(subject = subject, token = token, type = tokenType, expireDate = expireDate)
+        val tokenObject = Token(
+            subject = subject,
+            token = token,
+            type = tokenType,
+            expireDate = expireDate,
+            ipAddress = ipAddress,
+            userAgent = userAgent
+        )
 
         databaseManager.tokenDao.add(tokenObject, sqlClient)
     }

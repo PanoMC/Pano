@@ -25,6 +25,8 @@ class TokenDaoImpl : TokenDao() {
                           `type` varchar(32) NOT NULL,
                           `expireDate` bigint(20) NOT NULL,
                           `startDate` bigint NOT NULL,
+                          `ipAddress` varchar(64) DEFAULT NULL,
+                          `userAgent` text DEFAULT NULL,
                           PRIMARY KEY (`id`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Valid token table.';
                         """
@@ -35,8 +37,8 @@ class TokenDaoImpl : TokenDao() {
 
     override suspend fun add(token: Token, sqlClient: SqlClient): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`subject`, `token`, `type`, `expireDate`, `startDate`) " +
-                    "VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`subject`, `token`, `type`, `expireDate`, `startDate`, `ipAddress`, `userAgent`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -46,7 +48,9 @@ class TokenDaoImpl : TokenDao() {
                     token.token,
                     token.type.name,
                     token.expireDate,
-                    token.startDate
+                    token.startDate,
+                    token.ipAddress,
+                    token.userAgent
                 )
             )
             .coAwait()
@@ -99,7 +103,7 @@ class TokenDaoImpl : TokenDao() {
         sqlClient: SqlClient
     ): Token? {
         val query =
-            "SELECT `id`, `subject`, `token`, `type`, `expireDate`, `startDate` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC limit 1"
+            "SELECT `id`, `subject`, `token`, `type`, `expireDate`, `startDate`, `ipAddress`, `userAgent` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC limit 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -118,5 +122,54 @@ class TokenDaoImpl : TokenDao() {
         val row = rows.toList()[0]
 
         return row.toEntity()
+    }
+
+    override suspend fun getAllBySubjectAndType(
+        subject: String,
+        type: TokenType,
+        sqlClient: SqlClient
+    ): List<Token> {
+        val query =
+            "SELECT `id`, `subject`, `token`, `type`, `expireDate`, `startDate`, `ipAddress`, `userAgent` FROM `${getTablePrefix() + tableName}` WHERE `subject` = ? AND `type` = ? order by `expireDate` DESC"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    subject,
+                    type.name
+                )
+            )
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun deleteById(id: Long, sqlClient: SqlClient) {
+        val query =
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(id)
+            )
+            .coAwait()
+    }
+
+    override suspend fun getById(id: Long, sqlClient: SqlClient): Token? {
+        val query =
+            "SELECT `id`, `subject`, `token`, `type`, `expireDate`, `startDate`, `ipAddress`, `userAgent` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(id))
+            .coAwait()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].toEntity()
     }
 }

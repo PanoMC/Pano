@@ -72,6 +72,7 @@ class PanelGetPlayerAPI(
             "lastActivityTime" to user.lastActivityTime,
             "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient),
             "localeCode" to user.localeCode,
+            "registeredIp" to user.registeredIp,
         )
 
         @Suppress("UNCHECKED_CAST")

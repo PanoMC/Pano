@@ -23,29 +23,27 @@ abstract class Route {
 
     abstract fun getHandler(): Handler<RoutingContext>
 
-    companion object {
-        private val allowedSchemes = setOf("http", "https")
-        private val allowedHosts = setOf("localhost", "127.0.0.1", "0.0.0.0")
+    open val allowedSchemes = setOf("http", "https")
+    open val allowedHosts = setOf("localhost", "127.0.0.1", "0.0.0.0")
 
-        private val allowedHeaders = setOf(
-            "x-requested-with",
-            "Access-Control-Allow-Origin",
-            "origin",
-            "Content-Type",
-            "accept",
-            "X-PINGARUNER",
-            "x-csrf-token"
-        )
+    open val allowedHeaders = setOf(
+        "x-requested-with",
+        "Access-Control-Allow-Origin",
+        "origin",
+        "Content-Type",
+        "accept",
+        "X-PINGARUNER",
+        "x-csrf-token"
+    )
 
-        private val allowedMethods = setOf<HttpMethod>(
-            HttpMethod.GET,
-            HttpMethod.POST,
-            HttpMethod.OPTIONS,
-            HttpMethod.DELETE,
-            HttpMethod.PATCH,
-            HttpMethod.PUT
-        )
-    }
+    open val allowedMethods = setOf<HttpMethod>(
+        HttpMethod.GET,
+        HttpMethod.POST,
+        HttpMethod.OPTIONS,
+        HttpMethod.DELETE,
+        HttpMethod.PATCH,
+        HttpMethod.PUT
+    )
 
     open fun corsHandler(): Handler<RoutingContext>? = Handler { ctx ->
         val origin = ctx.request().getHeader("Origin")

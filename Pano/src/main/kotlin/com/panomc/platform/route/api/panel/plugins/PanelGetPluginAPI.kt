@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.plugins
 import com.panomc.platform.PanoPluginDescriptor
 import com.panomc.platform.PanoPluginWrapper
 import com.panomc.platform.PluginManager
+import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
@@ -24,7 +25,8 @@ import org.pf4j.PluginState
 class PanelGetPluginAPI(
     private val databaseManager: DatabaseManager,
     private val pluginManager: PluginManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val updateManager: UpdateManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.GET))
 
@@ -47,6 +49,9 @@ class PanelGetPluginAPI(
         val sqlClient = getSqlClient()
 
         val resourceHashes = databaseManager.resourceHashDao.byListOfHash(listOf(plugin.hash), sqlClient)
+
+        val updates = updateManager.getResourcesUpdateList()
+        val updateInfo = updates.find { it.getString("id") == plugin.pluginId }
 
         return Successful(
             mapOf(
@@ -71,7 +76,9 @@ class PanelGetPluginAPI(
                         .map { it.pluginId },
                     "error" to if (plugin.failedException == null) null else TextUtil.getStackTraceAsString(plugin.failedException),
                     "verifyStatus" to if (resourceHashes[plugin.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[plugin.hash]!!.status,
-                    "size" to plugin.pluginPath.toFile().getSize()
+                    "size" to plugin.pluginPath.toFile().getSize(),
+                    "updateVersion" to updateInfo?.getString("version"),
+                    "updateState" to updateInfo?.getString("state")
                 )
             )
         )

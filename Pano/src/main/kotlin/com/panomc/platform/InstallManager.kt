@@ -1,6 +1,7 @@
 package com.panomc.platform
 
 import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
+import com.panomc.platform.AppConstants.UPDATE_ICON_FOLDER
 import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.UIManager.Companion.InstalledTheme
 import com.panomc.platform.UIManager.Companion.encode
@@ -21,6 +22,9 @@ import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
+import com.panomc.platform.util.VersionUtil
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
@@ -148,6 +152,8 @@ class InstallManager(
                         )
                     }
                 }
+
+                removeUpdateInfoIfVersionMet(pluginId, version)
 
                 progressHandler.invoke(Successful()) // Installing success
 
@@ -292,12 +298,52 @@ class InstallManager(
                     }
                 }
 
+                removeUpdateInfoIfVersionMet(themeId, version)
+
                 progressHandler.invoke(Successful()) // Installing success
             }
         } catch (e: Error) {
             progressHandler.invoke(e)
         } catch (e: Exception) {
             progressHandler.invoke(FailedToInstallResource(extras = mapOf("message" to e.message)))
+        }
+    }
+
+    suspend fun removeUpdateInfoIfVersionMet(resourceId: String, installedVersion: String) {
+        val sqlClient = databaseManager.getSqlClient()
+        val updateInfoOption =
+            databaseManager.systemPropertyDao.getByOption(UpdateManager.RESOURCES_UPDATE_CHECK_INFO, sqlClient) ?: return
+        val updateList = JsonArray(updateInfoOption.value)
+        val updateArray = updateList.map { it as JsonObject }
+
+        val filteredList = updateArray.filter { update ->
+            if (update.getString("id") != resourceId) return@filter true
+
+            val updateVersion = update.getString("version")
+            // Keep if updateVersion is strictly higher than installedVersion
+            VersionUtil.isVersionHigher(updateVersion, installedVersion)
+        }
+
+        if (filteredList.size != updateArray.size) {
+            databaseManager.systemPropertyDao.update(
+                UpdateManager.RESOURCES_UPDATE_CHECK_INFO,
+                JsonArray(filteredList).encode(),
+                sqlClient
+            )
+
+            // Also clean up icons if removed
+            val removedItems = updateArray.filter { it !in filteredList }
+            removedItems.forEach { removed ->
+                val iconFileName = removed.getString("iconFileName")
+                if (iconFileName != null) {
+                    val updateIconFolder =
+                        configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
+                    val file = File(updateIconFolder + iconFileName)
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                }
+            }
         }
     }
 

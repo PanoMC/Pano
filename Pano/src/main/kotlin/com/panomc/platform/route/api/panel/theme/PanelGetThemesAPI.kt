@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.theme
 import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.UIManager
 import com.panomc.platform.UIManager.Companion.InstalledBy
+import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
@@ -23,7 +24,8 @@ import java.io.File
 class PanelGetThemesAPI(
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val updateManager: UpdateManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes", RouteType.GET))
 
@@ -64,13 +66,15 @@ class PanelGetThemesAPI(
         val hashList = themes.map { it.hash }
 
         val sqlClient = getSqlClient()
-
         val resourceHashes = databaseManager.resourceHashDao.byListOfHash(hashList, sqlClient)
+
+        val updates = updateManager.getResourcesUpdateList()
 
         return Successful(
             mapOf(
                 "data" to themes.map { theme ->
                     val themeFolder = File(THEMES_FOLDER_PATH, theme.id)
+                    val updateInfo = updates.find { it.getString("id") == theme.id }
 
                     mapOf(
                         "id" to theme.id,
@@ -89,7 +93,9 @@ class PanelGetThemesAPI(
                         "updatedAt" to theme.updatedAt,
                         "installedBy" to theme.installedBy,
                         "verifyStatus" to if (theme.installedBy == InstalledBy.SYSTEM) ResourceHashStatus.VERIFIED else if (resourceHashes[theme.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[theme.hash]!!.status,
-                        "sourceUrl" to theme.sourceUrl
+                        "sourceUrl" to theme.sourceUrl,
+                        "updateVersion" to updateInfo?.getString("version"),
+                        "updateState" to updateInfo?.getString("state")
                     )
                 }
             )

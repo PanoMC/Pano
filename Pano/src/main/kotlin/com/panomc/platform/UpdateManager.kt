@@ -499,29 +499,9 @@ class UpdateManager(
                     successAmount++
 
                     if (successAmount == 4) {
-                        val foundUpdateInfo = JsonArray(platformUpdateInfoOption.value).map { it as JsonObject }
-                            .find { it.getString("id") == resourceId }!!
-                        val iconFileName = foundUpdateInfo.getString("iconFileName")
-
-                        if (iconFileName != null) {
-                            val updateIconFolder =
-                                configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
-                            val file = File(updateIconFolder + iconFileName)
-
-                            if (file.exists()) {
-                                file.delete()
-                            }
-                        }
-
-                        val filteredUpdateList =
-                            JsonArray(JsonArray(platformUpdateInfoOption.value).filter { (it as JsonObject).getString("id") != resourceId })
-
                         CoroutineScope(vertx.dispatcher()).launch {
-                            databaseManager.systemPropertyDao.update(
-                                RESOURCES_UPDATE_CHECK_INFO,
-                                filteredUpdateList.encode(),
-                                sqlClient
-                            )
+                            val version = resourceUpdateInfo.getString("version")
+                            installManager.removeUpdateInfoIfVersionMet(resourceId, version)
                         }
                     }
                 }

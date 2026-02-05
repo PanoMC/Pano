@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.setup.step
 
+import com.panomc.platform.Main
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -12,6 +13,9 @@ class GetCurrentStepAPI : SetupApi() {
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        return Successful(setupManager.getCurrentStepData().map)
+        val stepData = setupManager.getCurrentStepData().map.toMutableMap()
+        stepData["version"] = Main.VERSION
+
+        return Successful(stepData)
     }
 }

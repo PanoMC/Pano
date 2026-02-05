@@ -103,10 +103,8 @@ class PluginConfigManager<T : PluginConfig>(
         updateConfig(JsonObject(config.root().unwrapped()))
     }
 
-    private fun migrate(configVersion: Int = config.version, saveConfig: Boolean = false) {
+    private fun migrate(configAsJsonObject: JsonObject = JsonObject(gson.toJson(config)), configVersion: Int = config.version, saveConfig: Boolean = false) {
         logger.info("Checking available config migrations")
-
-        val configAsJsonObject = JsonObject(gson.toJson(config))
 
         migrations
             .find { configMigration -> configMigration.isMigratable(configVersion) }
@@ -117,7 +115,7 @@ class PluginConfigManager<T : PluginConfig>(
 
                 migration.migrate(configAsJsonObject)
 
-                migrate(migration.to, true)
+                migrate(configAsJsonObject, migration.to, true)
 
                 return
             }

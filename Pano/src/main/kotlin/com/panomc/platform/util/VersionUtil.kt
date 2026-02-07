@@ -22,6 +22,13 @@ object VersionUtil {
     }
 
     fun compareVersions(a: String, b: String): Int {
+        val isASemVer = isSemVer(a)
+        val isBSemVer = isSemVer(b)
+
+        if (!isASemVer && !isBSemVer) return 0
+        if (!isASemVer) return -1
+        if (!isBSemVer) return 1
+
         val va = parseVersion(a)
         val vb = parseVersion(b)
 

@@ -9,6 +9,7 @@ import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.model.*
+import com.panomc.platform.util.VersionUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -58,11 +59,29 @@ class PanelGetInstallResourceInfoAPI(
             null
         }
 
+        val action: String = if (installed) {
+            val installedVersion = installedResourceInfo!!["version"] as String
+            val requestedVersion = versionInfo.getString("tag")
+
+            val comparison = VersionUtil.compareVersions(requestedVersion, installedVersion)
+
+            if (comparison > 0) {
+                "UPDATE"
+            } else if (comparison < 0) {
+                "DOWNGRADE"
+            } else {
+                "REINSTALL"
+            }
+        } else {
+            "INSTALL"
+        }
+
         return Successful(
             mapOf(
                 "data" to mapOf(
                     "installed" to installedResourceInfo,
-                    "version" to versionInfo.map
+                    "version" to versionInfo.map,
+                    "action" to action
                 )
             )
         )

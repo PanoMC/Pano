@@ -211,6 +211,19 @@ class UpdateManager(
         }
     }
 
+    suspend fun deleteResourceUpdates() {
+        val sqlClient = databaseManager.getSqlClient()
+
+        databaseManager.systemPropertyDao.deleteByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+
+        val updateIconFolder = configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
+        val folder = File(updateIconFolder)
+
+        if (folder.exists()) {
+            folder.deleteRecursively()
+        }
+    }
+
     suspend fun checkResourceUpdates(background: Boolean) {
         if (!panoApiManager.isConnected()) {
             return

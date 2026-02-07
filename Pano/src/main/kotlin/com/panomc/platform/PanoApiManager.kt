@@ -27,6 +27,7 @@ import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.kotlin.coroutines.coAwait
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Lazy
@@ -50,12 +51,18 @@ class PanoApiManager(
     private val vertx: Vertx,
     private val authProvider: AuthProvider
 ) {
+    private val logger = LoggerFactory.getLogger(PanoApiManager::class.java)
+
     companion object {
         private const val HEADER_PREFIX = "Bearer "
     }
 
     private val uiManager: UIManager by lazy {
         applicationContext.getBean(UIManager::class.java)
+    }
+
+    private val updateManager: UpdateManager by lazy {
+        applicationContext.getBean(UpdateManager::class.java)
     }
 
     private fun getPanoAccountConfig() = configManager.config.panoAccount
@@ -160,6 +167,11 @@ class PanoApiManager(
 
             configManager.saveConfig()
 
+            try {
+                updateManager.checkResourceUpdates(true)
+            } catch (_: Exception) {
+            }
+
         } catch (e: Exception) {
             throw PanoConnectFailed()
         }
@@ -167,7 +179,7 @@ class PanoApiManager(
         return Triple(username, email, platformId)
     }
 
-    fun removePanoAccount() {
+    suspend fun removePanoAccount() {
         val panoAccountConfig = getPanoAccountConfig()
 
         panoAccountConfig.accessToken = ""
@@ -178,6 +190,11 @@ class PanoApiManager(
         panoAccountConfig.connect = null
 
         configManager.saveConfig()
+
+        try {
+            updateManager.deleteResourceUpdates()
+        } catch (_: Exception) {
+        }
     }
 
     suspend fun disconnectPlatform() {
@@ -315,7 +332,8 @@ class PanoApiManager(
 
             val responseBody = response.bodyAsJsonObject()
             data = responseBody.getJsonObject("data")
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logger.error(e.message, e)
             throw PanoConnectFailed()
         }
 

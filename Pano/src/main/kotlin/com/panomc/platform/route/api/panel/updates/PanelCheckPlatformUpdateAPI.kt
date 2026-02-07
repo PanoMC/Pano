@@ -8,7 +8,11 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Parameters.optionalParam
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class PanelCheckPlatformUpdateAPI(
@@ -18,12 +22,26 @@ class PanelCheckPlatformUpdateAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/updates/platform", RouteType.GET))
 
-    override fun getValidationHandler(schemaRepository: SchemaRepository) = null
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
+            .queryParameter(
+                optionalParam(
+                    "type",
+                    stringSchema()
+                )
+            )
+            .build()
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
 
-        updateManager.checkUpdates()
+        val type = context.request().getParam("type")
+
+        if (type == "RESOURCES") {
+            updateManager.checkResourceUpdates(false)
+        } else {
+            updateManager.checkUpdates()
+        }
 
         val sqlClient = databaseManager.getSqlClient()
         val userId = authProvider.getUserIdFromRoutingContext(context)

@@ -374,6 +374,7 @@ class UpdateManager(
                 databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
                     ?: throw FailedToUpdatePlatform(extras = mapOf("message" to "There are no updates. Please run check updates."))
             val platformUpdateInfo = JsonObject(platformUpdateInfoOption.value)
+            val version = platformUpdateInfo.getString("version")
             val versionState = UUID.fromString(platformUpdateInfo.getString("state"))
 
             if (state != versionState) {
@@ -529,6 +530,9 @@ class UpdateManager(
     }
 
     internal suspend fun init() {
+        val sqlClient = databaseManager.getSqlClient()
+        markOldPanoUpdateNotificationsAsRead(Main.VERSION, sqlClient)
+
         checkDidUpgrade()
 
         startUpdateChecker()
@@ -557,7 +561,8 @@ class UpdateManager(
                     databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
 
                 if (oldPlatformUpdateInfo == null && platformUpdateInfo != null) {
-                    sendPanoUpdateFoundNotification(sqlClient)
+                    val version = JsonObject(platformUpdateInfo.value).getString("version")
+                    sendPanoUpdateFoundNotification(version, sqlClient)
 
                     return@launch
                 }
@@ -570,7 +575,8 @@ class UpdateManager(
                     platformUpdateInfoJsonObject.remove("state")
 
                     if (oldPlatformUpdateInfoJsonObject.encode() != platformUpdateInfoJsonObject.encode()) {
-                        sendPanoUpdateFoundNotification(sqlClient)
+                        val version = platformUpdateInfoJsonObject.getString("version")
+                        sendPanoUpdateFoundNotification(version, sqlClient)
 
                         return@launch
                     }
@@ -579,12 +585,24 @@ class UpdateManager(
         }
     }
 
-    private suspend fun sendPanoUpdateFoundNotification(sqlClient: SqlClient) {
+    private suspend fun sendPanoUpdateFoundNotification(version: String, sqlClient: SqlClient) {
         notificationManager.sendNotificationToAllWithPermission(
-            notificationType = PanoUpdateFoundNotification(),
+            notificationType = PanoUpdateFoundNotification(version),
             permission = ManagePlatformSettingsPermission(),
             sqlClient = sqlClient
         )
+    }
+
+    private suspend fun markOldPanoUpdateNotificationsAsRead(currentVersion: String, sqlClient: SqlClient) {
+        val type = PanoUpdateFoundNotification().getName()
+        val notifications = databaseManager.panelNotificationDao.getNotReadByType(type, sqlClient)
+
+        notifications.forEach { notification ->
+            val version = notification.details.getString("version")
+            if (version != null && VersionUtil.compareVersions(version, currentVersion) <= 0) {
+                databaseManager.panelNotificationDao.markReadById(notification.id, sqlClient)
+            }
+        }
     }
 
     private suspend fun shouldCheckUpdates(): Boolean {

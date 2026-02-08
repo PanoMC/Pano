@@ -4,4 +4,6 @@ import com.panomc.platform.annotation.NotificationDefinition
 import com.panomc.platform.notification.PanelUserNotificationType
 
 @NotificationDefinition
-class PanoUpdateFoundNotification() : PanelUserNotificationType()
+data class PanoUpdateFoundNotification(
+    val version: String? = null
+) : PanelUserNotificationType()

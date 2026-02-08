@@ -81,4 +81,9 @@ abstract class PanelNotificationDao : Dao<PanelNotification>(PanelNotification::
         userId: Long,
         sqlClient: SqlClient
     )
+
+    abstract suspend fun getNotReadByType(
+        type: String,
+        sqlClient: SqlClient
+    ): List<PanelNotification>
 }

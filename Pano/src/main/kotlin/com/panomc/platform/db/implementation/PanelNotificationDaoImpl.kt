@@ -313,4 +313,23 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
             )
             .coAwait()
     }
+
+    override suspend fun getNotReadByType(
+        type: String,
+        sqlClient: SqlClient
+    ): List<PanelNotification> {
+        val query =
+            "SELECT `id`, `userId`, `type`, `details`, `status`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}` WHERE `type` = ? AND `status` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    type,
+                    NotificationStatus.NOT_READ
+                )
+            ).coAwait()
+
+        return rows.toEntities()
+    }
 }

@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.setup
 
-import com.panomc.platform.AppConstants
 import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.UIManager
 import com.panomc.platform.UpdateManager
@@ -10,10 +9,10 @@ import com.panomc.platform.auth.panel.log.InstalledPlatformLog
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
-import io.vertx.core.http.Cookie
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -23,6 +22,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.kotlin.coroutines.coAwait
+import org.slf4j.Logger
 import org.springframework.context.annotation.Lazy
 
 @Endpoint
@@ -30,10 +30,12 @@ class FinishAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager,
-    @Lazy private val router: Router,
+    @get:Lazy private val router: Router,
     private val uiManager: UIManager,
     private val updateManager: UpdateManager,
-    private val mariaDBManager: MariaDBManager
+    private val mariaDBManager: MariaDBManager,
+    private val logger: Logger,
+    @get:Lazy private val i18nManager: I18nManager
 ) : SetupApi() {
     override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
@@ -117,9 +119,11 @@ class FinishAPI(
         } catch (_: Error) {
         }
 
-        uiManager.prepareUI(router)
+        logger.info("Initializing i18n manager")
 
-        val response = context.response()
+        i18nManager.init()
+
+        uiManager.prepareUI(router)
 
         val csrfToken = CSRFTokenGenerator.nextToken()
 

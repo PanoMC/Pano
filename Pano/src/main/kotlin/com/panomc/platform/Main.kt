@@ -140,7 +140,6 @@ class Main : CoroutineVerticle() {
     private lateinit var configManager: ConfigManager
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
-    private lateinit var i18nManager: I18nManager
     private lateinit var acmeManager: AcmeManager
     private var stopping = false
 
@@ -306,7 +305,7 @@ class Main : CoroutineVerticle() {
     private suspend fun initI18nManager() {
         logger.info("Initializing i18n manager")
 
-        i18nManager = applicationContext.getBean(I18nManager::class.java)
+        val i18nManager = applicationContext.getBean(I18nManager::class.java)
 
         i18nManager.init()
     }

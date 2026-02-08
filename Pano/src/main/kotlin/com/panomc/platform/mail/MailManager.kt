@@ -254,8 +254,8 @@ class MailManager(
 
             message.from = sender
             message.subject = "Pano Platform E-mail test"
-            message.setTo("no-reply@duruer.dev")
-            message.html = "Hello world!"
+            message.setTo("no-reply@panomc.com")
+            message.html = "Hello world! E-mail is working!"
 
             mailClient.sendMail(message).coAwait()
 

@@ -217,9 +217,9 @@ class PanoApiManager(
         removePanoAccount()
     }
 
-    fun createPanoCode(): Pair<String, String> {
+    suspend fun createPanoCode(): Pair<String, String> {
         if (isConnected()) {
-            throw AlreadyConnectedToPano()
+            removePanoAccount()
         }
 
         val keyPair = KeyGeneratorUtil.generateKeyPair()

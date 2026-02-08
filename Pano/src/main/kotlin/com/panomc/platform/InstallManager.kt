@@ -95,10 +95,6 @@ class InstallManager(
                 val pluginId = pluginMetadata.pluginId
                 val version = pluginMetadata.version
 
-                if (isInstalled(pluginId, version, type)) {
-                    throw FailedToInstallResource(extras = mapOf("message" to "This version ($version) is already installed."))
-                }
-
                 var fromVersion: String? = null
 
                 if (isInstalled(pluginId, type)) {

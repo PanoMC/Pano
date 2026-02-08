@@ -1,11 +1,11 @@
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.io.FileInputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
 import java.util.zip.ZipInputStream
-import java.io.FileInputStream
 
 val vertxVersion: String by project
 val gsonVersion: String by project
@@ -120,8 +120,7 @@ tasks {
                 outputDir.mkdirs() // Create the directory if it doesn't exist
             }
 
-//            val isDevBuild = project.gradle.startParameter.taskNames.contains("buildDev")
-            val isDevBuild = true
+            val isDevBuild = !project.hasProperty("prod")
 
             repositories.forEach { repo ->
                 println("Processing repository: $repo")

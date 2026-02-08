@@ -374,7 +374,6 @@ class UpdateManager(
                 databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
                     ?: throw FailedToUpdatePlatform(extras = mapOf("message" to "There are no updates. Please run check updates."))
             val platformUpdateInfo = JsonObject(platformUpdateInfoOption.value)
-            val version = platformUpdateInfo.getString("version")
             val versionState = UUID.fromString(platformUpdateInfo.getString("state"))
 
             if (state != versionState) {

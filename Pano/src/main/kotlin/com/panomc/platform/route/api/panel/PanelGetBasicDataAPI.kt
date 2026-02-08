@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel
 
+import com.panomc.platform.Main
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -60,8 +61,13 @@ class PanelGetBasicDataAPI(
             "connectedServerCount" to connectedServerCount,
             "acceptPluginAuth" to configManager.config.acceptPluginAuth,
             "panelTheme" to panelTheme,
-            "showDevModeAlert" to false
+            "showDevModeAlert" to false,
+            "showWhatsNew" to false,
+            "currentVersion" to Main.VERSION
         )
+
+        val dismissedVersion = databaseManager.panelConfigDao.byUserIdAndOption(userId, "dismissed_whats_new_version", sqlClient)?.value
+        result["showWhatsNew"] = dismissedVersion != Main.VERSION
 
         if (configManager.config.developmentMode) {
             val option = "dismissed_dev_mode_alert"

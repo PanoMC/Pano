@@ -79,28 +79,28 @@ class SchemeVersionDaoImpl : SchemeVersionDao() {
     override suspend fun getLastSchemeVersion(
         sqlClient: SqlClient
     ): SchemeVersion? {
-        val query = "SELECT `pluginId`, `when`, `key`, `extra` FROM `${getTablePrefix() + tableName}` WHERE `pluginId` IS NULL"
+        val rows = sqlClient.query("SELECT * FROM `${getTablePrefix() + tableName}`").execute().coAwait()
+        val hasPluginId = rows.columnsNames().contains("pluginId")
+        val filteredRows = if (hasPluginId) {
+            rows.filter { it.getString("pluginId") == null }
+        } else {
+            rows.toList()
+        }
 
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute()
-            .coAwait()
-
-        return rows.maxByOrNull { it.getString("key")?.toIntOrNull() ?: 0 }?.toEntity()
+        return filteredRows.maxByOrNull { it.getString("key")?.toIntOrNull() ?: 0 }?.toEntity()
     }
 
     override suspend fun getLastSchemeVersion(
         pluginId: String,
         sqlClient: SqlClient,
     ): SchemeVersion? {
-        val query = "SELECT `pluginId`, `when`, `key`, `extra` FROM `${getTablePrefix() + tableName}` WHERE `pluginId` = ?"
+        val rows = sqlClient.query("SELECT * FROM `${getTablePrefix() + tableName}`").execute().coAwait()
+        val hasPluginId = rows.columnsNames().contains("pluginId")
+        if (!hasPluginId) return null
 
-        val rows: RowSet<Row> = sqlClient
-            .preparedQuery(query)
-            .execute(Tuple.of(pluginId))
-            .coAwait()
+        val filteredRows = rows.filter { it.getString("pluginId") == pluginId }
 
-        return rows.maxByOrNull { it.getString("key")?.toIntOrNull() ?: 0 }?.toEntity()
+        return filteredRows.maxByOrNull { it.getString("key")?.toIntOrNull() ?: 0 }?.toEntity()
     }
 
     override suspend fun deleteByPluginId(

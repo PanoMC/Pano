@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Dao
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.*
+import com.panomc.platform.error.PlatformAlreadyInstalled
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLBuilder
@@ -130,6 +131,18 @@ class DatabaseManager(
     }
 
     internal suspend fun initDatabase(sqlClient: SqlClient) {
+        try {
+            val lastSchemeVersion = schemeVersionDao.getLastSchemeVersion(sqlClient)
+
+            if (lastSchemeVersion != null) {
+                throw PlatformAlreadyInstalled()
+            }
+        } catch (e: Exception) {
+            if (e is PlatformAlreadyInstalled) {
+                throw e
+            }
+        }
+
         val databaseInitProcessHandlers = getDatabaseInitList()
 
         databaseInitProcessHandlers.forEach { it.init(sqlClient) }
@@ -142,16 +155,8 @@ class DatabaseManager(
 
         val sqlClient = getSqlClient()
 
-        val prefix = getTablePrefix()
         val databaseVersion = try {
-            val rows = sqlClient.query("SELECT * FROM `${prefix}scheme_version`").execute().coAwait()
-            val hasPluginId = rows.columnsNames().contains("pluginId")
-            val filteredRows = if (hasPluginId) {
-                rows.filter { it.getString("pluginId") == null }
-            } else {
-                rows
-            }
-            filteredRows.map { it.getString("key")?.toIntOrNull() ?: 0 }.maxByOrNull { it } ?: 0
+            schemeVersionDao.getLastSchemeVersion(sqlClient)?.key?.toIntOrNull() ?: 0
         } catch (e: Exception) {
             logger.error("Database Error: Database scheme is not correct, please reinstall platform")
 

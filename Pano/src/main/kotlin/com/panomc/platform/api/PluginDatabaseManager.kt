@@ -14,7 +14,6 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
-import java.sql.BatchUpdateException
 
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -164,7 +163,7 @@ class PluginDatabaseManager(
 
         try {
             lastSchemeVersion = databaseManager.schemeVersionDao.getLastSchemeVersion(plugin.pluginId, sqlClient)
-        } catch (_: BatchUpdateException) {
+        } catch (_: Exception) {
             try {
                 initPluginDB(plugin, sqlClient)
 

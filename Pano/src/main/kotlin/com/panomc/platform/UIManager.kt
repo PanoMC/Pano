@@ -348,6 +348,7 @@ class UIManager(
         environment["HOST"] = serverHost
         environment["API_URL"] = "http://${serverHost}:${serverPort}/api"
         environment["PANO_WEBSITE_URL"] = config.panoWebsiteUrl
+        environment["PANO_WEBSITE_API_URL"] = config.panoApiUrl
 
         val process = processBuilder.start()
 

@@ -15,6 +15,7 @@ class GetCurrentStepAPI : SetupApi() {
     override suspend fun handle(context: RoutingContext): Result {
         val stepData = setupManager.getCurrentStepData().map.toMutableMap()
         stepData["version"] = Main.VERSION
+        stepData["stage"] = Main.STAGE
 
         return Successful(stepData)
     }

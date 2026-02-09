@@ -40,7 +40,7 @@ class GetPostDetailAPI(
 
         databaseManager.postDao.increaseViewByOne(url, sqlClient)
 
-        val post = databaseManager.postDao.getByUrl(url, sqlClient)!!
+        val post = databaseManager.postDao.getByUrl(url, sqlClient) ?: throw PostNotFound()
         var postCategory: PostCategory? = null
 
         if (post.categoryId != -1L) {

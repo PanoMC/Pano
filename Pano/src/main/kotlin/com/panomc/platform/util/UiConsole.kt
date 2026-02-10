@@ -34,6 +34,11 @@ object UiConsole {
     private var inputField: JTextField? = null
     private var sendBtn: JButton? = null
 
+    private val commandHistory = mutableListOf<String>()
+    private var historyLimit = 50
+    private var historyIndex = -1
+    private var currentDraft = ""
+
     private var defaultAttr: SimpleAttributeSet = SimpleAttributeSet()
     private var currentAttr: SimpleAttributeSet = SimpleAttributeSet()
 
@@ -57,9 +62,31 @@ object UiConsole {
     private val placeholderColor = Color(0x8a8a8a)
     private val caretDisabled = Color(0x5a5a5a)
 
-    private val placeholderText = "> Enter command here..."
+    private val placeholderText = "Enter command here..."
 
     // ---------- Public API ----------
+    
+    fun setHistoryLimit(limit: Int) {
+        historyLimit = limit
+        if (historyLimit <= 0) {
+            commandHistory.clear()
+        } else {
+            while (commandHistory.size > historyLimit) {
+                commandHistory.removeAt(0)
+            }
+        }
+    }
+
+    fun addToHistory(cmd: String) {
+        if (historyLimit <= 0) return
+        
+        if (commandHistory.isEmpty() || commandHistory.last() != cmd) {
+            commandHistory.add(cmd)
+            while (commandHistory.size > historyLimit) {
+                commandHistory.removeAt(0)
+            }
+        }
+    }
 
     fun isGuiAvailable(): Boolean {
         if (GraphicsEnvironment.isHeadless()) return false
@@ -86,7 +113,8 @@ object UiConsole {
      * Show the console window and redirect System.out/err to it.
      * Input starts LOCKED until you call [markReady].
      */
-    fun showConsoleWindow(title: String = "Pano Console", teeToOriginal: Boolean = true) {
+    fun showConsoleWindow(title: String = "Pano Console", teeToOriginal: Boolean = true, historyLimit: Int = 50) {
+        this.historyLimit = historyLimit
         if (frame != null) {
             frame!!.toFront(); return
         }
@@ -117,34 +145,71 @@ object UiConsole {
         val scroll = JScrollPane(pane).apply { border = BorderFactory.createEmptyBorder() }
 
         // Input area
-        val input = JTextField().apply {
+        val input = object : JTextField() {
+            override fun paintComponent(g: Graphics) {
+                super.paintComponent(g)
+                if (text.isEmpty()) {
+                    val g2 = g as Graphics2D
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                    g2.color = placeholderColor
+                    val fm = g2.fontMetrics
+                    val x = insets.left
+                    val y = (height + fm.ascent - fm.descent) / 2
+                    g2.drawString(placeholderText, x, y)
+                }
+            }
+        }.apply {
             background = fieldBg
-            foreground = placeholderColor
+            foreground = fg
             caretColor = caretDisabled
             border = BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 0, 0, 0, borderTop),
                 BorderFactory.createEmptyBorder(6, 8, 6, 8)
             )
             font = pickMonospaceFont().deriveFont(14f)
-            text = placeholderText
             // 1) Don't take focus on startup
             isFocusable = false
             isRequestFocusEnabled = false
         }
-        // Placeholder behavior
+
+        // Focus behavior
         input.addFocusListener(object : java.awt.event.FocusAdapter() {
             override fun focusGained(e: java.awt.event.FocusEvent?) {
-                if (input.text == placeholderText) input.text = ""
                 if (inputEnabled && !stopped) {
-                    input.foreground = fg
                     input.caretColor = fg
                 }
             }
             override fun focusLost(e: java.awt.event.FocusEvent?) {
-                if (input.text.isBlank()) {
-                    input.text = placeholderText
-                    input.foreground = placeholderColor
-                    input.caretColor = if (inputEnabled && !stopped) fg else caretDisabled
+                input.caretColor = if (inputEnabled && !stopped) fg else caretDisabled
+            }
+        })
+
+        // History behavior
+        input.addKeyListener(object : java.awt.event.KeyAdapter() {
+            override fun keyPressed(e: java.awt.event.KeyEvent) {
+                if (commandHistory.isEmpty()) return
+                
+                when (e.keyCode) {
+                    java.awt.event.KeyEvent.VK_UP -> {
+                        if (historyIndex == -1) {
+                            currentDraft = input.text
+                        }
+                        if (historyIndex < commandHistory.size - 1) {
+                            historyIndex++
+                            input.text = commandHistory[commandHistory.size - 1 - historyIndex]
+                        }
+                        e.consume()
+                    }
+                    java.awt.event.KeyEvent.VK_DOWN -> {
+                        if (historyIndex > 0) {
+                            historyIndex--
+                            input.text = commandHistory[commandHistory.size - 1 - historyIndex]
+                        } else if (historyIndex == 0) {
+                            historyIndex = -1
+                            input.text = currentDraft
+                        }
+                        e.consume()
+                    }
                 }
             }
         })
@@ -164,14 +229,26 @@ object UiConsole {
 
         input.addActionListener { submitCommand() }
 
+        val mono = pickMonospaceFont()
+        pane.font = mono.deriveFont(14f)
+
+        val promptLabel = JLabel("> ").apply {
+            foreground = fg
+            background = fieldBg
+            isOpaque = true
+            font = mono.deriveFont(14f)
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, borderTop),
+                BorderFactory.createEmptyBorder(6, 8, 6, 0)
+            )
+        }
+
         val south = JPanel(BorderLayout()).apply {
             background = bg
+            add(promptLabel, BorderLayout.WEST)
             add(input, BorderLayout.CENTER)
             add(send, BorderLayout.EAST)
         }
-
-        val mono = pickMonospaceFont()
-        pane.font = mono.deriveFont(14f)
 
         f.layout = BorderLayout()
         f.add(scroll, BorderLayout.CENTER)
@@ -246,10 +323,8 @@ object UiConsole {
             inputField?.isRequestFocusEnabled = true
             inputField?.requestFocusInWindow()
             val field = inputField ?: return@invokeLater
-            if (field.text == placeholderText || field.text.isBlank()) {
+            if (field.text.isBlank()) {
                 field.text = ""
-                field.foreground = fg
-                field.caretColor = fg
             }
             updateSendEnabled()
         }
@@ -272,16 +347,21 @@ object UiConsole {
         val field = inputField ?: return
         val raw = field.text ?: return
         val cmd = raw.trim()
-        if (cmd.isEmpty() || cmd == placeholderText) return
+        if (cmd.isEmpty()) return
 
         if (!inputEnabled) {
             println("\u001B[90m(input is locked) $inputLockReason\u001B[0m")
             return
         }
 
+        // We don't print the '>' here anymore because it's handled by the redirection
+        // or we want it to be consistent with ConsoleInputReader
         println("\u001B[90m>\u001B[0m $cmd")
 
         try {
+            addToHistory(cmd)
+            historyIndex = -1
+            
             commandHandler?.invoke(cmd) ?: run {
                 println("\u001B[33m(no command handler wired; command ignored)\u001B[0m")
             }
@@ -298,7 +378,6 @@ object UiConsole {
         val btn = sendBtn ?: return
 
         val textOk = field.text != null &&
-                field.text != placeholderText &&
                 field.text.trim().isNotEmpty()
 
         val enabled = inputEnabled && !stopped && textOk
@@ -322,8 +401,7 @@ object UiConsole {
             field.isFocusable = false
             field.isRequestFocusEnabled = false
             field.cursor = Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
-            field.text = placeholderText
-            field.foreground = placeholderColor
+            field.text = ""
             field.caretColor = caretDisabled
             btn?.isEnabled = false
             field.toolTipText = "Pano is stopped"
@@ -341,13 +419,9 @@ object UiConsole {
         else Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)
 
         if (editable) {
-            if (field.text == placeholderText) field.text = ""
-            field.foreground = fg
-            field.caretColor = fg
             field.toolTipText = null
         } else {
-            if (field.text.isBlank()) field.text = placeholderText
-            field.foreground = placeholderColor
+            if (field.text.isBlank()) field.text = ""
             field.caretColor = caretDisabled
             field.toolTipText = inputLockReason.ifBlank { "Input is locked" }
         }
@@ -371,38 +445,48 @@ object UiConsole {
         if (originalOut == null) originalOut = System.out
         if (originalErr == null) originalErr = System.err
 
-        val out = PrintStream(object : OutputStream() {
-            override fun write(b: Int) {
-                parseAnsiAndAppend(String(byteArrayOf(b.toByte())))
-                if (teeToOriginal) originalOut?.write(b)
-            }
-            override fun write(b: ByteArray, off: Int, len: Int) {
-                val s = String(b, off, len)
-                parseAnsiAndAppend(s)
-                if (teeToOriginal) originalOut?.write(b, off, len)
-            }
-            override fun flush() {
-                if (teeToOriginal) originalOut?.flush()
-            }
-        }, true)
+        class ConsoleOutputStream(private val isErr: Boolean) : OutputStream() {
+            private val buffer = java.io.ByteArrayOutputStream()
 
-        val err = PrintStream(object : OutputStream() {
             override fun write(b: Int) {
-                parseAnsiAndAppend(String(byteArrayOf(b.toByte())))
-                if (teeToOriginal) originalErr?.write(b)
+                buffer.write(b)
+                if (b == '\n'.toInt()) {
+                    flush()
+                }
             }
-            override fun write(b: ByteArray, off: Int, len: Int) {
-                val s = String(b, off, len)
-                parseAnsiAndAppend(s)
-                if (teeToOriginal) originalErr?.write(b, off, len)
-            }
-            override fun flush() {
-                if (teeToOriginal) originalErr?.flush()
-            }
-        }, true)
 
-        System.setOut(out)
-        System.setErr(err)
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                buffer.write(b, off, len)
+                if (b.sliceArray(off until off + len).contains('\n'.toByte())) {
+                    flush()
+                }
+            }
+
+            override fun flush() {
+                val data = buffer.toByteArray()
+                if (data.isEmpty()) return
+                
+                val s = String(data, Charsets.UTF_8)
+                parseAnsiAndAppend(s)
+                
+                if (teeToOriginal) {
+                    val jlineReader = com.panomc.platform.command.ConsoleInputReader.reader
+                    if (jlineReader != null) {
+                        // Use JLine's printAbove to keep the prompt at the bottom
+                        jlineReader.printAbove(s)
+                    } else {
+                        // Fallback to direct output
+                        if (isErr) originalErr?.print(s) else originalOut?.print(s)
+                        if (isErr) originalErr?.flush() else originalOut?.flush()
+                    }
+                }
+                
+                buffer.reset()
+            }
+        }
+
+        System.setOut(PrintStream(ConsoleOutputStream(false), true))
+        System.setErr(PrintStream(ConsoleOutputStream(true), true))
     }
 
     private fun restoreSystemStreams() {

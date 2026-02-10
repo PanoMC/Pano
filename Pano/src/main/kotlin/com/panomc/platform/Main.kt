@@ -12,6 +12,10 @@ import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.ssl.AcmeManager
+import com.panomc.platform.command.Command
+import com.panomc.platform.command.CommandManager
+import com.panomc.platform.command.CommandSender
+import com.panomc.platform.command.ConsoleInputReader
 import com.panomc.platform.util.*
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
@@ -134,6 +138,8 @@ class Main : CoroutineVerticle() {
         }
 
         lateinit var applicationContext: AnnotationConfigApplicationContext
+
+        val commandManager = CommandManager()
     }
 
     private val logger by lazy {
@@ -153,7 +159,7 @@ class Main : CoroutineVerticle() {
         }
 
         stopping = true
-
+        
         logger.info("Gracefully shutting down Pano...")
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -169,16 +175,50 @@ class Main : CoroutineVerticle() {
     }
 
     private fun hookCommands() {
-        UiConsole.setCommandHandler { cmd ->
-            // Parse & run your commands here
-            when (cmd) {
-                "stop", "exit", "quit" -> {
-                    runBlocking { shutdown() }
-                }
+        commandManager.registerCommands(this)
 
-                else -> println("Unknown command: $cmd")
+        UiConsole.setHistoryLimit(configManager.config.consoleHistoryLimit)
+        
+        UiConsole.setCommandHandler { cmd ->
+            commandManager.executeCommand(UiConsoleCommandSender(), cmd)
+        }
+
+        ConsoleInputReader(commandManager, configManager).start()
+    }
+
+    private inner class UiConsoleCommandSender : CommandSender {
+        override fun sendMessage(message: String) {
+            println(message)
+        }
+
+        override fun getName(): String {
+            return "UI_CONSOLE"
+        }
+    }
+
+    @Command(name = "stop", aliases = ["exit", "quit"], description = "Stops the platform")
+    fun onStopCommand(sender: CommandSender) {
+        logger.info("Stop command received from ${sender.getName()}")
+        runBlocking { shutdown() }
+    }
+
+    @Command(name = "help", description = "Shows help for commands")
+    fun onHelpCommand(sender: CommandSender) {
+        sender.sendMessage("\u001B[36m--- Available Commands ---\u001B[0m")
+        commandManager.getCommands().values.distinctBy { it.name }.sortedBy { it.name }.forEach { cmd ->
+            val aliasesString = if (cmd.aliases.isNotEmpty()) " (Aliases: ${cmd.aliases.joinToString(", ")})" else ""
+            sender.sendMessage("\u001B[33m${cmd.name}\u001B[0m$aliasesString - ${cmd.description}")
+            if (cmd.usage.isNotEmpty()) {
+                sender.sendMessage("  Usage: ${cmd.usage}")
             }
         }
+    }
+
+    @Command(name = "version", aliases = ["ver"], description = "Shows platform version")
+    fun onVersionCommand(sender: CommandSender) {
+        sender.sendMessage("\u001B[32mPano Platform Version: \u001B[0m$VERSION")
+        sender.sendMessage("\u001B[32mEnvironment: \u001B[0m$ENVIRONMENT")
+        sender.sendMessage("\u001B[32mStage: \u001B[0m$STAGE")
     }
 
     private fun hookShutdown() {
@@ -227,12 +267,31 @@ class Main : CoroutineVerticle() {
     }
 
     override suspend fun stop() {
+        logger.info("Stopping Pano components...")
+
+        if (::pluginManager.isInitialized) {
+            logger.info("Stopping plugins...")
+            try {
+                pluginManager.stopPlugins()
+            } catch (e: Exception) {
+                logger.error("Failed to stop plugins", e)
+            }
+        }
+
         if (::uiManager.isInitialized) {
             uiManager.shutdown()
         }
 
+        // Stop portable MariaDB if it was started
+        try {
+            if (applicationContext.containsBean("mariaDBManager")) {
+                val mariaDBManager = applicationContext.getBean(MariaDBManager::class.java)
+                mariaDBManager.stop()
+            }
+        } catch (_: Exception) {}
+
         UiConsole.markStopped()
-        exitProcess(0)
+        logger.info("Pano is now stopped. Bye!")
     }
 
     private suspend fun executeBlocking(unit: () -> Unit) {

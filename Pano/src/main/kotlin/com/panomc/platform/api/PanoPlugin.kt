@@ -85,6 +85,14 @@ abstract class PanoPlugin : Plugin() {
         pluginEventManager.unRegister(this, eventListener)
     }
 
+    fun registerCommands(obj: Any) {
+        Main.commandManager.registerCommands(obj)
+    }
+
+    fun unRegisterCommands(obj: Any) {
+        Main.commandManager.unregisterCommands(obj)
+    }
+
     @Deprecated("Use onStart method.")
     override fun start() {
         runBlocking {

@@ -56,6 +56,7 @@ data class PanoConfig(
     @SerializedName("pano-website-url") var panoWebsiteUrl: String = getPanoWebsiteUrl(),
 
     @SerializedName("accept-plugin-auth") var acceptPluginAuth: Boolean = true,
+    @SerializedName("console-history-limit") var consoleHistoryLimit: Int = 50,
 ) {
     companion object {
         data class SetupConfig(var step: Int = 0)

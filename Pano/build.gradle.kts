@@ -95,6 +95,11 @@ dependencies {
     // Let's Encrypt / ACME
     implementation("org.shredzone.acme4j:acme4j-client:3.5.0")
     implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
+    
+    // JLine and terminal support
+    implementation("org.jline:jline:3.29.0")
+    implementation("org.fusesource.jansi:jansi:2.4.1")
+    implementation("net.java.dev.jna:jna:5.16.0")
 }
 
 val organization = "PanoMC"
@@ -310,10 +315,20 @@ tasks {
 }
 
 tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
     environment("EnvironmentType", "DEVELOPMENT")
     environment("PanoVersion", version)
     environment("PanoBuildType", buildType)
     pluginsDir?.let { systemProperty("pf4j.pluginsDir", it.absolutePath) }
+
+    // Fix JLine illegal reflective access warnings and allow system terminal creation
+    jvmArgs(
+        "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+        "--add-opens", "java.base/java.io=ALL-UNNAMED",
+        "--add-opens", "java.base/java.util=ALL-UNNAMED",
+        "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED"
+    )
+    systemProperty("org.jline.utils.Log.level", "ERROR")
 }
 
 application {

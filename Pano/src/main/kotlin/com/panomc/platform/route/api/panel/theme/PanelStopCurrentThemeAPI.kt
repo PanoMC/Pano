@@ -9,8 +9,16 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.RequestPredicate
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Bodies.json
+import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import org.apache.commons.codec.digest.DigestUtils
 import org.springframework.context.annotation.Lazy
+import com.panomc.platform.error.NoPermission
 
 @Endpoint
 class PanelStopCurrentThemeAPI(
@@ -21,10 +29,34 @@ class PanelStopCurrentThemeAPI(
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes", RouteType.DELETE))
 
-    override fun getValidationHandler(schemaRepository: SchemaRepository) = null
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
+            .body(
+                json(
+                    objectSchema()
+                        .requiredProperty("password", stringSchema())
+                )
+            )
+            .predicate(RequestPredicate.BODY_REQUIRED)
+            .build()
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManageViewPermission(), context)
+
+        val parameters = getParameters(context)
+        val data = parameters.body().jsonObject
+
+        val password = data.getString("password")
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val sqlClient = databaseManager.getSqlClient()
+
+        val isPasswordCorrect =
+            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(password), sqlClient)
+
+        if (!isPasswordCorrect) {
+            throw NoPermission()
+        }
 
         if (!uiManager.activatedUIList.containsKey(Type.THEME_UI)) {
             return Successful()
@@ -33,8 +65,6 @@ class PanelStopCurrentThemeAPI(
         uiManager.stopUI(uiManager.activeTheme)
         uiManager.disableUIOnRoute(router, Type.THEME_UI)
 
-        val sqlClient = databaseManager.getSqlClient()
-        val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
         databaseManager.panelActivityLogDao.add(

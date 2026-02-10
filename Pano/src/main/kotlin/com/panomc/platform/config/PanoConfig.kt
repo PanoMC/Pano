@@ -98,8 +98,8 @@ data class PanoConfig(
 
         data class ServerConfig(
             var host: String = "0.0.0.0",
-            @SerializedName("http-port") var httpPort: Int = 8088,
-            @SerializedName("https-port") var httpsPort: Int = 8443,
+            @SerializedName("http-port") var httpPort: Int = if (IS_DEV) 8088 else 80,
+            @SerializedName("https-port") var httpsPort: Int = if (IS_DEV) 8443 else 443,
             @SerializedName("ssl-mode") var sslMode: SslMode = SslMode.DISABLED,
             @SerializedName("redirect-https") var redirectHttps: Boolean = false,
             @SerializedName("ssl-cert") var sslCert: String? = null,

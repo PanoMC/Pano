@@ -127,6 +127,17 @@ open class ConfigManager(
 
                 migration.migrate(configJsonObject)
 
+                // Log to .config_history
+                try {
+                    val historyFile = File(".config_history")
+                    val now = LocalDateTime.now()
+                    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    val formattedDate = now.format(formatter)
+                    historyFile.appendText("[$formattedDate] Migrated config from version ${migration.from} to ${migration.to}: ${migration.versionInfo}\n")
+                } catch (e: Exception) {
+                    logger.error("Failed to write to .config_history", e)
+                }
+
                 migrate(migration.to, false)
             }
 

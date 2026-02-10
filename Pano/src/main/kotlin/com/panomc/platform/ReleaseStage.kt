@@ -14,6 +14,6 @@ enum class ReleaseStage(val stage: String) {
     }
 
     companion object {
-        fun valueOf(stage: String) = ReleaseStage.values().find { it.stage == stage }
+        fun valueOf(stage: String) = values().find { it.stage == stage || it.name == stage }
     }
 }

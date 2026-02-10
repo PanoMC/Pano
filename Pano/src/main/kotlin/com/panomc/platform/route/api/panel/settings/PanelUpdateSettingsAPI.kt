@@ -224,13 +224,20 @@ class PanelUpdateSettingsAPI(
 
         val sqlClient = getSqlClient()
 
-        if (updatePeriod != null) {
+        var updateCheckRequired = false
+
+        if (updatePeriod != null && updatePeriod != configManager.config.updatePeriod) {
             configManager.config.updatePeriod = updatePeriod
         }
 
-        if (releaseChannel != null && releaseChannel != configManager.config.releaseChannel) {
-            configManager.config.releaseChannel = releaseChannel
+        if (releaseChannel != null) {
+            if (releaseChannel != configManager.config.releaseChannel) {
+                configManager.config.releaseChannel = releaseChannel
+                updateCheckRequired = true
+            }
+        }
 
+        if (updateCheckRequired && configManager.config.updatePeriod != UpdatePeriod.NEVER) {
             updateManager.checkUpdates(true)
         }
 

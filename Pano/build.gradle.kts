@@ -329,6 +329,14 @@ tasks.named<JavaExec>("run") {
         "--add-opens", "java.base/sun.nio.ch=ALL-UNNAMED"
     )
     systemProperty("org.jline.utils.Log.level", "ERROR")
+
+    if (project.hasProperty("nogui")) {
+        args("-nogui")
+    }
+
+    if (project.hasProperty("dev")) {
+        args("--dev")
+    }
 }
 
 application {

@@ -2,6 +2,7 @@ package com.panomc.platform.config
 
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
+import com.panomc.platform.Main.Companion.IS_DEV
 import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.ReleaseStage
 import com.panomc.platform.util.KeyGeneratorUtil
@@ -127,10 +128,12 @@ data class PanoConfig(
         }
 
         private fun getPanoApiUrl() =
-            "https://api${if (STAGE == ReleaseStage.ALPHA) "-dev" else ""}.panomc.com"
+            if (IS_DEV) "https://api-dev.panomc.com"
+            else "https://api.panomc.com"
 
         private fun getPanoWebsiteUrl() =
-            "https://${if (STAGE == ReleaseStage.ALPHA) "dev" else ""}.panomc.com"
+            if (IS_DEV) "https://dev.panomc.com"
+            else "https://panomc.com"
 
         private val gson = GsonBuilder()
             .registerTypeAdapter(UpdatePeriod::class.java, UpdatePeriodDeserializer())

@@ -8,6 +8,7 @@ import com.panomc.platform.db.dao.*
 import com.panomc.platform.error.PlatformAlreadyInstalled
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.coAwait
+import kotlinx.coroutines.runBlocking
 import io.vertx.mysqlclient.MySQLBuilder
 import io.vertx.mysqlclient.MySQLConnectOptions
 import io.vertx.sqlclient.Pool
@@ -120,7 +121,7 @@ class DatabaseManager(
 
             it.printStackTrace()
 
-            main.shutdown(true)
+            System.exit(1)
         }.coAwait().close().coAwait()
 
         return sqlClient

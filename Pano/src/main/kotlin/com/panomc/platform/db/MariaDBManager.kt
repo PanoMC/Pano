@@ -341,8 +341,11 @@ class MariaDBManager : DisposableBean {
     }
     
     fun stop() {
-         logger.info("Stopping Portable MariaDB...")
-         process?.destroy()
+        if (process != null) {
+            logger.info("Stopping Portable MariaDB...")
+            process?.destroy()
+            process = null
+        }
     }
 
     fun createDefaultDatabase() {

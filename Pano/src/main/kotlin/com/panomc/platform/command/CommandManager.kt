@@ -93,4 +93,9 @@ class CommandManager {
     }
 
     fun getCommands(): Map<String, RegisteredCommand> = commands
+
+    fun resolveCommand(label: String): RegisteredCommand? {
+        val name = aliases[label.lowercase()] ?: label.lowercase()
+        return commands[name]
+    }
 }

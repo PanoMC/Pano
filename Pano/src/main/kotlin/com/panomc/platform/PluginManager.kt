@@ -103,7 +103,16 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     }
 
     override fun startPlugin(pluginId: String?): PluginState? {
-            return super.startPlugin(pluginId)
+        return super.startPlugin(pluginId)
+    }
+
+    override fun stopPlugin(pluginId: String?): PluginState? {
+        return super.stopPlugin(pluginId)
+    }
+
+    fun reloadPlugin(pluginId: String): PluginState? {
+        stopPlugin(pluginId)
+        return startPlugin(pluginId)
     }
 
     override fun disablePlugin(pluginId: String): Boolean {

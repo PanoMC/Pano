@@ -1,18 +1,19 @@
 package com.panomc.platform.command
 
+import com.panomc.platform.Main
 import com.panomc.platform.config.ConfigManager
-import org.jline.reader.LineReader
-import org.jline.reader.LineReaderBuilder
-import org.jline.reader.EndOfFileException
-import org.jline.reader.UserInterruptException
+import kotlinx.coroutines.runBlocking
+import org.jline.keymap.KeyMap
+import org.jline.reader.*
 import org.jline.terminal.TerminalBuilder
 import kotlin.concurrent.thread
 
 class ConsoleInputReader(
+    private val main: Main,
     private val commandManager: CommandManager,
     private val configManager: ConfigManager
 ) {
-    private val consoleSender = ConsoleCommandSender()
+    private val consoleSender = ConsoleCommandSender(Main.logger)
 
     companion object {
         @Volatile
@@ -20,8 +21,18 @@ class ConsoleInputReader(
             private set
 
         @Volatile
-        private var running = true
+        var running = true
+            private set
 
+        /**
+         * Stops the console input reader and optionally closes the terminal.
+         */
+        fun stop(closeTerminal: Boolean = true) {
+            running = false
+            if (closeTerminal) {
+                reader?.terminal?.close()
+            }
+        }
     }
 
     fun start() {
@@ -31,7 +42,7 @@ class ConsoleInputReader(
             try {
                 val terminal = TerminalBuilder.builder()
                     .system(true)
-                    .signalHandler(org.jline.terminal.Terminal.SignalHandler.SIG_IGN) // Signal hatalarını da susturur
+                    .signalHandler(org.jline.terminal.Terminal.SignalHandler.SIG_IGN)
                     .build()
 
                 val builder = LineReaderBuilder.builder()
@@ -44,24 +55,43 @@ class ConsoleInputReader(
                 }
 
                 val lineReader = builder.build()
-
                 reader = lineReader
+
+                // Bind Ctrl+C to a custom widget that triggers shutdown *inside* the readLine scope
+                // This prevents JLine from throwing UserInterruptException and resetting the terminal
+                val stopWidget = Widget {
+                    runBlocking {
+                        main.shutdown()
+                    }
+                    true
+                }
+                lineReader.widgets["graceful-stop"] = stopWidget
+                lineReader.keyMaps[LineReader.MAIN]!!.bind(
+                    Reference("graceful-stop"),
+                    KeyMap.ctrl('c')
+                )
 
                 // Spigot-style bright yellow prompt
                 val prompt = "\u001B[93m>\u001B[0m "
 
                 while (running) {
+                    if (Main.isStopping()) {
+                        Thread.sleep(50)
+                        continue
+                    }
                     val line = try {
                         lineReader.readLine(prompt)
                     } catch (e: UserInterruptException) {
-                        // Handle Ctrl+C if needed, otherwise continue
+                        // Handle Ctrl+C: stop the platform gracefully
+                        runBlocking {
+                            main.shutdown()
+                        }
                         null
                     } catch (e: EndOfFileException) {
                         break
                     } ?: continue
 
                     if (line.isNotBlank() && running) {
-                        // Log the command so it appears in the GUI console as well
                         println("\u001B[90m>\u001B[0m $line")
                         
                         // Add to GUI history

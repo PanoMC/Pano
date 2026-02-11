@@ -71,7 +71,7 @@ class PanelStopPanoAPI(
             runBlocking {
                 delay(500)
             }
-            main.shutdown()
+            runBlocking { main.shutdown() }
         }
 
         return Successful()

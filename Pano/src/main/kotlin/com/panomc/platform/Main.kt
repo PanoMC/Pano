@@ -3,6 +3,10 @@ package com.panomc.platform
 import com.panomc.platform.annotation.Boot
 import com.panomc.platform.api.PluginDatabaseManager
 import com.panomc.platform.auth.PermissionRegistry
+import com.panomc.platform.command.CommandExecutor
+import com.panomc.platform.command.CommandManager
+import com.panomc.platform.command.CommandSender
+import com.panomc.platform.command.ConsoleInputReader
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
@@ -12,10 +16,6 @@ import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.ssl.AcmeManager
-import com.panomc.platform.command.Command
-import com.panomc.platform.command.CommandManager
-import com.panomc.platform.command.CommandSender
-import com.panomc.platform.command.ConsoleInputReader
 import com.panomc.platform.util.*
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
@@ -27,10 +27,7 @@ import io.vertx.core.net.PemKeyCertOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.coAwait
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.io.File
@@ -104,6 +101,8 @@ class Main : CoroutineVerticle() {
             }
         }
 
+        val START_TIME = System.currentTimeMillis()
+
         var IS_GUI = false
             private set
 
@@ -130,7 +129,28 @@ class Main : CoroutineVerticle() {
                 // GUI not available -> fall back to normal start
             }
 
-            vertx.deployVerticle(Main())
+            runBlocking {
+                vertx.deployVerticle(Main()).coAwait()
+                
+                // Wait for the shutdown signal from anywhere (stop command, ctrl+c, gui close)
+                mainShutdownDeferred.await()
+                
+                // Final cleanup: stop terminal reader loop
+                ConsoleInputReader.stop(false)
+                
+                logger.info("Pano is now stopped. Bye!")
+                
+                // Final flush
+                System.out.flush()
+                System.err.flush()
+                
+                // Give a tiny bit of time for logs to process
+                delay(100)
+                
+                // Truly stop terminal and JVM
+                ConsoleInputReader.stop(true)
+                exitProcess(0)
+            }
         }
 
         enum class EnvironmentType {
@@ -140,10 +160,17 @@ class Main : CoroutineVerticle() {
         lateinit var applicationContext: AnnotationConfigApplicationContext
 
         val commandManager = CommandManager()
-    }
 
-    private val logger by lazy {
-        LoggerFactory.getLogger("Pano")
+        private val mainShutdownDeferred = CompletableDeferred<Unit>()
+
+        fun signalMainShutdown() = mainShutdownDeferred.complete(Unit)
+
+        private val isStopping = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun isStopping() = isStopping.get()
+
+        val logger by lazy {
+            LoggerFactory.getLogger("Pano")
+        }
     }
 
     private lateinit var router: Router
@@ -151,31 +178,48 @@ class Main : CoroutineVerticle() {
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
     private lateinit var acmeManager: AcmeManager
-    private var stopping = false
+    private lateinit var databaseManager: DatabaseManager
+    private val shutdownDeferred = CompletableDeferred<Unit>()
 
-    fun shutdown(error: Boolean = false, vertx: Vertx = Companion.vertx) {
-        if (stopping) {
+    suspend fun shutdown(error: Boolean = false, exit: Boolean = true) {
+        if (!isStopping.compareAndSet(false, true)) {
+            // Wait for existing shutdown if requested
+            try {
+                withTimeout(10000) { shutdownDeferred.await() }
+            } catch (_: Exception) {}
             return
         }
 
-        stopping = true
-        
         logger.info("Gracefully shutting down Pano...")
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Use IO dispatcher to avoid blocking the event loop or being cancelled by it
-                vertx.close().coAwait()
-            } catch (e: Exception) {
-                logger.error("Pano graceful shutdown failed", e)
+        try {
+            withContext(Dispatchers.IO) {
+                withTimeout(10000) {
+                    Main.vertx.close().coAwait()
+                }
             }
-
-            exitProcess(if (error) 1 else 0)
+        } catch (e: Exception) {
+            logger.warn("Vert.x shutdown reached timeout or failed: ${e.message}")
+        } finally {
+            shutdownDeferred.complete(Unit)
+            
+            // This wakes up the main thread's await()
+            signalMainShutdown()
+            
+            // If we are NOT in the main loop thread (e.g. GUI mode), 
+            // we should manually exit after a delay if signal wasn't caught
+            if (IS_GUI && exit) {
+                delay(1000)
+                exitProcess(if (error) 1 else 0)
+            }
         }
     }
 
     private fun hookCommands() {
-        commandManager.registerCommands(this)
+        val commandExecutors = applicationContext.getBeansOfType(CommandExecutor::class.java)
+        commandExecutors.values.forEach { executor ->
+            commandManager.registerCommands(executor)
+        }
 
         UiConsole.setHistoryLimit(configManager.config.consoleHistoryLimit)
         
@@ -183,12 +227,12 @@ class Main : CoroutineVerticle() {
             commandManager.executeCommand(UiConsoleCommandSender(), cmd)
         }
 
-        ConsoleInputReader(commandManager, configManager).start()
+        ConsoleInputReader(this, commandManager, configManager).start()
     }
 
-    private inner class UiConsoleCommandSender : CommandSender {
+    private class UiConsoleCommandSender : CommandSender {
         override fun sendMessage(message: String) {
-            println(message)
+            Main.logger.info(message)
         }
 
         override fun getName(): String {
@@ -196,63 +240,15 @@ class Main : CoroutineVerticle() {
         }
     }
 
-    @Command(name = "stop", aliases = ["exit", "quit"], description = "Stops the platform")
-    fun onStopCommand(sender: CommandSender) {
-        logger.info("Stop command received from ${sender.getName()}")
-        runBlocking { shutdown() }
-    }
-
-    @Command(name = "help", description = "Shows help for commands")
-    fun onHelpCommand(sender: CommandSender) {
-        sender.sendMessage("\u001B[36m--- Available Commands ---\u001B[0m")
-        commandManager.getCommands().values.distinctBy { it.name }.sortedBy { it.name }.forEach { cmd ->
-            val aliasesString = if (cmd.aliases.isNotEmpty()) " (Aliases: ${cmd.aliases.joinToString(", ")})" else ""
-            sender.sendMessage("\u001B[33m${cmd.name}\u001B[0m$aliasesString - ${cmd.description}")
-            if (cmd.usage.isNotEmpty()) {
-                sender.sendMessage("  Usage: ${cmd.usage}")
-            }
-        }
-    }
-
-    @Command(name = "version", aliases = ["ver"], description = "Shows platform version")
-    fun onVersionCommand(sender: CommandSender) {
-        sender.sendMessage("\u001B[32mPano Platform Version: \u001B[0m$VERSION")
-        sender.sendMessage("\u001B[32mEnvironment: \u001B[0m$ENVIRONMENT")
-        sender.sendMessage("\u001B[32mStage: \u001B[0m$STAGE")
-    }
 
     private fun hookShutdown() {
-        UiConsole.setInterruptHandler {
-            // Graceful stop
-            CoroutineScope(Dispatchers.IO).launch {
-                shutdown()
-            }
-        }
+        UiConsole.setInterruptHandler { shutdown() }
 
         Runtime.getRuntime().addShutdownHook(Thread {
-            runBlocking {
-                shutdown()
+            if (!isStopping()) {
+                runBlocking { shutdown(exit = false) }
             }
         })
-
-//         In Unix catching SIGINT/SIGTERM (optional, not exists in Windows)
-        try {
-            val sigInt = Class.forName("sun.misc.Signal")
-            val sigHdl = Class.forName("sun.misc.SignalHandler")
-            val handleMethod = sigInt.getMethod("handle", sigInt, sigHdl)
-            val ctor = sigInt.getConstructor(String::class.java)
-            val handler = java.lang.reflect.Proxy.newProxyInstance(
-                sigHdl.classLoader, arrayOf(sigHdl)
-            ) { _, _, _ ->
-                runBlocking {
-                    shutdown()
-                }
-            }
-            handleMethod.invoke(null, ctor.newInstance("INT"), handler)
-            handleMethod.invoke(null, ctor.newInstance("TERM"), handler)
-        } catch (_: Throwable) {
-            // Windows don't have, no problem; shutdown hook is enough
-        }
     }
 
     override suspend fun start() {
@@ -282,7 +278,6 @@ class Main : CoroutineVerticle() {
             uiManager.shutdown()
         }
 
-        // Stop portable MariaDB if it was started
         try {
             if (applicationContext.containsBean("mariaDBManager")) {
                 val mariaDBManager = applicationContext.getBean(MariaDBManager::class.java)
@@ -290,8 +285,9 @@ class Main : CoroutineVerticle() {
             }
         } catch (_: Exception) {}
 
+        ConsoleInputReader.stop(false)
         UiConsole.markStopped()
-        logger.info("Pano is now stopped. Bye!")
+        logger.info("Pano is now fully stopped. Bye!")
     }
 
     private suspend fun executeBlocking(unit: () -> Unit) {
@@ -407,7 +403,7 @@ class Main : CoroutineVerticle() {
         pluginManager.addLifecycleListener(permissionRegistry)
     }
 
-    private fun clearTempFiles() {
+    internal fun clearTempFiles() {
         val uploadsFolderTempFolder = File(configManager.config.fileUploadsFolder + File.separator + "temp")
 
         uploadsFolderTempFolder.deleteRecursively()
@@ -420,7 +416,11 @@ class Main : CoroutineVerticle() {
 
         SpringConfig.setDefaults(vertx, logger)
 
-        applicationContext = AnnotationConfigApplicationContext(SpringConfig::class.java)
+        applicationContext = AnnotationConfigApplicationContext()
+        applicationContext.register(SpringConfig::class.java)
+        applicationContext.beanFactory.registerSingleton("main", this)
+        applicationContext.beanFactory.registerSingleton("commandManager", commandManager)
+        applicationContext.refresh()
     }
 
     private fun initUiManager() {
@@ -470,9 +470,7 @@ class Main : CoroutineVerticle() {
 
     private suspend fun initDatabaseManager() {
         logger.info("Initializing database manager")
-
-        val databaseManager = applicationContext.getBean(DatabaseManager::class.java)
-
+        databaseManager = applicationContext.getBean(DatabaseManager::class.java)
         databaseManager.init()
 
         val pluginDatabaseManager = applicationContext.getBean(PluginDatabaseManager::class.java)
@@ -536,7 +534,7 @@ class Main : CoroutineVerticle() {
                 } else {
                     logger.error(message)
                     kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                        shutdown(true)
+                        runBlocking { shutdown(true) }
                     }
                 }
             }

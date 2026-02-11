@@ -19,6 +19,7 @@ import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -202,7 +203,7 @@ class UIManager(
             logger.info("Done.")
         } catch (e: Exception) {
             logger.error("Couldn't download Bun runtime: {}", e.message)
-            main.shutdown(true)
+            System.exit(1)
             return
         }
 
@@ -245,8 +246,7 @@ class UIManager(
         if (!optionalZipFile.isPresent) {
             logger.error("No file matching $id-*.zip was found!")
 
-            main.shutdown(true)
-
+            System.exit(1)
             return Optional.empty()
         }
 
@@ -523,7 +523,7 @@ class UIManager(
             } catch (e: Exception) {
                 logger.error("Failed to start UI.", e)
 
-                main.shutdown(true)
+                System.exit(1)
                 return
             }
         }
@@ -684,6 +684,23 @@ class UIManager(
         startedUIList.forEach {
             stopUI(it.id)
         }
+    }
+
+
+    fun getStartedUIs(): List<LoadedUI> = Collections.unmodifiableList(startedUIList)
+
+    fun getEmbeddedUIVersions(): Map<String, String> {
+        val versions = mutableMapOf<String, String>()
+        listOf("setup-ui" to setupUIFolder, "panel-ui" to panelUIFolder, "vanilla-theme" to defaultThemeFolder).forEach { (id, folder) ->
+            val manifestFile = File(folder, manifestFileName)
+            if (manifestFile.exists()) {
+                try {
+                    val manifest = parseInstalledTheme(manifestFile)
+                    versions[id] = manifest.version
+                } catch (_: Exception) {}
+            }
+        }
+        return versions
     }
 
     companion object {

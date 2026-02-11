@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api
 
 import com.panomc.platform.AppConstants.DEFAULT_WEBSITE_LOGO_FILE
+import com.panomc.platform.Main
 import com.panomc.platform.Main.Companion.VERSION
 import com.panomc.platform.PluginManager
 import com.panomc.platform.PluginUiManager
@@ -91,6 +92,7 @@ class GetSiteInfoAPI(
         }
 
         response["emailEnabled"] = config.email.enabled
+        response["isDemo"] = Main.IS_DEMO
 
         val themeSettingsProperty = databaseManager.systemPropertyDao.getByOption(THEME_SETTINGS, sqlClient)
 

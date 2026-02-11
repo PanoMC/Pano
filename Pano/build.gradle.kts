@@ -337,6 +337,10 @@ tasks.named<JavaExec>("run") {
     if (project.hasProperty("dev")) {
         args("--dev")
     }
+
+    if (project.hasProperty("demo")) {
+        args("--demo")
+    }
 }
 
 application {

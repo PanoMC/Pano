@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel
 
+import com.panomc.platform.Main
 import com.panomc.platform.PluginManager
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
@@ -18,6 +19,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 import org.pf4j.PluginState
+import java.util.Calendar
 
 @Endpoint
 class PanelGetStatisticsAPI(
@@ -89,32 +91,63 @@ class PanelGetStatisticsAPI(
 
         val websiteActivityDataList = result["websiteActivityDataList"] as MutableMap<String, Any?>
 
-        val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlClient)
-        websiteActivityDataList["newRegisterData"] = registerDateList.toGroupGetCountAndDates()
+        if (Main.IS_DEMO) {
+            val amountOfDays = if (period == DashboardPeriodType.WEEK) 7 else 30
+            val calendar = Calendar.getInstance()
+            calendar.timeInMillis = System.currentTimeMillis()
+            calendar[Calendar.HOUR_OF_DAY] = 0
+            calendar[Calendar.MINUTE] = 0
+            calendar[Calendar.SECOND] = 0
+            calendar[Calendar.MILLISECOND] = 0
 
-        val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlClient)
-        websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
+            val newRegisterData = mutableMapOf<Long, Int>()
+            val ticketsData = mutableMapOf<Long, Int>()
+            val visitorData = mutableMapOf<Long, Int>()
+            val viewData = mutableMapOf<Long, Int>()
 
-        val websiteViewData = databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlClient)
-
-        val viewsDateMap = mutableMapOf<Long, Long>()
-        val visitorDateMap = mutableMapOf<Long, Long>()
-
-        websiteViewData.forEach { viewData ->
-            if (viewsDateMap.containsKey(viewData.date)) {
-                viewsDateMap[viewData.date] = viewsDateMap[viewData.date]!!.plus(viewData.times)
-            } else {
-                viewsDateMap[viewData.date] = viewData.times
+            for (i in 0..amountOfDays) {
+                val time = calendar.timeInMillis
+                newRegisterData[time] = kotlin.random.Random.nextInt(5, 15)
+                ticketsData[time] = kotlin.random.Random.nextInt(2, 8)
+                visitorData[time] = kotlin.random.Random.nextInt(100, 200)
+                viewData[time] = kotlin.random.Random.nextInt(500, 1000)
+                calendar.add(Calendar.DAY_OF_YEAR, -1)
             }
 
-            if (visitorDateMap.containsKey(viewData.date)) {
-                visitorDateMap[viewData.date] = visitorDateMap[viewData.date]!!.plus(1)
-            } else {
-                visitorDateMap[viewData.date] = 1
+            websiteActivityDataList["newRegisterData"] = newRegisterData
+            websiteActivityDataList["ticketsData"] = ticketsData
+            websiteActivityDataList["visitorData"] = visitorData
+            websiteActivityDataList["viewData"] = viewData
+        } else {
+            val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlClient)
+            websiteActivityDataList["newRegisterData"] = registerDateList.toGroupGetCountAndDates()
+
+            val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlClient)
+            websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
+
+            val websiteViewData =
+                databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlClient)
+
+            val viewsDateMap = mutableMapOf<Long, Long>()
+            val visitorDateMap = mutableMapOf<Long, Long>()
+
+            websiteViewData.forEach { viewData ->
+                if (viewsDateMap.containsKey(viewData.date)) {
+                    viewsDateMap[viewData.date] =
+                        viewsDateMap[viewData.date]!!.plus(viewData.times)
+                } else {
+                    viewsDateMap[viewData.date] = viewData.times
+                }
+
+                if (visitorDateMap.containsKey(viewData.date)) {
+                    visitorDateMap[viewData.date] = visitorDateMap[viewData.date]!!.plus(1)
+                } else {
+                    visitorDateMap[viewData.date] = 1
+                }
             }
+            websiteActivityDataList["visitorData"] = visitorDateMap
+            websiteActivityDataList["viewData"] = viewsDateMap
         }
-        websiteActivityDataList["visitorData"] = visitorDateMap
-        websiteActivityDataList["viewData"] = viewsDateMap
 
         val connectedServerCount = databaseManager.serverDao.countOfPermissionGranted(sqlClient)
 

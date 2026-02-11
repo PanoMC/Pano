@@ -1,12 +1,15 @@
 package com.panomc.platform.model
 
+import com.panomc.platform.Main
 import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InternalServerError
+import com.panomc.platform.error.DisabledForDemo
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
+import io.vertx.core.http.HttpMethod
 import io.vertx.ext.mail.SMTPException
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.*
@@ -127,5 +130,17 @@ abstract class Api : Route() {
 
     open suspend fun onBeforeHandle(context: RoutingContext) {
         checkSetup()
+
+        checkDemoMode(context)
+    }
+
+    protected fun checkDemoMode(context: RoutingContext) {
+        if (Main.IS_DEMO && !isAllowedInDemo(context.request().method())) {
+            throw DisabledForDemo()
+        }
+    }
+
+    open fun isAllowedInDemo(method: HttpMethod): Boolean {
+        return method == HttpMethod.GET || method == HttpMethod.OPTIONS
     }
 }

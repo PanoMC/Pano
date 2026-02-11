@@ -11,6 +11,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.core.http.HttpMethod
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.util.*
 
@@ -21,6 +22,10 @@ class PanelUpdateResourceAPI(
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/updates/resources/:resourceId/stream", RouteType.GET))
+
+    override fun isAllowedInDemo(method: HttpMethod): Boolean {
+        return false
+    }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

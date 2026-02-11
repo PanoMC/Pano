@@ -18,7 +18,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 class GetPostDetailAPI(
     private val databaseManager: DatabaseManager
 ) : Api() {
-    override val paths = listOf(Path("/api/posts/:url", RouteType.POST))
+    override val paths = listOf(Path("/api/posts/:url", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

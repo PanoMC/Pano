@@ -4,6 +4,7 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.model.*
+import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
@@ -12,6 +13,8 @@ class LogoutAPI(
     private val authProvider: AuthProvider
 ) : LoggedInApi() {
     override val paths = listOf(Path("/api/auth/logout", RouteType.POST))
+
+    override fun isAllowedInDemo(method: HttpMethod) = true
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

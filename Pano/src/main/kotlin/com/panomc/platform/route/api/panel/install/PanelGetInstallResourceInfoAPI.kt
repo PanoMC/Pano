@@ -10,6 +10,7 @@ import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.model.*
 import com.panomc.platform.util.VersionUtil
+import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -25,6 +26,10 @@ class PanelGetInstallResourceInfoAPI(
     private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/store/:versionId/info", RouteType.GET))
+
+    override fun isAllowedInDemo(method: HttpMethod): Boolean {
+        return false
+    }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

@@ -12,6 +12,7 @@ import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUtil
+import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -28,6 +29,10 @@ class PanelGetInstallResourceLocalStreamAPI(
     private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/local/:type/:fileName/stream", RouteType.GET))
+
+    override fun isAllowedInDemo(method: HttpMethod): Boolean {
+        return false
+    }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

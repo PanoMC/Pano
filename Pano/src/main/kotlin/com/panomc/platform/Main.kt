@@ -109,6 +109,9 @@ class Main : CoroutineVerticle() {
         var IS_DEV = false
             private set
 
+        var IS_DEMO = false
+            private set
+
         var STARTUP_ARGS: Array<String> = emptyArray()
             private set
 
@@ -116,6 +119,7 @@ class Main : CoroutineVerticle() {
         fun main(args: Array<String>) {
             STARTUP_ARGS = args
             IS_DEV = Args.hasFlag(args, "--dev")
+            IS_DEMO = Args.hasFlag(args, "--demo")
             val noGui = Args.hasFlag(args, "-nogui")
 
             if (!noGui) {

@@ -38,6 +38,8 @@ abstract class LoggedInApi : Api() {
     override suspend fun onBeforeHandle(context: RoutingContext) {
         checkSetup()
 
+        checkDemoMode(context)
+
         checkLoggedIn(context)
 
         updateLastActivityTime(context)

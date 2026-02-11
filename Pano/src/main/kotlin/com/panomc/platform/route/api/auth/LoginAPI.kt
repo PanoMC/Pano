@@ -1,12 +1,11 @@
 package com.panomc.platform.route.api.auth
 
-import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.CSRFTokenGenerator
-import io.vertx.core.http.Cookie
+import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -21,6 +20,8 @@ class LoginAPI(
     private val databaseManager: DatabaseManager
 ) : Api() {
     override val paths = listOf(Path("/api/auth/login", RouteType.POST))
+
+    override fun isAllowedInDemo(method: HttpMethod) = true
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

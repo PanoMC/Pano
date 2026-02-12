@@ -117,6 +117,9 @@ class Main : CoroutineVerticle() {
 
         @JvmStatic
         fun main(args: Array<String>) {
+            // Silence JLine warnings as early as possible
+            System.setProperty("org.jline.utils.Log.level", "ERROR")
+
             STARTUP_ARGS = args
             IS_DEV = Args.hasFlag(args, "--dev")
             IS_DEMO = Args.hasFlag(args, "--demo")

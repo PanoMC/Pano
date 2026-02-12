@@ -36,12 +36,18 @@ class ConsoleInputReader(
     }
 
     fun start() {
+        // Double-check silencing JLine warnings
         System.setProperty("org.jline.utils.Log.level", "ERROR")
+        java.util.logging.Logger.getLogger("org.jline").level = java.util.logging.Level.OFF
         
         thread(name = "ConsoleInputReader", isDaemon = true) {
             try {
+                // Try to create a system terminal; if it fails, it will fallback to a dumb terminal.
+                // We set dumb(true) to indicate that falling back to a dumb terminal is expected/allowed,
+                // which can sometimes suppress the warning in some JLine versions.
                 val terminal = TerminalBuilder.builder()
                     .system(true)
+                    .dumb(true)
                     .signalHandler(org.jline.terminal.Terminal.SignalHandler.SIG_IGN)
                     .build()
 

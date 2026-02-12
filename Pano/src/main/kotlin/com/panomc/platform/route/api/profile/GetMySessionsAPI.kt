@@ -25,6 +25,20 @@ class GetMySessionsAPI(
         val sqlClient = getSqlClient()
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
+        if (com.panomc.platform.Main.IS_DEMO) {
+            val sessions = (1..5).map {
+                mapOf(
+                    "id" to it,
+                    "ip" to "127.0.0.1",
+                    "userAgent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "lastActivityTime" to System.currentTimeMillis() - (it * 3600000),
+                    "expireDate" to System.currentTimeMillis() + (30L * 24 * 3600000),
+                    "isCurrent" to (it == 1)
+                )
+            }
+            return Successful(mapOf("sessions" to sessions))
+        }
+
         val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
 
         val currentToken = authProvider.getTokenFromRoutingContext(context)

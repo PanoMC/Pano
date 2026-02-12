@@ -155,6 +155,10 @@ class PanelGetPlayersAPI(
             user.remove("password")
             user.remove("banned")
 
+            if (com.panomc.platform.Main.IS_DEMO) {
+                user.remove("registeredIp")
+            }
+
             user
         }
 

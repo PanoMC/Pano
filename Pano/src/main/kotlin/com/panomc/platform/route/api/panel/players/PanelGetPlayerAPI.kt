@@ -72,7 +72,7 @@ class PanelGetPlayerAPI(
             "lastActivityTime" to user.lastActivityTime,
             "inGame" to databaseManager.serverPlayerDao.existsByUsername(user.username, sqlClient),
             "localeCode" to user.localeCode,
-            "registeredIp" to user.registeredIp,
+            "registeredIp" to if (com.panomc.platform.Main.IS_DEMO) "127.0.0.1" else user.registeredIp,
         )
 
         @Suppress("UNCHECKED_CAST")

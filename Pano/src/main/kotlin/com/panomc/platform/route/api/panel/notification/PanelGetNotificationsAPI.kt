@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.notification
 
+import com.panomc.platform.Main
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -25,7 +26,9 @@ class PanelGetNotificationsAPI(
 
         val notifications = databaseManager.panelNotificationDao.getLast10ByUserId(userId, sqlClient)
 
-        databaseManager.panelNotificationDao.markReadLast10(userId, sqlClient)
+        if (!Main.IS_DEMO) {
+            databaseManager.panelNotificationDao.markReadLast10(userId, sqlClient)
+        }
 
         val notificationsDataList = mutableListOf<Map<String, Any?>>()
 

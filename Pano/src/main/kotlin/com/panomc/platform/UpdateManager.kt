@@ -532,7 +532,7 @@ class UpdateManager(
         val sqlClient = databaseManager.getSqlClient()
         markOldPanoUpdateNotificationsAsRead(Main.VERSION, sqlClient)
 
-        checkDidUpgrade()
+        cleanupOldUpdates()
 
         startUpdateChecker()
     }
@@ -639,19 +639,62 @@ class UpdateManager(
         return false
     }
 
-    private suspend fun checkDidUpgrade() {
+    private suspend fun cleanupOldUpdates() {
         val panoUpdaterJar = File(UPDATER_JAR)
 
-        if (!panoUpdaterJar.exists()) {
-            return
+        if (panoUpdaterJar.exists()) {
+            logger.info("Detected an upgrade via updater.")
+            panoUpdaterJar.delete()
         }
-
-        logger.info("Detected an upgrade.")
-        panoUpdaterJar.delete()
 
         val sqlClient = databaseManager.getSqlClient()
 
-        databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+        // Platform update cleanup: delete if not actually higher than current version
+        val platformUpdateInfoOption =
+            databaseManager.systemPropertyDao.getByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+        if (platformUpdateInfoOption != null) {
+            val version = JsonObject(platformUpdateInfoOption.value).getString("version")
+            if (!VersionUtil.isVersionHigher(version, Main.VERSION)) {
+                databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
+            }
+        }
+
+        // Resource updates cleanup: filter out versions that are no longer strictly higher
+        val resourceUpdatesInfoOption =
+            databaseManager.systemPropertyDao.getByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+        if (resourceUpdatesInfoOption != null) {
+            val updateList = JsonArray(resourceUpdatesInfoOption.value)
+            val updateArray = updateList.map { it as JsonObject }
+            val filteredList = updateArray.filter { update ->
+                try {
+                    val type = ResourceType.valueOf(update.getString("type"))
+                    val id = update.getString("id")
+                    val updateVersion = update.getString("version")
+
+                    if (installManager.isInstalled(id, type)) {
+                        val resourceInfo = installManager.getResourceInfo(id, type)
+                        val installedVersion = resourceInfo["version"] as String
+                        VersionUtil.isVersionHigher(updateVersion, installedVersion)
+                    } else {
+                        false
+                    }
+                } catch (_: Exception) {
+                    false
+                }
+            }
+
+            if (filteredList.size != updateArray.size) {
+                if (filteredList.isEmpty()) {
+                    databaseManager.systemPropertyDao.deleteByOption(RESOURCES_UPDATE_CHECK_INFO, sqlClient)
+                } else {
+                    databaseManager.systemPropertyDao.update(
+                        RESOURCES_UPDATE_CHECK_INFO,
+                        JsonArray(filteredList).encode(),
+                        sqlClient
+                    )
+                }
+            }
+        }
     }
 
     suspend fun getPlatformUpdateInfo(): JsonObject? {
@@ -664,7 +707,7 @@ class UpdateManager(
 
         val version = platformUpdate.getString("version")
 
-        if (version == Main.VERSION) {
+        if (!VersionUtil.isVersionHigher(version, Main.VERSION)) {
             return null
         }
 
@@ -679,10 +722,22 @@ class UpdateManager(
         val resourceUpdatesConverted = resourceUpdatesInfo?.value?.let { JsonArray(it) } ?: JsonArray()
 
         return resourceUpdatesConverted.map { it as JsonObject }.filter {
-            val type = ResourceType.valueOf(it.getString("type"))
-            val id = it.getString("id")
+            try {
+                val type = ResourceType.valueOf(it.getString("type"))
+                val id = it.getString("id")
 
-            installManager.isInstalled(id, type)
+                if (installManager.isInstalled(id, type)) {
+                    val resourceInfo = installManager.getResourceInfo(id, type)
+                    val installedVersion = resourceInfo["version"] as String
+                    val updateVersion = it.getString("version")
+
+                    VersionUtil.isVersionHigher(updateVersion, installedVersion)
+                } else {
+                    false
+                }
+            } catch (_: Exception) {
+                false
+            }
         }
     }
 

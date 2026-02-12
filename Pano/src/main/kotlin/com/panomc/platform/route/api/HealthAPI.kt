@@ -11,6 +11,8 @@ class HealthAPI : Api() {
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
+    override suspend fun onBeforeHandle(context: RoutingContext) {}
+
     override suspend fun handle(context: RoutingContext): Result {
         return Successful()
     }

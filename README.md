@@ -11,19 +11,23 @@
 <p align="center">
   <img src="https://img.shields.io/maintenance/yes/2026?style=for-the-badge" alt="Maintained">
   <a href="https://github.com/PanoMC/pano/blob/main/LICENSE"><img src="https://img.shields.io/github/license/PanoMC/pano?style=for-the-badge" alt="License"></a>
-  <a href="https://discord.gg/6vVy72wgXT"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=for-the-badge" alt="Chat"></a>
+  <a href="https://panomc.com/discord"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=for-the-badge" alt="Chat"></a>
 </p>
 
 ---
 
 ## 🚀 Project Status
-**Current Status:** Alpha - Pano is actively developed and early in its lifecycle.  
-Statuses: **Alpha**, **Beta**, **Release**.  
-Announcements and updates are shared via our [Discord](https://discord.gg/6vVy72wgXT).  
+**Current Status:** Beta - Pano is now ready for use, although small bugs may still be encountered.  
+Announcements and updates are shared via our [Discord](https://panomc.com/discord).  
 
-* As an Alpha project, Pano **may contain breaking changes** and its final release could differ significantly.  
+### 📢 Release Types
+We categorize our updates into three main stages:
+- **Alpha**: Early-stage development. Experimental features, potential breaking changes, and critical bugs. Use with caution.
+- **Beta**: Feature-complete and generally stable. Ready for wider use, but may still have minor bugs. Recommended for testing and early adopters.
+- **Release**: Stable and production-ready. Thoroughly tested for a reliable experience.
 
 ---
+
 
 ## 📦 Other Pano Repositories
 - [**panel-ui**](https://github.com/PanoMC/panel-ui) - Pano's official management panel interface  
@@ -52,7 +56,7 @@ java -jar Pano-<version>.jar
 java -jar Pano-<version>.jar -nogui
 ```
 
-For detailed guidance, visit [dev.panomc.com/docs](https://dev.panomc.com/docs).  
+For detailed guidance, visit [panomc.com/docs](https://panomc.com/docs).  
 
 ---
 

@@ -14,16 +14,16 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class GetProfilePictureAPI : Api() {
-    override val paths = listOf(Path("/api/profile/picture", RouteType.GET))
+    override val paths = listOf(Path("/api/profile/picture/:username", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
-            .queryParameter(param("username", stringSchema()))
+            .pathParameter(param("username", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
         val parameters = getParameters(context)
-        val username = parameters.queryParameter("username").string
+        val username = parameters.pathParameter("username").string
 
         val redirectUrl = "https://minotar.net/avatar/$username"
 

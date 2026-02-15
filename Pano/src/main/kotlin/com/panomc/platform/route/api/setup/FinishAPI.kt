@@ -123,6 +123,8 @@ class FinishAPI(
 
         i18nManager.init()
 
+        uiManager.stopUI("setup-ui")
+
         uiManager.prepareUI(router)
 
         val csrfToken = CSRFTokenGenerator.nextToken()

@@ -517,7 +517,9 @@ class UIManager(
 
         if (config.initUi) {
             try {
-                startUI("setup-ui", setupUIFolder.absolutePath)
+                if (!setupManager.isSetupDone()) {
+                    startUI("setup-ui", setupUIFolder.absolutePath)
+                }
                 startUI("panel-ui", panelUIFolder.absolutePath)
                 startUI(theme)
             } catch (e: Exception) {
@@ -666,6 +668,8 @@ class UIManager(
 
     fun prepareUI(router: Router) {
         if (setupManager.isSetupDone()) {
+            stopUI("setup-ui")
+
             disableUIOnRoute(router, Route.Type.SETUP_UI)
 
             activateThemeUI(router, activeTheme)

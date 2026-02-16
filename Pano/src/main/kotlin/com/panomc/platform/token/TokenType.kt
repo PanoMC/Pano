@@ -38,4 +38,11 @@ enum class TokenType(val expireDate: (() -> Long)) {
 
         calendar.timeInMillis
     }),
+    REGISTER_WITH_LINK_CODE({
+        val calendar = Calendar.getInstance()
+
+        calendar.add(Calendar.MINUTE, 15)
+
+        calendar.timeInMillis
+    })
 }

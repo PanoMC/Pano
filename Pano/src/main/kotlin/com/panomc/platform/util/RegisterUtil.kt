@@ -6,22 +6,19 @@ import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.error.*
-import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.sqlclient.SqlClient
 import org.apache.commons.codec.digest.DigestUtils
 
 object RegisterUtil {
 
     fun validateForm(
-        username: String,
+        username: String? = null,
         email: String,
         password: String,
         passwordRepeat: String = password,
-        agreement: Boolean,
-        recaptchaToken: String = "",
-        reCaptcha: ReCaptcha? = null
+        agreement: Boolean
     ) {
-        if (username.isEmpty()) {
+        if (username.isNullOrEmpty()) {
             throw RegisterUsernameEmpty()
         }
 
@@ -63,10 +60,6 @@ object RegisterUtil {
 
         if (!agreement) {
             throw RegisterNotAcceptedAgreement()
-        }
-
-        if (reCaptcha != null && !reCaptcha.isValid(recaptchaToken)) {
-            throw RegisterCantVerifyRobot()
         }
     }
 

@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.server
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
@@ -17,7 +18,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 @Endpoint
 class PanelGetServerAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val configManager: ConfigManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id", RouteType.GET))
 
@@ -35,10 +37,16 @@ class PanelGetServerAPI(
         val sqlClient = getSqlClient()
 
         val server = databaseManager.serverDao.getById(id, sqlClient) ?: throw NotExists()
+        val requireEmailVerification = configManager.config.auth.requireEmailVerification
+
+        if (!requireEmailVerification) {
+            server.settings.authRequireVerified = false
+        }
 
         return Successful(
             mapOf(
-                "server" to server
+                "server" to server,
+                "requireEmailVerification" to requireEmailVerification
             )
         )
     }

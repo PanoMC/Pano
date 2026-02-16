@@ -2,7 +2,7 @@ package com.panomc.platform.error
 
 import com.panomc.platform.model.Error
 
-class RegisterCantVerifyRobot(
-    statusMessage: String = "",
+class LinkCodeRequired(
+    statusMessage: String = "Link code is required",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error(403, statusMessage, extras)

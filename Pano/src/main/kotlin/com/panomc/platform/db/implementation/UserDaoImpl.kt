@@ -25,7 +25,7 @@ class UserDaoImpl : UserDao() {
                               `id` bigint NOT NULL AUTO_INCREMENT,
                               `username` varchar(16) NOT NULL UNIQUE,
                               `email` varchar(255) UNIQUE,
-                              `password` varchar(255) NOT NULL,
+                              `password` varchar(255) NULL,
                               `registeredIp` varchar(255) NOT NULL,
                               `registerDate` BIGINT(20) NOT NULL,
                               `lastLoginDate` BIGINT(20) NOT NULL,
@@ -39,6 +39,8 @@ class UserDaoImpl : UserDao() {
                               `lastPanelActivityTime` BIGINT NOT NULL DEFAULT 0,
                               `pendingEmail` varchar(255) NOT NULL DEFAULT '',
                               `localeCode` varchar(10) NULL,
+                              `linkCode` varchar(6) NULL,
+                              `linkCodeCreatedAt` BIGINT NULL,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='User Table';
                         """
@@ -74,13 +76,13 @@ class UserDaoImpl : UserDao() {
 
     override suspend fun add(
         user: User,
-        hashedPassword: String,
+        hashedPassword: String?,
         sqlClient: SqlClient,
         isSetup: Boolean
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registeredIp, registerDate, `lastLoginDate`, `emailVerified`, `lastActivityTime`, `localeCode`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (username, email, password, registeredIp, registerDate, `lastLoginDate`, `emailVerified`, `lastActivityTime`, `localeCode`, `mcUuid`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -94,7 +96,8 @@ class UserDaoImpl : UserDao() {
                     user.lastLoginDate,
                     if (isSetup) 1 else 0,
                     user.lastActivityTime,
-                    user.localeCode
+                    user.localeCode,
+                    user.mcUuid ?: ""
                 )
             )
             .coAwait()
@@ -119,6 +122,23 @@ class UserDaoImpl : UserDao() {
             .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
+    }
+
+    override suspend fun hasPassword(
+        userId: Long,
+        sqlClient: SqlClient
+    ): Boolean {
+        val query = "SELECT `password` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(userId))
+            .coAwait()
+
+        if (rows.size() == 0) return false
+        
+        val password = rows.toList()[0].getString(0)
+        return !password.isNullOrEmpty()
     }
 
     override suspend fun getUserIdFromUsername(
@@ -1164,5 +1184,49 @@ class UserDaoImpl : UserDao() {
                 )
             )
             .coAwait()
+    }
+
+    override suspend fun setLinkCode(
+        username: String,
+        code: String,
+        createdAt: Long,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `linkCode` = ?, `linkCodeCreatedAt` = ? WHERE `username` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    code,
+                    createdAt,
+                    username
+                )
+            )
+            .coAwait()
+    }
+
+    override suspend fun getLinkCode(
+        username: String,
+        sqlClient: SqlClient
+    ): Pair<String?, Long?>? {
+        val query =
+            "SELECT `linkCode`, `linkCodeCreatedAt` FROM `${getTablePrefix() + tableName}` WHERE `username` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    username
+                )
+            )
+            .coAwait()
+
+        if (rows.size() == 0) return null
+
+        val row = rows.iterator().next()
+
+        return Pair(row.getString("linkCode"), row.getLong("linkCodeCreatedAt"))
     }
 }

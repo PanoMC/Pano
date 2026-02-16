@@ -4,6 +4,7 @@ import com.panomc.platform.annotation.Event
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.ServerPlayer
+import com.panomc.platform.db.model.User
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.ServerEventResponse
 import com.panomc.platform.server.event.request.OnPlayerJoinEventRequest
@@ -30,6 +31,16 @@ class OnPlayerJoinEvent(private val databaseManager: DatabaseManager) : ServerEv
 
         if (userId != null) {
             databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
+        } else {
+            // Create user
+            val newUser = User(
+                username = player.username,
+                email = null,
+                registeredIp = player.ipAddress,
+                mcUuid = player.uuid.toString()
+            )
+            
+            databaseManager.userDao.add(newUser, null, sqlClient, false)
         }
 
         return null

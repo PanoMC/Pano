@@ -130,6 +130,10 @@ class PanelGetSettingsAPI(
             }
         }
 
+        if (settingType == SettingType.AUTH) {
+            result["requireEmailVerification"] = configManager.config.auth.requireEmailVerification
+        }
+
         if (settingType == SettingType.ABOUT) {
             result["platformVersion"] = Main.VERSION
             result["platformStage"] = Main.STAGE.toString()
@@ -142,6 +146,7 @@ class PanelGetSettingsAPI(
         GENERAL,
         WEBSITE,
         UPDATES,
+        AUTH,
         ABOUT;
     }
 }

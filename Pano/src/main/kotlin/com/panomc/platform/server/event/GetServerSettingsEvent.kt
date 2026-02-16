@@ -19,10 +19,11 @@ class GetServerSettingsEvent(
 
         val translationsByLocale = i18nManager.getTranslationsByLocale(TranslationType.MC_PLUGIN)
         val platformLocale = configManager.config.locale
+        val authConfig = configManager.config.auth
 
         return GetServerSettingsEventResponse(
             settings.authIntegration,
-            settings.authRequireVerified,
+            if (!authConfig.requireEmailVerification) false else settings.authRequireVerified,
             settings.authKickAfterRegister,
             settings.banIntegration,
             settings.permissionIntegration,

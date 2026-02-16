@@ -5,14 +5,12 @@ import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.error.LoginEmailNotVerified
-import com.panomc.platform.error.LoginIsInvalid
-import com.panomc.platform.error.LoginUserIsBanned
-import com.panomc.platform.error.NoPermission
+import com.panomc.platform.error.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.Regexes
+import com.panomc.platform.util.TextUtil
 import io.vertx.core.http.Cookie
 import io.vertx.core.http.CookieSameSite
 import io.vertx.ext.web.RoutingContext
@@ -65,11 +63,17 @@ class AuthProvider(
         val userId =
             databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)!!
 
-        if (!dontCheckVerified) {
+        val authConfig = configManager.config.auth
+        if (!dontCheckVerified || !authConfig.requireEmailVerification) {
+            databaseManager.userDao.getEmailFromUserId(userId, sqlClient) ?: throw RegisterEmailRequired()
+
             val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
 
             if (!isVerified) {
-                throw LoginEmailNotVerified()
+                val email = databaseManager.userDao.getEmailFromUserId(userId, sqlClient)
+                val maskedEmail = email?.let { TextUtil.maskEmail(it) } ?: ""
+
+                throw LoginEmailNotVerified(extras = mapOf("email" to maskedEmail))
             }
         }
 
@@ -221,8 +225,7 @@ class AuthProvider(
 
     fun validateInput(
         usernameOrEmail: String,
-        password: String,
-        recaptcha: String
+        password: String
     ) {
         if (usernameOrEmail.isEmpty()) {
             throw LoginIsInvalid()

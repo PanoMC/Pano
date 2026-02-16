@@ -17,4 +17,7 @@ data class User(
     val lastActivityTime: Long = 0L,
     val lastPanelActivityTime: Long = 0L,
     val localeCode: String? = null,
+    val linkCode: String? = null,
+    val linkCodeCreatedAt: Long? = null,
+    val mcUuid: String? = null,
 ) : DBEntity()

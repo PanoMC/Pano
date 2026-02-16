@@ -83,9 +83,7 @@ class FinishAPI(
             email,
             password,
             password,
-            true,
-            "",
-            null
+            true
         )
 
         val sqlClient = getSqlClient()

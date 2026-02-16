@@ -31,4 +31,28 @@ object TextUtil {
         return bcp47Regex.matches(tag)
     }
 
+    fun maskEmail(email: String): String {
+        val parts = email.split("@")
+        if (parts.size != 2) return email
+
+        val user = parts[0]
+        val host = parts[1]
+
+        val maskedUser = if (user.length > 1) {
+            user.take(1) + "***"
+        } else {
+            user + "***"
+        }
+
+        val hostParts = host.split(".")
+        val maskedHost = if (hostParts.size >= 2) {
+            val domain = hostParts[0]
+            val extension = hostParts.drop(1).joinToString(".")
+            (if (domain.length > 1) domain.take(1) else domain) + "***." + extension
+        } else {
+            if (host.length > 1) host.take(1) + "***" else host + "***"
+        }
+
+        return "$maskedUser@$maskedHost"
+    }
 }

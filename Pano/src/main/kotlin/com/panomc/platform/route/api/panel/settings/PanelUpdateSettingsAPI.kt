@@ -9,8 +9,12 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.*
+import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
+import com.panomc.platform.server.ServerManager
+import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
@@ -32,7 +36,9 @@ class PanelUpdateSettingsAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val platformStateManager: PlatformStateManager,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val serverManager: ServerManager,
+    private val i18nManager: I18nManager,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
@@ -123,6 +129,7 @@ class PanelUpdateSettingsAPI(
                                 .optionalProperty("authMethods", stringSchema())
                         )
                         .optionalProperty("password", stringSchema())
+                        .optionalProperty("requireEmailVerification", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -162,6 +169,8 @@ class PanelUpdateSettingsAPI(
         val password = data.getString("password")
 
         val email = data.getJsonObject("email")
+
+        val requireEmailVerification = data.getBoolean("requireEmailVerification")
 
         if (fileUploads.isNotEmpty()) {
             val savedFiles = FileUploadUtil.saveFiles(fileUploads, acceptedFileFields, configManager)
@@ -348,7 +357,32 @@ class PanelUpdateSettingsAPI(
             platformStateManager.restartRequired = true
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null) {
+        if (requireEmailVerification != null) {
+            val oldRequireEmailVerification = configManager.config.auth.requireEmailVerification
+            configManager.config.auth.requireEmailVerification = requireEmailVerification
+
+            if (oldRequireEmailVerification != requireEmailVerification) {
+                // Notify all connected servers
+                val translationsByLocale = i18nManager.getTranslationsByLocale(TranslationType.MC_PLUGIN)
+                val platformLocale = configManager.config.locale
+
+                serverManager.getConnectedServers().forEach { (server, _) ->
+                    val serverSettings = server.settings
+                    val responseBody = GetServerSettingsEventResponse(
+                        serverSettings.authIntegration,
+                        if (!requireEmailVerification) false else serverSettings.authRequireVerified,
+                        serverSettings.authKickAfterRegister,
+                        serverSettings.banIntegration,
+                        serverSettings.permissionIntegration,
+                        translationsByLocale,
+                        platformLocale
+                    )
+                    serverManager.sendMessage(responseBody, server)
+                }
+            }
+        }
+
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null) {
             configManager.saveConfig()
         }
 

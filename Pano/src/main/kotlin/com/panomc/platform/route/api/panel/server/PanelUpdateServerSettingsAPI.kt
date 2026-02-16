@@ -102,9 +102,11 @@ class PanelUpdateServerSettingsAPI(
                 val platformLocale = configManager.config.locale
                 val translationsByLocale = i18nManager.getTranslationsByLocale(TranslationType.MC_PLUGIN)
 
+                val authConfig = configManager.config.auth
+
                 val response = GetServerSettingsEventResponse(
                     serverSettings.authIntegration,
-                    serverSettings.authRequireVerified,
+                    if (!authConfig.requireEmailVerification) false else serverSettings.authRequireVerified,
                     serverSettings.authKickAfterRegister,
                     serverSettings.banIntegration,
                     serverSettings.permissionIntegration,

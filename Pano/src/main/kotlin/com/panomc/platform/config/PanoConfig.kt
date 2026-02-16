@@ -57,6 +57,8 @@ data class PanoConfig(
 
     @SerializedName("accept-plugin-auth") var acceptPluginAuth: Boolean = true,
     @SerializedName("console-history-limit") var consoleHistoryLimit: Int = 50,
+
+    val auth: AuthConfig = AuthConfig(),
 ) {
     companion object {
         data class SetupConfig(var step: Int = 0)
@@ -104,6 +106,10 @@ data class PanoConfig(
             @SerializedName("redirect-https") var redirectHttps: Boolean = false,
             @SerializedName("ssl-cert") var sslCert: String? = null,
             @SerializedName("ssl-key") var sslKey: String? = null
+        )
+
+        data class AuthConfig(
+            @SerializedName("require-email-verification") var requireEmailVerification: Boolean = true,
         )
 
         enum class SslMode {

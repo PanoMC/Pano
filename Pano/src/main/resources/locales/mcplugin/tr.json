@@ -3,6 +3,11 @@
     "not-verified": "&cLütfen e-postanızı kontrol edin ve doğrulayın: &6{{email}}",
     "register-kick": "&6Lütfen websitede giriş yaparak bir e-posta ekleyin.",
     "ban-kick-permanent": "&cKalıcı olarak yasaklısın!{{#if reason}}\n\n&fSebep: {{reason}}{{/if}}",
-    "ban-kick-temporary": "&cGeçici olarak yasaklısın!{{#if reason}}\n\n&fSebep: {{reason}}{{/if}}\n\n&7Şu zamana kadar: {{untilTime}}"
+    "ban-kick-temporary": "&cGeçici olarak yasaklandınız!{{#if reason}}\n\n&fSebep: {{reason}}{{/if}}\n\n&7Tarihine Kadar: {{untilTime}}",
+    "link": {
+      "code-message": "&aBağlantı kodunuz: &e{{code}}\n&aBu kod 30 saniye geçerlidir.",
+      "failed": "&cBağlantı kodu oluşturulamadı. Lütfen daha sonra tekrar deneyin.",
+      "only-players": "&cBu komutu sadece oyuncular kullanabilir."
+    }
   }
 }

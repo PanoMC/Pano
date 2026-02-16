@@ -10,7 +10,7 @@ abstract class UserDao : Dao<User>(User::class.java) {
 
     abstract suspend fun add(
         user: User,
-        hashedPassword: String,
+        hashedPassword: String?,
         sqlClient: SqlClient,
         isSetup: Boolean
     ): Long
@@ -295,6 +295,11 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): Boolean
 
+    abstract suspend fun hasPassword(
+        userId: Long,
+        sqlClient: SqlClient
+    ): Boolean
+
     abstract suspend fun updatePendingEmailById(
         userId: Long,
         pendingEmail: String,
@@ -316,4 +321,16 @@ abstract class UserDao : Dao<User>(User::class.java) {
         limit: Int,
         sqlClient: SqlClient
     ): List<Pair<Long, String>>
+
+    abstract suspend fun setLinkCode(
+        username: String,
+        code: String,
+        createdAt: Long,
+        sqlClient: SqlClient
+    )
+
+    abstract suspend fun getLinkCode(
+        username: String,
+        sqlClient: SqlClient
+    ): Pair<String?, Long?>?
 }

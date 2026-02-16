@@ -29,4 +29,9 @@ abstract class PanelActivityLogDao : Dao<PanelActivityLog>(PanelActivityLog::cla
     abstract suspend fun count(
         sqlClient: SqlClient
     ): Long
+
+    abstract suspend fun deleteByUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    )
 }

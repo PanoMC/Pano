@@ -122,4 +122,21 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
 
         return rows.toList()[0].getLong(0)
     }
+
+    override suspend fun deleteByUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `userId` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            )
+            .coAwait()
+    }
 }

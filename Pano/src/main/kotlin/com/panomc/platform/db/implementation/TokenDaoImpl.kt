@@ -97,6 +97,18 @@ class TokenDaoImpl : TokenDao() {
             .coAwait()
     }
 
+    override suspend fun deleteBySubject(subject: String, sqlClient: SqlClient) {
+        val query =
+            "DELETE from `${getTablePrefix() + tableName}` WHERE `subject` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(subject)
+            )
+            .coAwait()
+    }
+
     override suspend fun getLastBySubjectAndType(
         subject: String,
         type: TokenType,

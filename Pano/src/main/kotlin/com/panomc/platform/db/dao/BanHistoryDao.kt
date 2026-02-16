@@ -2,7 +2,6 @@ package com.panomc.platform.db.dao
 
 import com.panomc.platform.db.Dao
 import com.panomc.platform.db.model.BanHistory
-import com.panomc.platform.db.model.PanelActivityLog
 import io.vertx.sqlclient.SqlClient
 
 abstract class BanHistoryDao : Dao<BanHistory>(BanHistory::class.java) {
@@ -21,4 +20,9 @@ abstract class BanHistoryDao : Dao<BanHistory>(BanHistory::class.java) {
         page: Long,
         sqlClient: SqlClient
     ): List<BanHistory>
+
+    abstract suspend fun deleteByUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    )
 }

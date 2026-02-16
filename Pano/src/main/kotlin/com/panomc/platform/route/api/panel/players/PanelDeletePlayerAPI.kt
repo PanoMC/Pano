@@ -1,7 +1,9 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.PlayerEventListener
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.log.DeletedPlayerLog
@@ -10,7 +12,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -86,10 +87,20 @@ class PanelDeletePlayerAPI(
             }
         }
 
+        val user = databaseManager.userDao.getById(userId, sqlClient)!!
+
+        PluginEventManager.getPanoEventListeners<PlayerEventListener>().forEach { eventHandler ->
+            eventHandler.onDelete(user)
+        }
+
+        tokenProvider.invalidateTokensBySubject(userId.toString(), sqlClient)
         databaseManager.notificationDao.deleteAllByUserId(userId, sqlClient)
-        databaseManager.panelConfigDao.deleteByUserId(userId, sqlClient)
         databaseManager.panelNotificationDao.deleteAllByUserId(userId, sqlClient)
         databaseManager.postDao.updateUserIdByUserId(userId, -1, sqlClient)
+        databaseManager.banHistoryDao.deleteByUserId(userId, sqlClient)
+        databaseManager.permissionNodeDao.deleteByUserId(userId, sqlClient)
+
+        permissionManager.refresh()
 
         val tickets = databaseManager.ticketDao.getByUserId(userId, sqlClient)
 
@@ -97,13 +108,12 @@ class PanelDeletePlayerAPI(
 
         if (ticketIdList.size() != 0) {
             databaseManager.ticketMessageDao.deleteByTicketIdList(ticketIdList, sqlClient)
+            databaseManager.ticketDao.delete(ticketIdList, sqlClient)
         }
 
-        databaseManager.ticketMessageDao.updateUserIdByUserId(userId, -1, sqlClient)
-
-        TokenType.values().forEach { tokenType ->
-            tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), tokenType, sqlClient)
-        }
+        // admin stuff
+        databaseManager.panelActivityLogDao.deleteByUserId(userId, sqlClient)
+        databaseManager.panelConfigDao.deleteByUserId(userId, sqlClient)
 
         databaseManager.userDao.deleteById(userId, sqlClient)
 

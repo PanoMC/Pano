@@ -78,6 +78,10 @@ class TokenProvider(
         databaseManager.tokenDao.deleteBySubjectAndType(subject, type, sqlClient)
     }
 
+    suspend fun invalidateTokensBySubject(subject: String, sqlClient: SqlClient) {
+        databaseManager.tokenDao.deleteBySubject(subject, sqlClient)
+    }
+
     fun parseToken(token: String): DecodedJWT {
         val verifier = JWT.require(getAlgorithm())
             .build()

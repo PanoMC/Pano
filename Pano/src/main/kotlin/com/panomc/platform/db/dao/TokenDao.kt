@@ -22,6 +22,8 @@ abstract class TokenDao : Dao<Token>(Token::class.java) {
 
     abstract suspend fun deleteBySubjectAndType(subject: String, type: TokenType, sqlClient: SqlClient)
 
+    abstract suspend fun deleteBySubject(subject: String, sqlClient: SqlClient)
+
     abstract suspend fun getLastBySubjectAndType(
         subject: String,
         type: TokenType,

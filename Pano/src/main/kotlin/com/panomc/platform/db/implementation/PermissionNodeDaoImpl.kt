@@ -125,5 +125,22 @@ class PermissionNodeDaoImpl : PermissionNodeDao() {
             .execute()
             .coAwait()
     }
+
+    override suspend fun deleteByUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `holderType` = ? AND `holderId` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    "USER", userId
+                )
+            )
+            .coAwait()
+    }
 }
 

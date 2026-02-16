@@ -2,10 +2,7 @@ package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.BanHistoryDao
-import com.panomc.platform.db.dao.PanelActivityLogDao
 import com.panomc.platform.db.model.BanHistory
-import com.panomc.platform.db.model.PanelActivityLog
-import com.panomc.platform.db.model.Ticket
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
 import io.vertx.sqlclient.Row
@@ -102,5 +99,22 @@ class BanHistoryDaoImpl : BanHistoryDao() {
             .coAwait()
 
         return rows.toEntities()
+    }
+
+    override suspend fun deleteByUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "DELETE FROM `${getTablePrefix() + tableName}` WHERE `userId` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            )
+            .coAwait()
     }
 }

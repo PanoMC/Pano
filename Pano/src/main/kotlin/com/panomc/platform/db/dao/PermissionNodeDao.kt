@@ -18,5 +18,10 @@ abstract class PermissionNodeDao : Dao<PermissionNode>(PermissionNode::class.jav
         ids: List<Long>,
         sqlClient: SqlClient
     )
+
+    abstract suspend fun deleteByUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    )
 }
 

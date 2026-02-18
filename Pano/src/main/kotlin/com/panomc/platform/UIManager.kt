@@ -19,7 +19,6 @@ import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -63,7 +62,7 @@ class UIManager(
 
     private val githubUrl = "https://github.com"
 
-    private val bunVersion = "bun-v1.3.6"
+    private val bunVersion = "bun-v1.3.9"
     private val bunZipFileName by lazy {
         "bun-${Main.OPERATING_SYSTEM.name.lowercase()}-${Main.ARCHITECTURE.name.lowercase()}"
     }

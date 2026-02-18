@@ -98,7 +98,7 @@ class ConsoleInputReader(
                     } ?: continue
 
                     if (line.isNotBlank() && running) {
-                        println("\u001B[90m>\u001B[0m $line")
+                        Main.logger.info("\u001B[90m>\u001B[0m $line")
                         
                         // Add to GUI history
                         com.panomc.platform.util.UiConsole.addToHistory(line)

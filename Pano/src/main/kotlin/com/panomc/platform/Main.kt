@@ -259,7 +259,7 @@ class Main : CoroutineVerticle() {
     }
 
     override suspend fun start() {
-        println(
+        logger.info(
             "\n" + " ______   ______     __   __     ______    \n" + "/\\  == \\ /\\  __ \\   /\\ \"-.\\ \\   /\\  __ \\   \n" + "\\ \\  _-/ \\ \\  __ \\  \\ \\ \\-.  \\  \\ \\ \\/\\ \\  \n" + " \\ \\_\\    \\ \\_\\ \\_\\  \\ \\_\\\\\"\\_\\  \\ \\_____\\ \n" + "  \\/_/     \\/_/\\/_/   \\/_/ \\/_/   \\/_____/  v${VERSION}\n" + "                                           "
         )
         logger.info("Hello World!")
@@ -444,7 +444,7 @@ class Main : CoroutineVerticle() {
         try {
             configManager.init()
         } catch (e: Exception) {
-            println(e)
+            logger.error(e.message ?: e.toString(), e)
         }
     }
 

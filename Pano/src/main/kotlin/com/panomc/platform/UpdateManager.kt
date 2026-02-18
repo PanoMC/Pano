@@ -51,6 +51,7 @@ import java.nio.file.StandardOpenOption
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.WeekFields
 import java.util.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -624,19 +625,23 @@ class UpdateManager(
             .atZone(ZoneId.systemDefault())
             .toLocalDateTime()
 
-        if (config.updatePeriod == UpdatePeriod.ONCE_PER_DAY && time.plusDays(1).isBefore(now)) {
-            return true
-        }
+        val lastDate = time.toLocalDate()
+        val nowDate = now.toLocalDate()
 
-        if (config.updatePeriod == UpdatePeriod.ONCE_PER_WEEK && time.plusWeeks(1).isBefore(now)) {
-            return true
-        }
+        return when (config.updatePeriod) {
+            UpdatePeriod.ONCE_PER_DAY -> nowDate.isAfter(lastDate)
+            UpdatePeriod.ONCE_PER_WEEK -> {
+                val weekFields = WeekFields.ISO
+                val lastWeek = time.get(weekFields.weekOfWeekBasedYear())
+                val lastYear = time.get(weekFields.weekBasedYear())
+                val currentWeek = now.get(weekFields.weekOfWeekBasedYear())
+                val currentYear = now.get(weekFields.weekBasedYear())
 
-        if (config.updatePeriod == UpdatePeriod.ONCE_PER_MONTH && time.plusMonths(1).isBefore(now)) {
-            return true
+                currentYear > lastYear || currentWeek > lastWeek
+            }
+            UpdatePeriod.ONCE_PER_MONTH -> now.year > time.year || now.monthValue > time.monthValue
+            else -> false
         }
-
-        return false
     }
 
     private suspend fun cleanupOldUpdates() {

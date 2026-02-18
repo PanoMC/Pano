@@ -45,6 +45,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             
             data.put("dbType", databaseConfig.type)
             data.put("installed", mariaDBManager.isInstalled())
+            data.put("installProgress", mariaDBManager.installProgress)
             data.put("portableDatabaseSupported", mariaDBManager.isSupported())
             data.put("supportedSystems", listOf("Windows (x64, ARM64)"))
 

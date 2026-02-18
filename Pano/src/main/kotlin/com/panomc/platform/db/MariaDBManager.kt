@@ -34,6 +34,8 @@ import java.util.zip.ZipFile
 class MariaDBManager : DisposableBean {
     @Autowired
     private lateinit var vertx: Vertx
+    var installProgress: Int = 0
+        private set
 
     private val logger: Logger = LoggerFactory.getLogger(MariaDBManager::class.java)
 
@@ -117,6 +119,7 @@ class MariaDBManager : DisposableBean {
             
             // Download
             URL(url).openConnection().let { connection ->
+                val contentLength = connection.contentLengthLong
                 connection.getInputStream().use { input ->
                     archiveFile.outputStream().use { output ->
                         val buffer = ByteArray(8192)
@@ -129,6 +132,10 @@ class MariaDBManager : DisposableBean {
                             output.write(buffer, 0, bytesRead)
                             totalRead += bytesRead
 
+                            if (contentLength > 0) {
+                                installProgress = (totalRead * 100 / contentLength).toInt().coerceAtMost(99)
+                            }
+
                             if (totalRead - lastDotAt >= dotInterval) {
                                 print(". ")
                                 System.out.flush()
@@ -139,6 +146,8 @@ class MariaDBManager : DisposableBean {
                 }
             }
             println()
+
+            installProgress = 99
 
             logger.info("Download complete. Extracting...")
             
@@ -188,107 +197,112 @@ class MariaDBManager : DisposableBean {
             
             logger.info("Extraction complete.")
             
-            // Initialize data directory
+            ensureMyIni()
+            
+            val installDbBin = if (currentOs == OperatingSystem.WINDOWS) {
+                 File(mariaDbFolder, "bin/mysql_install_db.exe")
+            } else {
+                 val mdb = File(mariaDbFolder, "bin/mariadb-install-db")
+                 if (mdb.exists()) mdb else File(mariaDbFolder, "scripts/mysql_install_db")
+            }
+            
+            val finalInstallBin = if (installDbBin.exists()) installDbBin else {
+                 if (currentOs != OperatingSystem.WINDOWS) {
+                     val alt = File(mariaDbFolder, "bin/mysql_install_db")
+                     if (alt.exists()) alt else installDbBin
+                 } else installDbBin
+            }
+            
+            if (!finalInstallBin.exists()) {
+                 throw DbInstallFailed("Could not find database installation binary at ${finalInstallBin.absolutePath}")
+            }
+
+            if (currentOs != OperatingSystem.WINDOWS) {
+                finalInstallBin.setExecutable(true)
+                File(mariaDbFolder, "bin").listFiles()?.forEach { it.setExecutable(true) }
+                File(mariaDbFolder, "scripts").listFiles()?.forEach { it.setExecutable(true) }
+            }
+
+            // Initialize if mysql folder doesn't exist
             val mysqlDir = File(dataFolder, "mysql")
             if (!dataFolder.exists() || !mysqlDir.exists()) {
                 if (dataFolder.exists()) {
-                    logger.info("Data folder exists but appears corrupted (missing 'mysql' folder). Re-initializing.")
+                    logger.info("Data folder exists but appears corrupted. Re-initializing.")
                     dataFolder.deleteRecursively()
                 }
                 dataFolder.mkdirs()
-
-                // Create my.ini (or my.cnf for linux) FIRST
-                val confName = if (currentOs == OperatingSystem.WINDOWS) "my.ini" else "my.cnf"
-                val myConf = File(mariaDbFolder, confName)
-                val absDataPath = dataFolder.absolutePath.replace("\\", "/")
-                val absBaseDir = mariaDbFolder.absolutePath.replace("\\", "/")
-
-                myConf.writeText("""
-                    [mysqld]
-                    datadir=$absDataPath
-                    basedir=$absBaseDir
-                    port=$port
-                    bind-address=127.0.0.1
-                    max_allowed_packet=64M
-                """.trimIndent())
-                
-                logger.info("Initializing database data directory...")
-                
-                val installDbBin = if (currentOs == OperatingSystem.WINDOWS) {
-                     File(mariaDbFolder, "bin/mysql_install_db.exe")
-                } else {
-                     // Try mariadb-install-db first, then mysql_install_db
-                     val mdb = File(mariaDbFolder, "bin/mariadb-install-db")
-                     if (mdb.exists()) mdb else File(mariaDbFolder, "scripts/mysql_install_db")
-                }
-                
-                // Final check for binary existence
-                val finalInstallBin = if (installDbBin.exists()) installDbBin else {
-                     if (currentOs != OperatingSystem.WINDOWS) {
-                         val alt = File(mariaDbFolder, "bin/mysql_install_db")
-                         if (alt.exists()) alt else installDbBin
-                     } else installDbBin
-                }
-                
-                if (!finalInstallBin.exists()) {
-                     throw DbInstallFailed("Could not find database installation binary at ${finalInstallBin.absolutePath}")
-                }
-
-                if (currentOs != OperatingSystem.WINDOWS) {
-                    finalInstallBin.setExecutable(true)
-                    File(mariaDbFolder, "bin").listFiles()?.forEach { it.setExecutable(true) }
-                    File(mariaDbFolder, "scripts").listFiles()?.forEach { it.setExecutable(true) }
-                }
-
-                val installDbCmd = mutableListOf(
-                    finalInstallBin.absolutePath,
-                    "--datadir=${dataFolder.absolutePath}"
-                )
-
-                if (currentOs == OperatingSystem.WINDOWS) {
-                    // Windows version of mysql_install_db.exe has different flags
-                    installDbCmd.add("--password=$password")
-                    installDbCmd.add("--port=$port")
-                    installDbCmd.add("--default-user")
-                } else {
-                    // Use relative paths on Linux to avoid space-in-path issues in the mysql_install_db script
-                    installDbCmd.clear()
-                    installDbCmd.add("./" + finalInstallBin.relativeTo(mariaDbFolder).path)
-                    installDbCmd.add("--defaults-file=" + myConf.relativeTo(mariaDbFolder).path)
-                    installDbCmd.add("--datadir=" + dataFolder.relativeTo(mariaDbFolder).path)
-                    installDbCmd.add("--basedir=.")
-                }
-
-                val pb = ProcessBuilder(installDbCmd)
-                if (currentOs != OperatingSystem.WINDOWS) {
-                    pb.environment()["PATH"] = File(mariaDbFolder, "bin").absolutePath + File.pathSeparator + (System.getenv("PATH") ?: "")
-                }
-                pb.directory(mariaDbFolder) // Set working directory to basedir for script execution
-                pb.redirectErrorStream(true)
-                val p = pb.start()
-                val scanner = Scanner(p.inputStream)
-                while (scanner.hasNextLine()) {
-                    val line = scanner.nextLine()
-                    logger.info("InstallDB: $line")
-                }
-                val exitCode = p.waitFor()
-
-                if (exitCode != 0) {
-                     logger.error("mysql_install_db failed with exit code $exitCode")
-                     throw DbInstallFailed("Database initialization failed with code $exitCode")
-                }
-                
-                // Save password as we initialized a fresh DB
-                passwordFile.writeText(password)
+                runInstallDb(finalInstallBin)
             }
-
+            
+            installProgress = 100
             return@executeBlocking Successful()
         } catch (e: Exception) {
             logger.error("Failed to install MariaDB", e)
-            mariaDbFolder.deleteRecursively()
             throw DbInstallFailed()
         }
     }.coAwait()
+
+    private fun ensureMyIni() {
+        val confName = if (currentOs == OperatingSystem.WINDOWS) "my.ini" else "my.cnf"
+        val myConf = File(mariaDbFolder, confName)
+        val absDataPath = dataFolder.absolutePath.replace("\\", "/")
+        val absBaseDir = mariaDbFolder.absolutePath.replace("\\", "/")
+
+        if (!dataFolder.exists()) {
+            dataFolder.mkdirs()
+        }
+
+        myConf.writeText("""
+            [mysqld]
+            datadir="$absDataPath"
+            basedir="$absBaseDir"
+            port=$port
+            bind-address=127.0.0.1
+            max_allowed_packet=64M
+            innodb_flush_method=normal
+        """.trimIndent())
+    }
+
+    private fun runInstallDb(finalInstallBin: File) {
+        val confName = if (currentOs == OperatingSystem.WINDOWS) "my.ini" else "my.cnf"
+        val myConf = File(mariaDbFolder, confName)
+        
+        val installDbCmd = mutableListOf(
+            finalInstallBin.absolutePath,
+            "--datadir=${dataFolder.absolutePath.replace("\\", "/")}"
+        )
+
+        if (currentOs == OperatingSystem.WINDOWS) {
+            installDbCmd.add("--password=$password")
+            installDbCmd.add("--port=$port")
+            installDbCmd.add("--default-user")
+        } else {
+            installDbCmd.clear()
+            installDbCmd.add("./" + finalInstallBin.relativeTo(mariaDbFolder).path)
+            installDbCmd.add("--defaults-file=" + myConf.relativeTo(mariaDbFolder).path)
+            installDbCmd.add("--datadir=" + dataFolder.relativeTo(mariaDbFolder).path)
+            installDbCmd.add("--basedir=.")
+        }
+
+        val pb = ProcessBuilder(installDbCmd)
+        if (currentOs != OperatingSystem.WINDOWS) {
+            pb.environment()["PATH"] = File(mariaDbFolder, "bin").absolutePath + File.pathSeparator + (System.getenv("PATH") ?: "")
+        }
+        pb.directory(mariaDbFolder)
+        pb.redirectErrorStream(true)
+        val p = pb.start()
+        val scanner = Scanner(p.inputStream)
+        while (scanner.hasNextLine()) {
+            val line = scanner.nextLine()
+            logger.info("InstallDB: $line")
+        }
+        val exitCode = p.waitFor()
+
+        if (exitCode != 0) {
+            throw DbInstallFailed("Database initialization failed with code $exitCode")
+        }
+        passwordFile.writeText(password)
+    }
 
     private fun isPortInUse(port: Int): Boolean {
         return try {
@@ -319,9 +333,11 @@ class MariaDBManager : DisposableBean {
             mysqld.setExecutable(true)
         }
 
+        ensureMyIni()
+
         val cmd = listOf(
             mysqld.absolutePath,
-            "--defaults-file=${defaultsFile.absolutePath}",
+            "--defaults-file=${defaultsFile.absolutePath.replace("\\", "/")}",
             "--console"
         )
         
@@ -390,6 +406,7 @@ class MariaDBManager : DisposableBean {
         // Try without password (first run)
         var cmd = listOf(
             mysql.absolutePath,
+            "--host=127.0.0.1",
             "--port=$port",
             "-u", "root",
             "-e", sql
@@ -409,6 +426,7 @@ class MariaDBManager : DisposableBean {
                  // Try with password
                  cmd = listOf(
                     mysql.absolutePath,
+                    "--host=127.0.0.1",
                     "--port=$port",
                     "-u", "root",
                     "-p$password",
@@ -424,9 +442,6 @@ class MariaDBManager : DisposableBean {
         
         if (exitCode != 0) {
             logger.error("Failed to configure database. Exit: $exitCode. Output: $output")
-            // Throw? Or assume it might be okay? 
-            // If we throw, user cannot proceed. If we silently fail, they might proceed with fallback or manual fix.
-            // But usually this means we cannot connect.
         } else {
             logger.info("Default database checked/created.")
         }

@@ -72,10 +72,8 @@ class FinishAPI(
         val remoteIP = authProvider.getRemoteIP(context)
 
         if (configManager.config.database.type == "portable") {
-            context.vertx().executeBlocking {
-                mariaDBManager.start()
-                mariaDBManager.createDefaultDatabase()
-            }.coAwait()
+            mariaDBManager.start()
+            mariaDBManager.createDefaultDatabase()
         }
 
         RegisterUtil.validateForm(

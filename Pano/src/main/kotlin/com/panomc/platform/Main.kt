@@ -325,9 +325,7 @@ class Main : CoroutineVerticle() {
         }
 
         // Init MariaDB before plugins
-        executeBlocking {
-            initMariaDBManager()
-        }
+        initMariaDBManager()
 
         executeBlocking {
             initPluginManager()
@@ -466,7 +464,7 @@ class Main : CoroutineVerticle() {
         return true
     }
 
-    private fun initMariaDBManager() {
+    private suspend fun initMariaDBManager() {
         val setupManager = applicationContext.getBean(SetupManager::class.java)
         if (configManager.config.database.type == "portable" && setupManager.isSetupDone()) {
             logger.info("Starting Portable MariaDB...")

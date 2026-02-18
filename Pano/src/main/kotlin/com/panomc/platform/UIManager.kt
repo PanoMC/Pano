@@ -164,9 +164,29 @@ class UIManager(
             // Download the zip file
             val zipFile = File(librariesFolder, "$bunZipFileName.zip")
 
-            URL(fullUrl).openStream().use { input ->
-                Files.copy(input, zipFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            URL(fullUrl).openConnection().let { connection ->
+                connection.getInputStream().use { input ->
+                    zipFile.outputStream().use { output ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        var totalRead = 0L
+                        var lastDotAt = 0L
+                        val dotInterval = 1024 * 1024 // 1 MB
+
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalRead += bytesRead
+
+                            if (totalRead - lastDotAt >= dotInterval) {
+                                print(". ")
+                                System.out.flush()
+                                lastDotAt = totalRead
+                            }
+                        }
+                    }
+                }
             }
+            println()
 
             logger.info("Download complete.")
             logger.info("Extracting...")

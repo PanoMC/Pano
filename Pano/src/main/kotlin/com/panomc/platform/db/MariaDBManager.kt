@@ -7,10 +7,13 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.Architecture
 import com.panomc.platform.util.OperatingSystem
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.coroutines.coAwait
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.DisposableBean
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -29,6 +32,9 @@ import java.util.zip.ZipFile
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class MariaDBManager : DisposableBean {
+    @Autowired
+    private lateinit var vertx: Vertx
+
     private val logger: Logger = LoggerFactory.getLogger(MariaDBManager::class.java)
 
     // Using MariaDB 11.4.2 GA (Stable)
@@ -88,16 +94,16 @@ class MariaDBManager : DisposableBean {
     }
 
     override fun destroy() {
-        stop()
+        process?.destroy()
     }
 
-    fun install(): Result {
+    suspend fun install(): Result = vertx.executeBlocking {
         if (!isSupported()) {
             throw PortableDbNotSupportedOs()
         }
 
         if (isInstalled()) {
-            return Successful()
+            return@executeBlocking Successful()
         }
 
         val url = downloadUrl
@@ -110,12 +116,29 @@ class MariaDBManager : DisposableBean {
             val archiveFile = File(librariesFolder, archiveName)
             
             // Download
-            val website = URL(url)
-            val rbc = Channels.newChannel(website.openStream())
-            val fos = FileOutputStream(archiveFile)
-            fos.channel.transferFrom(rbc, 0, Long.MAX_VALUE)
-            fos.close()
-            rbc.close()
+            URL(url).openConnection().let { connection ->
+                connection.getInputStream().use { input ->
+                    archiveFile.outputStream().use { output ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        var totalRead = 0L
+                        var lastDotAt = 0L
+                        val dotInterval = 1024 * 1024 // 1 MB
+
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalRead += bytesRead
+
+                            if (totalRead - lastDotAt >= dotInterval) {
+                                print(". ")
+                                System.out.flush()
+                                lastDotAt = totalRead
+                            }
+                        }
+                    }
+                }
+            }
+            println()
 
             logger.info("Download complete. Extracting...")
             
@@ -259,13 +282,13 @@ class MariaDBManager : DisposableBean {
                 passwordFile.writeText(password)
             }
 
-            return Successful()
+            return@executeBlocking Successful()
         } catch (e: Exception) {
             logger.error("Failed to install MariaDB", e)
             mariaDbFolder.deleteRecursively()
             throw DbInstallFailed()
         }
-    }
+    }.coAwait()
 
     private fun isPortInUse(port: Int): Boolean {
         return try {
@@ -276,12 +299,12 @@ class MariaDBManager : DisposableBean {
         }
     }
 
-    fun start() {
-        if (!isInstalled()) return
+    suspend fun start() = vertx.executeBlocking {
+        if (!isInstalled()) return@executeBlocking
         
         if (isPortInUse(port)) {
             logger.info("Port $port is already in use. Assuming MariaDB is running.")
-            return
+            return@executeBlocking
         }
 
         logger.info("Starting Portable MariaDB on port $port...")
@@ -308,27 +331,30 @@ class MariaDBManager : DisposableBean {
         
         // Consume output in a separate thread to prevent blocking
         Thread {
-            val scanner = Scanner(process!!.inputStream)
-            while (scanner.hasNextLine()) {
-                val line = scanner.nextLine()
-                logger.info("MariaDB: $line") 
+            val s = process?.inputStream
+            if (s != null) {
+                val scanner = Scanner(s)
+                while (scanner.hasNextLine()) {
+                    val line = scanner.nextLine()
+                    logger.info("MariaDB: $line") 
+                }
             }
         }.start()
         
         Runtime.getRuntime().addShutdownHook(Thread {
-             stop()
+            process?.destroy()
         })
 
         // Wait for MariaDB to start listening
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < 30000) {
-            if (!process!!.isAlive) {
+            if (process?.isAlive == false) {
                 logger.error("MariaDB process died immediately!")
-                return
+                return@executeBlocking
             }
             if (isPortInUse(port)) {
                 logger.info("MariaDB started successfully and is listening on port $port.")
-                return
+                return@executeBlocking
             }
             try {
                 Thread.sleep(200)
@@ -338,7 +364,7 @@ class MariaDBManager : DisposableBean {
         }
         
         logger.error("MariaDB failed to start (timeout) on port $port.")
-    }
+    }.coAwait()
     
     fun stop() {
         if (process != null) {
@@ -348,8 +374,8 @@ class MariaDBManager : DisposableBean {
         }
     }
 
-    fun createDefaultDatabase() {
-        if (!isInstalled()) return
+    suspend fun createDefaultDatabase() = vertx.executeBlocking {
+        if (!isInstalled()) return@executeBlocking
 
         logger.info("Creating default database 'pano'...")
         val binName = if (currentOs == OperatingSystem.WINDOWS) "bin/mysql.exe" else "bin/mysql"
@@ -404,7 +430,7 @@ class MariaDBManager : DisposableBean {
         } else {
             logger.info("Default database checked/created.")
         }
-    }
+    }.coAwait()
 
     fun getCredentials(): JsonObject {
         return JsonObject()

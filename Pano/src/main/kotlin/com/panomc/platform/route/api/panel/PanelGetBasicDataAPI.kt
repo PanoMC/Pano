@@ -62,12 +62,11 @@ class PanelGetBasicDataAPI(
             "acceptPluginAuth" to configManager.config.acceptPluginAuth,
             "panelTheme" to panelTheme,
             "showDevModeAlert" to false,
-            "showWhatsNew" to false,
             "currentVersion" to Main.VERSION
         )
 
         val dismissedVersion = databaseManager.panelConfigDao.byUserIdAndOption(userId, "dismissed_whats_new_version", sqlClient)?.value
-        result["showWhatsNew"] = dismissedVersion != Main.VERSION
+        result["dismissedWhatsNewVersion"] = dismissedVersion
 
         if (configManager.config.developmentMode) {
             val option = "dismissed_dev_mode_alert"

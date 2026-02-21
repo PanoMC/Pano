@@ -5,6 +5,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
@@ -38,7 +39,12 @@ class HomeSidebarAPI(private val configManager: ConfigManager, private val datab
             "maxPlayerCount" to mainServer.maxPlayerCount,
             "status" to mainServer.status
         )
-        response["lastRegisteredUsers"] = databaseManager.userDao.getLastUsernames(12, sqlClient)
+        response["lastRegisteredUsers"] = databaseManager.userDao.getLastUsers(12, sqlClient).map {
+            JsonObject()
+                .put("username", it.username)
+                .put("registerDate", it.registerDate)
+                .put("lastActivityTime", it.lastActivityTime)
+        }
 
         return Successful(response)
     }

@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.profile
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.ProfilePictureEventListener
+import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Api
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
@@ -13,8 +16,14 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
-class GetProfilePictureAPI : Api() {
+class GetProfilePictureAPI(
+    private val databaseManager: DatabaseManager
+) : Api() {
     override val paths = listOf(Path("/api/profile/picture/:username", RouteType.GET))
+
+    companion object {
+        private const val CACHE_TTL_SECONDS = 5 * 60 // 5 minutes
+    }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -25,11 +34,28 @@ class GetProfilePictureAPI : Api() {
         val parameters = getParameters(context)
         val username = parameters.pathParameter("username").string
 
-        val redirectUrl = "https://minotar.net/avatar/$username"
+        val sqlClient = getSqlClient()
+        val user = databaseManager.userDao.getByUsername(username, sqlClient)
+
+        var redirectUrl = "https://minotar.net/avatar/$username"
+
+        if (user != null) {
+            // Let plugins override the profile picture URL
+            val listeners = PluginEventManager.getPanoEventListeners<ProfilePictureEventListener>()
+
+            for (listener in listeners) {
+                val url = listener.resolveProfilePictureUrl(user)
+                if (url != null) {
+                    redirectUrl = url
+                    break
+                }
+            }
+        }
 
         context.response()
             .setStatusCode(302)
             .putHeader("Location", redirectUrl)
+            .putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS")
             .end()
 
         return null

@@ -248,10 +248,10 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     )
 
-    abstract suspend fun getLastUsernames(
+    abstract suspend fun getLastUsers(
         limit: Long,
         sqlClient: SqlClient
-    ): List<String>
+    ): List<User>
 
     abstract suspend fun getLast5Register(
         sqlClient: SqlClient

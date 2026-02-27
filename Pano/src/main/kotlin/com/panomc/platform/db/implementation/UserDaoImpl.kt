@@ -976,22 +976,16 @@ class UserDaoImpl : UserDao() {
             .coAwait()
     }
 
-    override suspend fun getLastUsernames(limit: Long, sqlClient: SqlClient): List<String> {
+    override suspend fun getLastUsers(limit: Long, sqlClient: SqlClient): List<User> {
         val query =
-            "SELECT username FROM `${getTablePrefix() + tableName}` ORDER BY `registerDate` DESC, `id` DESC ${if (limit == -1L) "" else "LIMIT $limit"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `registerDate` DESC, `id` DESC ${if (limit == -1L) "" else "LIMIT $limit"}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
             .coAwait()
 
-        val usernames = mutableListOf<String>()
-
-        rows.forEach { row ->
-            usernames.add(row.getString(0))
-        }
-
-        return usernames
+        return rows.toEntities()
     }
 
     override suspend fun getLast5Register(

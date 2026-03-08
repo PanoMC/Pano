@@ -192,11 +192,23 @@ class PanelLuckPermsMigrationUploadAPI(
                 absolutePath
             }
 
-            val conn = DriverManager.getConnection(
-                "jdbc:h2:$jdbcPath;MODE=MySQL;DB_CLOSE_DELAY=-1;AUTO_RECONNECT=TRUE;ACCESS_MODE_DATA=r",
-                "",
-                ""
-            )
+            // Explicitly load the H2 JDBC driver — required in fat/shadow JAR builds
+            // where DriverManager's SPI auto-discovery may not work
+            try {
+                Class.forName("org.h2.Driver")
+            } catch (e: ClassNotFoundException) {
+                throw InvalidData(extras = mapOf("message" to "H2 database driver not found. Please ensure H2 is included in the build."))
+            }
+
+            val conn = try {
+                DriverManager.getConnection(
+                    "jdbc:h2:$jdbcPath;MODE=MySQL;DB_CLOSE_DELAY=-1;AUTO_RECONNECT=TRUE;ACCESS_MODE_DATA=r",
+                    "",
+                    ""
+                )
+            } catch (e: Exception) {
+                throw InvalidData(extras = mapOf("message" to "Failed to open H2 database: ${e.message}"))
+            }
 
             conn.use { connection ->
                 readFromJdbc(connection, tablePrefix)

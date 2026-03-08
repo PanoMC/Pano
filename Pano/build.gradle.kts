@@ -105,6 +105,9 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.49.1.0")
     implementation("org.yaml:snakeyaml:2.4")
 
+    // LuckPerms Migration support (H2 database — must use 2.1.x to read LP's format-2 files)
+    implementation("com.h2database:h2:2.1.214")
+
     // Password hashing
     implementation("de.mkammerer:argon2-jvm:2.11")
     implementation("org.mindrot:jbcrypt:0.4")

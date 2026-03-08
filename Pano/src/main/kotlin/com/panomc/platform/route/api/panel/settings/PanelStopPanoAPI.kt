@@ -19,7 +19,7 @@ import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import org.apache.commons.codec.digest.DigestUtils
+
 
 @Endpoint
 class PanelStopPanoAPI(
@@ -52,7 +52,7 @@ class PanelStopPanoAPI(
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val sqlClient = getSqlClient()
 
-        val isPasswordCorrect = databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(password), sqlClient)
+        val isPasswordCorrect = databaseManager.userDao.isPasswordCorrectWithId(userId, password, sqlClient)
 
         if (!isPasswordCorrect) {
             throw NoPermission()

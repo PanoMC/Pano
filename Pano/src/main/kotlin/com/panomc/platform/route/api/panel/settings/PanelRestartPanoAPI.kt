@@ -21,7 +21,7 @@ import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.apache.commons.codec.digest.DigestUtils
+
 import java.nio.file.Paths
 
 @Endpoint
@@ -56,7 +56,7 @@ class PanelRestartPanoAPI(
         val sqlClient = getSqlClient()
 
         val isPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(password), sqlClient)
+            databaseManager.userDao.isPasswordCorrectWithId(userId, password, sqlClient)
 
         if (!isPasswordCorrect) {
             throw NoPermission()

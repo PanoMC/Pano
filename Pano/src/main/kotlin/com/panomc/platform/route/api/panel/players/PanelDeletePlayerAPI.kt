@@ -22,7 +22,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import org.apache.commons.codec.digest.DigestUtils
+
 
 @Endpoint
 class PanelDeletePlayerAPI(
@@ -65,7 +65,7 @@ class PanelDeletePlayerAPI(
         }
 
         val isCurrentPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(authUserId, DigestUtils.md5Hex(currentPassword), sqlClient)
+            databaseManager.userDao.isPasswordCorrectWithId(authUserId, currentPassword, sqlClient)
 
         if (!isCurrentPasswordCorrect) {
             throw CurrentPasswordNotCorrect()

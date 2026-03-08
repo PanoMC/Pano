@@ -291,7 +291,7 @@ abstract class UserDao : Dao<User>(User::class.java) {
 
     abstract suspend fun isPasswordCorrectWithId(
         id: Long,
-        hashedPassword: String,
+        password: String,
         sqlClient: SqlClient
     ): Boolean
 
@@ -333,4 +333,15 @@ abstract class UserDao : Dao<User>(User::class.java) {
         username: String,
         sqlClient: SqlClient
     ): Pair<String?, Long?>?
+
+    abstract suspend fun getPasswordById(
+        id: Long,
+        sqlClient: SqlClient
+    ): String?
+
+    abstract suspend fun setHashedPasswordById(
+        id: Long,
+        hashedPassword: String,
+        sqlClient: SqlClient
+    )
 }

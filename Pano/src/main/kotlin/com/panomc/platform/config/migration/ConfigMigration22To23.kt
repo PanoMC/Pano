@@ -5,15 +5,15 @@ import com.panomc.platform.config.ConfigMigration
 import io.vertx.core.json.JsonObject
 
 @Migration
-class ConfigMigration21To22 : ConfigMigration(
-  21,
+class ConfigMigration22To23 : ConfigMigration(
   22,
-  "Added enforce email verification setting"
+  23,
+  "Added password hash algorithm setting to auth config"
 ) {
     override fun migrate(config: JsonObject) {
-        val authConfig = JsonObject()
+        val authConfig = config.getJsonObject("auth") ?: JsonObject()
 
-        authConfig.put("require-email-verification", false)
+        authConfig.put("password-hash-algorithm", "ARGON2ID")
 
         config.put("auth", authConfig)
     }

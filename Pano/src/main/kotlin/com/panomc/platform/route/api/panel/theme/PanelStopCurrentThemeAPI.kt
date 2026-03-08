@@ -6,6 +6,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.StoppedCurrentThemeLog
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
@@ -16,9 +17,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import org.apache.commons.codec.digest.DigestUtils
 import org.springframework.context.annotation.Lazy
-import com.panomc.platform.error.NoPermission
 
 @Endpoint
 class PanelStopCurrentThemeAPI(
@@ -52,7 +51,7 @@ class PanelStopCurrentThemeAPI(
         val sqlClient = databaseManager.getSqlClient()
 
         val isPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(password), sqlClient)
+            databaseManager.userDao.isPasswordCorrectWithId(userId, password, sqlClient)
 
         if (!isPasswordCorrect) {
             throw NoPermission()

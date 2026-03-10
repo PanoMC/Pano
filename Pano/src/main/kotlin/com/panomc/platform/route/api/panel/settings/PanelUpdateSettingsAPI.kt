@@ -54,7 +54,8 @@ class PanelUpdateSettingsAPI(
                     "image/vnd.microsoft.icon",
                     "image/png",
                     "image/gif",
-                    "image/jpeg"
+                    "image/jpeg",
+                    "image/webp"
                 ),
                 contentTypeError = FaviconWrongContentType(),
                 fileSizeError = FaviconExceedsSize(),
@@ -70,6 +71,7 @@ class PanelUpdateSettingsAPI(
                     "image/png",
                     "image/jpeg",
                     "image/gif",
+                    "image/webp"
                 ),
                 contentTypeError = WebsiteLogoWrongContentType(),
                 fileSizeError = WebsiteLogoExceedsSize(),

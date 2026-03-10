@@ -7,6 +7,7 @@ import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.ServerEventResponse
 import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.event.request.OnServerConnectEventRequest
+import com.panomc.platform.util.ImageValidationUtil
 
 @Event
 class OnServerConnectEvent(private val databaseManager: DatabaseManager) : ServerEvent<OnServerConnectEventRequest, ServerEventResponse>() {
@@ -21,7 +22,8 @@ class OnServerConnectEvent(private val databaseManager: DatabaseManager) : Serve
         server.maxPlayerCount = request.maxPlayerCount
         server.type = request.serverType
         server.version = request.serverVersion
-        server.favicon = request.favicon ?: ""
+        // Validate favicon format - only allow safe raster image data URLs (no SVG)
+        server.favicon = ImageValidationUtil.sanitizeFaviconDataUrl(request.favicon) ?: ""
         server.status = ServerStatus.ONLINE
         server.startTime = request.startTime
 

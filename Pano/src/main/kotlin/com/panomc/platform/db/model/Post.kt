@@ -29,12 +29,10 @@ data class Post(
                 fieldConfig = FileUploadUtil.FieldConfig(
                     path = AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH,
                     acceptedContentTypes = listOf(
-                        "image/x-icon",
-                        "image/vnd.microsoft.icon",
-                        "image/svg+xml",
                         "image/png",
                         "image/gif",
-                        "image/jpeg"
+                        "image/jpeg",
+                        "image/webp"
                     ),
                     contentTypeError = PostThumbnailWrongContentType(),
                     fileSizeError = PostThumbnailExceedsSize(),

@@ -6,6 +6,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.error.InstallationRequired
+import com.panomc.platform.error.InvalidFaviconFormat
 import com.panomc.platform.error.InvalidPlatformCode
 import com.panomc.platform.error.InvalidPublicKey
 import com.panomc.platform.model.*
@@ -19,6 +20,7 @@ import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.Aes256GcmUtil
 import com.panomc.platform.util.EncryptUtil
+import com.panomc.platform.util.ImageValidationUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -83,6 +85,15 @@ class ServerConnectNewAPI(
         }
 
         val favicon = data.getString("favicon")
+
+        // Validate favicon format - only allow safe raster image formats (no SVG)
+        if (favicon != null && favicon.isNotBlank()) {
+            if (!ImageValidationUtil.isAllowedImageDataUrl(favicon)) {
+                throw InvalidFaviconFormat()
+            }
+        }
+
+        val validatedFavicon = ImageValidationUtil.sanitizeFaviconDataUrl(favicon)
         val publicKey = data.getString("publicKey")
 
         val encodedAesKey = Aes256GcmUtil.generateBase64Key256()
@@ -110,7 +121,7 @@ class ServerConnectNewAPI(
             maxPlayerCount = data.getLong("maxPlayerCount"),
             type = ServerType.valueOf(data.getString("serverType")),
             version = data.getString("serverVersion"),
-            favicon = favicon ?: "",
+            favicon = validatedFavicon ?: "",
             status = ServerStatus.OFFLINE,
             startTime = data.getLong("startTime"),
             aesKey = encodedAesKey
@@ -125,7 +136,7 @@ class ServerConnectNewAPI(
         tokenProvider.saveToken(token, serverId.toString(), TokenType.SERVER_AUTHENTICATION, expireDate, sqlClient)
 
         notificationManager.sendNotificationToAllWithPermission(
-            ServerConnectRequestNotification(serverId, favicon ?: "/api/server/icon/default"),
+            ServerConnectRequestNotification(serverId, validatedFavicon ?: "/api/server/icon/default"),
             ManageServersPermission(),
             sqlClient
         )

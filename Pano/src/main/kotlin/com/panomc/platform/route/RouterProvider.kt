@@ -8,6 +8,7 @@ import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.api.event.RouterEventListener
 import com.panomc.platform.model.Route
+import com.panomc.platform.util.RateLimitManager
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.SessionHandler
@@ -56,6 +57,14 @@ class RouterProvider private constructor(
 
     fun initialize() {
         if (isInitialized) return
+
+        // Register rate limiting handler FIRST (order 0) for all API routes.
+        // This ensures rate-limited requests are rejected immediately without
+        // any processing overhead (no body parsing, no validation, etc.).
+        val rateLimitManager = applicationContext.getBean(RateLimitManager::class.java)
+        router.route("/api/*")
+            .order(0)
+            .handler(rateLimitManager.createHandler())
 
         val routerEventHandlers = PluginEventManager.getPanoEventListeners<RouterEventListener>()
 

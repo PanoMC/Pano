@@ -21,7 +21,6 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import org.apache.commons.codec.digest.DigestUtils
 
 @Endpoint
 class ChangeEmailAPI(
@@ -71,7 +70,7 @@ class ChangeEmailAPI(
         }
 
         val isCurrentPasswordCorrect =
-            databaseManager.userDao.isPasswordCorrectWithId(userId, DigestUtils.md5Hex(currentPassword), sqlClient)
+            databaseManager.userDao.isPasswordCorrectWithId(userId, currentPassword, sqlClient)
 
         if (!isCurrentPasswordCorrect) {
             throw CurrentPasswordNotCorrect()

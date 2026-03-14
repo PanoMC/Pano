@@ -110,6 +110,7 @@ data class PanoConfig(
 
         data class AuthConfig(
             @SerializedName("require-email-verification") var requireEmailVerification: Boolean = true,
+            @SerializedName("password-hash-algorithm") var passwordHashAlgorithm: String = "ARGON2ID",
         )
 
         enum class SslMode {

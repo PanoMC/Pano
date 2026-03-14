@@ -1,6 +1,8 @@
 package com.panomc.platform.server.event
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.annotation.Event
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.User
@@ -8,7 +10,7 @@ import com.panomc.platform.error.RegisterUsernameNotAvailable
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.event.request.RegisterPlayerEventRequest
 import com.panomc.platform.server.response.RegisterPlayerEventResponse
-import org.apache.commons.codec.digest.DigestUtils
+import com.panomc.platform.util.PasswordHasher
 
 @Event
 class RegisterPlayerEvent(
@@ -25,7 +27,10 @@ class RegisterPlayerEvent(
 
         val user = User(username = request.username, email = null, registeredIp = request.ipAddress)
 
-        val hashedPassword = DigestUtils.md5Hex(request.password)
+        val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
+        val configManager = applicationContext.getBean(ConfigManager::class.java)
+        val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
+        val hashedPassword = passwordHasher.hash(request.password, algorithm)
 
         databaseManager.userDao.add(user, hashedPassword, sqlClient, false)
 

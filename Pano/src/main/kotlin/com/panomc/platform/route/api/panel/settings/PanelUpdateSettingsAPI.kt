@@ -54,7 +54,8 @@ class PanelUpdateSettingsAPI(
                     "image/vnd.microsoft.icon",
                     "image/png",
                     "image/gif",
-                    "image/jpeg"
+                    "image/jpeg",
+                    "image/webp"
                 ),
                 contentTypeError = FaviconWrongContentType(),
                 fileSizeError = FaviconExceedsSize(),
@@ -70,6 +71,7 @@ class PanelUpdateSettingsAPI(
                     "image/png",
                     "image/jpeg",
                     "image/gif",
+                    "image/webp"
                 ),
                 contentTypeError = WebsiteLogoWrongContentType(),
                 fileSizeError = WebsiteLogoExceedsSize(),
@@ -130,6 +132,7 @@ class PanelUpdateSettingsAPI(
                         )
                         .optionalProperty("password", stringSchema())
                         .optionalProperty("requireEmailVerification", booleanSchema())
+                        .optionalProperty("passwordHashAlgorithm", enumSchema("ARGON2ID", "BCRYPT", "SHA256", "MD5"))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -171,6 +174,7 @@ class PanelUpdateSettingsAPI(
         val email = data.getJsonObject("email")
 
         val requireEmailVerification = data.getBoolean("requireEmailVerification")
+        val passwordHashAlgorithm = data.getString("passwordHashAlgorithm")
 
         if (fileUploads.isNotEmpty()) {
             val savedFiles = FileUploadUtil.saveFiles(fileUploads, acceptedFileFields, configManager)
@@ -382,7 +386,11 @@ class PanelUpdateSettingsAPI(
             }
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null) {
+        if (passwordHashAlgorithm != null) {
+            configManager.config.auth.passwordHashAlgorithm = passwordHashAlgorithm
+        }
+
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null) {
             configManager.saveConfig()
         }
 

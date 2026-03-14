@@ -11,6 +11,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.util.CSRFTokenGenerator
+import com.panomc.platform.util.PasswordHasher
 import com.panomc.platform.util.Regexes
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
@@ -28,7 +29,8 @@ class LoginAPI(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
     private val mailManager: MailManager,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val passwordHasher: PasswordHasher
 ) : Api() {
     override val paths = listOf(Path("/api/auth/login", RouteType.POST))
 
@@ -140,6 +142,16 @@ class LoginAPI(
         val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)!!
 
         databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
+
+        // Transparent hash upgrade: if stored hash uses an old algorithm, rehash with the configured default
+        val storedHash = databaseManager.userDao.getPasswordById(userId, sqlClient)
+        if (storedHash != null) {
+            val targetAlgorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
+            if (passwordHasher.needsRehash(storedHash, targetAlgorithm)) {
+                val newHash = passwordHasher.hash(password, targetAlgorithm)
+                databaseManager.userDao.setHashedPasswordById(userId, newHash, sqlClient)
+            }
+        }
 
         val csrfToken = CSRFTokenGenerator.nextToken()
 

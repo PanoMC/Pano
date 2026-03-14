@@ -132,6 +132,7 @@ class PanelGetSettingsAPI(
 
         if (settingType == SettingType.AUTH) {
             result["requireEmailVerification"] = configManager.config.auth.requireEmailVerification
+            result["passwordHashAlgorithm"] = configManager.config.auth.passwordHashAlgorithm
         }
 
         if (settingType == SettingType.ABOUT) {

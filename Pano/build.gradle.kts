@@ -100,6 +100,17 @@ dependencies {
     implementation("org.jline:jline:3.29.0")
     implementation("org.fusesource.jansi:jansi:2.4.1")
     implementation("net.java.dev.jna:jna:5.16.0")
+
+    // AuthMe Migration support
+    implementation("org.xerial:sqlite-jdbc:3.49.1.0")
+    implementation("org.yaml:snakeyaml:2.4")
+
+    // LuckPerms Migration support (H2 database — must use 2.1.x to read LP's format-2 files)
+    implementation("com.h2database:h2:2.1.214")
+
+    // Password hashing
+    implementation("de.mkammerer:argon2-jvm:2.11")
+    implementation("org.mindrot:jbcrypt:0.4")
 }
 
 val organization = "PanoMC"

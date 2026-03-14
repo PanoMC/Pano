@@ -1,9 +1,12 @@
 package com.panomc.platform.db.implementation
 
+import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.annotation.Dao
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.UserDao
 import com.panomc.platform.db.model.User
 import com.panomc.platform.util.DashboardPeriodType
+import com.panomc.platform.util.PasswordHasher
 import com.panomc.platform.util.PlayerStatus
 import com.panomc.platform.util.TimeUtil
 import io.vertx.kotlin.coroutines.coAwait
@@ -12,7 +15,6 @@ import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
-import org.apache.commons.codec.digest.DigestUtils
 
 @Dao
 class UserDaoImpl : UserDao() {
@@ -170,20 +172,24 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): Boolean {
         val query =
-            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where (`username` = ? or `email` = ?) and `password` = ?"
+            "SELECT `password` FROM `${getTablePrefix() + tableName}` where (`username` = ? or `email` = ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     usernameOrEmail,
-                    usernameOrEmail,
-                    DigestUtils.md5Hex(password)
+                    usernameOrEmail
                 )
             )
             .coAwait()
 
-        return rows.toList()[0].getLong(0) == 1L
+        if (rows.size() == 0) return false
+
+        val storedHash = rows.toList()[0].getString(0) ?: return false
+        val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
+
+        return passwordHasher.verify(password, storedHash)
     }
 
     override suspend fun count(sqlClient: SqlClient): Long {
@@ -893,6 +899,11 @@ class UserDaoImpl : UserDao() {
         password: String,
         sqlClient: SqlClient
     ) {
+        val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
+        val configManager = applicationContext.getBean(ConfigManager::class.java)
+        val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
+        val hashedPassword = passwordHasher.hash(password, algorithm)
+
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `password` = ? WHERE `id` = ?"
 
@@ -900,7 +911,7 @@ class UserDaoImpl : UserDao() {
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    DigestUtils.md5Hex(password),
+                    hashedPassword,
                     id
                 )
             )
@@ -1099,23 +1110,27 @@ class UserDaoImpl : UserDao() {
 
     override suspend fun isPasswordCorrectWithId(
         id: Long,
-        hashedPassword: String,
+        password: String,
         sqlClient: SqlClient
     ): Boolean {
         val query =
-            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` where `id` = ? and `password` = ?"
+            "SELECT `password` FROM `${getTablePrefix() + tableName}` where `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    id,
-                    hashedPassword
+                    id
                 )
             )
             .coAwait()
 
-        return rows.toList()[0].getLong(0) == 1L
+        if (rows.size() == 0) return false
+
+        val storedHash = rows.toList()[0].getString(0) ?: return false
+        val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
+
+        return passwordHasher.verify(password, storedHash)
     }
 
     override suspend fun updatePendingEmailById(
@@ -1222,5 +1237,40 @@ class UserDaoImpl : UserDao() {
         val row = rows.iterator().next()
 
         return Pair(row.getString("linkCode"), row.getLong("linkCodeCreatedAt"))
+    }
+
+    override suspend fun getPasswordById(
+        id: Long,
+        sqlClient: SqlClient
+    ): String? {
+        val query = "SELECT `password` FROM `${getTablePrefix() + tableName}` WHERE `id` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(id))
+            .coAwait()
+
+        if (rows.size() == 0) return null
+
+        return rows.toList()[0].getString(0)
+    }
+
+    override suspend fun setHashedPasswordById(
+        id: Long,
+        hashedPassword: String,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `password` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    hashedPassword,
+                    id
+                )
+            )
+            .coAwait()
     }
 }

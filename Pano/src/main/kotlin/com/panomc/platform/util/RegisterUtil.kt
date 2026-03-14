@@ -1,5 +1,7 @@
 package com.panomc.platform.util
 
+import com.panomc.platform.Main.Companion.applicationContext
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionNode
 import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
@@ -7,7 +9,6 @@ import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.error.*
 import io.vertx.sqlclient.SqlClient
-import org.apache.commons.codec.digest.DigestUtils
 
 object RegisterUtil {
 
@@ -91,7 +92,10 @@ object RegisterUtil {
         val user = User(username = username, email = email, registeredIp = remoteIP)
         val userId: Long
 
-        val hashedPassword = DigestUtils.md5Hex(password)
+        val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
+        val configManager = applicationContext.getBean(ConfigManager::class.java)
+        val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
+        val hashedPassword = passwordHasher.hash(password, algorithm)
 
         userId = databaseManager.userDao.add(user, hashedPassword, sqlClient, isSetup)
 

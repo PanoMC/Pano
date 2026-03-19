@@ -344,4 +344,20 @@ abstract class UserDao : Dao<User>(User::class.java) {
         hashedPassword: String,
         sqlClient: SqlClient
     )
+
+    abstract suspend fun getByMcUuid(
+        mcUuid: String,
+        sqlClient: SqlClient
+    ): User?
+
+    abstract suspend fun getUserIdFromMcUuid(
+        mcUuid: String,
+        sqlClient: SqlClient
+    ): Long?
+
+    abstract suspend fun setMcUuidById(
+        id: Long,
+        mcUuid: String,
+        sqlClient: SqlClient
+    )
 }

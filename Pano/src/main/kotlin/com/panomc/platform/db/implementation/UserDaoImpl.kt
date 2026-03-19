@@ -96,7 +96,7 @@ class UserDaoImpl : UserDao() {
                     user.registeredIp,
                     user.registerDate,
                     user.lastLoginDate,
-                    if (isSetup) 1 else 0,
+                    if (isSetup || user.emailVerified) 1 else 0,
                     user.lastActivityTime,
                     user.localeCode,
                     user.mcUuid ?: ""
@@ -1271,6 +1271,58 @@ class UserDaoImpl : UserDao() {
                     id
                 )
             )
+            .coAwait()
+    }
+
+    override suspend fun getByMcUuid(
+        mcUuid: String,
+        sqlClient: SqlClient
+    ): User? {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `mcUuid` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(mcUuid))
+            .coAwait()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].toEntity()
+    }
+
+    override suspend fun getUserIdFromMcUuid(
+        mcUuid: String,
+        sqlClient: SqlClient
+    ): Long? {
+        val query =
+            "SELECT `id` FROM `${getTablePrefix() + tableName}` WHERE `mcUuid` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(mcUuid))
+            .coAwait()
+
+        if (rows.size() == 0) {
+            return null
+        }
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun setMcUuidById(
+        id: Long,
+        mcUuid: String,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `mcUuid` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(mcUuid, id))
             .coAwait()
     }
 }

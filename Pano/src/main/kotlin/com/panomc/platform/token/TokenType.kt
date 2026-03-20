@@ -44,5 +44,12 @@ enum class TokenType(val expireDate: (() -> Long)) {
         calendar.add(Calendar.MINUTE, 15)
 
         calendar.timeInMillis
+    }),
+    SET_USERNAME({
+        val calendar = Calendar.getInstance()
+
+        calendar.add(Calendar.MINUTE, 15)
+
+        calendar.timeInMillis
     })
 }

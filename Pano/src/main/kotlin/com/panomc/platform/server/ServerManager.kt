@@ -29,7 +29,15 @@ class ServerManager(
     private val eventListeners by lazy {
         val beans = applicationContext.getBeansWithAnnotation(Event::class.java)
 
-        beans.filter { it.value is ServerEvent<*, *> }.map { it.value as ServerEvent<*, *> }
+        beans.filter { it.value is ServerEvent<*, *> }.map { it.value as ServerEvent<*, *> }.toMutableList()
+    }
+
+    fun registerEvent(event: ServerEvent<*, *>) {
+        eventListeners.add(event)
+    }
+
+    fun unregisterEvent(event: ServerEvent<*, *>) {
+        eventListeners.remove(event)
     }
 
     suspend fun init() {

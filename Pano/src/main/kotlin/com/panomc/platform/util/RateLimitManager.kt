@@ -34,13 +34,13 @@ class RateLimitManager {
             description = "Authentication endpoints"
         ),
         PUBLIC_API(
-            maxRequests = 60,
-            refillMs = 1000,
+            maxRequests = 500,
+            refillMs = 100,
             description = "Public API endpoints"
         ),
         PANEL_API(
-            maxRequests = 120,
-            refillMs = 500,
+            maxRequests = 500,
+            refillMs = 100,
             description = "Panel API endpoints"
         ),
         SERVER_API(
@@ -49,8 +49,8 @@ class RateLimitManager {
             description = "Server connect/disconnect endpoints"
         ),
         FILE_SERVE(
-            maxRequests = 200,
-            refillMs = 300,
+            maxRequests = 500,
+            refillMs = 50,
             description = "File serving endpoints"
         ),
         SETUP_API(

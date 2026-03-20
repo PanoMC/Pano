@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.auth
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.AuthEventListener
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -98,6 +100,13 @@ class RegisterAPI(
             isAdmin = false,
             isSetup = false
         )
+
+        // Fire AuthEventListener.onAfterRegister hooks
+        val registeredUser = databaseManager.userDao.getById(userId, sqlClient)!!
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            listener.onAfterRegister(registeredUser, sqlClient)
+        }
 
         val authConfig = configManager.config.auth
 

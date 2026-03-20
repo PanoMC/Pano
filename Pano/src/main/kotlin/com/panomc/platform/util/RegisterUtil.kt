@@ -9,6 +9,7 @@ import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.error.*
 import io.vertx.sqlclient.SqlClient
+import java.util.*
 
 object RegisterUtil {
 
@@ -64,6 +65,16 @@ object RegisterUtil {
         }
     }
 
+    /**
+     * Generate an offline-mode UUID from a username, matching the formula
+     * used by cracked/offline Minecraft servers.
+     */
+    fun generateOfflineUuid(username: String): String {
+        return UUID.nameUUIDFromBytes(
+            ("OfflinePlayer:$username").toByteArray(Charsets.UTF_8)
+        ).toString()
+    }
+
     suspend fun register(
         databaseManager: DatabaseManager,
         sqlClient: SqlClient,
@@ -73,6 +84,7 @@ object RegisterUtil {
         remoteIP: String,
         isAdmin: Boolean = false,
         isSetup: Boolean = false,
+        mcUuid: String? = null,
     ): Long {
         val isUsernameExists = databaseManager.userDao.existsByUsername(
             username,
@@ -89,7 +101,10 @@ object RegisterUtil {
             throw RegisterEmailNotAvailable()
         }
 
-        val user = User(username = username, email = email, registeredIp = remoteIP)
+        // Use premium UUID if provided, otherwise generate offline UUID
+        val resolvedUuid = mcUuid ?: generateOfflineUuid(username)
+
+        val user = User(username = username, email = email, registeredIp = remoteIP, mcUuid = resolvedUuid)
         val userId: Long
 
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)

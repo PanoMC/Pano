@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.auth
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.AuthEventListener
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -44,6 +46,7 @@ class LoginAPI(
                         .requiredProperty("usernameOrEmail", Schemas.stringSchema())
                         .optionalProperty("password", Schemas.stringSchema())
                         .optionalProperty("registerEmail", Schemas.stringSchema())
+                        .optionalProperty("newUsername", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -56,6 +59,7 @@ class LoginAPI(
         val usernameOrEmail = data.getString("usernameOrEmail")
         val password = data.getString("password")
         val registerEmail = data.getString("registerEmail")
+        val newUsername = data.getString("newUsername")
 
         val sqlClient = getSqlClient()
 
@@ -137,9 +141,48 @@ class LoginAPI(
             }
         }
 
-        val token = authProvider.login(usernameOrEmail, context, sqlClient)
+        val user = databaseManager.userDao.getById(checkUserId, sqlClient)!!
 
-        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)!!
+        // Check if username is a temp-user — require setting a new username
+        if (user.username.startsWith("tmp_")) {
+            if (newUsername.isNullOrEmpty()) {
+                throw UsernameRequired(extras = mapOf("userId" to checkUserId))
+            }
+
+            // Validate new username
+            if (newUsername.length < 3) throw RegisterUsernameTooShort()
+            if (newUsername.length > 16) throw RegisterUsernameTooLong()
+            if (!newUsername.matches(Regex(Regexes.USERNAME))) throw RegisterInvalidUsername()
+
+            val isUsernameExists = databaseManager.userDao.existsByUsername(newUsername, sqlClient)
+            if (isUsernameExists) throw RegisterUsernameNotAvailable()
+
+            // Set the new username
+            databaseManager.userDao.setUsernameById(checkUserId, newUsername, sqlClient)
+        }
+
+        // Fire AuthEventListener.onBeforeLogin hooks
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeLogin(user, context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    is AuthEventListener.LoginDecision.RequireUsername -> {
+                        throw UsernameRequired(extras = mapOf("userId" to decision.userId))
+                    }
+                    is AuthEventListener.LoginDecision.Allow -> { /* proceed */ }
+                }
+            }
+        }
+
+        // Use the potentially updated username for login
+        val loginUsername = databaseManager.userDao.getUsernameFromUserId(checkUserId, sqlClient)!!
+        val token = authProvider.login(loginUsername, context, sqlClient)
+
+        val userId = checkUserId
 
         databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
 
@@ -156,6 +199,12 @@ class LoginAPI(
         val csrfToken = CSRFTokenGenerator.nextToken()
 
         authProvider.setCookies(context, token, csrfToken)
+
+        // Fire AuthEventListener.onAfterLogin hooks
+        val updatedUser = databaseManager.userDao.getById(userId, sqlClient)!!
+        for (listener in authListeners) {
+            listener.onAfterLogin(updatedUser, context, sqlClient)
+        }
 
         return Successful(
             mapOf(

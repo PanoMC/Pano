@@ -400,10 +400,10 @@ class PanoApiManager(
 
         val fileSystem = vertx.fileSystem()
         val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + getCurrentTimeStamp()
-        val writeStream = fileSystem.openBlocking(
+        val writeStream = fileSystem.open(
             temporaryFilePath,
             OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
-        )
+        ).coAwait()
 
         val size = versionInfo.getLong("size") ?: -1L
         val progressWriteStream = ProgressWriteStream(writeStream, size) {
@@ -442,7 +442,7 @@ class PanoApiManager(
         }
 
         val newFilePath = resourceFolderPath + File.separator + fileName
-        fileSystem.moveBlocking(temporaryFilePath, newFilePath)
+        fileSystem.move(temporaryFilePath, newFilePath).coAwait()
 
         val hash = versionInfo.getString("hash")
         val verified = versionInfo.getBoolean("verified")

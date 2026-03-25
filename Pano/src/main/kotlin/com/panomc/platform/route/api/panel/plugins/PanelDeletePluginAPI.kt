@@ -10,16 +10,19 @@ import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
+import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.kotlin.coroutines.coAwait
 import org.pf4j.PluginState
 
 @Endpoint
 class PanelDeletePluginAPI(
+    private val vertx: Vertx,
     private val authProvider: AuthProvider,
     private val pluginManager: PluginManager,
     private val databaseManager: DatabaseManager
@@ -63,7 +66,9 @@ class PanelDeletePluginAPI(
         plugin.unload()
         pluginManager.unloadPlugin(pluginId)
 
-        pluginFile.delete()
+        vertx.executeBlocking<Unit> {
+            pluginFile.delete()
+        }.coAwait()
 
         val sqlClient = databaseManager.getSqlClient()
         val userId = authProvider.getUserIdFromRoutingContext(context)

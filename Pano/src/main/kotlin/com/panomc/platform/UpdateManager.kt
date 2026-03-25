@@ -263,10 +263,10 @@ class UpdateManager(
 
                 val fileSystem = vertx.fileSystem()
                 val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + UUID.randomUUID()
-                val writeStream = fileSystem.openBlocking(
+                val writeStream = fileSystem.open(
                     temporaryFilePath,
                     OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
-                )
+                ).coAwait()
 
                 val getFileResponse = panoApiManager.createRequest(HttpMethod.GET, url)
                     .`as`(BodyCodec.pipe(writeStream))
@@ -392,10 +392,10 @@ class UpdateManager(
 
             val fileSystem = vertx.fileSystem()
             val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + UUID.randomUUID()
-            val writeStream = fileSystem.openBlocking(
+            val writeStream = fileSystem.open(
                 temporaryFilePath,
                 OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
-            )
+            ).coAwait()
 
             val progressWriteStream = ProgressWriteStream(writeStream, platformUpdateInfo.getLong("size")) {
                 progressHandler.invoke(Progress(it))

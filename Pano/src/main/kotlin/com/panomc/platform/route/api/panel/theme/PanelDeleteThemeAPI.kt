@@ -13,6 +13,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.error.Unauthorized
 import com.panomc.platform.model.*
+import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -20,11 +21,13 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.kotlin.coroutines.coAwait
 import org.springframework.context.annotation.Lazy
 import java.io.File
 
 @Endpoint
 class PanelDeleteThemeAPI(
+    private val vertx: Vertx,
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
     private val configManager: ConfigManager,
@@ -73,7 +76,9 @@ class PanelDeleteThemeAPI(
         }
 
         if (themeFolder.exists()) {
-            themeFolder.deleteRecursively()
+            vertx.executeBlocking<Unit> {
+                themeFolder.deleteRecursively()
+            }.coAwait()
         }
 
         val sqlClient = getSqlClient()

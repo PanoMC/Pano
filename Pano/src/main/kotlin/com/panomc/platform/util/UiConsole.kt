@@ -260,21 +260,23 @@ object UiConsole {
         f.defaultCloseOperation = JFrame.DO_NOTHING_ON_CLOSE
         f.addWindowListener(object : java.awt.event.WindowAdapter() {
             override fun windowClosing(e: java.awt.event.WindowEvent?) {
-                try {
-                    if (!stopped) {
-                        try {
-                            runBlocking {
-                                interruptHandler?.invoke()
+                // Run shutdown off the EDT so logs can still be painted
+                Thread({
+                    try {
+                        if (!stopped) {
+                            try {
+                                runBlocking {
+                                    interruptHandler?.invoke()
+                                }
+                            } catch (t: Throwable) {
+                                System.err.println("\u001B[31mInterrupt handler error:\u001B[0m ${t.message}")
                             }
-                        } catch (t: Throwable) {
-                            System.err.println("\u001B[31mInterrupt handler error:\u001B[0m ${t.message}")
                         }
+                    } finally {
+                        restoreSystemStreams()
+                        SwingUtilities.invokeLater { f.dispose() }
                     }
-                } finally {
-                    // If you want to restore the streams to their previous state:
-                    restoreSystemStreams()
-                    f.dispose()
-                }
+                }, "UiConsole-close").start()
             }
         })
 
@@ -354,23 +356,29 @@ object UiConsole {
             return
         }
 
+        // Clear input immediately on the EDT
+        field.text = ""
+        updateSendEnabled()
+
         // We don't print the '>' here anymore because it's handled by the redirection
         // or we want it to be consistent with ConsoleInputReader
         println("\u001B[90m>\u001B[0m $cmd")
 
-        try {
-            addToHistory(cmd)
-            historyIndex = -1
-            
-            commandHandler?.invoke(cmd) ?: run {
-                println("\u001B[33m(no command handler wired; command ignored)\u001B[0m")
+        addToHistory(cmd)
+        historyIndex = -1
+
+        // Run the command handler off the EDT so blocking commands (like "stop")
+        // don't freeze the GUI and prevent log output from being painted.
+        val handler = commandHandler
+        Thread({
+            try {
+                handler?.invoke(cmd) ?: run {
+                    println("\u001B[33m(no command handler wired; command ignored)\u001B[0m")
+                }
+            } catch (t: Throwable) {
+                System.err.println("\u001B[31mCommand error:\u001B[0m ${t.message}")
             }
-        } catch (t: Throwable) {
-            System.err.println("\u001B[31mCommand error:\u001B[0m ${t.message}")
-        } finally {
-            field.text = ""
-            updateSendEnabled()
-        }
+        }, "UiConsole-cmd").start()
     }
 
     private fun updateSendEnabled() {
@@ -504,15 +512,18 @@ object UiConsole {
         pane.actionMap.put("interrupt", object : AbstractAction() {
             override fun actionPerformed(e: java.awt.event.ActionEvent?) {
                 if (!stopped) {
-                    try {
-                        runBlocking {
-                            interruptHandler?.invoke()
+                    // Run off the EDT so the GUI stays responsive during shutdown
+                    Thread({
+                        try {
+                            runBlocking {
+                                interruptHandler?.invoke()
+                            }
+                        } catch (t: Throwable) {
+                            System.err.println("\u001B[31mInterrupt handler error:\u001B[0m ${t.message}")
+                        } finally {
+                            markStoppedInternal()
                         }
-                    } catch (t: Throwable) {
-                        System.err.println("\u001B[31mInterrupt handler error:\u001B[0m ${t.message}")
-                    } finally {
-                        markStoppedInternal()
-                    }
+                    }, "UiConsole-interrupt").start()
                 } else {
                     println("\u001B[90mPano is already stopped. Close this window with the X button.\u001B[0m")
                 }

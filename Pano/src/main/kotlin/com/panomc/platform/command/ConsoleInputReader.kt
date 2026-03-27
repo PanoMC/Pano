@@ -117,7 +117,9 @@ class ConsoleInputReader(
                 } ?: continue
 
                 if (line.isNotBlank() && running) {
-                    Main.logger.info("\u001B[90m>\u001B[0m $line")
+                    if (!Main.IS_GUI) {
+                        Main.logger.info("\u001B[90m>\u001B[0m $line")
+                    }
                     
                     // Add to GUI history
                     com.panomc.platform.util.UiConsole.addToHistory(line)
@@ -158,7 +160,9 @@ class ConsoleInputReader(
                 val line = br.readLine() ?: break // EOF
 
                 if (line.isNotBlank() && running) {
-                    Main.logger.info("\u001B[90m>\u001B[0m $line")
+                    if (!Main.IS_GUI) {
+                        Main.logger.info("\u001B[90m>\u001B[0m $line")
+                    }
 
                     // Add to GUI history
                     com.panomc.platform.util.UiConsole.addToHistory(line)

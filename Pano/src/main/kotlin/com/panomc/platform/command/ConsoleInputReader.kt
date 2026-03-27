@@ -117,7 +117,10 @@ class ConsoleInputReader(
                 } ?: continue
 
                 if (line.isNotBlank() && running) {
-                    if (!Main.IS_GUI) {
+                    if (Main.IS_GUI) {
+                        // JLine already echoes on the terminal; show in GUI too
+                        com.panomc.platform.util.UiConsole.appendToConsole("\u001B[90m>\u001B[0m $line\n")
+                    } else {
                         Main.logger.info("\u001B[90m>\u001B[0m $line")
                     }
                     
@@ -160,7 +163,9 @@ class ConsoleInputReader(
                 val line = br.readLine() ?: break // EOF
 
                 if (line.isNotBlank() && running) {
-                    if (!Main.IS_GUI) {
+                    if (Main.IS_GUI) {
+                        com.panomc.platform.util.UiConsole.appendToConsole("\u001B[90m>\u001B[0m $line\n")
+                    } else {
                         Main.logger.info("\u001B[90m>\u001B[0m $line")
                     }
 

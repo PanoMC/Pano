@@ -65,6 +65,11 @@ object UiConsole {
     private val placeholderText = "Enter command here..."
 
     // ---------- Public API ----------
+
+    /** Append raw ANSI text directly to the console output pane. */
+    fun appendToConsole(text: String) {
+        parseAnsiAndAppend(text)
+    }
     
     fun setHistoryLimit(limit: Int) {
         historyLimit = limit
@@ -360,9 +365,13 @@ object UiConsole {
         field.text = ""
         updateSendEnabled()
 
-        // We don't print the '>' here anymore because it's handled by the redirection
-        // or we want it to be consistent with ConsoleInputReader
-        println("\u001B[90m>\u001B[0m $cmd")
+        // Echo the command to the GUI text pane
+        val echoText = "\u001B[90m>\u001B[0m $cmd\n"
+        parseAnsiAndAppend(echoText)
+
+        // Also tee to the terminal so both stay in sync
+        originalOut?.print(echoText)
+        originalOut?.flush()
 
         addToHistory(cmd)
         historyIndex = -1

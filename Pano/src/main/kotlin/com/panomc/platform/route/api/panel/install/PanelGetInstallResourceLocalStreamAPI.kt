@@ -19,6 +19,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 import kotlin.io.path.absolutePathString
 
@@ -86,7 +87,7 @@ class PanelGetInstallResourceLocalStreamAPI(
         }
 
         File(newFilePath).parentFile.mkdirs()
-        fileSystem.moveBlocking(file.absolutePath, newFilePath)
+        fileSystem.move(file.absolutePath, newFilePath).coAwait()
         val newFile = File(newFilePath)
 
         context.put("file", newFile)

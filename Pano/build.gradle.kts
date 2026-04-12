@@ -114,7 +114,12 @@ dependencies {
 }
 
 val organization = "PanoMC"
-val repositories = listOf("$organization/panel-ui", "$organization/setup-ui", "$organization/vanilla-theme")
+val uiReleasesFile = rootProject.file("ui-releases.yml")
+val repoMapping = mapOf(
+    "panel-ui" to "$organization/panel-ui",
+    "setup-ui" to "$organization/setup-ui",
+    "vanilla-theme" to "$organization/vanilla-theme"
+)
 val mailTemplatesRepo = "$organization/pano-email"
 val outputDir = file("src/main/resources/UIFiles")
 val mailTemplatesOutputDir = file("src/main/resources")
@@ -122,7 +127,25 @@ val mailTemplatesOutputDir = file("src/main/resources")
 tasks {
     register("downloadUIReleases") {
         doFirst {
-            println("Fetching latest releases for repositories...")
+            println("Reading UI release versions from ${uiReleasesFile.absolutePath}")
+
+            if (!uiReleasesFile.exists()) {
+                throw IllegalStateException("ui-releases.yml not found at ${uiReleasesFile.absolutePath}")
+            }
+
+            // Parse the YAML file (simple key: value format)
+            val versions = mutableMapOf<String, String>()
+            uiReleasesFile.readLines().forEach { line ->
+                val trimmed = line.trim()
+                if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                    val parts = trimmed.split(":", limit = 2)
+                    if (parts.size == 2) {
+                        versions[parts[0].trim()] = parts[1].trim()
+                    }
+                }
+            }
+
+            println("Versions to download: $versions")
 
             // Create the assets directory (if exists, delete old zip files)
             if (outputDir.exists()) {
@@ -133,44 +156,40 @@ tasks {
                     }
                 }
             } else {
-                outputDir.mkdirs() // Create the directory if it doesn't exist
+                outputDir.mkdirs()
             }
 
-            val isDevBuild = !project.hasProperty("prod")
+            versions.forEach { (component, version) ->
+                val repo = repoMapping[component]
+                    ?: throw IllegalStateException("Unknown component '$component' in ui-releases.yml. Known components: ${repoMapping.keys}")
 
-            repositories.forEach { repo ->
-                println("Processing repository: $repo")
+                println("Processing $component $version from $repo")
 
-                // GitHub API URL
-                val apiUrl = "https://api.github.com/repos/$repo/releases"
+                // GitHub API URL for the specific release by tag
+                val apiUrl = "https://api.github.com/repos/$repo/releases/tags/$version"
 
-                // Send API request
                 val connection = URI(apiUrl).toURL().openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
 
-                // Read the response
-                val response = connection.inputStream.bufferedReader().use { it.readText() }
-                val releases = JsonParser.parseString(response).asJsonArray
-
-                // Get the release that fits the condition (non-prerelease or prerelease based on buildDev task)
-                val releaseFilter = if (isDevBuild) {
-                    { release: JsonObject -> release["prerelease"].asBoolean }
-                } else {
-                    { release: JsonObject -> !release["prerelease"].asBoolean }
+                val ghToken = System.getenv("GITHUB_TOKEN") ?: System.getenv("TOKEN_GITHUB")
+                if (!ghToken.isNullOrBlank()) {
+                    connection.setRequestProperty("Authorization", "Bearer $ghToken")
                 }
 
-                val latestRelease = releases.firstOrNull { release ->
-                    releaseFilter(release.asJsonObject)
-                } ?: throw IllegalStateException("No matching release found in repository: $repo")
+                if (connection.responseCode != 200) {
+                    throw IllegalStateException("Failed to fetch release $version for $repo: HTTP ${connection.responseCode}")
+                }
 
-                // Check asset files and get `repo-name-version.zip` file
-                val repoName = repo.substringAfter("/")
-                val assets = latestRelease.asJsonObject["assets"].asJsonArray
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val release = JsonParser.parseString(response).asJsonObject
+
+                // Find the zip asset
+                val assets = release["assets"].asJsonArray
                 val asset = assets.firstOrNull { asset ->
                     val name = asset.asJsonObject["name"].asString
-                    name.startsWith(repoName) && name.endsWith(".zip")
+                    name.startsWith(component) && name.endsWith(".zip")
                 }
-                    ?: throw IllegalStateException("No matching ${repoName}-*.zip file found in the latest release of $repo")
+                    ?: throw IllegalStateException("No matching ${component}-*.zip file found in release $version of $repo")
 
                 // Get the download URL
                 val downloadUrl = asset.asJsonObject["browser_download_url"].asString

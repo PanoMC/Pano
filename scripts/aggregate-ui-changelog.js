@@ -3,10 +3,10 @@
 // No per-version headings, only grouped conventional commits from the exact compare range.
 
 import {execSync} from 'node:child_process';
-import {readdirSync, writeFileSync} from 'node:fs';
+import {existsSync, readFileSync, writeFileSync} from 'node:fs';
 
-// Where the bundled UI ZIPs live inside your repo
-const UI_DIR = 'Pano/src/main/resources/UIFiles';
+// UI releases config file (single source of truth for pinned versions)
+const UI_RELEASES_FILE = 'ui-releases.yml';
 
 // Your org & repo mapping
 const OWNER = 'PanoMC';
@@ -22,24 +22,28 @@ if (!token) {
     process.exit(1);
 }
 
-/** Parse "panel-ui-v1.0.0-dev.34.zip" or "setup-ui-1.2.3.zip" → { comp, version: 'v1.2.3' } */
-function parseZip(name) {
-    const m = name.match(/^([a-z0-9-]+)-((?:v)?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)\.zip$/i);
-    if (!m) return null;
-    return {comp: m[1], version: m[2].startsWith('v') ? m[2] : `v${m[2]}`};
-}
-
-/** Read current UI ZIP versions from working tree. */
-function listCurrentVersions() {
-    const files = readdirSync(UI_DIR, {withFileTypes: true})
-        .filter((d) => d.isFile() && d.name.endsWith('.zip'))
-        .map((d) => d.name);
+/** Parse ui-releases.yml content → { component: version } */
+function parseUiReleasesYml(content) {
     const map = {};
-    for (const f of files) {
-        const p = parseZip(f);
-        if (p && REPOS[p.comp]) map[p.comp] = p.version;
+    for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const idx = trimmed.indexOf(':');
+        if (idx === -1) continue;
+        const key = trimmed.slice(0, idx).trim();
+        const val = trimmed.slice(idx + 1).trim();
+        if (REPOS[key]) map[key] = val.startsWith('v') ? val : `v${val}`;
     }
     return map;
+}
+
+/** Read current UI versions from ui-releases.yml in working tree. */
+function listCurrentVersions() {
+    if (!existsSync(UI_RELEASES_FILE)) {
+        console.error(`${UI_RELEASES_FILE} not found.`);
+        return {};
+    }
+    return parseUiReleasesYml(readFileSync(UI_RELEASES_FILE, 'utf8'));
 }
 
 /** Get previous release tag in this (Pano) repo. */
@@ -55,22 +59,46 @@ function getPrevTag() {
     }
 }
 
-/** Read previous UI ZIP versions from the tree at prevTag (no checkout). */
+/** Read previous UI versions from prevTag. Tries ui-releases.yml first, falls back to GitHub Release body. */
 function listPreviousVersionsFromTag(prevTag) {
     if (!prevTag) return {};
-    let out = '';
+
+    // Try ui-releases.yml first (new format)
     try {
-        out = execSync(`git ls-tree -r --name-only ${prevTag} ${UI_DIR}`, {encoding: 'utf8'});
+        const content = execSync(`git show ${prevTag}:${UI_RELEASES_FILE}`, {encoding: 'utf8'});
+        return parseUiReleasesYml(content);
     } catch {
-        return {};
+        // ui-releases.yml doesn't exist in this tag, fall back
     }
-    const files = out.split('\n').filter(Boolean).map((p) => p.split('/').pop());
-    const map = {};
-    for (const f of files) {
-        const p = parseZip(f);
-        if (p && REPOS[p.comp]) map[p.comp] = p.version;
+
+    // Fallback: fetch GitHub Release body and parse UI changelog entries
+    // Format in release body: "### panel-ui: v1.0.0-dev.503 → v1.0.0-dev.509"
+    // The right-hand version (after →) is what was bundled in that release
+    try {
+        const res = execSync(
+            `curl -sf -H "Authorization: Bearer ${token}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/PanoMC/pano/releases/tags/${prevTag}"`,
+            {encoding: 'utf8'}
+        );
+        const release = JSON.parse(res);
+        const body = release.body || '';
+        const map = {};
+        // Match: ### component-name: vOLD → vNEW
+        const pattern = /^###\s+([a-z0-9-]+):\s+v\S+\s+→\s+(v\S+)/gm;
+        let match;
+        while ((match = pattern.exec(body)) !== null) {
+            const comp = match[1];
+            const toVersion = match[2];
+            if (REPOS[comp]) map[comp] = toVersion;
+        }
+        if (Object.keys(map).length > 0) {
+            console.log(`Resolved previous versions from GitHub Release body: ${JSON.stringify(map)}`);
+            return map;
+        }
+    } catch (e) {
+        console.warn(`Could not fetch GitHub Release for ${prevTag}: ${e.message}`);
     }
-    return map;
+
+    return {};
 }
 
 /** Small GitHub API helper (compare range). */

@@ -23,9 +23,11 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
 import com.panomc.platform.util.VersionUtil
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
+import io.vertx.kotlin.coroutines.coAwait
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -41,6 +43,7 @@ import java.util.zip.ZipInputStream
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class InstallManager(
+    private val vertx: Vertx,
     private val pluginManager: PluginManager,
     private val uiManager: UIManager,
     private val configManager: ConfigManager,
@@ -69,17 +72,20 @@ class InstallManager(
         progressHandler: (result: Result) -> Unit
     ) {
         try {
-            if (type == ResourceType.PLUGIN && !isValidJarFile(resourceFile)) {
-                throw InvalidResourceFile()
-            }
+            // Validate files on a worker thread (blocking I/O: reading zip headers, computing hashes)
+            vertx.executeBlocking<Unit> {
+                if (type == ResourceType.PLUGIN && !isValidJarFile(resourceFile)) {
+                    throw InvalidResourceFile()
+                }
 
-            if (type == ResourceType.THEME && !isValidZip(resourceFile)) {
-                throw InvalidResourceFile()
-            }
+                if (type == ResourceType.THEME && !isValidZip(resourceFile)) {
+                    throw InvalidResourceFile()
+                }
 
-            if (hash != null && !HashUtil.verifyFileHash(resourceFile, hash)) {
-                throw InvalidResourceFile()
-            }
+                if (hash != null && !HashUtil.verifyFileHash(resourceFile, hash)) {
+                    throw InvalidResourceFile()
+                }
+            }.coAwait()
 
             progressHandler.invoke(Successful()) // Preparing success
 
@@ -87,7 +93,7 @@ class InstallManager(
                 val pluginMetadata: PanoPluginDescriptor
 
                 try {
-                    pluginMetadata = readPluginMetadata(resourceFile.toPath())
+                    pluginMetadata = vertx.executeBlocking<PanoPluginDescriptor> { readPluginMetadata(resourceFile.toPath()) }.coAwait()
                 } catch (e: Exception) {
                     throw InvalidResourceFile(extras = mapOf("message" to e.message))
                 }
@@ -105,10 +111,12 @@ class InstallManager(
                     pluginManager.disablePlugin(pluginId)
                     pluginManager.unloadPlugin(pluginId)
 
-                    existingPlugin.pluginPath.toFile().delete()
+                    vertx.executeBlocking<Unit> { existingPlugin.pluginPath.toFile().delete() }.coAwait()
                 }
 
-                pluginManager.loadPlugin(resourceFile.toPath())
+                vertx.executeBlocking<Unit> {
+                    pluginManager.loadPlugin(resourceFile.toPath())
+                }.coAwait()
                 pluginManager.enablePlugin(pluginId)
                 pluginManager.startPlugin(pluginId)
 
@@ -159,12 +167,14 @@ class InstallManager(
             if (type == ResourceType.THEME) {
                 val tempThemeFolder = File(AppConstants.TEMP_FOLDER, "install-" + getCurrentTimeStamp())
 
-                tempThemeFolder.mkdirs()
-
-                extractZipStreamed(resourceFile, tempThemeFolder)
-
-                val calculatedHash = resourceFile.inputStream().hash()
-                resourceFile.delete()
+                // Extract zip and compute hash on worker thread (heavy blocking I/O)
+                val calculatedHash = vertx.executeBlocking<String> {
+                    tempThemeFolder.mkdirs()
+                    extractZipStreamed(resourceFile, tempThemeFolder)
+                    val h = resourceFile.inputStream().hash()
+                    resourceFile.delete()
+                    h
+                }.coAwait()
 
                 val manifestFile = File(tempThemeFolder, uiManager.manifestFileName)
 
@@ -187,13 +197,15 @@ class InstallManager(
                         System.currentTimeMillis()
                     }
 
-                    val screenshots = manifest.screenshots.map { it to File(tempThemeFolder, it) }.mapNotNull {
-                        if (it.second.exists()) {
-                            it.first to it.second.inputStream().hash()
-                        } else {
-                            null
-                        }
-                    }.toMap()
+                    val screenshots = vertx.executeBlocking<Map<String, String>> {
+                        manifest.screenshots.map { it to File(tempThemeFolder, it) }.mapNotNull {
+                            if (it.second.exists()) {
+                                it.first to it.second.inputStream().hash()
+                            } else {
+                                null
+                            }
+                        }.toMap()
+                    }.coAwait()
 
                     parsedInstalledTheme = InstalledTheme(
                         manifest.id,
@@ -249,8 +261,11 @@ class InstallManager(
 
                 val actualThemeFolder = File(THEMES_FOLDER_PATH, parsedInstalledTheme.id)
 
-                tempThemeFolder.copyRecursively(actualThemeFolder, true)
-                tempThemeFolder.deleteRecursively()
+                // Copy theme files on worker thread (blocking I/O)
+                vertx.executeBlocking<Unit> {
+                    tempThemeFolder.copyRecursively(actualThemeFolder, true)
+                    tempThemeFolder.deleteRecursively()
+                }.coAwait()
 
                 uiManager.reloadInstalledThemes()
 

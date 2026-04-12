@@ -11,6 +11,7 @@ import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -21,11 +22,13 @@ import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 import java.util.*
 
 @Endpoint
 class PanelUpdateThemeSettingsAPI(
+    private val vertx: Vertx,
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
@@ -83,25 +86,27 @@ class PanelUpdateThemeSettingsAPI(
         if (fileUploads.isNotEmpty()) {
             val fileUploadsByName = fileUploads.groupBy { it.name() }
 
-            fileUploadsByName.forEach {
-                it.value.forEach { uploadedFile ->
-                    val containsExt = uploadedFile.uploadedFileName().contains(".")
-                    val split = uploadedFile.uploadedFileName().split(".")
+            vertx.executeBlocking<Unit> {
+                fileUploadsByName.forEach {
+                    it.value.forEach { uploadedFile ->
+                        val containsExt = uploadedFile.uploadedFileName().contains(".")
+                        val split = uploadedFile.uploadedFileName().split(".")
 
-                    val newFileName = UUID.randomUUID().toString() + if (containsExt) "." + split.last() else ""
-                    val newPath = folder + newFileName
-                    val uploadedFileObj = File(uploadedFile.uploadedFileName())
+                        val newFileName = UUID.randomUUID().toString() + if (containsExt) "." + split.last() else ""
+                        val newPath = folder + newFileName
+                        val uploadedFileObj = File(uploadedFile.uploadedFileName())
 
-                    uploadedFileObj.copyTo(File(newPath), true)
-                    uploadedFileObj.delete()
+                        uploadedFileObj.copyTo(File(newPath), true)
+                        uploadedFileObj.delete()
 
-                    if (newFiles[it.key] == null) {
-                        newFiles[it.key] = mutableListOf()
+                        if (newFiles[it.key] == null) {
+                            newFiles[it.key] = mutableListOf()
+                        }
+
+                        newFiles[it.key]!!.add(newFileName)
                     }
-
-                    newFiles[it.key]!!.add(newFileName)
                 }
-            }
+            }.coAwait()
 
             val newSettingsFiles = newSettings.getJsonObject("files") ?: JsonObject()
 

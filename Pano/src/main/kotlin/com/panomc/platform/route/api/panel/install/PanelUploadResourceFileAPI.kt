@@ -9,13 +9,16 @@ import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import io.vertx.core.Handler
+import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 
 @Endpoint
 class PanelUploadResourceFileAPI(
+    private val vertx: Vertx,
     private val authProvider: AuthProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/install/upload", RouteType.PUT))
@@ -55,7 +58,9 @@ class PanelUploadResourceFileAPI(
 
         val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + file.fileName()
 
-        uploadedFile.copyTo(File(temporaryFilePath), true)
+        vertx.executeBlocking<Unit> {
+            uploadedFile.copyTo(File(temporaryFilePath), true)
+        }.coAwait()
 
         return Successful(
             mapOf(

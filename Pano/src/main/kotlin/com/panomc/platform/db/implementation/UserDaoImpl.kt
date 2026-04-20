@@ -231,6 +231,49 @@ class UserDaoImpl : UserDao() {
         return rows.toList().map { it.getLong(0) }
     }
 
+    override suspend fun countOfRegisterByTimeRange(
+        from: Long,
+        to: Long,
+        sqlClient: SqlClient
+    ): Long {
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `registerDate` >= ? AND `registerDate` < ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(from, to))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getRegisterDatesByTimeRange(
+        from: Long,
+        to: Long,
+        sqlClient: SqlClient
+    ): List<Long> {
+        val query =
+            "SELECT `registerDate` FROM `${getTablePrefix() + tableName}` WHERE `registerDate` >= ? AND `registerDate` < ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(from, to))
+            .coAwait()
+
+        return rows.toList().map { it.getLong(0) }
+    }
+
+    override suspend fun countBeforeTime(time: Long, sqlClient: SqlClient): Long {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `registerDate` < ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(time))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
     override suspend fun getUsernameFromUserId(
         userId: Long,
         sqlClient: SqlClient

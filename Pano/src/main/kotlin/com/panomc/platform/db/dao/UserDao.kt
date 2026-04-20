@@ -40,6 +40,23 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): List<Long>
 
+    abstract suspend fun countOfRegisterByTimeRange(
+        from: Long,
+        to: Long,
+        sqlClient: SqlClient
+    ): Long
+
+    abstract suspend fun getRegisterDatesByTimeRange(
+        from: Long,
+        to: Long,
+        sqlClient: SqlClient
+    ): List<Long>
+
+    abstract suspend fun countBeforeTime(
+        time: Long,
+        sqlClient: SqlClient
+    ): Long
+
     abstract suspend fun getUsernameFromUserId(
         userId: Long,
         sqlClient: SqlClient

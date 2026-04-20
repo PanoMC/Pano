@@ -8,7 +8,6 @@ import com.panomc.platform.db.dao.*
 import com.panomc.platform.error.PlatformAlreadyInstalled
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.coAwait
-import kotlinx.coroutines.runBlocking
 import io.vertx.mysqlclient.MySQLBuilder
 import io.vertx.mysqlclient.MySQLConnectOptions
 import io.vertx.sqlclient.Pool
@@ -46,6 +45,7 @@ class DatabaseManager(
     @Lazy val localeDao: LocaleDao,
     @Lazy val translationDao: TranslationDao,
     @Lazy val banHistoryDao: BanHistoryDao,
+    @Lazy val onlinePlayerHistoryDao: OnlinePlayerHistoryDao,
 ) {
 
     @Autowired

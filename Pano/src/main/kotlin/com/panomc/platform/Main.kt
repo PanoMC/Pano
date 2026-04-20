@@ -343,6 +343,8 @@ class Main : CoroutineVerticle() {
             initServerManager()
 
             initUpdateManager()
+
+            initOnlinePlayerTracker()
         }
 
         executeBlocking {
@@ -380,6 +382,14 @@ class Main : CoroutineVerticle() {
         val updateManager = applicationContext.getBean(UpdateManager::class.java)
 
         updateManager.init()
+    }
+
+    private fun initOnlinePlayerTracker() {
+        logger.info("Initializing online player tracker")
+
+        val onlinePlayerTracker = applicationContext.getBean(OnlinePlayerTracker::class.java)
+
+        onlinePlayerTracker.start()
     }
 
     private fun initPluginManager() {

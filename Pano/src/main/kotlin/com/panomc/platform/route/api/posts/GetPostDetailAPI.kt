@@ -38,8 +38,6 @@ class GetPostDetailAPI(
             throw PostNotFound()
         }
 
-        databaseManager.postDao.increaseViewByOne(url, sqlClient)
-
         val post = databaseManager.postDao.getByUrl(url, sqlClient) ?: throw PostNotFound()
         var postCategory: PostCategory? = null
 

@@ -86,6 +86,19 @@ object RegisterUtil {
         isSetup: Boolean = false,
         mcUuid: String? = null,
     ): Long {
+        if (!isSetup) {
+            val activeIpBan = databaseManager.bannedIpDao.getActiveByIp(remoteIP, sqlClient)
+
+            if (activeIpBan != null) {
+                throw IpIsBanned(
+                    extras = mapOf(
+                        "reason" to activeIpBan.reason,
+                        "bannedUntil" to activeIpBan.bannedUntil
+                    )
+                )
+            }
+        }
+
         val isUsernameExists = databaseManager.userDao.existsByUsername(
             username,
             sqlClient

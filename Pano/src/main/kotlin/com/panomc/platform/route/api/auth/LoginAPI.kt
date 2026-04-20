@@ -63,6 +63,17 @@ class LoginAPI(
 
         val sqlClient = getSqlClient()
 
+        val remoteIp = authProvider.getRemoteIP(context)
+        val activeIpBan = databaseManager.bannedIpDao.getActiveByIp(remoteIp, sqlClient)
+        if (activeIpBan != null) {
+            throw IpIsBanned(
+                extras = mapOf(
+                    "reason" to activeIpBan.reason,
+                    "bannedUntil" to activeIpBan.bannedUntil
+                )
+            )
+        }
+
         val checkUserId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)
 
         if (checkUserId != null) {

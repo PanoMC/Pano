@@ -53,6 +53,7 @@ class BanHistoryDaoImpl : BanHistoryDao() {
                               `bannedUntil` bigint,
                               `bannedBy` varchar(255),
                               `bannedBySystem` tinyint(1) DEFAULT 0,
+                              `source` varchar(255),
                               `createdAt` BIGINT(20) NOT NULL,
                               `updatedAt` BIGINT(20) NOT NULL,
                               PRIMARY KEY (`id`)
@@ -105,8 +106,8 @@ class BanHistoryDaoImpl : BanHistoryDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `reason`, `emailNotified`, `bannedUntil`, `bannedBy`, `bannedBySystem`, `createdAt`, `updatedAt`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `reason`, `emailNotified`, `bannedUntil`, `bannedBy`, `bannedBySystem`, `source`, `createdAt`, `updatedAt`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -118,6 +119,7 @@ class BanHistoryDaoImpl : BanHistoryDao() {
                     banHistory.bannedUntil,
                     banHistory.bannedBy,
                     banHistory.bannedBySystem,
+                    banHistory.source,
                     banHistory.createdAt,
                     banHistory.updatedAt,
                 )

@@ -46,6 +46,7 @@ class DatabaseManager(
     @Lazy val localeDao: LocaleDao,
     @Lazy val translationDao: TranslationDao,
     @Lazy val banHistoryDao: BanHistoryDao,
+    @Lazy val bannedIpDao: BannedIpDao,
     @Lazy val onlinePlayerHistoryDao: OnlinePlayerHistoryDao,
 ) {
 

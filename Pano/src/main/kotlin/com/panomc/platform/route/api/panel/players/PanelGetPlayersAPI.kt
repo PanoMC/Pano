@@ -66,6 +66,10 @@ class PanelGetPlayersAPI(
             return getBanHistoryResult(page, search, sqlClient)
         }
 
+        if (view == PlayersView.IP_BANS) {
+            return getIpBanResult(page, search, sqlClient)
+        }
+
         var userIdsWithGroup: List<Long>? = null
 
         if (playerStatus == PlayerStatus.HAS_PERM) {
@@ -243,6 +247,7 @@ class PanelGetPlayersAPI(
             playerData.put("emailNotified", banHistory.emailNotified)
             playerData.put("bannedBy", banHistory.bannedBy)
             playerData.put("bannedBySystem", banHistory.bannedBySystem)
+            playerData.put("source", banHistory.source)
 
             playerData.remove("password")
             playerData.remove("banned")
@@ -257,8 +262,58 @@ class PanelGetPlayersAPI(
         return Successful(result)
     }
 
+    private suspend fun getIpBanResult(
+        page: Long,
+        search: String?,
+        sqlClient: io.vertx.sqlclient.SqlClient
+    ): Result {
+        val count = if (search != null) {
+            databaseManager.bannedIpDao.countBySearch(search, sqlClient)
+        } else {
+            databaseManager.bannedIpDao.count(sqlClient)
+        }
+
+        var totalPage = ceil(count.toDouble() / 10).toLong()
+
+        if (totalPage < 1) {
+            totalPage = 1
+        }
+
+        if (page !in 1..totalPage) {
+            throw PageNotFound()
+        }
+
+        val result = mutableMapOf<String, Any?>(
+            "playerCount" to count,
+            "totalPage" to totalPage,
+            "permissionGroup" to null
+        )
+
+        val bannedIpList = if (search != null) {
+            databaseManager.bannedIpDao.getAllByPageAndSearch(page, search, sqlClient)
+        } else {
+            databaseManager.bannedIpDao.getAllByPage(page, sqlClient)
+        }
+
+        result["players"] = bannedIpList.map { bannedIp ->
+            JsonObject()
+                .put("id", bannedIp.id)
+                .put("ip", bannedIp.ip)
+                .put("reason", bannedIp.reason)
+                .put("bannedUntil", bannedIp.bannedUntil)
+                .put("bannedBy", bannedIp.bannedBy)
+                .put("bannedBySystem", bannedIp.bannedBySystem)
+                .put("source", bannedIp.source)
+                .put("createdAt", bannedIp.createdAt)
+                .put("updatedAt", bannedIp.updatedAt)
+        }
+
+        return Successful(result)
+    }
+
     private enum class PlayersView {
         PLAYERS,
-        BANS
+        BANS,
+        IP_BANS
     }
 }

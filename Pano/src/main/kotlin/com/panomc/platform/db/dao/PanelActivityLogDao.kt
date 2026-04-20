@@ -16,8 +16,17 @@ abstract class PanelActivityLogDao : Dao<PanelActivityLog>(PanelActivityLog::cla
         sqlClient: SqlClient
     ): List<PanelActivityLog>
 
+    abstract suspend fun byUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    ): List<PanelActivityLog>
+
     abstract suspend fun getAll(
         page: Long,
+        sqlClient: SqlClient
+    ): List<PanelActivityLog>
+
+    abstract suspend fun getAll(
         sqlClient: SqlClient
     ): List<PanelActivityLog>
 

@@ -81,12 +81,44 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
         return rows.toEntities()
     }
 
+    override suspend fun byUserId(
+        userId: Long,
+        sqlClient: SqlClient
+    ): List<PanelActivityLog> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    userId
+                )
+            ).coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun getAll(
         page: Long,
         sqlClient: SqlClient
     ): List<PanelActivityLog> {
         val query =
             "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun getAll(
+        sqlClient: SqlClient
+    ): List<PanelActivityLog> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

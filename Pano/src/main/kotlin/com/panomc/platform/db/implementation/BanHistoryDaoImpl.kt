@@ -17,6 +17,29 @@ import org.springframework.context.annotation.Scope
 @Lazy
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class BanHistoryDaoImpl : BanHistoryDao() {
+    private fun getBanHistoryTableName(): String = "`${getTablePrefix() + tableName}`"
+
+    private fun getUserTableName(): String = "`${getTablePrefix()}user`"
+
+    private fun getOffsetQuery(page: Long): String = if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"
+
+    private fun getSearchParameters(search: String): Tuple {
+        val likeSearch = "%${search.trim().lowercase()}%"
+        return Tuple.of(likeSearch, likeSearch, likeSearch)
+    }
+
+    private fun getSearchClause(): String = """
+        (
+            LOWER(COALESCE(bh.`reason`, '')) LIKE ?
+            OR LOWER(COALESCE(bh.`bannedBy`, '')) LIKE ?
+            OR EXISTS (
+                SELECT 1
+                FROM ${getUserTableName()} u
+                WHERE u.`id` = bh.`userId`
+                  AND LOWER(u.`username`) LIKE ?
+            )
+        )
+    """.trimIndent()
 
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
@@ -30,6 +53,7 @@ class BanHistoryDaoImpl : BanHistoryDao() {
                               `bannedUntil` bigint,
                               `bannedBy` varchar(255),
                               `bannedBySystem` tinyint(1) DEFAULT 0,
+                              `source` varchar(255),
                               `createdAt` BIGINT(20) NOT NULL,
                               `updatedAt` BIGINT(20) NOT NULL,
                               PRIMARY KEY (`id`)
@@ -40,13 +64,50 @@ class BanHistoryDaoImpl : BanHistoryDao() {
             .coAwait()
     }
 
+    override suspend fun count(
+        sqlClient: SqlClient
+    ): Long {
+        val query = "SELECT COUNT(`id`) FROM ${getBanHistoryTableName()}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun countBySearch(
+        search: String,
+        sqlClient: SqlClient
+    ): Long {
+        val normalizedSearch = search.trim()
+
+        if (normalizedSearch.isEmpty()) {
+            return count(sqlClient)
+        }
+
+        val query = """
+            SELECT COUNT(bh.`id`)
+            FROM ${getBanHistoryTableName()} bh
+            WHERE ${getSearchClause()}
+        """.trimIndent()
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(getSearchParameters(normalizedSearch))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
     override suspend fun add(
         banHistory: BanHistory,
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `reason`, `emailNotified`, `bannedUntil`, `bannedBy`, `bannedBySystem`, `createdAt`, `updatedAt`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`userId`, `reason`, `emailNotified`, `bannedUntil`, `bannedBy`, `bannedBySystem`, `source`, `createdAt`, `updatedAt`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -58,6 +119,7 @@ class BanHistoryDaoImpl : BanHistoryDao() {
                     banHistory.bannedUntil,
                     banHistory.bannedBy,
                     banHistory.bannedBySystem,
+                    banHistory.source,
                     banHistory.createdAt,
                     banHistory.updatedAt,
                 )
@@ -71,7 +133,7 @@ class BanHistoryDaoImpl : BanHistoryDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where userId = ?"
+            "SELECT COUNT(`id`) FROM ${getBanHistoryTableName()} WHERE `userId` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -87,7 +149,7 @@ class BanHistoryDaoImpl : BanHistoryDao() {
         sqlClient: SqlClient
     ): List<BanHistory> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE userId = ? ORDER BY `updatedAt` DESC, `createdAt` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM ${getBanHistoryTableName()} WHERE `userId` = ? ORDER BY `updatedAt` DESC, `createdAt` DESC LIMIT 10 ${getOffsetQuery(page)}"
 
         val parameters = Tuple.tuple()
 
@@ -96,6 +158,48 @@ class BanHistoryDaoImpl : BanHistoryDao() {
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun getAllByPage(
+        page: Long,
+        sqlClient: SqlClient
+    ): List<BanHistory> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM ${getBanHistoryTableName()} ORDER BY `updatedAt` DESC, `createdAt` DESC LIMIT 10 ${getOffsetQuery(page)}"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun getAllByPageAndSearch(
+        page: Long,
+        search: String,
+        sqlClient: SqlClient
+    ): List<BanHistory> {
+        val normalizedSearch = search.trim()
+
+        if (normalizedSearch.isEmpty()) {
+            return getAllByPage(page, sqlClient)
+        }
+
+        val query = """
+            SELECT ${fields.toTableQuery()}
+            FROM ${getBanHistoryTableName()} bh
+            WHERE ${getSearchClause()}
+            ORDER BY bh.`updatedAt` DESC, bh.`createdAt` DESC
+            LIMIT 10 ${getOffsetQuery(page)}
+        """.trimIndent()
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(getSearchParameters(normalizedSearch))
             .coAwait()
 
         return rows.toEntities()

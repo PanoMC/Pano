@@ -115,7 +115,8 @@ class PanelBanPlayerAPI(
                 emailNotified = sendNotification,
                 bannedUntil = duration,
                 bannedBy = authUsername,
-                bannedBySystem = false
+                bannedBySystem = false,
+                source = "PANEL"
             ), sqlClient
         )
 

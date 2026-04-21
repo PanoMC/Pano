@@ -15,7 +15,7 @@ open class PanelActivityLog(
 ) : DBEntity() {
     init {
         if (type == null) {
-            type = this::class.simpleName!!.replace("Log", "").convertToSnakeCase().uppercase()
+            type = this::class.simpleName!!.removeSuffix("Log").convertToSnakeCase().uppercase()
         }
     }
 }

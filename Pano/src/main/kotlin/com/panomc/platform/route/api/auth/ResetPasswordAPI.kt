@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.auth
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.CantResetPasswordWait5Minutes
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ResetPasswordMail
@@ -56,6 +57,17 @@ class ResetPasswordAPI(
 
         val userId =
             databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient) ?: throw NotExists()
+
+        val lastToken =
+            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
+
+        if (lastToken != null) {
+            val cooldownEndMillis = lastToken.startDate + 5 * 60 * 1000
+
+            if (System.currentTimeMillis() < cooldownEndMillis) {
+                throw CantResetPasswordWait5Minutes()
+            }
+        }
 
         tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
 

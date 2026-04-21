@@ -77,7 +77,7 @@ class GetSiteInfoAPI(
         response["websiteDescription"] = config.websiteDescription
         response["ipAddress"] = config.serverIpAddress
         response["websiteUrl"] = config.websiteUrl
-        response["registerAgreement"] = config.registerAgreement
+        response["hasRegisterAgreement"] = config.registerAgreement.isNotBlank()
         response["supportEmail"] = config.supportEmail
         response["keywords"] = config.keywords
         response["panoVersion"] = VERSION

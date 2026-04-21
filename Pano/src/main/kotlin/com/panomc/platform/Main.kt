@@ -19,6 +19,7 @@ import com.panomc.platform.ssl.AcmeManager
 import com.panomc.platform.util.*
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
+import io.vertx.core.VertxException
 import io.vertx.core.VertxOptions
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpServerOptions
@@ -343,6 +344,8 @@ class Main : CoroutineVerticle() {
             initServerManager()
 
             initUpdateManager()
+
+            initOnlinePlayerTracker()
         }
 
         executeBlocking {
@@ -380,6 +383,14 @@ class Main : CoroutineVerticle() {
         val updateManager = applicationContext.getBean(UpdateManager::class.java)
 
         updateManager.init()
+    }
+
+    private fun initOnlinePlayerTracker() {
+        logger.info("Initializing online player tracker")
+
+        val onlinePlayerTracker = applicationContext.getBean(OnlinePlayerTracker::class.java)
+
+        onlinePlayerTracker.start()
     }
 
     private fun initPluginManager() {
@@ -505,13 +516,50 @@ class Main : CoroutineVerticle() {
 
     private fun startWebServer() {
         val serverConfig = configManager.config.server
+        // Vert.x may throw on junk HTTP: bad % escapes in path, HTTP/1.x without Host (RFC 9112), etc.
+        val safeRouter = catchBadClientRequests(router)
 
         if (serverConfig.sslMode == PanoConfig.Companion.SslMode.DISABLED) {
-            startHttpServer(serverConfig, router)
+            startHttpServer(serverConfig, safeRouter)
         } else {
-            val httpHandler = if (serverConfig.redirectHttps) getHttpRedirectHandler(serverConfig) else router
+            val httpHandler =
+                if (serverConfig.redirectHttps) {
+                    catchBadClientRequests(getHttpRedirectHandler(serverConfig, safeRouter))
+                } else {
+                    safeRouter
+                }
             startHttpServer(serverConfig, httpHandler)
-            startHttpsServer(serverConfig)
+            startHttpsServer(serverConfig, safeRouter)
+        }
+    }
+
+    /**
+     * Turns common client/protocol garbage into HTTP 400 instead of "Unhandled exception in router".
+     * Does not cover pre-handler codec errors (e.g. TLS or HTML sent to a plain HTTP port — see ConnectionBase logs).
+     */
+    private fun catchBadClientRequests(handler: Handler<HttpServerRequest>): Handler<HttpServerRequest> {
+        return Handler { req ->
+            try {
+                handler.handle(req)
+            } catch (e: IllegalArgumentException) {
+                if (e.message?.contains("Invalid escape sequence") == true) {
+                    respond400IfOpen(req)
+                } else {
+                    throw e
+                }
+            } catch (e: VertxException) {
+                if (e.message?.contains("Host") == true && e.message?.contains("required") == true) {
+                    respond400IfOpen(req)
+                } else {
+                    throw e
+                }
+            }
+        }
+    }
+
+    private fun respond400IfOpen(req: HttpServerRequest) {
+        if (!req.response().ended()) {
+            req.response().setStatusCode(400).end()
         }
     }
 
@@ -545,7 +593,7 @@ class Main : CoroutineVerticle() {
             }
     }
 
-    private fun startHttpsServer(serverConfig: PanoConfig.Companion.ServerConfig) {
+    private fun startHttpsServer(serverConfig: PanoConfig.Companion.ServerConfig, handler: Handler<HttpServerRequest>) {
         val host = serverConfig.host
         val port = serverConfig.httpsPort
         val (options, canStart) = prepareHttpsOptions(serverConfig)
@@ -556,7 +604,7 @@ class Main : CoroutineVerticle() {
         }
 
         logger.info("Creating HTTPS server on port $port (Mode: ${serverConfig.sslMode})")
-        vertx.createHttpServer(options).requestHandler(router).listen(port, host).onSuccess {
+        vertx.createHttpServer(options).requestHandler(handler).listen(port, host).onSuccess {
                 logger.info("Started listening on https://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
                 UiConsole.markReady()
             }.onFailure { result ->
@@ -565,10 +613,13 @@ class Main : CoroutineVerticle() {
             }
     }
 
-    private fun getHttpRedirectHandler(serverConfig: PanoConfig.Companion.ServerConfig): Handler<HttpServerRequest> {
+    private fun getHttpRedirectHandler(
+        serverConfig: PanoConfig.Companion.ServerConfig,
+        delegate: Handler<HttpServerRequest>
+    ): Handler<HttpServerRequest> {
         return Handler { req ->
             if (req.path().startsWith("/.well-known/acme-challenge/")) {
-                router.handle(req)
+                delegate.handle(req)
             } else {
                 val hostHeader = req.getHeader("Host")
                 val domain = if (hostHeader != null) {
@@ -584,7 +635,7 @@ class Main : CoroutineVerticle() {
                 }
 
                 if (domain == null || domain == "0.0.0.0") {
-                    router.handle(req)
+                    delegate.handle(req)
                 } else {
                     val port = serverConfig.httpsPort
                     val portSuffix = if (port == 443) "" else ":$port"

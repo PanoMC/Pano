@@ -231,6 +231,49 @@ class UserDaoImpl : UserDao() {
         return rows.toList().map { it.getLong(0) }
     }
 
+    override suspend fun countOfRegisterByTimeRange(
+        from: Long,
+        to: Long,
+        sqlClient: SqlClient
+    ): Long {
+        val query =
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `registerDate` >= ? AND `registerDate` < ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(from, to))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getRegisterDatesByTimeRange(
+        from: Long,
+        to: Long,
+        sqlClient: SqlClient
+    ): List<Long> {
+        val query =
+            "SELECT `registerDate` FROM `${getTablePrefix() + tableName}` WHERE `registerDate` >= ? AND `registerDate` < ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(from, to))
+            .coAwait()
+
+        return rows.toList().map { it.getLong(0) }
+    }
+
+    override suspend fun countBeforeTime(time: Long, sqlClient: SqlClient): Long {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `registerDate` < ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(time))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
     override suspend fun getUsernameFromUserId(
         userId: Long,
         sqlClient: SqlClient
@@ -296,13 +339,16 @@ class UserDaoImpl : UserDao() {
         status: PlayerStatus,
         sqlClient: SqlClient
     ): Long {
+        val now = System.currentTimeMillis()
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE banned = ?" else ""}"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?)" else ""}"
 
         val parameters = Tuple.tuple()
 
-        if (status == PlayerStatus.BANNED)
+        if (status == PlayerStatus.BANNED) {
             parameters.addInteger(1)
+            parameters.addLong(now)
+        }
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -317,13 +363,16 @@ class UserDaoImpl : UserDao() {
         status: PlayerStatus,
         sqlClient: SqlClient
     ): List<User> {
+        val now = System.currentTimeMillis()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?) " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
 
-        if (status == PlayerStatus.BANNED)
+        if (status == PlayerStatus.BANNED) {
             parameters.addInteger(1)
+            parameters.addLong(now)
+        }
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -338,14 +387,17 @@ class UserDaoImpl : UserDao() {
         search: String,
         sqlClient: SqlClient
     ): Long {
+        val now = System.currentTimeMillis()
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ?" else ""}"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?)" else ""}"
 
         val parameters = Tuple.tuple()
         parameters.addString("%$search%")
 
-        if (status == PlayerStatus.BANNED)
+        if (status == PlayerStatus.BANNED) {
             parameters.addInteger(1)
+            parameters.addLong(now)
+        }
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -361,14 +413,17 @@ class UserDaoImpl : UserDao() {
         search: String,
         sqlClient: SqlClient
     ): List<User> {
+        val now = System.currentTimeMillis()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?) " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
 
         val parameters = Tuple.tuple()
         parameters.addString("%$search%")
 
-        if (status == PlayerStatus.BANNED)
+        if (status == PlayerStatus.BANNED) {
             parameters.addInteger(1)
+            parameters.addLong(now)
+        }
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

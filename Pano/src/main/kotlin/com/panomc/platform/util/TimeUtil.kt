@@ -38,6 +38,39 @@ object TimeUtil {
             getStartOfLastMonthAtMidnightInMillis()
         }
 
+    /**
+     * Returns the start of the previous equivalent period relative to the current period start.
+     * For WEEK: returns the start of the week before the current week window.
+     * For MONTH: returns the start of the month before the current month window.
+     */
+    fun getPreviousPeriodStart(dashboardPeriodType: DashboardPeriodType): Long {
+        val currentStart = getTimeToCompareByDashboardPeriodType(dashboardPeriodType)
+
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = currentStart
+
+        if (dashboardPeriodType == DashboardPeriodType.WEEK) {
+            calendar.add(Calendar.DAY_OF_YEAR, -7)
+        } else {
+            calendar.add(Calendar.DAY_OF_YEAR, -30)
+        }
+
+        return calendar.timeInMillis
+    }
+
+    /**
+     * Rounds a timestamp down to the start of its day (00:00:00.000) in the system timezone.
+     */
+    fun startOfDay(time: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = time
+        calendar[Calendar.HOUR_OF_DAY] = 0
+        calendar[Calendar.MINUTE] = 0
+        calendar[Calendar.SECOND] = 0
+        calendar[Calendar.MILLISECOND] = 0
+        return calendar.timeInMillis
+    }
+
     fun List<Long>.toGroupGetCountAndDates() = this.map { time ->
         val calendar = Calendar.getInstance()
 

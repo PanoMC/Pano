@@ -515,13 +515,41 @@ class Main : CoroutineVerticle() {
 
     private fun startWebServer() {
         val serverConfig = configManager.config.server
+        // Vert.x path normalization throws IllegalArgumentException on malformed percent-encoding
+        // (e.g. "%%3") from bots or broken clients — respond with 400 instead of an unhandled exception.
+        val safeRouter = catchMalformedPath(router)
 
         if (serverConfig.sslMode == PanoConfig.Companion.SslMode.DISABLED) {
-            startHttpServer(serverConfig, router)
+            startHttpServer(serverConfig, safeRouter)
         } else {
-            val httpHandler = if (serverConfig.redirectHttps) getHttpRedirectHandler(serverConfig) else router
+            val httpHandler =
+                if (serverConfig.redirectHttps) {
+                    catchMalformedPath(getHttpRedirectHandler(serverConfig, safeRouter))
+                } else {
+                    safeRouter
+                }
             startHttpServer(serverConfig, httpHandler)
-            startHttpsServer(serverConfig)
+            startHttpsServer(serverConfig, safeRouter)
+        }
+    }
+
+    /**
+     * Avoids [IllegalArgumentException] from Vert.x RFC3986 path decoding (invalid % escapes) bubbling up
+     * as "Unhandled exception in router" for garbage requests.
+     */
+    private fun catchMalformedPath(handler: Handler<HttpServerRequest>): Handler<HttpServerRequest> {
+        return Handler { req ->
+            try {
+                handler.handle(req)
+            } catch (e: IllegalArgumentException) {
+                if (e.message?.contains("Invalid escape sequence") == true) {
+                    if (!req.response().ended()) {
+                        req.response().setStatusCode(400).end()
+                    }
+                } else {
+                    throw e
+                }
+            }
         }
     }
 
@@ -555,7 +583,7 @@ class Main : CoroutineVerticle() {
             }
     }
 
-    private fun startHttpsServer(serverConfig: PanoConfig.Companion.ServerConfig) {
+    private fun startHttpsServer(serverConfig: PanoConfig.Companion.ServerConfig, handler: Handler<HttpServerRequest>) {
         val host = serverConfig.host
         val port = serverConfig.httpsPort
         val (options, canStart) = prepareHttpsOptions(serverConfig)
@@ -566,7 +594,7 @@ class Main : CoroutineVerticle() {
         }
 
         logger.info("Creating HTTPS server on port $port (Mode: ${serverConfig.sslMode})")
-        vertx.createHttpServer(options).requestHandler(router).listen(port, host).onSuccess {
+        vertx.createHttpServer(options).requestHandler(handler).listen(port, host).onSuccess {
                 logger.info("Started listening on https://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
                 UiConsole.markReady()
             }.onFailure { result ->
@@ -575,10 +603,13 @@ class Main : CoroutineVerticle() {
             }
     }
 
-    private fun getHttpRedirectHandler(serverConfig: PanoConfig.Companion.ServerConfig): Handler<HttpServerRequest> {
+    private fun getHttpRedirectHandler(
+        serverConfig: PanoConfig.Companion.ServerConfig,
+        delegate: Handler<HttpServerRequest>
+    ): Handler<HttpServerRequest> {
         return Handler { req ->
             if (req.path().startsWith("/.well-known/acme-challenge/")) {
-                router.handle(req)
+                delegate.handle(req)
             } else {
                 val hostHeader = req.getHeader("Host")
                 val domain = if (hostHeader != null) {
@@ -594,7 +625,7 @@ class Main : CoroutineVerticle() {
                 }
 
                 if (domain == null || domain == "0.0.0.0") {
-                    router.handle(req)
+                    delegate.handle(req)
                 } else {
                     val port = serverConfig.httpsPort
                     val portSuffix = if (port == 443) "" else ":$port"

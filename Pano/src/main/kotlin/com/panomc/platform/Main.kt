@@ -19,6 +19,7 @@ import com.panomc.platform.ssl.AcmeManager
 import com.panomc.platform.util.*
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
+import io.vertx.core.VertxException
 import io.vertx.core.VertxOptions
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpServerOptions
@@ -515,16 +516,15 @@ class Main : CoroutineVerticle() {
 
     private fun startWebServer() {
         val serverConfig = configManager.config.server
-        // Vert.x path normalization throws IllegalArgumentException on malformed percent-encoding
-        // (e.g. "%%3") from bots or broken clients — respond with 400 instead of an unhandled exception.
-        val safeRouter = catchMalformedPath(router)
+        // Vert.x may throw on junk HTTP: bad % escapes in path, HTTP/1.x without Host (RFC 9112), etc.
+        val safeRouter = catchBadClientRequests(router)
 
         if (serverConfig.sslMode == PanoConfig.Companion.SslMode.DISABLED) {
             startHttpServer(serverConfig, safeRouter)
         } else {
             val httpHandler =
                 if (serverConfig.redirectHttps) {
-                    catchMalformedPath(getHttpRedirectHandler(serverConfig, safeRouter))
+                    catchBadClientRequests(getHttpRedirectHandler(serverConfig, safeRouter))
                 } else {
                     safeRouter
                 }
@@ -534,22 +534,32 @@ class Main : CoroutineVerticle() {
     }
 
     /**
-     * Avoids [IllegalArgumentException] from Vert.x RFC3986 path decoding (invalid % escapes) bubbling up
-     * as "Unhandled exception in router" for garbage requests.
+     * Turns common client/protocol garbage into HTTP 400 instead of "Unhandled exception in router".
+     * Does not cover pre-handler codec errors (e.g. TLS or HTML sent to a plain HTTP port — see ConnectionBase logs).
      */
-    private fun catchMalformedPath(handler: Handler<HttpServerRequest>): Handler<HttpServerRequest> {
+    private fun catchBadClientRequests(handler: Handler<HttpServerRequest>): Handler<HttpServerRequest> {
         return Handler { req ->
             try {
                 handler.handle(req)
             } catch (e: IllegalArgumentException) {
                 if (e.message?.contains("Invalid escape sequence") == true) {
-                    if (!req.response().ended()) {
-                        req.response().setStatusCode(400).end()
-                    }
+                    respond400IfOpen(req)
+                } else {
+                    throw e
+                }
+            } catch (e: VertxException) {
+                if (e.message?.contains("Host") == true && e.message?.contains("required") == true) {
+                    respond400IfOpen(req)
                 } else {
                     throw e
                 }
             }
+        }
+    }
+
+    private fun respond400IfOpen(req: HttpServerRequest) {
+        if (!req.response().ended()) {
+            req.response().setStatusCode(400).end()
         }
     }
 

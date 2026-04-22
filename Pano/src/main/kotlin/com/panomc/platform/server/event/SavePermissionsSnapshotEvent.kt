@@ -8,6 +8,7 @@ import com.panomc.platform.db.model.PermissionNode
 import com.panomc.platform.db.model.PermissionTrack
 import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.db.model.User
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.ServerEventResponse
 import com.panomc.platform.server.event.request.SavePermissionsSnapshotEventRequest
@@ -20,6 +21,11 @@ import io.vertx.sqlclient.SqlClient
  * Accepts a full permissions snapshot from a connected server and writes it to DB.
  *
  * IMPORTANT: This will reset permission_group/permission_track/permission_node tables.
+ *
+ * Pano user rows are auto-created when the snapshot references a USER holder by
+ * `holderName` (Minecraft username) that does not yet exist on the platform. This
+ * mirrors LuckPerms-only users into Pano so they show up on the panel with their
+ * permissions intact.
  */
 @Event
 class SavePermissionsSnapshotEvent(
@@ -77,6 +83,11 @@ class SavePermissionsSnapshotEvent(
             displayName = permissionManager.defaultGroupName
         )
 
+        // Resolve/create Pano user rows for any USER-holder nodes with a username before we
+        // touch the permission tables. This guarantees that LP-only users (without a Pano
+        // account) end up registered on the platform with their permissions saved.
+        val userIdByUsername = resolveUserIdsForSnapshot(incomingNodes, sqlClient)
+
         // Reset tables
         truncatePermissionTables(sqlClient)
 
@@ -107,14 +118,6 @@ class SavePermissionsSnapshotEvent(
                 updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()
             )
             databaseManager.permissionTrackDao.add(track, sqlClient)
-        }
-
-        // Build username->id map for nodes (if provided)
-        val usernames = incomingNodes.mapNotNull { (it as? JsonObject)?.getString("holderName") }
-        val userIdByUsername = if (usernames.isEmpty()) {
-            emptyMap()
-        } else {
-            databaseManager.userDao.getIdsByListOfUsername(usernames.distinct(), sqlClient)
         }
 
         // Insert nodes
@@ -153,10 +156,12 @@ class SavePermissionsSnapshotEvent(
                 }
 
                 HolderType.USER -> {
-                    // Accept either explicit holderId (panel user id) or resolve by username in holderName
-                    obj.getLong("holderId")
-                        ?: obj.getString("holderName")?.let { userIdByUsername[it] }
-                        ?: return@forEach
+                    // Prefer resolving by username (we just made sure every referenced username
+                    // has a Pano user). Fall back to explicit holderId when it's a valid id.
+                    val nameKey = obj.getString("holderName")
+                    val byName = nameKey?.let { userIdByUsername[it] }
+                    val explicitId = obj.getLong("holderId")?.takeIf { it > 0 }
+                    byName ?: explicitId ?: return@forEach
                 }
             }
 
@@ -180,6 +185,60 @@ class SavePermissionsSnapshotEvent(
         permissionManager.refresh()
 
         return null
+    }
+
+    /**
+     * Build a username -> user-id map for every USER-holder node in the snapshot.
+     *
+     * If a referenced username does not yet have a Pano user row we create one on the fly,
+     * using the Minecraft UUID from the payload (when provided) so that the MC account ends up
+     * linked correctly on first sync.
+     */
+    private suspend fun resolveUserIdsForSnapshot(
+        incomingNodes: JsonArray,
+        sqlClient: SqlClient
+    ): Map<String, Long> {
+        val usernames = mutableSetOf<String>()
+        val uuidByUsername = mutableMapOf<String, String>()
+
+        incomingNodes.forEach { el ->
+            val obj = when (el) {
+                is JsonObject -> el
+                is Map<*, *> -> JsonObject.mapFrom(el)
+                else -> null
+            } ?: return@forEach
+            if (obj.getString("holderType") != "USER") return@forEach
+            val username = obj.getString("holderName")?.takeIf { it.isNotBlank() } ?: return@forEach
+            usernames.add(username)
+            obj.getString("holderUniqueId")?.takeIf { it.isNotBlank() }?.let { uuid ->
+                uuidByUsername.putIfAbsent(username, uuid)
+            }
+        }
+
+        if (usernames.isEmpty()) return emptyMap()
+
+        val resolved = databaseManager.userDao
+            .getIdsByListOfUsername(usernames.toList(), sqlClient)
+            .toMutableMap()
+
+        val now = System.currentTimeMillis()
+        usernames.forEach { username ->
+            if (resolved.containsKey(username)) return@forEach
+
+            val newUser = User(
+                username = username,
+                email = null,
+                registeredIp = "",
+                registerDate = now,
+                lastLoginDate = now,
+                mcUuid = uuidByUsername[username]
+            )
+
+            val newId = databaseManager.userDao.add(newUser, null, sqlClient, false)
+            resolved[username] = newId
+        }
+
+        return resolved
     }
 
     private fun ensureGroup(list: MutableList<PermissionGroup>, name: String, displayName: String) {

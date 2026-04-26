@@ -14,7 +14,7 @@ import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ActivationTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
@@ -71,11 +71,11 @@ class PanelSendValidationEmailAPI(
 
         val user = databaseManager.userDao.getById(playerId, sqlClient)!!
 
-        tokenProvider.invalidateTokensBySubjectAndType(playerId.toString(), TokenType.ACTIVATION, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(playerId.toString(), ActivationTokenType, sqlClient)
 
-        val (token, expireDate) = tokenProvider.generateToken(playerId.toString(), TokenType.ACTIVATION)
+        val (token, expireDate) = tokenProvider.generateToken(playerId.toString(), ActivationTokenType)
 
-        tokenProvider.saveToken(token, playerId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
+        tokenProvider.saveToken(token, playerId.toString(), ActivationTokenType, expireDate, sqlClient)
 
         mailManager.sendMail(sqlClient, playerId, ActivationMail(token, user.username, user.email!!, ""), user.email)
 

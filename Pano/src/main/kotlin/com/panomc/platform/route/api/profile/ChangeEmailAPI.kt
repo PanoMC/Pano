@@ -11,7 +11,7 @@ import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ChangeEmailMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ChangeEmailTokenType
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -59,7 +59,7 @@ class ChangeEmailAPI(
         val sqlClient = getSqlClient()
 
         val lastToken =
-            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.CHANGE_EMAIL, sqlClient)
+            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), ChangeEmailTokenType, sqlClient)
 
         if (lastToken != null) {
             val fifteenMinutesLaterInMillis = lastToken.startDate + 15 * 60 * 1000
@@ -84,11 +84,11 @@ class ChangeEmailAPI(
 
         databaseManager.userDao.updatePendingEmailById(userId, newEmail, sqlClient)
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.CHANGE_EMAIL, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ChangeEmailTokenType, sqlClient)
 
-        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.CHANGE_EMAIL)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), ChangeEmailTokenType)
 
-        tokenProvider.saveToken(token, userId.toString(), TokenType.CHANGE_EMAIL, expireDate, sqlClient)
+        tokenProvider.saveToken(token, userId.toString(), ChangeEmailTokenType, expireDate, sqlClient)
 
         val user = databaseManager.userDao.getById(userId, sqlClient)!!
 

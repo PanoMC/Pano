@@ -1,12 +1,15 @@
 package com.panomc.platform.route.api.auth
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.AuthEventListener
+import com.panomc.platform.error.PluginDeniedLogin
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InvalidLink
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ActivationTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -29,13 +32,27 @@ class VerifyEmailAPI(
                 Bodies.json(
                     Schemas.objectSchema()
                         .requiredProperty("token", Schemas.stringSchema())
-//                TODO: Add recaptcha
+                        .optionalProperty("captchaToken", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        val sqlClient = getSqlClient()
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeAuthenticate(context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    else -> { /* proceed */ }
+                }
+            }
+        }
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
@@ -43,9 +60,7 @@ class VerifyEmailAPI(
 
         validateInput(token)
 
-        val sqlClient = getSqlClient()
-
-        val isValid = tokenProvider.isTokenValid(token, TokenType.ACTIVATION, sqlClient)
+        val isValid = tokenProvider.isTokenValid(token, ActivationTokenType, sqlClient)
 
         if (!isValid) {
             throw InvalidLink()
@@ -55,7 +70,7 @@ class VerifyEmailAPI(
 
         databaseManager.userDao.makeEmailVerifiedById(userId, sqlClient)
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ActivationTokenType, sqlClient)
 
         return Successful()
     }

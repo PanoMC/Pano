@@ -11,7 +11,7 @@ import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Result
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.AuthenticationTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -54,7 +54,7 @@ class PanelGetPlayerSessionsAPI(
         val sqlClient = getSqlClient()
         val userId = databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
 
-        val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
+        val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
 
         val currentToken = authProvider.getTokenFromRoutingContext(context)
 

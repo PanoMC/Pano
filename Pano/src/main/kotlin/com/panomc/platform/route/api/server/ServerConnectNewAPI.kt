@@ -17,7 +17,7 @@ import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.ServerType
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ServerAuthenticationTokenType
 import com.panomc.platform.util.Aes256GcmUtil
 import com.panomc.platform.util.EncryptUtil
 import com.panomc.platform.util.ImageValidationUtil
@@ -131,9 +131,9 @@ class ServerConnectNewAPI(
 
         val serverId = databaseManager.serverDao.add(server, sqlClient)
 
-        val (token, expireDate) = tokenProvider.generateToken(serverId.toString(), TokenType.SERVER_AUTHENTICATION)
+        val (token, expireDate) = tokenProvider.generateToken(serverId.toString(), ServerAuthenticationTokenType)
 
-        tokenProvider.saveToken(token, serverId.toString(), TokenType.SERVER_AUTHENTICATION, expireDate, sqlClient)
+        tokenProvider.saveToken(token, serverId.toString(), ServerAuthenticationTokenType, expireDate, sqlClient)
 
         notificationManager.sendNotificationToAllWithPermission(
             ServerConnectRequestNotification(serverId, validatedFavicon ?: "/api/server/icon/default"),

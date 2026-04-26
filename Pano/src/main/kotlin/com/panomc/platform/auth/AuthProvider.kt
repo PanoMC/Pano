@@ -7,7 +7,7 @@ import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.Regexes
 import com.panomc.platform.util.TextUtil
@@ -98,12 +98,12 @@ class AuthProvider(
             sqlClient
         )!!
 
-        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.AUTHENTICATION)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), AuthenticationTokenType)
 
         val ipAddress = getRemoteIP(routingContext)
         val userAgent = routingContext.request().getHeader("User-Agent")
 
-        val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
+        val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
 
         if (tokens.size >= 5) {
              val tokensToDelete = tokens.drop(4) // Keep 4, so including the new one it will be 5.
@@ -112,7 +112,7 @@ class AuthProvider(
              }
         }
 
-        tokenProvider.saveToken(token, userId.toString(), TokenType.AUTHENTICATION, expireDate, sqlClient, ipAddress, userAgent)
+        tokenProvider.saveToken(token, userId.toString(), AuthenticationTokenType, expireDate, sqlClient, ipAddress, userAgent)
 
         return token
     }
@@ -212,7 +212,7 @@ class AuthProvider(
         val sqlClient = databaseManager.getSqlClient()
         val token = getTokenFromRoutingContext(routingContext) ?: return false
 
-        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.AUTHENTICATION, sqlClient)
+        val isTokenValid = tokenProvider.isTokenValid(token, AuthenticationTokenType, sqlClient)
 
         return isTokenValid
     }

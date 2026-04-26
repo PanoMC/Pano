@@ -1,11 +1,14 @@
 package com.panomc.platform.route.api.auth
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.AuthEventListener
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.PluginDeniedLogin
 import com.panomc.platform.error.RegisterLinkCodeInvalid
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.RegisterWithLinkCodeTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -29,6 +32,7 @@ class VerifyLinkCodeAPI(
                     Schemas.objectSchema()
                         .requiredProperty("username", Schemas.stringSchema())
                         .requiredProperty("code", Schemas.stringSchema())
+                        .optionalProperty("captchaToken", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -41,7 +45,20 @@ class VerifyLinkCodeAPI(
         val username = data.getString("username")
 
         val sqlClient = getSqlClient()
-        
+
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeVerifyLinkCode(context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    else -> { }
+                }
+            }
+        }
+
         val linkCodeData = databaseManager.userDao.getLinkCode(username, sqlClient) ?: throw RegisterLinkCodeInvalid()
         val (dbLinkCode, dbLinkCodeCreatedAt) = linkCodeData
 
@@ -66,11 +83,11 @@ class VerifyLinkCodeAPI(
             throw RegisterLinkCodeInvalid()
         }
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.REGISTER_WITH_LINK_CODE, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), RegisterWithLinkCodeTokenType, sqlClient)
         databaseManager.userDao.setLinkCode(username, "", 0, sqlClient)
 
-        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.REGISTER_WITH_LINK_CODE)
-        tokenProvider.saveToken(token, userId.toString(), TokenType.REGISTER_WITH_LINK_CODE, expireDate, sqlClient)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), RegisterWithLinkCodeTokenType)
+        tokenProvider.saveToken(token, userId.toString(), RegisterWithLinkCodeTokenType, expireDate, sqlClient)
 
         return Successful(
             mapOf(

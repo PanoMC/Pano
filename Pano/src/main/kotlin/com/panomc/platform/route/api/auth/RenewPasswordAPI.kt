@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.auth
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.AuthEventListener
+import com.panomc.platform.error.PluginDeniedLogin
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InvalidLink
@@ -8,7 +11,7 @@ import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.PasswordUpdatedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ResetPasswordTokenType
 import com.panomc.platform.util.RegisterUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -35,13 +38,27 @@ class RenewPasswordAPI(
                         .requiredProperty("token", Schemas.stringSchema())
                         .requiredProperty("newPassword", Schemas.stringSchema())
                         .requiredProperty("newPasswordRepeat", Schemas.stringSchema())
-//                TODO: Add recaptcha
+                        .optionalProperty("captchaToken", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        val sqlClient = getSqlClient()
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeAuthenticate(context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    else -> { /* proceed */ }
+                }
+            }
+        }
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
@@ -51,9 +68,7 @@ class RenewPasswordAPI(
 
         validateInput(token, newPassword, newPasswordRepeat)
 
-        val sqlClient = getSqlClient()
-
-        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.RESET_PASSWORD, sqlClient)
+        val isTokenValid = tokenProvider.isTokenValid(token, ResetPasswordTokenType, sqlClient)
 
         if (!isTokenValid) {
             throw InvalidLink()

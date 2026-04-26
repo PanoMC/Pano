@@ -8,7 +8,7 @@ import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ResetPasswordMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ResetPasswordTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
@@ -29,7 +29,7 @@ class SendResetPasswordEmailAPI(
         val sqlClient = getSqlClient()
 
         val lastToken =
-            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
+            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), ResetPasswordTokenType, sqlClient)
 
         if (lastToken != null) {
             val cooldownEndMillis = lastToken.startDate + 5 * 60 * 1000
@@ -39,14 +39,14 @@ class SendResetPasswordEmailAPI(
             }
         }
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ResetPasswordTokenType, sqlClient)
 
-        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.RESET_PASSWORD)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), ResetPasswordTokenType)
 
         tokenProvider.saveToken(
             token,
             userId.toString(),
-            TokenType.RESET_PASSWORD,
+            ResetPasswordTokenType,
             expireDate,
             sqlClient
         )

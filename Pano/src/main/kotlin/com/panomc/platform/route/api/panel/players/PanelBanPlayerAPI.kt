@@ -15,7 +15,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.message.BanPlayerMessage
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.util.BanUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -120,7 +120,7 @@ class PanelBanPlayerAPI(
             ), sqlClient
         )
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
 
         databaseManager.panelActivityLogDao.add(
             BannedPlayerLog(

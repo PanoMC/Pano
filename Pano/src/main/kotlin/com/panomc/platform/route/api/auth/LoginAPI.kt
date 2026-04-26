@@ -11,7 +11,7 @@ import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ActivationTokenType
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.PasswordHasher
 import com.panomc.platform.util.Regexes
@@ -76,6 +76,23 @@ class LoginAPI(
 
         val checkUserId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)
 
+        // Run before user-specific short-circuits (e.g. link-code flow) so plugins can require captcha first.
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeAuthenticate(context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    is AuthEventListener.LoginDecision.RequireUsername -> {
+                        throw UsernameRequired(extras = mapOf("userId" to decision.userId))
+                    }
+                    is AuthEventListener.LoginDecision.Allow -> { /* proceed */ }
+                }
+            }
+        }
+
         if (checkUserId != null) {
             val user = databaseManager.userDao.getById(checkUserId, sqlClient)
 
@@ -108,7 +125,7 @@ class LoginAPI(
             when (e) {
                 is RegisterEmailRequired if registerEmail != null -> {}
                 is LoginEmailNotVerified -> {
-                    val lastActivationToken = databaseManager.tokenDao.getLastBySubjectAndType(checkUserId!!.toString(), TokenType.ACTIVATION, sqlClient)
+                    val lastActivationToken = databaseManager.tokenDao.getLastBySubjectAndType(checkUserId!!.toString(), ActivationTokenType, sqlClient)
 
                     if (lastActivationToken != null && lastActivationToken.expireDate > System.currentTimeMillis()) {
                         throw e
@@ -172,8 +189,7 @@ class LoginAPI(
             databaseManager.userDao.setUsernameById(checkUserId, newUsername, sqlClient)
         }
 
-        // Fire AuthEventListener.onBeforeLogin hooks
-        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        // Fire AuthEventListener.onBeforeLogin hooks (e.g., 2FA check — after password verification)
         for (listener in authListeners) {
             val decision = listener.onBeforeLogin(user, context, sqlClient)
             if (decision != null) {
@@ -227,11 +243,11 @@ class LoginAPI(
     private suspend fun sendActivationEmail(userId: Long, sqlClient: SqlClient) {
         val user = databaseManager.userDao.getById(userId, sqlClient)!!
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ActivationTokenType, sqlClient)
 
-        val (tokenGenerated, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.ACTIVATION)
+        val (tokenGenerated, expireDate) = tokenProvider.generateToken(userId.toString(), ActivationTokenType)
 
-        tokenProvider.saveToken(tokenGenerated, userId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
+        tokenProvider.saveToken(tokenGenerated, userId.toString(), ActivationTokenType, expireDate, sqlClient)
 
         mailManager.sendMail(sqlClient, userId, ActivationMail(tokenGenerated, user.username, user.email!!,""))
     }

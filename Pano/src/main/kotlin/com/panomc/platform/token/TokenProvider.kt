@@ -27,12 +27,12 @@ class TokenProvider(
     }
 
     fun generateToken(subject: String, tokenType: TokenType): Pair<String, Long> {
-        val expireDate = tokenType.expireDate.invoke()
+        val expireDate = tokenType.getExpireDate()
 
         val token = JWT.create()
             .withJWTId(UUID.randomUUID().toString())
             .withSubject(subject)
-            .withClaim("tokenType", tokenType.expireDate.invoke())
+            .withClaim("tokenType", tokenType.getName())
             .withExpiresAt(Date(expireDate))
             .sign(getAlgorithm())
 

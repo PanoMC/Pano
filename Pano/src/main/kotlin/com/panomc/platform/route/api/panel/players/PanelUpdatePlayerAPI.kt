@@ -108,7 +108,7 @@ class PanelUpdatePlayerAPI(
             val emailExists = databaseManager.userDao.isEmailExists(email, sqlClient)
 
             if (emailExists) {
-                throw Errors(mapOf("username" to "EXISTS"))
+                throw Errors(mapOf("email" to "EXISTS"))
             }
         }
 

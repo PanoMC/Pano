@@ -50,6 +50,34 @@ abstract class BannedIpDao : Dao<BannedIp>(BannedIp::class.java) {
         sqlClient: SqlClient
     ): List<BannedIp>
 
+    abstract suspend fun countByListFilter(
+        listFilter: BannedIpListFilter,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): Long
+
+    abstract suspend fun countByListFilterAndSearch(
+        listFilter: BannedIpListFilter,
+        search: String,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): Long
+
+    abstract suspend fun getAllByPageAndListFilter(
+        page: Long,
+        listFilter: BannedIpListFilter,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): List<BannedIp>
+
+    abstract suspend fun getAllByPageAndListFilterAndSearch(
+        page: Long,
+        search: String,
+        listFilter: BannedIpListFilter,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): List<BannedIp>
+
     abstract suspend fun deleteById(
         id: Long,
         sqlClient: SqlClient

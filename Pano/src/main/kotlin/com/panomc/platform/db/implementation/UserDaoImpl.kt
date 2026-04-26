@@ -55,13 +55,13 @@ class UserDaoImpl : UserDao() {
         query: String,
         limit: Int,
         sqlClient: SqlClient
-    ): List<Pair<Long, String>> {
+    ): List<Triple<Long, String, String>> {
         val trimmed = query.trim()
         if (trimmed.isEmpty() || limit <= 0) return emptyList()
 
         val like = "%${trimmed.lowercase()}%"
         val q = """
-            SELECT `id`, `username`
+            SELECT `id`, `username`, `registeredIp`
             FROM `${getTablePrefix() + tableName}`
             WHERE LOWER(`username`) LIKE ?
             ORDER BY `username` ASC
@@ -73,7 +73,13 @@ class UserDaoImpl : UserDao() {
             .execute(Tuple.of(like, limit))
             .coAwait()
 
-        return rows.toList().map { it.getLong("id") to it.getString("username") }
+        return rows.toList().map {
+            Triple(
+                it.getLong("id"),
+                it.getString("username") ?: "",
+                it.getString("registeredIp") ?: ""
+            )
+        }
     }
 
     override suspend fun add(

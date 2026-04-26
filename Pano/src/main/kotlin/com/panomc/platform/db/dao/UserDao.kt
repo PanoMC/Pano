@@ -332,12 +332,12 @@ abstract class UserDao : Dao<User>(User::class.java) {
 
     abstract suspend fun deleteById(id: Long, sqlClient: SqlClient)
 
-    // Search users by username (case-insensitive substring), limited result count.
+    // Search users by username (case-insensitive substring), limited result count. Triple: id, username, registeredIp.
     abstract suspend fun searchIdsAndUsernamesByUsername(
         query: String,
         limit: Int,
         sqlClient: SqlClient
-    ): List<Pair<Long, String>>
+    ): List<Triple<Long, String, String>>
 
     abstract suspend fun setLinkCode(
         username: String,

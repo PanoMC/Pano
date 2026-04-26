@@ -7,6 +7,7 @@ import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.dao.BannedIpListFilter
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
@@ -42,6 +43,7 @@ class PanelGetPlayersAPI(
             .queryParameter(optionalParam("permissionGroup", stringSchema()))
             .queryParameter(optionalParam("page", numberSchema()))
             .queryParameter(optionalParam("search", stringSchema()))
+            .queryParameter(optionalParam("ipBanStatus", stringSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -67,7 +69,11 @@ class PanelGetPlayersAPI(
         }
 
         if (view == PlayersView.IP_BANS) {
-            return getIpBanResult(page, search, sqlClient)
+            val listFilter = when (parameters.queryParameter("ipBanStatus")?.string?.uppercase()) {
+                "HISTORY" -> BannedIpListFilter.HISTORY
+                else -> BannedIpListFilter.ACTIVE
+            }
+            return getIpBanResult(page, search, listFilter, sqlClient)
         }
 
         var userIdsWithGroup: List<Long>? = null
@@ -265,12 +271,14 @@ class PanelGetPlayersAPI(
     private suspend fun getIpBanResult(
         page: Long,
         search: String?,
+        listFilter: BannedIpListFilter,
         sqlClient: io.vertx.sqlclient.SqlClient
     ): Result {
+        val nowMs = System.currentTimeMillis()
         val count = if (search != null) {
-            databaseManager.bannedIpDao.countBySearch(search, sqlClient)
+            databaseManager.bannedIpDao.countByListFilterAndSearch(listFilter, search, nowMs, sqlClient)
         } else {
-            databaseManager.bannedIpDao.count(sqlClient)
+            databaseManager.bannedIpDao.countByListFilter(listFilter, nowMs, sqlClient)
         }
 
         var totalPage = ceil(count.toDouble() / 10).toLong()
@@ -290,9 +298,15 @@ class PanelGetPlayersAPI(
         )
 
         val bannedIpList = if (search != null) {
-            databaseManager.bannedIpDao.getAllByPageAndSearch(page, search, sqlClient)
+            databaseManager.bannedIpDao.getAllByPageAndListFilterAndSearch(
+                page,
+                search,
+                listFilter,
+                nowMs,
+                sqlClient
+            )
         } else {
-            databaseManager.bannedIpDao.getAllByPage(page, sqlClient)
+            databaseManager.bannedIpDao.getAllByPageAndListFilter(page, listFilter, nowMs, sqlClient)
         }
 
         result["players"] = bannedIpList.map { bannedIp ->

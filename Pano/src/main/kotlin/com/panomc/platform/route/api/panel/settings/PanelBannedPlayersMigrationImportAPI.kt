@@ -11,7 +11,7 @@ import com.panomc.platform.error.InvalidData
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.util.BanUtil
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -140,7 +140,7 @@ class PanelBannedPlayersMigrationImportAPI(
 
                 tokenProvider.invalidateTokensBySubjectAndType(
                     matchedUser.id.toString(),
-                    TokenType.AUTHENTICATION,
+                    AuthenticationTokenType,
                     sqlClient
                 )
 

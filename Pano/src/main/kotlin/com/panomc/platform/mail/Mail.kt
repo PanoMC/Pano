@@ -11,6 +11,9 @@ interface Mail {
 
     val subject: String
 
+    val subjectTranslationType: TranslationType
+        get() = TranslationType.PLATFORM
+
     suspend fun generateParameters(systemParameters: MailManager.Companion.SystemParameters, i18nManager: I18nManager, locale: String): MailParameters
 
     /**

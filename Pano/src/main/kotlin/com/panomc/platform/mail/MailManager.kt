@@ -163,7 +163,7 @@ class MailManager(
 
         message.from = emailConfig.sender
         message.subject = i18nManager.translate(
-            TranslationType.PLATFORM,
+            mail.subjectTranslationType,
             locale,
             mail.subject,
             mapOf("websiteName" to config.websiteName)

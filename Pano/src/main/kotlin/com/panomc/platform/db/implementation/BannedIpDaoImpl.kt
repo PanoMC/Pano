@@ -2,6 +2,7 @@ package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.BannedIpDao
+import com.panomc.platform.db.dao.BannedIpListFilter
 import com.panomc.platform.db.model.BannedIp
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLClient
@@ -232,6 +233,96 @@ class BannedIpDaoImpl : BannedIpDao() {
             .execute(Tuple.of(like, like, like))
             .coAwait()
 
+        return rows.toEntities()
+    }
+
+    private fun listFilterWhereClause(listFilter: BannedIpListFilter): String = when (listFilter) {
+        BannedIpListFilter.ACTIVE -> "(`bannedUntil` IS NULL OR `bannedUntil` > ?)"
+        BannedIpListFilter.HISTORY -> "(`bannedUntil` IS NOT NULL AND `bannedUntil` <= ?)"
+    }
+
+    override suspend fun countByListFilter(
+        listFilter: BannedIpListFilter,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): Long {
+        val query = "SELECT COUNT(`id`) FROM ${getBannedIpTableName()} WHERE ${listFilterWhereClause(listFilter)}"
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(nowMs))
+            .coAwait()
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun countByListFilterAndSearch(
+        listFilter: BannedIpListFilter,
+        search: String,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): Long {
+        val normalized = search.trim()
+        if (normalized.isEmpty()) return countByListFilter(listFilter, nowMs, sqlClient)
+        val like = "%${normalized.lowercase()}%"
+        val query = """
+            SELECT COUNT(`id`) FROM ${getBannedIpTableName()}
+            WHERE ${listFilterWhereClause(listFilter)}
+              AND (
+                LOWER(`ip`) LIKE ?
+                OR LOWER(COALESCE(`reason`, '')) LIKE ?
+                OR LOWER(COALESCE(`bannedBy`, '')) LIKE ?
+              )
+        """.trimIndent()
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(nowMs, like, like, like))
+            .coAwait()
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getAllByPageAndListFilter(
+        page: Long,
+        listFilter: BannedIpListFilter,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): List<BannedIp> {
+        val query = """
+            SELECT ${fields.toTableQuery()} FROM ${getBannedIpTableName()}
+            WHERE ${listFilterWhereClause(listFilter)}
+            ORDER BY `updatedAt` DESC, `createdAt` DESC
+            LIMIT 10 ${getOffsetQuery(page)}
+        """.trimIndent()
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(nowMs))
+            .coAwait()
+        return rows.toEntities()
+    }
+
+    override suspend fun getAllByPageAndListFilterAndSearch(
+        page: Long,
+        search: String,
+        listFilter: BannedIpListFilter,
+        nowMs: Long,
+        sqlClient: SqlClient
+    ): List<BannedIp> {
+        val normalized = search.trim()
+        if (normalized.isEmpty()) return getAllByPageAndListFilter(page, listFilter, nowMs, sqlClient)
+        val like = "%${normalized.lowercase()}%"
+        val query = """
+            SELECT ${fields.toTableQuery()} FROM ${getBannedIpTableName()}
+            WHERE ${listFilterWhereClause(listFilter)}
+              AND (
+                LOWER(`ip`) LIKE ?
+                OR LOWER(COALESCE(`reason`, '')) LIKE ?
+                OR LOWER(COALESCE(`bannedBy`, '')) LIKE ?
+              )
+            ORDER BY `updatedAt` DESC, `createdAt` DESC
+            LIMIT 10 ${getOffsetQuery(page)}
+        """.trimIndent()
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(nowMs, like, like, like))
+            .coAwait()
         return rows.toEntities()
     }
 

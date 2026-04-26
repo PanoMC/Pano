@@ -46,7 +46,7 @@ class TokenDaoImpl : TokenDao() {
                 Tuple.of(
                     token.subject,
                     token.token,
-                    token.type.name,
+                    token.type.getName(),
                     token.expireDate,
                     token.startDate,
                     token.ipAddress,
@@ -67,7 +67,7 @@ class TokenDaoImpl : TokenDao() {
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute(Tuple.of(token, tokenType.name))
+            .execute(Tuple.of(token, tokenType.getName()))
             .coAwait()
 
         return rows.toList()[0].getLong(0) == 1L
@@ -92,7 +92,7 @@ class TokenDaoImpl : TokenDao() {
         sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(subject, type.name)
+                Tuple.of(subject, type.getName())
             )
             .coAwait()
     }
@@ -122,7 +122,7 @@ class TokenDaoImpl : TokenDao() {
             .execute(
                 Tuple.of(
                     subject,
-                    type.name
+                    type.getName()
                 )
             )
             .coAwait()
@@ -149,7 +149,7 @@ class TokenDaoImpl : TokenDao() {
             .execute(
                 Tuple.of(
                     subject,
-                    type.name
+                    type.getName()
                 )
             )
             .coAwait()

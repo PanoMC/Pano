@@ -216,7 +216,7 @@ abstract class UserDao : Dao<User>(User::class.java) {
 
     abstract suspend fun setEmailById(
         id: Long,
-        email: String,
+        email: String?,
         sqlClient: SqlClient
     )
 
@@ -240,6 +240,12 @@ abstract class UserDao : Dao<User>(User::class.java) {
     abstract suspend fun setPasswordById(
         id: Long,
         password: String,
+        sqlClient: SqlClient
+    )
+
+    /** Sets password to NULL and clears [User.mcUuid] so the account must be linked again in-game. */
+    abstract suspend fun clearPasswordAndMcLinkById(
+        id: Long,
         sqlClient: SqlClient
     )
 
@@ -332,12 +338,12 @@ abstract class UserDao : Dao<User>(User::class.java) {
 
     abstract suspend fun deleteById(id: Long, sqlClient: SqlClient)
 
-    // Search users by username (case-insensitive substring), limited result count.
+    // Search users by username (case-insensitive substring), limited result count. Triple: id, username, registeredIp.
     abstract suspend fun searchIdsAndUsernamesByUsername(
         query: String,
         limit: Int,
         sqlClient: SqlClient
-    ): List<Pair<Long, String>>
+    ): List<Triple<Long, String, String>>
 
     abstract suspend fun setLinkCode(
         username: String,

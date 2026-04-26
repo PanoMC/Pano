@@ -2,7 +2,7 @@ package com.panomc.platform.server
 
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ServerAuthenticationTokenType
 import io.vertx.ext.web.RoutingContext
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
@@ -27,7 +27,7 @@ class ServerAuthProvider(
 
         val sqlClient = databaseManager.getSqlClient()
 
-        val isTokenValid = tokenProvider.isTokenValid(token, TokenType.SERVER_AUTHENTICATION, sqlClient)
+        val isTokenValid = tokenProvider.isTokenValid(token, ServerAuthenticationTokenType, sqlClient)
 
         return isTokenValid
     }

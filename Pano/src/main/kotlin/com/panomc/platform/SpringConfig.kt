@@ -7,6 +7,9 @@ import com.panomc.platform.db.model.Server
 import com.panomc.platform.notification.NotificationType
 import com.panomc.platform.notification.NotificationTypeDeserializer
 import com.panomc.platform.notification.ServerSettingsDeserializer
+import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.TokenTypeAdapter
+import com.panomc.platform.token.TokenTypeRegistry
 import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.util.deserializer.BooleanDeserializer
 import com.panomc.platform.util.deserializer.JsonObjectDeserializer
@@ -128,7 +131,11 @@ open class SpringConfig {
         builder.registerTypeAdapter(java.lang.Boolean::class.java, BooleanDeserializer())
         builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
         builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer())
+        builder.registerTypeAdapter(TokenType::class.java, TokenTypeAdapter())
         builder.registerTypeAdapter(Server.Companion.ServerSettings::class.java, ServerSettingsDeserializer())
+
+        // Register core token types before building Gson
+        TokenTypeRegistry.registerCoreTypes()
 
         val gson = builder.create()
 

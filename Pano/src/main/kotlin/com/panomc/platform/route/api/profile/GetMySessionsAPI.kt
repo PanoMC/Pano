@@ -4,7 +4,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.AuthenticationTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -39,7 +39,7 @@ class GetMySessionsAPI(
             return Successful(mapOf("sessions" to sessions))
         }
 
-        val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), TokenType.AUTHENTICATION, sqlClient)
+        val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
 
         val currentToken = authProvider.getTokenFromRoutingContext(context)
 

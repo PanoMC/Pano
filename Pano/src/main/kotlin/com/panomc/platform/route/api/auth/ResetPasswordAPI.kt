@@ -1,7 +1,10 @@
 package com.panomc.platform.route.api.auth
 
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.AuthEventListener
+import com.panomc.platform.error.PluginDeniedLogin
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.CantResetPasswordWait5Minutes
 import com.panomc.platform.error.NotExists
@@ -9,7 +12,7 @@ import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ResetPasswordMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ResetPasswordTokenType
 import com.panomc.platform.util.Regexes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -33,21 +36,33 @@ class ResetPasswordAPI(
                 Bodies.json(
                     Schemas.objectSchema()
                         .requiredProperty("usernameOrEmail", Schemas.stringSchema())
-//                TODO: Add recaptcha
+                        .optionalProperty("captchaToken", Schemas.stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        val sqlClient = getSqlClient()
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeAuthenticate(context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    else -> { /* proceed */ }
+                }
+            }
+        }
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
         val usernameOrEmail = data.getString("usernameOrEmail")
 
         validateInput(usernameOrEmail)
-
-        val sqlClient = getSqlClient()
 
         val exists = databaseManager.userDao.existsByUsernameOrEmail(usernameOrEmail, sqlClient)
 
@@ -59,7 +74,7 @@ class ResetPasswordAPI(
             databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient) ?: throw NotExists()
 
         val lastToken =
-            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
+            databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), ResetPasswordTokenType, sqlClient)
 
         if (lastToken != null) {
             val cooldownEndMillis = lastToken.startDate + 5 * 60 * 1000
@@ -69,14 +84,14 @@ class ResetPasswordAPI(
             }
         }
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.RESET_PASSWORD, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ResetPasswordTokenType, sqlClient)
 
-        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.RESET_PASSWORD)
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), ResetPasswordTokenType)
 
         tokenProvider.saveToken(
             token,
             userId.toString(),
-            TokenType.RESET_PASSWORD,
+            ResetPasswordTokenType,
             expireDate,
             sqlClient
         )

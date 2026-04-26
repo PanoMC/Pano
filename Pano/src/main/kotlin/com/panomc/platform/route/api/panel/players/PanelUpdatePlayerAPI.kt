@@ -40,6 +40,7 @@ class PanelUpdatePlayerAPI(
                         .requiredProperty("isEmailVerified", booleanSchema())
                         .requiredProperty("canCreateTicket", booleanSchema())
                         .requiredProperty("localeCode", stringSchema())
+                        .requiredProperty("clearPassword", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -51,12 +52,15 @@ class PanelUpdatePlayerAPI(
 
         val playerId = parameters.pathParameter("id").long
         val username = data.getString("username")
-        val email = data.getString("email")
+        val emailNormalized = (data.getString("email") ?: "")
+            .trim()
+            .takeIf { it.isNotEmpty() }
         val newPassword = data.getString("newPassword")
         val newPasswordRepeat = data.getString("newPasswordRepeat")
         val isEmailVerified = data.getBoolean("isEmailVerified")
         val canCreateTicket = data.getBoolean("canCreateTicket")
         val localeCode = data.getString("localeCode")
+        val clearPassword = data.getBoolean("clearPassword") == true
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -66,7 +70,11 @@ class PanelUpdatePlayerAPI(
             throw NoPermission()
         }
 
-        validateForm(username, email, newPassword, newPasswordRepeat)
+        if (clearPassword && !hasManagePlayerPermission) {
+            throw NoPermission()
+        }
+
+        validateForm(username, emailNormalized, newPassword, newPasswordRepeat, clearPassword)
 
         val sqlClient = getSqlClient()
 
@@ -104,27 +112,29 @@ class PanelUpdatePlayerAPI(
             }
         }
 
-        if (email != user.email) {
-            val emailExists = databaseManager.userDao.isEmailExists(email, sqlClient)
+        if (emailNormalized != user.email) {
+            if (emailNormalized != null) {
+                val emailExists = databaseManager.userDao.isEmailExists(emailNormalized, sqlClient)
 
-            if (emailExists) {
-                throw Errors(mapOf("username" to "EXISTS"))
+                if (emailExists) {
+                    throw Errors(mapOf("email" to "EXISTS"))
+                }
             }
+
+            databaseManager.userDao.setEmailById(user.id, emailNormalized, sqlClient)
         }
 
         if (username != user.username) {
             databaseManager.userDao.setUsernameById(user.id, username, sqlClient)
         }
 
-        if (email != user.email) {
-            databaseManager.userDao.setEmailById(user.id, email, sqlClient)
-        }
-
         if (localeCode != user.localeCode) {
             databaseManager.userDao.setLocaleCodeById(localeCode.ifBlank { null }, user.id, sqlClient)
         }
 
-        if (newPassword.isNotEmpty()) {
+        if (clearPassword) {
+            databaseManager.userDao.clearPasswordAndMcLinkById(user.id, sqlClient)
+        } else if (newPassword.isNotEmpty()) {
             databaseManager.userDao.setPasswordById(user.id, newPassword, sqlClient)
         }
 
@@ -142,23 +152,30 @@ class PanelUpdatePlayerAPI(
 
     private fun validateForm(
         username: String,
-        email: String,
+        email: String?,
         newPassword: String,
-        newPasswordRepeat: String
+        newPasswordRepeat: String,
+        clearPassword: Boolean
     ) {
         val errors = mutableMapOf<String, Any>()
 
         if (username.isEmpty() || username.length > 16 || username.length < 3 || !username.matches(Regex("^[a-zA-Z0-9_]+\$")))
             errors["username"] = "INVALID"
 
-        if (email.isEmpty() || !email.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$")))
+        if (email != null && !email.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$")))
             errors["email"] = "INVALID"
 
-        if (newPassword.isNotEmpty() && (newPassword.length < 6 || newPassword.length > 128))
-            errors["newPassword"] = "INVALID"
+        if (clearPassword) {
+            if (newPassword.isNotEmpty() || newPasswordRepeat.isNotEmpty()) {
+                errors["newPassword"] = "CONFLICT"
+            }
+        } else {
+            if (newPassword.isNotEmpty() && (newPassword.length < 6 || newPassword.length > 128))
+                errors["newPassword"] = "INVALID"
 
-        if (newPasswordRepeat != newPassword)
-            errors["newPasswordRepeat"] = "NOT_MATCH"
+            if (newPasswordRepeat != newPassword)
+                errors["newPasswordRepeat"] = "NOT_MATCH"
+        }
 
         if (errors.isNotEmpty()) {
             throw Errors(errors)

@@ -7,11 +7,13 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InvalidToken
+import com.panomc.platform.error.PluginDeniedLogin
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.TokenType
+import com.panomc.platform.token.ActivationTokenType
+import com.panomc.platform.token.RegisterWithLinkCodeTokenType
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
 import io.vertx.ext.web.RoutingContext
@@ -63,31 +65,93 @@ class RegisterAPI(
         val sqlClient = getSqlClient()
         
         if (!registerWithLinkToken.isNullOrEmpty()) {
-             if (!tokenProvider.isTokenValid(registerWithLinkToken, TokenType.REGISTER_WITH_LINK_CODE, sqlClient)) {
-                 throw InvalidToken()
-             }
-             
-             val jwt = tokenProvider.parseToken(registerWithLinkToken)
-             val userId = jwt.subject.toLong()
-             
-             val user = databaseManager.userDao.getById(userId, sqlClient) ?: throw InvalidToken()
-             
-             // Validate inputs
-             RegisterUtil.validateForm(user.username, email, password, passwordRepeat, agreement)
-             
-             // Update user
-             databaseManager.userDao.setEmailById(userId, email, sqlClient)
-             
-             databaseManager.userDao.setPasswordById(userId, password, sqlClient)
-             databaseManager.userDao.makeEmailVerifiedById(userId, sqlClient)
-             databaseManager.userDao.setLinkCode(user.username, "", 0, sqlClient)
-             
-             // Invalidate token
-             tokenProvider.invalidateToken(registerWithLinkToken, sqlClient)
+            if (!tokenProvider.isTokenValid(registerWithLinkToken, RegisterWithLinkCodeTokenType, sqlClient)) {
+                throw InvalidToken()
+            }
 
-             return Successful()
+            val jwt = tokenProvider.parseToken(registerWithLinkToken)
+            val userId = jwt.subject.toLong()
+
+            val user = databaseManager.userDao.getById(userId, sqlClient) ?: throw InvalidToken()
+
+            RegisterUtil.validateForm(user.username, email, password, passwordRepeat, agreement)
+
+            val authConfigForLink = configManager.config.auth
+
+            databaseManager.userDao.setEmailById(userId, email, sqlClient)
+            databaseManager.userDao.setPasswordById(userId, password, sqlClient)
+            databaseManager.userDao.setLinkCode(user.username, "", 0, sqlClient)
+
+            if (!authConfigForLink.requireEmailVerification) {
+                databaseManager.userDao.makeEmailVerifiedById(userId, sqlClient)
+            }
+
+            tokenProvider.invalidateToken(registerWithLinkToken, sqlClient)
+
+            val registeredUser = databaseManager.userDao.getById(userId, sqlClient)!!
+
+            val authListenersForLink = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+            for (listener in authListenersForLink) {
+                listener.onAfterRegister(registeredUser, sqlClient)
+            }
+
+            if (!authConfigForLink.requireEmailVerification) {
+                val token = authProvider.login(registeredUser.username, context, sqlClient)
+
+                databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
+
+                val linkRegisterCsrfToken = CSRFTokenGenerator.nextToken()
+
+                authProvider.setCookies(context, token, linkRegisterCsrfToken)
+
+                return Successful(
+                    mapOf(
+                        "login" to true,
+                        "csrfToken" to linkRegisterCsrfToken
+                    )
+                )
+            }
+
+            tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ActivationTokenType, sqlClient)
+
+            val (linkActivationToken, linkActivationExpire) =
+                tokenProvider.generateToken(userId.toString(), ActivationTokenType)
+            tokenProvider.saveToken(
+                linkActivationToken,
+                userId.toString(),
+                ActivationTokenType,
+                linkActivationExpire,
+                sqlClient
+            )
+
+            mailManager.sendMail(
+                sqlClient,
+                userId,
+                ActivationMail(linkActivationToken, user.username, email, "")
+            )
+
+            return Successful(
+                mapOf(
+                    "emailVerificationRequired" to true,
+                    "email" to email
+                )
+            )
         }
         
+        // Fire AuthEventListener.onBeforeAuthenticate hooks (e.g., captcha check)
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeAuthenticate(context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    else -> { /* proceed */ }
+                }
+            }
+        }
+
         RegisterUtil.validateForm(username, email, password, passwordRepeat, agreement)
 
         val userId = RegisterUtil.register(
@@ -103,7 +167,6 @@ class RegisterAPI(
 
         // Fire AuthEventListener.onAfterRegister hooks
         val registeredUser = databaseManager.userDao.getById(userId, sqlClient)!!
-        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
         for (listener in authListeners) {
             listener.onAfterRegister(registeredUser, sqlClient)
         }
@@ -121,14 +184,19 @@ class RegisterAPI(
 
             authProvider.setCookies(context, token, csrfToken)
 
-            return Successful(mapOf("login" to true))
+            return Successful(
+                mapOf(
+                    "login" to true,
+                    "csrfToken" to csrfToken
+                )
+            )
         }
 
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), TokenType.ACTIVATION, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ActivationTokenType, sqlClient)
 
-        val (tokenGenerated, expireDate) = tokenProvider.generateToken(userId.toString(), TokenType.ACTIVATION)
+        val (tokenGenerated, expireDate) = tokenProvider.generateToken(userId.toString(), ActivationTokenType)
 
-        tokenProvider.saveToken(tokenGenerated, userId.toString(), TokenType.ACTIVATION, expireDate, sqlClient)
+        tokenProvider.saveToken(tokenGenerated, userId.toString(), ActivationTokenType, expireDate, sqlClient)
 
         mailManager.sendMail(sqlClient, userId, ActivationMail(tokenGenerated, username, email,""))
 

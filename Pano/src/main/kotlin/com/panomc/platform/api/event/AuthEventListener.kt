@@ -11,7 +11,27 @@ import io.vertx.sqlclient.SqlClient
 interface AuthEventListener : PanoEventListener {
 
     /**
+     * Called before credentials are validated (before password check).
+     * Use this for pre-authentication checks like captcha verification.
+     * Return a non-null LoginDecision to deny the login before password is checked.
+     * Returning null lets the authentication proceed normally.
+     */
+    suspend fun onBeforeAuthenticate(context: RoutingContext, sqlClient: SqlClient): LoginDecision? {
+        return null
+    }
+
+    /**
+     * Called before link-code verification (POST /api/auth/verifyLinkCode).
+     * Use when login captcha is required for users with no password (link-only), instead of on the
+     * initial username request that returns LinkCodeRequired.
+     */
+    suspend fun onBeforeVerifyLinkCode(context: RoutingContext, sqlClient: SqlClient): LoginDecision? {
+        return null
+    }
+
+    /**
      * Called before a user logs in (after credentials are validated but before token creation).
+     * Use this for post-authentication checks like 2FA verification.
      * Return a non-null LoginDecision to override the default behavior.
      * Returning null lets the login proceed normally.
      */

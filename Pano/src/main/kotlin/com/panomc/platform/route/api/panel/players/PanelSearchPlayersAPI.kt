@@ -38,10 +38,11 @@ class PanelSearchPlayersAPI(
         val sqlClient = databaseManager.getSqlClient()
         val hits = databaseManager.userDao.searchIdsAndUsernamesByUsername(q, 10, sqlClient)
 
-        val players = hits.map { (userId, username) ->
+        val players = hits.map { (userId, username, registeredIp) ->
             mapOf(
                 "id" to userId,
                 "username" to username,
+                "registeredIp" to registeredIp,
             )
         }
 

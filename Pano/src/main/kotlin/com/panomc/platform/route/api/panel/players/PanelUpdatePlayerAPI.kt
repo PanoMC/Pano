@@ -40,6 +40,7 @@ class PanelUpdatePlayerAPI(
                         .requiredProperty("isEmailVerified", booleanSchema())
                         .requiredProperty("canCreateTicket", booleanSchema())
                         .requiredProperty("localeCode", stringSchema())
+                        .requiredProperty("clearPassword", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -59,6 +60,7 @@ class PanelUpdatePlayerAPI(
         val isEmailVerified = data.getBoolean("isEmailVerified")
         val canCreateTicket = data.getBoolean("canCreateTicket")
         val localeCode = data.getString("localeCode")
+        val clearPassword = data.getBoolean("clearPassword") == true
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -68,7 +70,11 @@ class PanelUpdatePlayerAPI(
             throw NoPermission()
         }
 
-        validateForm(username, emailNormalized, newPassword, newPasswordRepeat)
+        if (clearPassword && !hasManagePlayerPermission) {
+            throw NoPermission()
+        }
+
+        validateForm(username, emailNormalized, newPassword, newPasswordRepeat, clearPassword)
 
         val sqlClient = getSqlClient()
 
@@ -126,7 +132,9 @@ class PanelUpdatePlayerAPI(
             databaseManager.userDao.setLocaleCodeById(localeCode.ifBlank { null }, user.id, sqlClient)
         }
 
-        if (newPassword.isNotEmpty()) {
+        if (clearPassword) {
+            databaseManager.userDao.clearPasswordAndMcLinkById(user.id, sqlClient)
+        } else if (newPassword.isNotEmpty()) {
             databaseManager.userDao.setPasswordById(user.id, newPassword, sqlClient)
         }
 
@@ -146,7 +154,8 @@ class PanelUpdatePlayerAPI(
         username: String,
         email: String?,
         newPassword: String,
-        newPasswordRepeat: String
+        newPasswordRepeat: String,
+        clearPassword: Boolean
     ) {
         val errors = mutableMapOf<String, Any>()
 
@@ -156,11 +165,17 @@ class PanelUpdatePlayerAPI(
         if (email != null && !email.matches(Regex("^[\\w-.]+@([\\w-]+\\.)+[\\w-]{2,4}\$")))
             errors["email"] = "INVALID"
 
-        if (newPassword.isNotEmpty() && (newPassword.length < 6 || newPassword.length > 128))
-            errors["newPassword"] = "INVALID"
+        if (clearPassword) {
+            if (newPassword.isNotEmpty() || newPasswordRepeat.isNotEmpty()) {
+                errors["newPassword"] = "CONFLICT"
+            }
+        } else {
+            if (newPassword.isNotEmpty() && (newPassword.length < 6 || newPassword.length > 128))
+                errors["newPassword"] = "INVALID"
 
-        if (newPasswordRepeat != newPassword)
-            errors["newPasswordRepeat"] = "NOT_MATCH"
+            if (newPasswordRepeat != newPassword)
+                errors["newPasswordRepeat"] = "NOT_MATCH"
+        }
 
         if (errors.isNotEmpty()) {
             throw Errors(errors)

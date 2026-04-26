@@ -243,6 +243,12 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     )
 
+    /** Sets password to NULL and clears [User.mcUuid] so the account must be linked again in-game. */
+    abstract suspend fun clearPasswordAndMcLinkById(
+        id: Long,
+        sqlClient: SqlClient
+    )
+
     abstract suspend fun isEmailVerifiedById(
         userId: Long,
         sqlClient: SqlClient

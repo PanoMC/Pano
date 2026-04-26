@@ -979,6 +979,24 @@ class UserDaoImpl : UserDao() {
             .coAwait()
     }
 
+    override suspend fun clearPasswordAndMcLinkById(
+        id: Long,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `password` = NULL, `mcUuid` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    "",
+                    id
+                )
+            )
+            .coAwait()
+    }
+
     override suspend fun isEmailVerifiedById(
         userId: Long,
         sqlClient: SqlClient

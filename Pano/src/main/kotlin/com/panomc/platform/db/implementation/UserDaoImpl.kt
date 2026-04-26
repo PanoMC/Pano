@@ -885,7 +885,7 @@ class UserDaoImpl : UserDao() {
 
     override suspend fun setEmailById(
         id: Long,
-        email: String,
+        email: String?,
         sqlClient: SqlClient
     ) {
         val query =

@@ -216,7 +216,7 @@ abstract class UserDao : Dao<User>(User::class.java) {
 
     abstract suspend fun setEmailById(
         id: Long,
-        email: String,
+        email: String?,
         sqlClient: SqlClient
     )
 

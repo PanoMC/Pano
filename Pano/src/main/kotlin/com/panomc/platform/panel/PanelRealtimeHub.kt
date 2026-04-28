@@ -15,8 +15,8 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Pushes live server data to panel WebSocket clients that subscribed to the server list
- * and/or a specific server. Subscribers must already have passed [ManageServersPermission] at upgrade time.
+ * Pushes live server data to clients that can manage servers and subscribe, and
+ * [panelNotificationRefresh] nudges for the panel notification list/count.
  */
 @Lazy
 @Component
@@ -26,14 +26,20 @@ class PanelRealtimeHub(
     private val vertx: Vertx
 ) {
     private data class ClientSession(
+        val userId: Long,
+        val canManageServers: Boolean,
+        var subscribeNotifications: Boolean = true,
         var subscribeServers: Boolean = false,
         var subscribeServerId: Long? = null
     )
 
     private val sessions = ConcurrentHashMap<ServerWebSocket, ClientSession>()
 
-    fun register(socket: ServerWebSocket) {
-        sessions[socket] = ClientSession()
+    fun register(socket: ServerWebSocket, userId: Long, canManageServers: Boolean) {
+        sessions[socket] = ClientSession(
+            userId = userId,
+            canManageServers = canManageServers
+        )
     }
 
     fun unregister(socket: ServerWebSocket) {
@@ -47,15 +53,46 @@ class PanelRealtimeHub(
             return
         }
         val s = sessions[socket] ?: return
-        if (body.containsKey("subscribeServers")) {
-            s.subscribeServers = body.getBoolean("subscribeServers", false)
+        if (body.containsKey("subscribeNotifications")) {
+            s.subscribeNotifications = body.getBoolean("subscribeNotifications", true)
         }
-        if (body.containsKey("subscribeServerId")) {
-            val v = body.getValue("subscribeServerId")
-            s.subscribeServerId = if (v == null) {
-                null
-            } else {
-                (v as Number).toLong()
+        if (s.canManageServers) {
+            if (body.containsKey("subscribeServers")) {
+                s.subscribeServers = body.getBoolean("subscribeServers", false)
+            }
+            if (body.containsKey("subscribeServerId")) {
+                val v = body.getValue("subscribeServerId")
+                s.subscribeServerId = if (v == null) {
+                    null
+                } else {
+                    (v as Number).toLong()
+                }
+            }
+        } else {
+            s.subscribeServers = false
+            s.subscribeServerId = null
+        }
+    }
+
+    /**
+     * Tells the user's open panel session(s) to re-fetch notification state over HTTP.
+     */
+    fun notifyPanelNotificationRefresh(userId: Long) {
+        val text = JsonObject()
+            .put("type", "panelNotificationRefresh")
+            .encode()
+        for ((ws, s) in sessions.toList()) {
+            if (ws.isClosed) {
+                sessions.remove(ws)
+                continue
+            }
+            if (s.userId != userId || !s.subscribeNotifications) {
+                continue
+            }
+            try {
+                ws.writeTextMessage(text)
+            } catch (_: Exception) {
+                sessions.remove(ws)
             }
         }
     }
@@ -90,6 +127,9 @@ class PanelRealtimeHub(
         for ((ws, s) in sessions.toList()) {
             if (ws.isClosed) {
                 sessions.remove(ws)
+                continue
+            }
+            if (!s.canManageServers) {
                 continue
             }
             val want = s.subscribeServers || s.subscribeServerId == serverId

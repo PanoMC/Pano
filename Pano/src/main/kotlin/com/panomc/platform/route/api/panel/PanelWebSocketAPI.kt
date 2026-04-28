@@ -45,7 +45,8 @@ class PanelWebSocketAPI(
     override suspend fun handle(context: RoutingContext): Result? {
         val request = context.request()
         try {
-            authProvider.requirePermission(ManageServersPermission(), context)
+            val userId = authProvider.getUserIdFromRoutingContext(context)
+            val canManageServers = authProvider.hasPermission(ManageServersPermission(), context)
 
             if (request.getHeader("Upgrade")?.equals("websocket", ignoreCase = true) != true) {
                 try {
@@ -62,7 +63,7 @@ class PanelWebSocketAPI(
 
             val future = request.toWebSocket()
             future.onSuccess { socket: ServerWebSocket ->
-                onWebSocketOpen(socket)
+                onWebSocketOpen(socket, userId, canManageServers)
             }
             future.onFailure {
                 if (!context.response().ended()) {
@@ -84,8 +85,8 @@ class PanelWebSocketAPI(
         return method == HttpMethod.GET
     }
 
-    private fun onWebSocketOpen(socket: ServerWebSocket) {
-        panelRealtimeHub.register(socket)
+    private fun onWebSocketOpen(socket: ServerWebSocket, userId: Long, canManageServers: Boolean) {
+        panelRealtimeHub.register(socket, userId, canManageServers)
         try {
             socket.writeTextMessage(
                 JsonObject()

@@ -9,6 +9,7 @@ import com.panomc.platform.db.dao.PanelNotificationDao
 import com.panomc.platform.db.dao.UserDao
 import com.panomc.platform.db.model.Notification
 import com.panomc.platform.db.model.PanelNotification
+import com.panomc.platform.panel.PanelRealtimeHub
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -22,7 +23,8 @@ import org.springframework.stereotype.Component
 class NotificationManager(
     databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) {
     private val notificationDao: NotificationDao = databaseManager.notificationDao
     private val panelNotificationDao: PanelNotificationDao = databaseManager.panelNotificationDao
@@ -54,6 +56,7 @@ class NotificationManager(
         )
 
         panelNotificationDao.add(panelNotification, sqlClient)
+        panelRealtimeHub.notifyPanelNotificationRefresh(userId)
     }
 
     suspend fun sendNotificationToAll(
@@ -94,6 +97,7 @@ class NotificationManager(
         }
 
         panelNotificationDao.addAll(panelNotifications, sqlClient)
+        userIdList.distinct().forEach { panelRealtimeHub.notifyPanelNotificationRefresh(it) }
     }
 
     suspend fun sendNotificationToAllAdmins(

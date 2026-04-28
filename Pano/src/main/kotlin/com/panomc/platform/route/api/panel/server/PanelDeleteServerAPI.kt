@@ -7,6 +7,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.CurrentPasswordNotCorrect
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -23,7 +24,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 class PanelDeleteServerAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val serverManager: ServerManager
+    private val serverManager: ServerManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id/delete", RouteType.POST))
 
@@ -88,6 +90,8 @@ class PanelDeleteServerAPI(
         databaseManager.serverPlayerDao.deleteByServerId(id, sqlClient)
 
         databaseManager.serverDao.deleteById(id, sqlClient)
+
+        panelRealtimeHub.notifyServerRemoved(id)
 
         return Successful()
     }

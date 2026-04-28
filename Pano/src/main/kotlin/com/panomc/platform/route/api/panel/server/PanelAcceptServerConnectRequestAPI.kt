@@ -60,19 +60,20 @@ class PanelAcceptServerConnectRequestAPI(
         }
 
         val panelConfig = databaseManager.panelConfigDao.byUserIdAndOption(userId, "selected_server", sqlClient)
+        val value = id.toString()
 
         if (panelConfig != null) {
-            return Successful()
+            databaseManager.panelConfigDao.updateValueById(panelConfig.id, value, sqlClient)
+        } else {
+            databaseManager.panelConfigDao.add(
+                PanelConfig(
+                    userId = userId,
+                    option = "selected_server",
+                    value = value
+                ),
+                sqlClient
+            )
         }
-
-        databaseManager.panelConfigDao.add(
-            PanelConfig(
-                userId = userId,
-                option = "selected_server",
-                value = "$id"
-            ),
-            sqlClient
-        )
 
         return Successful(mapOf("selected" to true))
     }

@@ -33,7 +33,7 @@ class PanelGetQuickNotificationsAPI(
                     "id" to notification.id,
                     "type" to notification.type.getName(),
                     "details" to notification.details.map,
-                    "status" to notification.status,
+                    "status" to notification.status.name,
                     "isPersonal" to (notification.userId == userId),
                     "createdAt" to notification.createdAt,
                     "updatedAt" to notification.updatedAt,

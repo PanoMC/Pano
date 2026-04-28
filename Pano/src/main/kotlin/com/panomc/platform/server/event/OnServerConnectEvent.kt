@@ -3,6 +3,7 @@ package com.panomc.platform.server.event
 import com.panomc.platform.annotation.Event
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.ServerEventResponse
 import com.panomc.platform.server.ServerStatus
@@ -10,7 +11,10 @@ import com.panomc.platform.server.event.request.OnServerConnectEventRequest
 import com.panomc.platform.util.ImageValidationUtil
 
 @Event
-class OnServerConnectEvent(private val databaseManager: DatabaseManager) : ServerEvent<OnServerConnectEventRequest, ServerEventResponse>() {
+class OnServerConnectEvent(
+    private val databaseManager: DatabaseManager,
+    private val panelRealtimeHub: PanelRealtimeHub
+) : ServerEvent<OnServerConnectEventRequest, ServerEventResponse>() {
     override suspend fun handle(request: OnServerConnectEventRequest, server: Server): ServerEventResponse? {
         val sqlClient = databaseManager.getSqlClient()
 
@@ -28,6 +32,8 @@ class OnServerConnectEvent(private val databaseManager: DatabaseManager) : Serve
         server.startTime = request.startTime
 
         databaseManager.serverDao.update(server, sqlClient)
+
+        panelRealtimeHub.notifyServerUpdated(server.id)
 
         return null
     }

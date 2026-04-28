@@ -104,6 +104,13 @@ class PanelGetBasicDataAPI(
                 val selectedServerId = selectedServerPanelConfig.value.toLong()
 
                 selectedServer = databaseManager.serverDao.getById(selectedServerId, sqlClient)
+                if (selectedServer == null) {
+                    databaseManager.panelConfigDao.deleteByOptionAndValue(
+                        "selected_server",
+                        selectedServerId.toString(),
+                        sqlClient
+                    )
+                }
             }
 
             val host = context.request().authority().host()

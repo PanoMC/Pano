@@ -10,6 +10,7 @@ import com.panomc.platform.model.Api
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerAuthProvider
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.ServerStatus
@@ -26,7 +27,8 @@ class ServerConnectAPI(
     private val databaseManager: DatabaseManager,
     private val setupManager: SetupManager,
     private val serverAuthProvider: ServerAuthProvider,
-    private val serverManager: ServerManager
+    private val serverManager: ServerManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : Api() {
     override val paths = listOf(Path("/api/server/connection", RouteType.GET))
 
@@ -85,6 +87,8 @@ class ServerConnectAPI(
 
         serverManager.onServerConnect(server, serverWebSocket)
 
+        panelRealtimeHub.notifyServerUpdated(server.id)
+
         serverWebSocket.textMessageHandler {
             CoroutineScope(context.vertx().dispatcher()).launch {
                 serverManager.onServerWrite(it, server)
@@ -109,5 +113,9 @@ class ServerConnectAPI(
         }
 
         serverManager.onServerDisconnect(server)
+
+        if (serverExists) {
+            panelRealtimeHub.notifyServerUpdated(server.id)
+        }
     }
 }

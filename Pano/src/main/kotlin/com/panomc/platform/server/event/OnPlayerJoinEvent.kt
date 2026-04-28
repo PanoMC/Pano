@@ -5,12 +5,16 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.ServerPlayer
 import com.panomc.platform.db.model.User
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.ServerEventResponse
 import com.panomc.platform.server.event.request.OnPlayerJoinEventRequest
 
 @Event
-class OnPlayerJoinEvent(private val databaseManager: DatabaseManager) : ServerEvent<OnPlayerJoinEventRequest, ServerEventResponse>() {
+class OnPlayerJoinEvent(
+    private val databaseManager: DatabaseManager,
+    private val panelRealtimeHub: PanelRealtimeHub
+) : ServerEvent<OnPlayerJoinEventRequest, ServerEventResponse>() {
     override suspend fun handle(request: OnPlayerJoinEventRequest, server: Server): ServerEventResponse? {
         val player = request.player
 
@@ -42,6 +46,8 @@ class OnPlayerJoinEvent(private val databaseManager: DatabaseManager) : ServerEv
             
             databaseManager.userDao.add(newUser, null, sqlClient, false)
         }
+
+        panelRealtimeHub.notifyServerUpdated(server.id)
 
         return null
     }

@@ -15,6 +15,7 @@ import com.panomc.platform.server.event.request.SavePermissionsSnapshotEventRequ
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
+import io.vertx.mysqlclient.MySQLException
 import io.vertx.sqlclient.SqlClient
 
 /**
@@ -234,7 +235,17 @@ class SavePermissionsSnapshotEvent(
                 mcUuid = uuidByUsername[username]
             )
 
-            val newId = databaseManager.userDao.add(newUser, null, sqlClient, false)
+            val newId = try {
+                databaseManager.userDao.add(newUser, null, sqlClient, false)
+            } catch (e: MySQLException) {
+                // Snapshot sync can run concurrently with join/register flows.
+                // If username already exists, resolve and continue instead of crashing the event loop.
+                if (e.errorCode == 1062) {
+                    databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw e
+                } else {
+                    throw e
+                }
+            }
             resolved[username] = newId
         }
 

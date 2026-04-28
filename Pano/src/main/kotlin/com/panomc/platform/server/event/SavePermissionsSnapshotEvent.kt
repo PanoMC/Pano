@@ -95,7 +95,15 @@ class SavePermissionsSnapshotEvent(
         // Insert groups and keep name->id map
         val groupIdByName = mutableMapOf<String, Long>()
         groupsFromPayload.forEach { grp ->
-            val newId = databaseManager.permissionGroupDao.add(grp, sqlClient)
+            val newId = try {
+                databaseManager.permissionGroupDao.add(grp, sqlClient)
+            } catch (e: MySQLException) {
+                if (e.errorCode == 1062) {
+                    databaseManager.permissionGroupDao.getPermissionGroupIdByName(grp.name, sqlClient) ?: throw e
+                } else {
+                    throw e
+                }
+            }
             groupIdByName[grp.name] = newId
         }
 
@@ -118,7 +126,13 @@ class SavePermissionsSnapshotEvent(
                 createdAt = obj.getLong("createdAt") ?: System.currentTimeMillis(),
                 updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()
             )
-            databaseManager.permissionTrackDao.add(track, sqlClient)
+            try {
+                databaseManager.permissionTrackDao.add(track, sqlClient)
+            } catch (e: MySQLException) {
+                if (e.errorCode != 1062) {
+                    throw e
+                }
+            }
         }
 
         // Insert nodes

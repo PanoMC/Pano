@@ -3,7 +3,6 @@ package com.panomc.platform.auth
 import com.panomc.platform.AppConstants
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.token.TokenProvider
@@ -123,14 +122,14 @@ class AuthProvider(
         val response = routingContext.response()
         val request = routingContext.request()
         val domain = resolveCookieDomain(routingContext)
-        val config = configManager.config
-        val isSslConfigured = config.server.sslMode != PanoConfig.Companion.SslMode.DISABLED ||
-                             config.server.redirectHttps || 
-                             config.websiteUrl.startsWith("https://")
-        
-        val isSecure = request.isSSL || 
-                       request.getHeader("X-Forwarded-Proto")?.lowercase() == "https" ||
-                       (isSslConfigured && domain != null)
+        val forwardedProto = request.getHeader("X-Forwarded-Proto")
+            ?.split(",")
+            ?.firstOrNull()
+            ?.trim()
+            ?.lowercase()
+
+        // Secure flag should follow the effective request protocol, not website-url config.
+        val isSecure = request.isSSL || forwardedProto == "https"
 
         val authTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME, authToken)
         val csrfTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME, csrfToken)

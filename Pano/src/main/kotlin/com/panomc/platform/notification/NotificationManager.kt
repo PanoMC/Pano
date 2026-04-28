@@ -42,6 +42,7 @@ class NotificationManager(
         )
 
         notificationDao.add(notification, sqlClient)
+        panelRealtimeHub.notifyPanelNotificationRefresh(userId)
     }
 
     suspend fun sendPanelNotification(
@@ -77,6 +78,7 @@ class NotificationManager(
         }
 
         notificationDao.addAll(notifications, sqlClient)
+        userIdList.distinct().forEach { panelRealtimeHub.notifyPanelNotificationRefresh(it) }
     }
 
     suspend fun sendPanelNotificationToAll(

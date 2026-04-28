@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Pushes live server data to clients that can manage servers and subscribe, and
- * [panelNotificationRefresh] nudges for the panel notification list/count.
+ * [notificationRefresh] nudges clients to re-fetch notification state over HTTP (site + panel).
  */
 @Lazy
 @Component
@@ -79,7 +79,7 @@ class PanelRealtimeHub(
      */
     fun notifyPanelNotificationRefresh(userId: Long) {
         val text = JsonObject()
-            .put("type", "panelNotificationRefresh")
+            .put("type", "notificationRefresh")
             .encode()
         for ((ws, s) in sessions.toList()) {
             if (ws.isClosed) {

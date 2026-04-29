@@ -14,6 +14,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.ResetPasswordTokenType
 import com.panomc.platform.util.Regexes
+import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -60,7 +61,7 @@ class ResetPasswordAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val usernameOrEmail = data.getString("usernameOrEmail")
+        val usernameOrEmail = TextUtil.stripWhitespace(data.getString("usernameOrEmail", ""))
 
         validateInput(usernameOrEmail)
 

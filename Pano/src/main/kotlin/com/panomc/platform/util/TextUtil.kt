@@ -4,6 +4,9 @@ import java.io.PrintWriter
 import java.io.StringWriter
 
 object TextUtil {
+    /** Removes all Unicode whitespace, matching site theme login/register identifier fields. */
+    fun stripWhitespace(s: String) = s.replace(Regex("\\s"), "")
+
     fun convertStringToUrl(string: String, limit: Int = 200) =
         string
             .replace("\\s+".toRegex(), "-")

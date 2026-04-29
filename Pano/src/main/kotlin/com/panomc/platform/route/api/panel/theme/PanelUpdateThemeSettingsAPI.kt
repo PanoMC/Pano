@@ -140,15 +140,15 @@ class PanelUpdateThemeSettingsAPI(
                 }
 
                 if (newSettingsFiles != null) {
-                    newSettingsFiles.forEach {
-                        val list = it.value as JsonArray
+                    newSettingsFiles.forEach { (key, value) ->
+                        val list = value as JsonArray
 
                         if (list.contains(fileName)) {
                             list.remove(fileName)
                         }
 
                         if (list.isEmpty) {
-                            newSettingsFiles.remove(it.toString())
+                            newSettingsFiles.remove(key)
                         }
                     }
                 }
@@ -165,40 +165,19 @@ class PanelUpdateThemeSettingsAPI(
             val settingsProperty = JsonObject(existingSettingsProperty.value)
             val currentThemeSettings = settingsProperty.getJsonObject(uiManager.activeTheme)
 
+            if (currentThemeSettings != null && !newSettings.isEmpty) {
+                mergeFilesFromCurrentTheme(newSettings, currentThemeSettings)
+            }
+
             if (currentThemeSettings != null) {
                 val existingFiles = currentThemeSettings.getJsonObject("files")
-
                 if (existingFiles != null) {
                     val newSettingsFiles = newSettings.getJsonObject("files") ?: JsonObject()
-
-                    existingFiles.filter { !(newSettingsFiles.getJsonArray(it.key) ?: JsonArray()).contains(it.value) }
-                        .forEach {
-                            JsonArray(it.value.toString()).forEach { fileName ->
-                                val file = File(folder + fileName)
-
-                                if (file.exists()) {
-                                    file.deleteRecursively()
-                                }
-                            }
-                        }
-
-                    existingFiles.forEach { existingFile ->
-                        newSettingsFiles.filter { it.key == existingFile.key }.forEach {
-                            val newFiles = JsonArray(it.value.toString())
-
-                            val files = JsonArray(existingFile.value.toString())
-
-                            files.filter { !newFiles.contains(it) }.forEach {
-                                val file = File(folder + it)
-
-                                if (file.exists()) {
-                                    file.deleteRecursively()
-                                }
-                            }
-                        }
-                    }
+                    deleteReplacedThemeFiles(folder, existingFiles, newSettingsFiles)
                 }
             }
+
+            newSettings.getJsonObject("files")?.let { stripEmptyThemeFileKeys(it) }
 
             settingsProperty.put(uiManager.activeTheme, newSettings)
 
@@ -206,6 +185,8 @@ class PanelUpdateThemeSettingsAPI(
 
             return Successful(newSettings.map)
         }
+
+        newSettings.getJsonObject("files")?.let { stripEmptyThemeFileKeys(it) }
 
         val newSettingsProperty = JsonObject()
 
@@ -219,5 +200,60 @@ class PanelUpdateThemeSettingsAPI(
         )
 
         return Successful(newSettings.map)
+    }
+
+    private fun stripEmptyThemeFileKeys(files: JsonObject) {
+        for (k in files.fieldNames().toList()) {
+            if (fileNamesInThemeFileValue(files.getValue(k)).isEmpty()) {
+                files.remove(k)
+            }
+        }
+    }
+
+    private fun fileNamesInThemeFileValue(value: Any?): List<String> = when (value) {
+        null -> emptyList()
+        is String -> if (value.isEmpty()) emptyList() else listOf(value)
+        is JsonArray -> (0 until value.size()).map { value.getValue(it).toString() }
+        else -> emptyList()
+    }
+
+    /**
+     * Copy missing "files" keys from the current DB state so a partial request (e.g. one tab)
+     * does not drop other image fields. Keys present in the request (including empty list for
+     * "removed") are not overwritten.
+     */
+    private fun mergeFilesFromCurrentTheme(newSettings: JsonObject, currentThemeSettings: JsonObject) {
+        val currentFiles = currentThemeSettings.getJsonObject("files") ?: return
+        var nextFiles = newSettings.getJsonObject("files")
+        if (nextFiles == null) {
+            nextFiles = JsonObject()
+            newSettings.put("files", nextFiles)
+        }
+        for (k in currentFiles.fieldNames()) {
+            if (!nextFiles.containsKey(k)) {
+                nextFiles.put(k, currentFiles.getValue(k))
+            }
+        }
+    }
+
+    private fun deleteReplacedThemeFiles(
+        folder: String,
+        previousFiles: JsonObject,
+        nextFiles: JsonObject
+    ) {
+        for (k in previousFiles.fieldNames()) {
+            val oldNames = fileNamesInThemeFileValue(previousFiles.getValue(k))
+            if (oldNames.isEmpty()) continue
+            val newVal = if (nextFiles.containsKey(k)) nextFiles.getValue(k) else null
+            val newNames = fileNamesInThemeFileValue(newVal)
+            for (fileName in oldNames) {
+                if (fileName !in newNames) {
+                    val f = File(folder + fileName)
+                    if (f.exists()) {
+                        f.deleteRecursively()
+                    }
+                }
+            }
+        }
     }
 }

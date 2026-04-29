@@ -179,6 +179,10 @@ class Main : CoroutineVerticle() {
         val logger by lazy {
             LoggerFactory.getLogger("Pano")
         }
+
+        /** Bold green + reset so the Pano URL stands out in the console. */
+        private const val CONSOLE_BOLD_GREEN = "\u001B[1;32m"
+        private const val CONSOLE_RESET = "\u001B[0m"
     }
 
     private lateinit var router: Router
@@ -563,6 +567,42 @@ class Main : CoroutineVerticle() {
         }
     }
 
+    private fun buildPanoUrlFromWebsiteUrl(): String? {
+        val raw = configManager.config.websiteUrl.trim()
+        if (raw.isEmpty()) return null
+        var base = raw.trimEnd('/')
+        if (base.endsWith("/panel", ignoreCase = true)) {
+            base = base.substring(0, base.length - 6).trimEnd('/')
+        }
+        return base.ifEmpty { null }
+    }
+
+    private fun buildLocalPanoUrl(scheme: String, host: String, port: Int): String {
+        val h = when (host) {
+            "0.0.0.0" -> "127.0.0.1"
+            "[::]", "::" -> "127.0.0.1"
+            else -> host
+        }
+        val defaultPort = if (scheme == "https") 443 else 80
+        val p = if (port == defaultPort) "" else ":$port"
+        return "$scheme://$h$p"
+    }
+
+    private fun logWebServerReady(scheme: String, host: String, port: Int) {
+        val startup = TimeUtil.getStartupTime()
+        logger.info("Started listening on $scheme://$host:$port, ready to rock & roll! (${startup}s)")
+        val green = CONSOLE_BOLD_GREEN
+        val reset = CONSOLE_RESET
+        val fromConfig = buildPanoUrlFromWebsiteUrl()
+        if (fromConfig != null) {
+            logger.info("${green}You can visit your Pano at: $fromConfig$reset")
+        } else {
+            val fallback = buildLocalPanoUrl(scheme, host, port)
+            logger.info("${green}You can visit your Pano at: $fallback (set website-url in config to your public site URL if users reach Pano through a different host or port).$reset")
+        }
+        UiConsole.markReady()
+    }
+
     private fun startHttpServer(serverConfig: PanoConfig.Companion.ServerConfig, handler: Handler<HttpServerRequest>) {
         val host = serverConfig.host
         val port = serverConfig.httpPort
@@ -576,8 +616,7 @@ class Main : CoroutineVerticle() {
                         acmeManager.prepareCertificates()
                     }
                 } else {
-                    logger.info("Started listening on http://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
-                    UiConsole.markReady()
+                    logWebServerReady("http", host, port)
                 }
             }.onFailure { result ->
                 val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}"
@@ -605,8 +644,7 @@ class Main : CoroutineVerticle() {
 
         logger.info("Creating HTTPS server on port $port (Mode: ${serverConfig.sslMode})")
         vertx.createHttpServer(options).requestHandler(handler).listen(port, host).onSuccess {
-                logger.info("Started listening on https://$host:$port, ready to rock & roll! (${TimeUtil.getStartupTime()}s)")
-                UiConsole.markReady()
+                logWebServerReady("https", host, port)
             }.onFailure { result ->
                 logger.error("Failed to listen on https://$host:$port, reason: ${result.message ?: result.toString()}")
                 UiConsole.markReady()

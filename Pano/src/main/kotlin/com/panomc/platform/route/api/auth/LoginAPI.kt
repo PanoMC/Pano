@@ -15,6 +15,7 @@ import com.panomc.platform.token.ActivationTokenType
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.PasswordHasher
 import com.panomc.platform.util.Regexes
+import com.panomc.platform.util.TextUtil
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -56,10 +57,10 @@ class LoginAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val usernameOrEmail = data.getString("usernameOrEmail")
+        val usernameOrEmail = TextUtil.stripWhitespace(data.getString("usernameOrEmail", ""))
         val password = data.getString("password")
-        val registerEmail = data.getString("registerEmail")
-        val newUsername = data.getString("newUsername")
+        val registerEmail = data.getString("registerEmail")?.let { TextUtil.stripWhitespace(it) }
+        val newUsername = data.getString("newUsername")?.let { TextUtil.stripWhitespace(it) }
 
         val sqlClient = getSqlClient()
 

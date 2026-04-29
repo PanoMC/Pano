@@ -16,6 +16,7 @@ import com.panomc.platform.token.ActivationTokenType
 import com.panomc.platform.token.RegisterWithLinkCodeTokenType
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
+import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -54,8 +55,8 @@ class RegisterAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val username = data.getString("username")
-        val email = data.getString("email")
+        val username = data.getString("username")?.let { TextUtil.stripWhitespace(it) } ?: ""
+        val email = data.getString("email")?.let { TextUtil.stripWhitespace(it) } ?: ""
         val password = data.getString("password")
         val passwordRepeat = data.getString("passwordRepeat")
         val agreement = data.getBoolean("agreement")

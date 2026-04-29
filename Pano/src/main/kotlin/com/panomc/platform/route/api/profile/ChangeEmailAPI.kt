@@ -13,6 +13,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.ChangeEmailTokenType
 import com.panomc.platform.util.Regexes
+import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -48,7 +49,7 @@ class ChangeEmailAPI(
         val data = parameters.body().jsonObject
 
         val currentPassword = data.getString("currentPassword")
-        val newEmail = data.getString("newEmail")
+        val newEmail = TextUtil.stripWhitespace(data.getString("newEmail", ""))
 
         if (!newEmail.matches(Regex(Regexes.EMAIL))) {
             throw InvalidEmail()

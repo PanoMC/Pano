@@ -3,7 +3,6 @@ package com.panomc.platform.auth
 import com.panomc.platform.AppConstants
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.token.TokenProvider
@@ -33,6 +32,7 @@ class AuthProvider(
 ) {
     companion object {
         const val HEADER_PREFIX = "Bearer "
+        private const val INSECURE_COOKIE_SUFFIX = "_http"
     }
 
     private val permissions = mutableListOf<Permission>()
@@ -123,17 +123,17 @@ class AuthProvider(
         val response = routingContext.response()
         val request = routingContext.request()
         val domain = resolveCookieDomain(routingContext)
-        val config = configManager.config
-        val isSslConfigured = config.server.sslMode != PanoConfig.Companion.SslMode.DISABLED ||
-                             config.server.redirectHttps || 
-                             config.websiteUrl.startsWith("https://")
-        
-        val isSecure = request.isSSL || 
-                       request.getHeader("X-Forwarded-Proto")?.lowercase() == "https" ||
-                       (isSslConfigured && domain != null)
+        val forwardedProto = request.getHeader("X-Forwarded-Proto")
+            ?.split(",")
+            ?.firstOrNull()
+            ?.trim()
+            ?.lowercase()
 
-        val authTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME, authToken)
-        val csrfTokenCookie = Cookie.cookie(AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME, csrfToken)
+        // Secure flag should follow the effective request protocol, not website-url config.
+        val isSecure = request.isSSL || forwardedProto == "https"
+
+        val authTokenCookie = Cookie.cookie(getJwtCookieName(isSecure), authToken)
+        val csrfTokenCookie = Cookie.cookie(getCsrfCookieName(isSecure), csrfToken)
 
         listOf(authTokenCookie, csrfTokenCookie).forEach { cookie ->
             domain?.let { cookie.domain = it }
@@ -155,8 +155,10 @@ class AuthProvider(
         val domain = resolveCookieDomain(routingContext)
 
         listOf(
-            AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME,
-            AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME
+            getJwtCookieName(true),
+            getCsrfCookieName(true),
+            getJwtCookieName(false),
+            getCsrfCookieName(false)
         ).forEach { cookieName ->
             val cookie = Cookie.cookie(cookieName, "deleted")
             domain?.let { cookie.domain = it }
@@ -268,8 +270,10 @@ class AuthProvider(
         try {
             val cookiePairs = cookieHeader.split(";")
             for (cookiePair in cookiePairs) {
-                val (name, value) = cookiePair.trim().split("=")
-                cookies[name] = value
+                val parts = cookiePair.trim().split("=", limit = 2)
+                if (parts.size == 2) {
+                    cookies[parts[0]] = parts[1]
+                }
             }
         } catch (_: Exception) {
         }
@@ -282,7 +286,7 @@ class AuthProvider(
         val cookieHeader = request.getHeader("cookie") ?: ""
 
         val cookies = parseCookies(cookieHeader)
-        val jwtCookie = cookies[AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME]
+        val jwtCookie = cookies[getJwtCookieName(true)] ?: cookies[getJwtCookieName(false)]
 
         if (jwtCookie != null) {
             return jwtCookie
@@ -307,6 +311,16 @@ class AuthProvider(
         } catch (exception: Exception) {
             null
         }
+    }
+
+    private fun getJwtCookieName(secureVariant: Boolean): String {
+        val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
+        return AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME + suffix
+    }
+
+    private fun getCsrfCookieName(secureVariant: Boolean): String {
+        val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
+        return AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME + suffix
     }
 
     suspend fun logout(routingContext: RoutingContext, sqlClient: SqlClient) {

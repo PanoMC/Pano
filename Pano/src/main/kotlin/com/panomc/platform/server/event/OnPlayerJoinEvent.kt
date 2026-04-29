@@ -9,6 +9,7 @@ import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.ServerEventResponse
 import com.panomc.platform.server.event.request.OnPlayerJoinEventRequest
+import io.vertx.mysqlclient.MySQLException
 
 @Event
 class OnPlayerJoinEvent(
@@ -43,8 +44,19 @@ class OnPlayerJoinEvent(
                 registeredIp = player.ipAddress,
                 mcUuid = player.uuid.toString()
             )
-            
-            databaseManager.userDao.add(newUser, null, sqlClient, false)
+
+            try {
+                databaseManager.userDao.add(newUser, null, sqlClient, false)
+            } catch (e: MySQLException) {
+                // Another flow might have inserted the same username concurrently.
+                if (e.errorCode == 1062) {
+                    databaseManager.userDao.getUserIdFromUsername(player.username, sqlClient)?.let {
+                        databaseManager.userDao.updateLastLoginDate(it, sqlClient)
+                    }
+                } else {
+                    throw e
+                }
+            }
         }
 
         panelRealtimeHub.notifyServerUpdated(server.id)

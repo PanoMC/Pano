@@ -15,6 +15,7 @@ import com.panomc.platform.server.event.request.SavePermissionsSnapshotEventRequ
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
+import io.vertx.mysqlclient.MySQLException
 import io.vertx.sqlclient.SqlClient
 
 /**
@@ -94,7 +95,15 @@ class SavePermissionsSnapshotEvent(
         // Insert groups and keep name->id map
         val groupIdByName = mutableMapOf<String, Long>()
         groupsFromPayload.forEach { grp ->
-            val newId = databaseManager.permissionGroupDao.add(grp, sqlClient)
+            val newId = try {
+                databaseManager.permissionGroupDao.add(grp, sqlClient)
+            } catch (e: MySQLException) {
+                if (e.errorCode == 1062) {
+                    databaseManager.permissionGroupDao.getPermissionGroupIdByName(grp.name, sqlClient) ?: throw e
+                } else {
+                    throw e
+                }
+            }
             groupIdByName[grp.name] = newId
         }
 
@@ -117,7 +126,13 @@ class SavePermissionsSnapshotEvent(
                 createdAt = obj.getLong("createdAt") ?: System.currentTimeMillis(),
                 updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()
             )
-            databaseManager.permissionTrackDao.add(track, sqlClient)
+            try {
+                databaseManager.permissionTrackDao.add(track, sqlClient)
+            } catch (e: MySQLException) {
+                if (e.errorCode != 1062) {
+                    throw e
+                }
+            }
         }
 
         // Insert nodes
@@ -234,7 +249,17 @@ class SavePermissionsSnapshotEvent(
                 mcUuid = uuidByUsername[username]
             )
 
-            val newId = databaseManager.userDao.add(newUser, null, sqlClient, false)
+            val newId = try {
+                databaseManager.userDao.add(newUser, null, sqlClient, false)
+            } catch (e: MySQLException) {
+                // Snapshot sync can run concurrently with join/register flows.
+                // If username already exists, resolve and continue instead of crashing the event loop.
+                if (e.errorCode == 1062) {
+                    databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw e
+                } else {
+                    throw e
+                }
+            }
             resolved[username] = newId
         }
 

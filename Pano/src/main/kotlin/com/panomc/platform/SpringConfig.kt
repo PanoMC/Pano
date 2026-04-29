@@ -19,6 +19,7 @@ import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpClientOptions
+import io.vertx.core.http.PoolOptions
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.WebClientOptions
@@ -106,8 +107,35 @@ open class SpringConfig {
     open fun provideHttpClient(): HttpClient = vertx.createHttpClient(
         HttpClientOptions()
             .setConnectTimeout(10000)
+            .setKeepAlive(true)
+            // Vert.x default keep-alive timeout is 60s, but the Bun/SvelteKit adapter-node
+            // upstream closes idle keep-alive connections after ~5s (Node default). When
+            // the page sits idle for ≥5s the upstream silently sends FIN; Vert.x still has
+            // the socket in the pool and reuses it on the next request, getting RST/EOF and
+            // surfacing it as 502. Keep our timeout below the upstream's so the pooled
+            // socket is evicted *before* it can become stale.
+            //
+            // NOTE: Only [setKeepAliveTimeout] is set, NOT [setIdleTimeout]. The two are
+            // very different: keepAliveTimeout is HTTP/1.x specific and only affects the
+            // window between two requests on a kept-alive connection. idleTimeout is a
+            // socket-level read/write inactivity timeout that ALSO kills upgraded
+            // connections such as the Vite HMR WebSocket in theme dev mode, which would
+            // make the dev page silently reload every few seconds.
+            .setKeepAliveTimeout(4)
             .setIdleTimeout(60)
-            .setIdleTimeoutUnit(TimeUnit.SECONDS)
+            .setIdleTimeoutUnit(TimeUnit.SECONDS),
+        // Default pool size in Vert.x 5 is 5 connections per origin (HTTP/1.x). This
+        // HttpClient is shared between the panel-ui and theme Bun reverse-proxy targets,
+        // and a single SvelteKit page open fires 10–30 parallel module/asset requests
+        // (importmap entries, _app/* chunks, images, fonts...). With 5 connections any
+        // burst that arrives faster than the upstream can reply gets queued; if the
+        // wait-queue is also exhausted the request fails immediately with
+        // ConnectionPoolTooBusyException, which the proxy turns into a 502 Bad Gateway.
+        // Pool sizing in Vert.x 5 lives on PoolOptions, not HttpClientOptions.
+        PoolOptions()
+            .setHttp1MaxSize(256)
+            .setHttp2MaxSize(256)
+            .setMaxWaitQueueSize(-1)
     )
 
     @Bean

@@ -33,6 +33,29 @@ class PermissionManager(
     private val groupPrefix = "group."
     val defaultGroupName = "default"
 
+    // Loads a fresh snapshot from the database. Caller is expected to hold [mutex].
+    private suspend fun loadFreshCacheLocked(): Cache {
+        val sqlClient = databaseManager.getSqlClient()
+
+        val groups = databaseManager.permissionGroupDao.getPermissionGroups(sqlClient)
+        val nodes = databaseManager.permissionNodeDao.getPermissionNodes(sqlClient)
+
+        val refreshedNow = System.currentTimeMillis()
+        val expiredNodeIds = nodes.filter { it.expiresAt != null && it.expiresAt < refreshedNow }.map { it.id }
+        if (expiredNodeIds.isNotEmpty()) {
+            databaseManager.permissionNodeDao.deleteByIds(expiredNodeIds, sqlClient)
+        }
+
+        val activeNodes = nodes.filter { it.expiresAt == null || it.expiresAt >= refreshedNow }
+
+        return Cache(
+            fetchedAt = refreshedNow,
+            groupsById = groups.associateBy { it.id },
+            groupsByName = groups.associateBy { it.name },
+            nodes = activeNodes
+        )
+    }
+
     // Return cached snapshot; refresh on TTL expiry (lazy, mutex-guarded).
     private suspend fun getCache(): Cache {
         val current = cache
@@ -48,30 +71,25 @@ class PermissionManager(
                 return@withLock latest
             }
 
-            val sqlClient = databaseManager.getSqlClient()
-
-            val groups = databaseManager.permissionGroupDao.getPermissionGroups(sqlClient)
-            val nodes = databaseManager.permissionNodeDao.getPermissionNodes(sqlClient)
-
-            val expiredNodeIds = nodes.filter { it.expiresAt != null && it.expiresAt < refreshedNow }.map { it.id }
-            if (expiredNodeIds.isNotEmpty()) {
-                databaseManager.permissionNodeDao.deleteByIds(expiredNodeIds, sqlClient)
-            }
-
-            val activeNodes = nodes.filter { it.expiresAt == null || it.expiresAt >= refreshedNow }
-
-            Cache(
-                fetchedAt = refreshedNow,
-                groupsById = groups.associateBy { it.id },
-                groupsByName = groups.associateBy { it.name },
-                nodes = activeNodes
-            ).also { cache = it }
+            loadFreshCacheLocked().also { cache = it }
         }
     }
 
+    /**
+     * Atomically reloads the cache from the database.
+     *
+     * IMPORTANT: Setting `cache = null` was intentionally dropped. The previous behavior
+     * left the cache null after flows like [SavePermissionsSnapshotEvent] that truncate
+     * and reinsert the permission tables. Concurrent requests whose TTL had expired
+     * could acquire the mutex and read a half-applied (or even empty) snapshot from
+     * the database, which would then be cached for the full TTL window. The visible
+     * result was permission checks falsely failing for the duration. The new behavior
+     * fully loads the fresh snapshot under the lock and swaps it in place; concurrent
+     * readers keep using the previous cache until the swap is complete.
+     */
     suspend fun refresh() {
         mutex.withLock {
-            cache = null
+            cache = loadFreshCacheLocked()
         }
     }
 

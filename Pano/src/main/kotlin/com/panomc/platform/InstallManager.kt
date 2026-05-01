@@ -14,6 +14,7 @@ import com.panomc.platform.db.model.ResourceHash
 import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.FailedToInstallSystemResource
 import com.panomc.platform.error.InvalidResourceFile
+import com.panomc.platform.license.findLicenseRequiredInCauseChain
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Route
@@ -316,7 +317,18 @@ class InstallManager(
         } catch (e: Error) {
             progressHandler.invoke(e)
         } catch (e: Exception) {
-            progressHandler.invoke(FailedToInstallResource(extras = mapOf("message" to e.message)))
+            val licenseException = e.findLicenseRequiredInCauseChain()
+            val extras =
+                if (licenseException != null) {
+                    mapOf(
+                        "message" to licenseException.message,
+                        "licenseDeniedReason" to licenseException.reason.publicId,
+                        "pluginId" to licenseException.pluginId
+                    )
+                } else {
+                    mapOf("message" to e.message)
+                }
+            progressHandler.invoke(FailedToInstallResource(extras = extras))
         }
     }
 

@@ -7,6 +7,7 @@ import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.error.*
+import com.panomc.platform.license.LicenseManager
 import com.panomc.platform.model.Error
 import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
@@ -47,7 +48,7 @@ class PanoApiManager(
     private val webClient: WebClient,
     private val pluginManager: PluginManager,
     private val installManager: InstallManager,
-    applicationContext: ApplicationContext,
+    private val applicationContext: ApplicationContext,
     private val vertx: Vertx,
     private val authProvider: AuthProvider
 ) {
@@ -66,6 +67,13 @@ class PanoApiManager(
     }
 
     private fun getPanoAccountConfig() = configManager.config.panoAccount
+
+    private fun licenseManagerOrNull(): LicenseManager? =
+        try {
+            applicationContext.getBean(LicenseManager::class.java)
+        } catch (_: Throwable) {
+            null
+        }
 
     fun isConnected(): Boolean {
         val panoAccountConfig = getPanoAccountConfig()
@@ -176,6 +184,11 @@ class PanoApiManager(
             throw PanoConnectFailed()
         }
 
+        try {
+            licenseManagerOrNull()?.refreshLicensesAfterPanoConnectedBestEffort()
+        } catch (_: Throwable) {
+        }
+
         return Triple(username, email, platformId)
     }
 
@@ -194,6 +207,11 @@ class PanoApiManager(
         try {
             updateManager.deleteResourceUpdates()
         } catch (_: Exception) {
+        }
+
+        try {
+            licenseManagerOrNull()?.clearHostLicenseStateBecausePanoDisconnected()
+        } catch (_: Throwable) {
         }
     }
 
@@ -454,6 +472,75 @@ class PanoApiManager(
             "file" to file,
             "versionType" to versionType
         )
+    }
+
+    /**
+     * Calls panomc.com `POST /platform/api/licenses/issue` to mint a fresh RS256
+     * license JWT for a premium plugin running on this Pano installation.
+     *
+     * Throws [com.panomc.platform.license.LicenseManager.LicenseFetchException] on
+     * non-200 responses so [com.panomc.platform.license.LicenseManager] can map the
+     * HTTP status to a stable [com.panomc.platform.license.LicenseDeniedReason] for the
+     * panel UI.
+     */
+    suspend fun issueLicense(resourceId: String, version: String, jarSha256: String): String {
+        if (!isConnected()) {
+            throw PanoNotConnected()
+        }
+        val body = JsonObject(
+            mapOf(
+                "resourceId" to resourceId,
+                "version" to version,
+                "jarSha256" to jarSha256
+            )
+        )
+        val response = try {
+            createRequest(io.vertx.core.http.HttpMethod.POST, "/platform/api/licenses/issue")
+                .timeout(45_000)
+                .sendJson(body)
+                .coAwait()
+        } catch (e: Exception) {
+            throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = -1,
+                message = "license-fetch-network-error: ${e.message ?: e::class.java.simpleName}"
+            )
+        }
+
+        if (response.statusCode() == 401) {
+            throw PanoNotConnected()
+        }
+
+        if (response.statusCode() != 200) {
+            val payload = try {
+                response.bodyAsJsonObject()
+            } catch (_: Exception) {
+                null
+            }
+            val errorCode = payload?.getString("error") ?: ""
+            throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-failed: ${response.statusCode()} $errorCode"
+            )
+        }
+
+        val payload = try {
+            response.bodyAsJsonObject()
+        } catch (e: Exception) {
+            throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-bad-body: ${e.message}"
+            )
+        }
+        val data = payload.getJsonObject("data")
+            ?: throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-missing-data"
+            )
+        return data.getString("jwt")
+            ?: throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-missing-jwt"
+            )
     }
 
     suspend fun installResourceFromStore(

@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.plugins
 
+import com.panomc.platform.PluginManager
 import com.panomc.platform.PluginUiManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
@@ -30,6 +31,7 @@ import io.vertx.core.json.JsonArray
 class GetPluginUiZipAPI(
     private val configManager: ConfigManager,
     private val pluginUiManager: PluginUiManager,
+    private val pluginManager: PluginManager,
     private val logger: Logger
 ) : Api() {
     override val paths = listOf(Path("/api/plugins/:pluginId/resources/plugin-ui.zip", RouteType.GET))
@@ -45,7 +47,7 @@ class GetPluginUiZipAPI(
         val pluginId = parameters.pathParameter("pluginId").string
 
         val pluginIdWithPlugin =
-            pluginUiManager.getRegisteredPlugins().toList().firstOrNull { it.first.pluginId == pluginId }
+            pluginUiManager.getActiveRegisteredPlugins(pluginManager).firstOrNull { it.first.pluginId == pluginId }
 
         val plugin = pluginIdWithPlugin?.first
 

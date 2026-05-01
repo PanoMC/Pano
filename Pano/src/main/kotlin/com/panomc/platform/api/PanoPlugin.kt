@@ -93,6 +93,37 @@ abstract class PanoPlugin : Plugin() {
         Main.commandManager.unregisterCommands(obj)
     }
 
+    /**
+     * Returns Pano's [com.panomc.platform.license.LicenseManager] so a premium plugin
+     * can fetch a license JWT from panomc.com at startup. The plugin must verify the JWT
+     * with its own embedded public key ([com.panomc.platform.license.SignedLicense.verifySignature])
+     * using [getLicenseJwtIssuer] as the expected `iss` claim; the host only parses claims for
+     * caching and panel UX.
+     */
+    fun getLicenseManager(): com.panomc.platform.license.LicenseManager =
+        applicationContext.getBean(com.panomc.platform.license.LicenseManager::class.java)
+
+    /**
+     * JWT `iss` value to use when verifying license tokens ([com.panomc.platform.license.SignedLicense.verifySignature]).
+     * Derived from `pano-website-url` hostname, or from `pano-api-url` when the website URL is empty; must match
+     * `licensing.issuer` on the license API.
+     */
+    fun getLicenseJwtIssuer(): String =
+        applicationContext.getBean(com.panomc.platform.config.ConfigManager::class.java)
+            .config.resolvedLicenseJwtIssuer()
+
+    /**
+     * Returns the SHA-256 hash of the loaded plugin JAR, or null if it cannot be
+     * determined (e.g. running from an IDE without a packaged JAR). Plugins use this
+     * to cross-check the `hash` claim of their license token, defending against
+     * tampered hosts that try to feed back a stale or forged JWT.
+     */
+    fun getOwnJarSha256(): String? {
+        val pm = applicationContext.getBean(PluginManager::class.java)
+        val wrapper = pm.getPlugin(pluginId) as? PanoPluginWrapper ?: return null
+        return wrapper.hash.takeIf { it.isNotBlank() }?.lowercase()
+    }
+
     @Deprecated("Use onStart method.")
     override fun start() {
         runBlocking {

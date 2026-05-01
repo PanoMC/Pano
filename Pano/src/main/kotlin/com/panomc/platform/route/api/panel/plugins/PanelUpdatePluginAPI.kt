@@ -1,16 +1,21 @@
 package com.panomc.platform.route.api.panel.plugins
 
 
+import com.panomc.platform.PanoApiManager
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.DisabledPluginLog
 import com.panomc.platform.auth.panel.log.EnabledPluginLog
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.license.LicenseManager
+import com.panomc.platform.license.LicensePanelView
+import com.panomc.platform.license.isPluginStartupBlockedByLicense
+import com.panomc.platform.license.panelPluginStartupErrorText
 import com.panomc.platform.model.*
-import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -20,13 +25,20 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import org.pf4j.PluginState
+import org.slf4j.LoggerFactory
 
 @Endpoint
 class PanelUpdatePluginAPI(
     private val authProvider: AuthProvider,
     private val pluginManager: PluginManager,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val licenseManager: LicenseManager,
+    private val configManager: ConfigManager,
+    private val panoApiManager: PanoApiManager
 ) : PanelApi() {
+
+    private val log = LoggerFactory.getLogger(javaClass)
+
     override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -62,6 +74,28 @@ class PanelUpdatePluginAPI(
                 if (status) {
                     if (pluginWrapper.pluginState == PluginState.STARTED) {
                         return Successful()
+                    }
+
+                    val licenseFields = LicensePanelView.buildLicenseFields(
+                        pluginId = pluginId,
+                        licenseManager = licenseManager,
+                        configManager = configManager,
+                        isPanoConnected = panoApiManager.isConnected()
+                    )
+                    val premium = licenseFields["premium"] as Boolean
+                    val licensed = licenseFields["licensed"] as Boolean
+                    if (premium && !licensed) {
+                        log.warn(
+                            "Panel ENABLE '{}' rejected: premium addon without valid license (licensed=false)",
+                            pluginId,
+                        )
+                        return Successful(
+                            mapOf(
+                                "status" to PluginState.FAILED,
+                                "startupBlockedByLicense" to true,
+                                "error" to null
+                            )
+                        )
                     }
 
                     pluginManager.enablePlugin(pluginId)
@@ -109,18 +143,23 @@ class PanelUpdatePluginAPI(
                         ), sqlClient
                     )
                 }
-            } catch (e: Exception) {
-                val plugin = pluginManager.getPlugin(pluginId)
-
-                plugin.failedException = e
-                plugin.pluginState = PluginState.FAILED
+            } catch (t: Throwable) {
+                log.error(
+                    "Panel plugin '{}' state update threw {} — {}",
+                    pluginId,
+                    t.javaClass.name,
+                    t.message,
+                    t,
+                )
+                val wrapper = pluginManager.getPlugin(pluginId)
+                wrapper.failedException = t
+                wrapper.pluginState = PluginState.FAILED
 
                 return Successful(
                     mapOf(
-                        "status" to pluginWrapper.pluginState,
-                        "error" to if (pluginWrapper.failedException == null) null else TextUtil.getStackTraceAsString(
-                            pluginWrapper.failedException
-                        )
+                        "status" to wrapper.pluginState,
+                        "error" to wrapper.failedException.panelPluginStartupErrorText(),
+                        "startupBlockedByLicense" to wrapper.failedException.isPluginStartupBlockedByLicense()
                     )
                 )
             }

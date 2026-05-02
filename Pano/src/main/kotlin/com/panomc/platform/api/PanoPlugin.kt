@@ -2,6 +2,7 @@ package com.panomc.platform.api
 
 import com.panomc.platform.*
 import com.panomc.platform.api.event.PluginEventListener
+import com.panomc.platform.license.LicenseRequiredException
 import io.vertx.core.Vertx
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -126,9 +127,19 @@ abstract class PanoPlugin : Plugin() {
 
     @Deprecated("Use onStart method.")
     override fun start() {
-        runBlocking {
-            withContext(Dispatchers.IO) {
-                onStart()
+        try {
+            runBlocking {
+                withContext(Dispatchers.IO) {
+                    onStart()
+                }
+            }
+        } catch (e: LicenseRequiredException) {
+            try {
+                getLicenseManager().recordFailure(pluginId, e)
+                val pluginManager = applicationContext.getBean(PluginManager::class.java)
+                val wrapper = pluginManager.getPlugin(pluginId)
+                wrapper.failedException = e
+            } catch (_: Throwable) {
             }
         }
     }

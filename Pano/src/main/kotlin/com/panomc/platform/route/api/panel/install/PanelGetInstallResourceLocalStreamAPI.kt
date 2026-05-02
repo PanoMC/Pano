@@ -130,9 +130,11 @@ class PanelGetInstallResourceLocalStreamAPI(
 
         response.write("data: ${responseBody}\n\n")
 
-        if (result is Error) {
+        if (result is com.panomc.platform.model.Error) {
             context.get<File>("file")?.delete()
-            result.printStackTrace()
+            if (!result.hasExtra("licenseDeniedReason")) {
+                result.printStackTrace()
+            }
             response.end()
         }
     }

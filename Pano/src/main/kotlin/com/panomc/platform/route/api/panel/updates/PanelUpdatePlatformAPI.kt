@@ -70,7 +70,9 @@ class PanelUpdatePlatformAPI(
         response.write("data: ${responseBody}\n\n")
 
         if (result is Error) {
-            result.printStackTrace()
+            if (!result.hasExtra("licenseDeniedReason")) {
+                result.printStackTrace()
+            }
             response.end()
         }
     }

@@ -133,15 +133,38 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
     override fun startPlugin(pluginId: String?): PluginState? {
         val state = super.startPlugin(pluginId)
+        if (pluginId != null) {
+            val wrapper = getPlugin(pluginId)
+            val licenseException = wrapper?.failedException.findLicenseRequiredInCauseChain()
+            if (licenseException != null) {
+                wrapper?.pluginState = PluginState.FAILED
+                log.warn(
+                    "Plugin '{}' startup blocked by license: {}",
+                    pluginId,
+                    licenseException.message,
+                )
+                return PluginState.FAILED
+            }
+        }
+
         if (pluginId != null && state == PluginState.FAILED) {
             val fe = getPlugin(pluginId)?.failedException
             if (fe != null) {
-                log.warn(
-                    "Plugin '{}' PF4J start failed — {}",
-                    pluginId,
-                    fe.message ?: fe.javaClass.simpleName,
-                    fe,
-                )
+                val licenseException = fe.findLicenseRequiredInCauseChain()
+                if (licenseException != null) {
+                    log.warn(
+                        "Plugin '{}' startup blocked by license: {}",
+                        pluginId,
+                        licenseException.message,
+                    )
+                } else {
+                    log.warn(
+                        "Plugin '{}' PF4J start failed — {}",
+                        pluginId,
+                        fe.message ?: fe.javaClass.simpleName,
+                        fe,
+                    )
+                }
             } else {
                 log.warn(
                     "Plugin '{}' PF4J start failed (FAILED state, no failedException on wrapper)",

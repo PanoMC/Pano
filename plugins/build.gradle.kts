@@ -25,10 +25,24 @@ tasks.register("copyJars") {
 tasks {
     build {
         dependsOn("copyJars")
-        dependsOn(subprojects.map { it.tasks.build })
     }
 
-    clean {
-        dependsOn(subprojects.map { it.tasks.named("clean") })
+    clean {}
+}
+
+gradle.projectsEvaluated {
+    val pluginBuildTasks = subprojects.mapNotNull { it.tasks.findByName("build") }
+    val pluginCleanTasks = subprojects.mapNotNull { it.tasks.findByName("clean") }
+
+    pluginBuildTasks.zipWithNext().forEach { (previous, current) ->
+        current.mustRunAfter(previous)
+    }
+
+    tasks.named("build") {
+        dependsOn(pluginBuildTasks)
+    }
+
+    tasks.named("clean") {
+        dependsOn(pluginCleanTasks)
     }
 }

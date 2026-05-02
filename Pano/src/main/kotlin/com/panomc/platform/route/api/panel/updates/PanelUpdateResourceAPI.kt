@@ -76,7 +76,9 @@ class PanelUpdateResourceAPI(
         response.write("data: ${responseBody}\n\n")
 
         if (result is com.panomc.platform.model.Error) {
-            result.printStackTrace()
+            if (!result.hasExtra("licenseDeniedReason")) {
+                result.printStackTrace()
+            }
             response.end()
         }
     }

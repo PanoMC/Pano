@@ -10,7 +10,9 @@ import java.lang.reflect.Type
  * - **Deserialization**: Resolves a token type name string back to a [TokenType] instance
  *   via the [TokenTypeRegistry].
  */
-class TokenTypeAdapter : JsonSerializer<TokenType>, JsonDeserializer<TokenType> {
+class TokenTypeAdapter(
+    private val tokenTypeRegistry: TokenTypeRegistry
+) : JsonSerializer<TokenType>, JsonDeserializer<TokenType> {
 
     override fun serialize(src: TokenType, typeOfSrc: Type, context: JsonSerializationContext): JsonElement {
         return JsonPrimitive(src.getName())
@@ -19,7 +21,7 @@ class TokenTypeAdapter : JsonSerializer<TokenType>, JsonDeserializer<TokenType> 
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): TokenType {
         val tokenTypeName = json.asString
 
-        return TokenTypeRegistry.get(tokenTypeName)
+        return tokenTypeRegistry.get(tokenTypeName)
             ?: throw JsonParseException("Unknown token type: $tokenTypeName")
     }
 }

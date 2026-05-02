@@ -1,5 +1,6 @@
 package com.panomc.platform.config
 
+import com.panomc.platform.Main.Companion.IS_DEV
 import com.panomc.platform.annotation.Migration
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
@@ -45,7 +46,17 @@ open class ConfigManager(
             .setComments(true)        // true: keep original comment
             .setFormatted(true)
 
-        val parsedConfig = ConfigFactory.parseString(config.toString())
+        val configToPersist =
+            if (IS_DEV) {
+                config.copy(
+                    panoApiUrl = persistedPanoApiUrl,
+                    panoWebsiteUrl = persistedPanoWebsiteUrl
+                )
+            } else {
+                config
+            }
+
+        val parsedConfig = ConfigFactory.parseString(configToPersist.toString())
 
         if (configFile.parentFile != null && !configFile.parentFile.exists()) {
             configFile.parentFile.mkdirs()
@@ -94,6 +105,12 @@ open class ConfigManager(
 
     lateinit var config: PanoConfig
         private set
+
+    /** Values last read from disk (or defaults), before `--dev` runtime overrides to Pano dev hosts. */
+    private var persistedPanoApiUrl: String = PanoConfig.PANO_API_URL_PRODUCTION
+    private var persistedPanoWebsiteUrl: String = PanoConfig.PANO_WEBSITE_URL_PRODUCTION
+
+    private var loggedDevPanoUrlOverride = false
 
     private lateinit var configJsonObject: JsonObject
 
@@ -175,6 +192,19 @@ open class ConfigManager(
 
     private fun updateConfig(newConfig: JsonObject) {
         config = PanoConfig.from(newConfig)
+        persistedPanoApiUrl = config.panoApiUrl
+        persistedPanoWebsiteUrl = config.panoWebsiteUrl
+        if (IS_DEV) {
+            config.panoApiUrl = PanoConfig.PANO_API_URL_DEVELOPMENT
+            config.panoWebsiteUrl = PanoConfig.PANO_WEBSITE_URL_DEVELOPMENT
+            if (!loggedDevPanoUrlOverride) {
+                loggedDevPanoUrlOverride = true
+                logger.info(
+                    "Running with --dev: Pano API and website requests use development hosts only in this process; " +
+                        "config file is not modified for this (stored: ${persistedPanoApiUrl} / ${persistedPanoWebsiteUrl})."
+                )
+            }
+        }
         configJsonObject = newConfig.copy()
     }
 }

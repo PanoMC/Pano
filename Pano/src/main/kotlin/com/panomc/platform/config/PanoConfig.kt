@@ -53,8 +53,9 @@ data class PanoConfig(
     @SerializedName("file-uploads-folder") var fileUploadsFolder: String = "file-uploads",
     @SerializedName("file-paths") var filePaths: FilePaths = FilePaths(),
 
-    @SerializedName("pano-api-url") var panoApiUrl: String = getPanoApiUrl(),
-    @SerializedName("pano-website-url") var panoWebsiteUrl: String = getPanoWebsiteUrl(),
+    // Persisted defaults are always production; `--dev` applies dev hosts only in memory (see ConfigManager).
+    @SerializedName("pano-api-url") var panoApiUrl: String = PANO_API_URL_PRODUCTION,
+    @SerializedName("pano-website-url") var panoWebsiteUrl: String = PANO_WEBSITE_URL_PRODUCTION,
 
     @SerializedName("accept-plugin-auth") var acceptPluginAuth: Boolean = true,
     @SerializedName("console-history-limit") var consoleHistoryLimit: Int = 50,
@@ -153,13 +154,10 @@ data class PanoConfig(
             return String(Base64.getEncoder().encode(key.toByteArray()))
         }
 
-        private fun getPanoApiUrl() =
-            if (IS_DEV) "https://api-dev.panomc.com"
-            else "https://api.panomc.com"
-
-        private fun getPanoWebsiteUrl() =
-            if (IS_DEV) "https://dev.panomc.com"
-            else "https://panomc.com"
+        const val PANO_API_URL_PRODUCTION = "https://api.panomc.com"
+        const val PANO_API_URL_DEVELOPMENT = "https://api-dev.panomc.com"
+        const val PANO_WEBSITE_URL_PRODUCTION = "https://panomc.com"
+        const val PANO_WEBSITE_URL_DEVELOPMENT = "https://dev.panomc.com"
 
         private val gson = GsonBuilder()
             .registerTypeAdapter(UpdatePeriod::class.java, UpdatePeriodDeserializer())

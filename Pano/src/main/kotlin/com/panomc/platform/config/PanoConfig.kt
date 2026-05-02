@@ -9,6 +9,7 @@ import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.util.deserializer.UpdatePeriodDeserializer
 import io.vertx.core.json.JsonObject
+import java.net.URI
 import java.util.*
 
 data class PanoConfig(
@@ -60,6 +61,23 @@ data class PanoConfig(
 
     val auth: AuthConfig = AuthConfig(),
 ) {
+    /**
+     * JWT `iss` plugins expect when verifying license tokens. No extra config key: uses the
+     * hostname of [panoWebsiteUrl] (scheme and port stripped, e.g. `https://dev.panomc.com` →
+     * `dev.panomc.com`, `https://local.panomc.com:3003` → `local.panomc.com`). If the website URL
+     * is missing or unparsable, falls back to [panoApiUrl] via [issuerHintFromLicenseApiHost]
+     * (`api.panomc.com` → `panomc.com`, `api-dev.panomc.com` → `dev.panomc.com`, else the API host).
+     */
+    fun resolvedLicenseJwtIssuer(): String {
+        hostnameFromHttpUrl(panoWebsiteUrl.trim())?.takeIf { it.isNotBlank() }?.let { return it }
+        val apiHost = hostnameFromHttpUrl(panoApiUrl.trim())
+        if (!apiHost.isNullOrBlank()) {
+            val fromApi = issuerHintFromLicenseApiHost(apiHost)
+            if (fromApi.isNotBlank()) return fromApi
+        }
+        return "panomc.com"
+    }
+
     companion object {
         data class SetupConfig(var step: Int = 0)
 
@@ -151,4 +169,29 @@ data class PanoConfig(
     }
 
     override fun toString(): String = gson.toJson(this)
+}
+
+private fun hostnameFromHttpUrl(raw: String): String? {
+    if (raw.isEmpty()) return null
+    return try {
+        val normalized = if (raw.contains("://")) raw else "https://$raw"
+        URI(normalized).host?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
+ * Maps the license API host to the usual site `iss` for panomc deployments; otherwise returns the API host.
+ */
+private fun issuerHintFromLicenseApiHost(apiHost: String): String {
+    Regex("^api\\.(.+)$").matchEntire(apiHost)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() }?.let {
+        return it
+    }
+    Regex("^api-([^.]+)\\.(.+)$").matchEntire(apiHost)?.let { m ->
+        val label = m.groupValues[1].trim()
+        val rest = m.groupValues[2].trim()
+        if (label.isNotEmpty() && rest.isNotEmpty()) return "$label.$rest"
+    }
+    return apiHost.trim()
 }

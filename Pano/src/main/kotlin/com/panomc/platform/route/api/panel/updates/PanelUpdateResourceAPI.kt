@@ -4,7 +4,7 @@ import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
-import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -19,7 +19,6 @@ import java.util.*
 class PanelUpdateResourceAPI(
     private val updateManager: UpdateManager,
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/updates/resources/:resourceId/stream", RouteType.GET))
 
@@ -50,18 +49,21 @@ class PanelUpdateResourceAPI(
 
         var successAmount = 0
 
-        val sqlClient = databaseManager.getSqlClient()
+        try {
+            updateManager.updateResource(context, resourceId, state) { it ->
+                sendServerSentEventMessage(context, it)
 
-        updateManager.updateResource(context, resourceId, state) { it ->
-            sendServerSentEventMessage(context, it)
+                if (it is Successful && it !is Progress) {
+                    successAmount++
 
-            if (it is Successful && it !is Progress) {
-                successAmount++
-
-                if (successAmount == 4) {
-                    response.end()
+                    if (successAmount == 4) {
+                        response.end()
+                    }
                 }
             }
+        } catch (e: Throwable) {
+            val payload = FailedToInstallResource(extras = mapOf("message" to e.message))
+            sendServerSentEventMessage(context, payload)
         }
 
         return null
@@ -73,8 +75,10 @@ class PanelUpdateResourceAPI(
 
         response.write("data: ${responseBody}\n\n")
 
-        if (result is Error) {
-            result.printStackTrace()
+        if (result is com.panomc.platform.model.Error) {
+            if (!result.hasExtra("licenseDeniedReason")) {
+                result.printStackTrace()
+            }
             response.end()
         }
     }

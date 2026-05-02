@@ -2,6 +2,7 @@ package com.panomc.platform.api
 
 import com.panomc.platform.*
 import com.panomc.platform.api.event.PluginEventListener
+import com.panomc.platform.license.LicenseRequiredException
 import io.vertx.core.Vertx
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -93,12 +94,54 @@ abstract class PanoPlugin : Plugin() {
         Main.commandManager.unregisterCommands(obj)
     }
 
+    /**
+     * Returns Pano's [com.panomc.platform.license.LicenseManager] so a premium plugin
+     * can fetch a license JWT from panomc.com at startup. The plugin must verify the JWT
+     * with its own embedded public key ([com.panomc.platform.license.SignedLicense.verifySignature])
+     * using [getLicenseJwtIssuer] as the expected `iss` claim; the host only parses claims for
+     * caching and panel UX.
+     */
+    fun getLicenseManager(): com.panomc.platform.license.LicenseManager =
+        applicationContext.getBean(com.panomc.platform.license.LicenseManager::class.java)
+
+    /**
+     * JWT `iss` value to use when verifying license tokens ([com.panomc.platform.license.SignedLicense.verifySignature]).
+     * Derived from `pano-website-url` hostname, or from `pano-api-url` when the website URL is empty; must match
+     * `licensing.issuer` on the license API.
+     */
+    fun getLicenseJwtIssuer(): String =
+        applicationContext.getBean(com.panomc.platform.config.ConfigManager::class.java)
+            .config.resolvedLicenseJwtIssuer()
+
+    /**
+     * Returns the SHA-256 hash of the loaded plugin JAR, or null if it cannot be
+     * determined (e.g. running from an IDE without a packaged JAR). Plugins use this
+     * to cross-check the `hash` claim of their license token, defending against
+     * tampered hosts that try to feed back a stale or forged JWT.
+     */
+    fun getOwnJarSha256(): String? {
+        val pm = applicationContext.getBean(PluginManager::class.java)
+        val wrapper = pm.getPlugin(pluginId) as? PanoPluginWrapper ?: return null
+        return wrapper.hash.takeIf { it.isNotBlank() }?.lowercase()
+    }
+
     @Deprecated("Use onStart method.")
     override fun start() {
-        runBlocking {
-            withContext(Dispatchers.IO) {
-                onStart()
+        try {
+            runBlocking {
+                withContext(Dispatchers.IO) {
+                    onStart()
+                }
             }
+        } catch (e: LicenseRequiredException) {
+            try {
+                getLicenseManager().recordFailure(pluginId, e)
+                val pluginManager = applicationContext.getBean(PluginManager::class.java)
+                val wrapper = pluginManager.getPlugin(pluginId)
+                wrapper.failedException = e
+            } catch (_: Throwable) {
+            }
+            throw e
         }
     }
 
@@ -163,4 +206,24 @@ abstract class PanoPlugin : Plugin() {
     open suspend fun onStop() {}
     open suspend fun onDisable() {}
     open suspend fun onUninstall() {}
+
+    /**
+     * Premium plugins override this to perform plugin-side license verification (RS256 signature
+     * check with the embedded public key, claim cross-checks, anti-tamper checks). Typically just:
+     *
+     * ```
+     * override suspend fun verifyLicense() {
+     *     licenseClient.requireValidLicense()
+     * }
+     * ```
+     *
+     * Called by the panel "Refresh license" endpoint AFTER the host fetches a fresh JWT, so the
+     * panel reflects the actual license outcome (signature/issuer/version/hash) instead of the
+     * host's optimistic "token received" view. Should throw [com.panomc.platform.license.LicenseRequiredException]
+     * on failure — the host catches it and records the failure via
+     * [com.panomc.platform.license.LicenseManager.recordFailure] so the panel surfaces the right status.
+     *
+     * Default: no-op (free plugins).
+     */
+    open suspend fun verifyLicense() {}
 }

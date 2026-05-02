@@ -3,10 +3,12 @@ package com.panomc.platform.route.api.panel
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
+import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
+import com.panomc.platform.license.LicenseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.BanUtil
 import io.vertx.core.json.JsonObject
@@ -17,7 +19,8 @@ import io.vertx.json.schema.SchemaRepository
 class PanelGetDashboardAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val licenseManager: LicenseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/dashboard", RouteType.GET))
 
@@ -93,6 +96,14 @@ class PanelGetDashboardAPI(
             }
 
             result["tickets"] = ticketDataList
+        }
+
+        // Surface premium plugin license problems on the dashboard so an admin
+        // immediately sees that something needs their attention.
+        if (authProvider.hasPermission(ManageAddonsPermission(), context)) {
+            val failures = licenseManager.getFailures()
+            result["licenseFailedPluginCount"] = failures.size
+            result["licenseFailedPluginIds"] = failures.map { it.pluginId }
         }
 
         if (authProvider.hasPermission(ManagePlayersPermission(), context)) {

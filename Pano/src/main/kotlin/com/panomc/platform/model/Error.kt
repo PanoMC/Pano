@@ -25,5 +25,7 @@ abstract class Error(
 
     override fun getStatusMessage(): String = statusMessage
 
+    fun hasExtra(key: String) = extras.containsKey(key)
+
     fun getErrorCode() = javaClass.simpleName.convertToSnakeCase().uppercase()
 }

@@ -150,7 +150,7 @@ open class SpringConfig {
 
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun gson(): Gson {
+    open fun gson(tokenTypeRegistry: TokenTypeRegistry): Gson {
         val builder = GsonBuilder()
 
         builder.registerTypeAdapterFactory(LenientListLongAdapterFactory())
@@ -159,11 +159,8 @@ open class SpringConfig {
         builder.registerTypeAdapter(java.lang.Boolean::class.java, BooleanDeserializer())
         builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
         builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer())
-        builder.registerTypeAdapter(TokenType::class.java, TokenTypeAdapter())
+        builder.registerTypeAdapter(TokenType::class.java, TokenTypeAdapter(tokenTypeRegistry))
         builder.registerTypeAdapter(Server.Companion.ServerSettings::class.java, ServerSettingsDeserializer())
-
-        // Register core token types before building Gson
-        TokenTypeRegistry.registerCoreTypes()
 
         val gson = builder.create()
 

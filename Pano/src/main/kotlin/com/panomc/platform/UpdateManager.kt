@@ -10,7 +10,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.*
-import com.panomc.platform.model.Error
+import com.panomc.platform.model.Error as DomainError
 import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
@@ -333,7 +333,7 @@ class UpdateManager(
                     value = updates.encode()
                 ), sqlClient
             )
-        } catch (e: Error) {
+        } catch (e: DomainError) {
             if (e is PanoNotConnected) {
                 val sqlClient = databaseManager.getSqlClient()
 
@@ -347,6 +347,13 @@ class UpdateManager(
 
             throw e
         } catch (e: Exception) {
+            if (background) {
+                return
+            }
+
+            e.printStackTrace()
+            throw InternalServerError()
+        } catch (e: Throwable) {
             if (background) {
                 return
             }
@@ -475,9 +482,11 @@ class UpdateManager(
             }
 
             main.shutdown()
-        } catch (e: Error) {
+        } catch (e: DomainError) {
             progressHandler.invoke(e)
         } catch (e: Exception) {
+            progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
+        } catch (e: Throwable) {
             progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
         }
     }
@@ -522,9 +531,11 @@ class UpdateManager(
 
                 progressHandler.invoke(it)
             }
-        } catch (e: Error) {
+        } catch (e: DomainError) {
             progressHandler.invoke(e)
         } catch (e: Exception) {
+            progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
+        } catch (e: Throwable) {
             progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
         }
     }
@@ -553,8 +564,7 @@ class UpdateManager(
 
                 try {
                     checkUpdates(true)
-                } catch (_: Error) {
-                } catch (_: Exception) {
+                } catch (_: Throwable) {
                 }
 
                 val platformUpdateInfo =

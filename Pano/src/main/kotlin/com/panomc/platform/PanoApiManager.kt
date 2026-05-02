@@ -7,7 +7,9 @@ import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.error.*
-import com.panomc.platform.model.Error
+import com.panomc.platform.license.LicenseManager
+import com.panomc.platform.license.findLicenseRequiredInCauseChain
+import com.panomc.platform.model.Error as DomainError
 import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
@@ -47,7 +49,7 @@ class PanoApiManager(
     private val webClient: WebClient,
     private val pluginManager: PluginManager,
     private val installManager: InstallManager,
-    applicationContext: ApplicationContext,
+    private val applicationContext: ApplicationContext,
     private val vertx: Vertx,
     private val authProvider: AuthProvider
 ) {
@@ -66,6 +68,13 @@ class PanoApiManager(
     }
 
     private fun getPanoAccountConfig() = configManager.config.panoAccount
+
+    private fun licenseManagerOrNull(): LicenseManager? =
+        try {
+            applicationContext.getBean(LicenseManager::class.java)
+        } catch (_: Throwable) {
+            null
+        }
 
     fun isConnected(): Boolean {
         val panoAccountConfig = getPanoAccountConfig()
@@ -176,6 +185,11 @@ class PanoApiManager(
             throw PanoConnectFailed()
         }
 
+        try {
+            licenseManagerOrNull()?.refreshLicensesAfterPanoConnectedBestEffort()
+        } catch (_: Throwable) {
+        }
+
         return Triple(username, email, platformId)
     }
 
@@ -194,6 +208,11 @@ class PanoApiManager(
         try {
             updateManager.deleteResourceUpdates()
         } catch (_: Exception) {
+        }
+
+        try {
+            licenseManagerOrNull()?.clearHostLicenseStateBecausePanoDisconnected()
+        } catch (_: Throwable) {
         }
     }
 
@@ -324,14 +343,14 @@ class PanoApiManager(
     suspend fun getVersionInfo(versionId: UUID): JsonObject {
         val response: HttpResponse<Buffer>
         val data: JsonObject
+        val responseBody: JsonObject
 
         try {
             response = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}")
                 .send()
                 .coAwait()
 
-            val responseBody = response.bodyAsJsonObject()
-            data = responseBody.getJsonObject("data")
+            responseBody = response.bodyAsJsonObject()!!
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw PanoConnectFailed()
@@ -344,6 +363,8 @@ class PanoApiManager(
         if (response.statusCode() == 404) {
             throw NotFound()
         }
+
+        data = responseBody.getJsonObject("data")
 
         return data
     }
@@ -456,6 +477,75 @@ class PanoApiManager(
         )
     }
 
+    /**
+     * Calls panomc.com `POST /platform/api/licenses/issue` to mint a fresh RS256
+     * license JWT for a premium plugin running on this Pano installation.
+     *
+     * Throws [com.panomc.platform.license.LicenseManager.LicenseFetchException] on
+     * non-200 responses so [com.panomc.platform.license.LicenseManager] can map the
+     * HTTP status to a stable [com.panomc.platform.license.LicenseDeniedReason] for the
+     * panel UI.
+     */
+    suspend fun issueLicense(resourceId: String, version: String, jarSha256: String): String {
+        if (!isConnected()) {
+            throw PanoNotConnected()
+        }
+        val body = JsonObject(
+            mapOf(
+                "resourceId" to resourceId,
+                "version" to version,
+                "jarSha256" to jarSha256
+            )
+        )
+        val response = try {
+            createRequest(io.vertx.core.http.HttpMethod.POST, "/platform/api/licenses/issue")
+                .timeout(45_000)
+                .sendJson(body)
+                .coAwait()
+        } catch (e: Exception) {
+            throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = -1,
+                message = "license-fetch-network-error: ${e.message ?: e::class.java.simpleName}"
+            )
+        }
+
+        if (response.statusCode() == 401) {
+            throw PanoNotConnected()
+        }
+
+        if (response.statusCode() != 200) {
+            val payload = try {
+                response.bodyAsJsonObject()
+            } catch (_: Exception) {
+                null
+            }
+            val errorCode = payload?.getString("error") ?: ""
+            throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-failed: ${response.statusCode()} $errorCode"
+            )
+        }
+
+        val payload = try {
+            response.bodyAsJsonObject()
+        } catch (e: Exception) {
+            throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-bad-body: ${e.message}"
+            )
+        }
+        val data = payload.getJsonObject("data")
+            ?: throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-missing-data"
+            )
+        return data.getString("jwt")
+            ?: throw com.panomc.platform.license.LicenseManager.LicenseFetchException(
+                statusCode = response.statusCode(),
+                message = "license-fetch-missing-jwt"
+            )
+    }
+
     suspend fun installResourceFromStore(
         context: RoutingContext,
         versionId: UUID,
@@ -475,14 +565,27 @@ class PanoApiManager(
             installManager.installResource(userId, hash, verified, file, versionType) {
                 progressHandler.invoke(it)
 
-                if (it is Error) {
+                if (it is DomainError) {
                     file.delete()
                 }
             }
-        } catch (e: Error) {
+        } catch (e: DomainError) {
             progressHandler.invoke(e)
         } catch (e: Exception) {
             progressHandler.invoke(FailedToInstallResource(extras = mapOf("message" to e.message)))
+        } catch (e: Throwable) {
+            val licenseException = e.findLicenseRequiredInCauseChain()
+            val extras =
+                if (licenseException != null) {
+                    mapOf(
+                        "message" to licenseException.message,
+                        "licenseDeniedReason" to licenseException.reason.publicId,
+                        "pluginId" to licenseException.pluginId
+                    )
+                } else {
+                    mapOf("message" to e.message)
+                }
+            progressHandler.invoke(FailedToInstallResource(extras = extras))
         }
     }
 

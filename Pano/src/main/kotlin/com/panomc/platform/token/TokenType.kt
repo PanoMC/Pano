@@ -3,8 +3,8 @@ package com.panomc.platform.token
 import com.panomc.platform.util.TextUtil.convertToSnakeCase
 
 /**
- * Interface for defining token types. Plugins can implement this to register
- * their own custom token types via [TokenEventListener].
+ * Interface for defining token types. Plugins implement this and register instances with
+ * [TokenTypeRegistry.registerPluginToken] so the host removes them when the plugin unloads.
  *
  * On the JVM this is a real `interface` (not a final class), so plugin objects
  * that implement it work with kapt/annotation processing; use a `pano` compile
@@ -33,3 +33,9 @@ interface TokenType {
      */
     fun getExpireDate(): Long
 }
+
+/**
+ * Marker for built-in token types supplied as Spring `@Component` beans.
+ * The host injects `List<CoreTokenType>` and registers them in [TokenTypeRegistry] before Gson is configured.
+ */
+interface CoreTokenType : TokenType

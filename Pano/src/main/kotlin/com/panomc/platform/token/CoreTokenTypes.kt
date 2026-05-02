@@ -1,14 +1,17 @@
 package com.panomc.platform.token
 
+import org.springframework.stereotype.Component
 import java.util.*
 
 /**
  * Built-in core token types for the Pano platform.
- * Each object produces a DB-compatible name via the [TokenType.getName] default implementation.
+ * Each object is a Spring bean ([Component]) and implements [CoreTokenType] so it is collected
+ * into `List<CoreTokenType>` and registered before the host Gson bean is created.
  */
 
 /** User login session token. Expires in 1 month. */
-object AuthenticationTokenType : TokenType {
+@Component
+object AuthenticationTokenType : CoreTokenType {
     override fun getExpireDate(): Long {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.MONTH, 1)
@@ -17,7 +20,8 @@ object AuthenticationTokenType : TokenType {
 }
 
 /** Email activation token. Expires in 15 minutes. */
-object ActivationTokenType : TokenType {
+@Component
+object ActivationTokenType : CoreTokenType {
     override fun getExpireDate(): Long {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.MINUTE, 15)
@@ -26,7 +30,8 @@ object ActivationTokenType : TokenType {
 }
 
 /** Password reset token. Expires in 30 minutes. */
-object ResetPasswordTokenType : TokenType {
+@Component
+object ResetPasswordTokenType : CoreTokenType {
     override fun getExpireDate(): Long {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.MINUTE, 30)
@@ -35,7 +40,8 @@ object ResetPasswordTokenType : TokenType {
 }
 
 /** Server-to-platform authentication. Expires in 10 years. */
-object ServerAuthenticationTokenType : TokenType {
+@Component
+object ServerAuthenticationTokenType : CoreTokenType {
     override fun getExpireDate(): Long {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.YEAR, 10)
@@ -44,7 +50,8 @@ object ServerAuthenticationTokenType : TokenType {
 }
 
 /** Email change verification token. Expires in 15 minutes. */
-object ChangeEmailTokenType : TokenType {
+@Component
+object ChangeEmailTokenType : CoreTokenType {
     override fun getExpireDate(): Long {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.MINUTE, 15)
@@ -53,7 +60,8 @@ object ChangeEmailTokenType : TokenType {
 }
 
 /** Registration via link code token. Expires in 15 minutes. */
-object RegisterWithLinkCodeTokenType : TokenType {
+@Component
+object RegisterWithLinkCodeTokenType : CoreTokenType {
     override fun getExpireDate(): Long {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.MINUTE, 15)
@@ -62,7 +70,8 @@ object RegisterWithLinkCodeTokenType : TokenType {
 }
 
 /** Username setup token. Expires in 15 minutes. */
-object SetUsernameTokenType : TokenType {
+@Component
+object SetUsernameTokenType : CoreTokenType {
     override fun getExpireDate(): Long {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.MINUTE, 15)

@@ -104,6 +104,7 @@ class Main : CoroutineVerticle() {
 
         val START_TIME = System.currentTimeMillis()
 
+        @Volatile
         var IS_GUI = false
             private set
 
@@ -520,6 +521,7 @@ class Main : CoroutineVerticle() {
 
     private fun startWebServer() {
         val serverConfig = configManager.config.server
+
         // Vert.x may throw on junk HTTP: bad % escapes in path, HTTP/1.x without Host (RFC 9112), etc.
         val safeRouter = catchBadClientRequests(router)
 

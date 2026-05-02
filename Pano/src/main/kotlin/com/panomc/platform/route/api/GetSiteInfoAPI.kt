@@ -84,9 +84,9 @@ class GetSiteInfoAPI(
         response["websiteLogoHash"] = websiteLogoHash
         response["faviconHash"] = faviconHash
 
-        response["plugins"] = pluginUiManager.getRegisteredPlugins().toList().associate {
+        response["plugins"] = pluginUiManager.getActiveRegisteredPlugins(pluginManager).associate {
             it.first.pluginId to mapOf(
-                "version" to pluginManager.getPlugin(it.first.pluginId).descriptor.version,
+                "version" to pluginManager.getPlugin(it.first.pluginId)?.descriptor?.version,
                 "uiHash" to it.second
             )
         }

@@ -9,8 +9,9 @@ import com.panomc.platform.auth.panel.log.EnabledPluginLog
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.license.isPluginStartupBlockedByLicense
+import com.panomc.platform.license.panelPluginStartupErrorText
 import com.panomc.platform.model.*
-import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -19,7 +20,9 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import io.vertx.kotlin.coroutines.coAwait
 import org.pf4j.PluginState
+import org.slf4j.LoggerFactory
 
 @Endpoint
 class PanelUpdatePluginAPI(
@@ -27,6 +30,9 @@ class PanelUpdatePluginAPI(
     private val pluginManager: PluginManager,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
+
+    private val log = LoggerFactory.getLogger(javaClass)
+
     override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -64,8 +70,10 @@ class PanelUpdatePluginAPI(
                         return Successful()
                     }
 
-                    pluginManager.enablePlugin(pluginId)
-                    pluginManager.startPlugin(pluginId)
+                    context.vertx().executeBlocking<Unit> {
+                        pluginManager.enablePlugin(pluginId)
+                        pluginManager.startPlugin(pluginId)
+                    }.coAwait()
 
                     val sqlClient = databaseManager.getSqlClient()
                     val userId = authProvider.getUserIdFromRoutingContext(context)
@@ -89,13 +97,15 @@ class PanelUpdatePluginAPI(
                         pluginManager.plugins.filter { it.pluginState != PluginState.DISABLED && it.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
                             .map { it.pluginId }
 
-                    dependents.forEach {
-                        pluginManager.stopPlugin(it)
-                        pluginManager.disablePlugin(it)
-                    }
+                    context.vertx().executeBlocking<Unit> {
+                        dependents.forEach {
+                            pluginManager.stopPlugin(it)
+                            pluginManager.disablePlugin(it)
+                        }
 
-                    pluginManager.stopPlugin(pluginId)
-                    pluginManager.disablePlugin(pluginId)
+                        pluginManager.stopPlugin(pluginId)
+                        pluginManager.disablePlugin(pluginId)
+                    }.coAwait()
 
                     val sqlClient = databaseManager.getSqlClient()
                     val userId = authProvider.getUserIdFromRoutingContext(context)
@@ -109,18 +119,23 @@ class PanelUpdatePluginAPI(
                         ), sqlClient
                     )
                 }
-            } catch (e: Exception) {
-                val plugin = pluginManager.getPlugin(pluginId)
-
-                plugin.failedException = e
-                plugin.pluginState = PluginState.FAILED
+            } catch (t: Throwable) {
+                log.error(
+                    "Panel plugin '{}' state update threw {} — {}",
+                    pluginId,
+                    t.javaClass.name,
+                    t.message,
+                    t,
+                )
+                val wrapper = pluginManager.getPlugin(pluginId)
+                wrapper.failedException = t
+                wrapper.pluginState = PluginState.FAILED
 
                 return Successful(
                     mapOf(
-                        "status" to pluginWrapper.pluginState,
-                        "error" to if (pluginWrapper.failedException == null) null else TextUtil.getStackTraceAsString(
-                            pluginWrapper.failedException
-                        )
+                        "status" to wrapper.pluginState,
+                        "error" to wrapper.failedException.panelPluginStartupErrorText(),
+                        "startupBlockedByLicense" to wrapper.failedException.isPluginStartupBlockedByLicense()
                     )
                 )
             }

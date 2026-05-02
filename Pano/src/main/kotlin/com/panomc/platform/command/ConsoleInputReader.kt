@@ -16,9 +16,60 @@ class ConsoleInputReader(
     private val consoleSender = ConsoleCommandSender(Main.logger)
 
     companion object {
+        /**
+         * Live prompt waiting for input. Plain default-foreground (rendered white in most dark
+         * IntelliJ Run themes) — colored escape codes here have shown to bleed into typed
+         * characters on some PTY emulators, so we keep this one neutral.
+         */
+        const val JLINE_PROMPT = "\u001B[0m> "
+
+        /**
+         * Echoed command in “history” (already entered, scrolled away from the live prompt).
+         * Bright black/grey to distinguish past entries from the active white `> ` prompt.
+         */
+        fun terminalStyleCommandLine(cmd: String): String = "\u001B[90m>\u001B[0m $cmd\n"
+
         @Volatile
         var reader: LineReader? = null
             private set
+
+        /**
+         * `true` when the JLine terminal supports cursor / line-edit ANSI escapes; `false` for the
+         * dumb fallback used in IntelliJ Run / pipes / services.
+         *
+         * This drives how we interleave logs with the live prompt: real TTYs use [LineReader.printAbove]
+         * (preserves the user's in-progress typed buffer); dumb TTYs use a manual erase+write+redraw
+         * because printAbove's display-redraw produces extra blank rows in IDE consoles.
+         */
+        @Volatile
+        var ansiCapableTerminal: Boolean = false
+            private set
+
+        /**
+         * `true` only while [LineReader.readLine] is actively waiting for the user. Used by
+         * [emitWithPromptRefresh] to decide whether it must repaint the prompt itself: if we
+         * are between readLine calls, JLine's next readLine will paint a fresh prompt — drawing
+         * one ourselves would result in the classic `> >` doubling on dumb consoles.
+         */
+        @Volatile
+        private var inReadLine: Boolean = false
+
+        /**
+         * Emit a fully-formed log/echo line on a dumb terminal. We `\r` + `\u001B[K` to overwrite
+         * any prompt JLine has painted on the current line, write the content, and only re-paint
+         * the live prompt when JLine is mid-`readLine` (otherwise JLine itself will redraw).
+         */
+        fun emitWithPromptRefresh(text: String) {
+            val r = reader ?: return
+            val msg = if (text.endsWith("\n")) text else "$text\n"
+            val w = r.terminal.writer()
+            w.write("\r\u001B[K")
+            w.write(msg)
+            if (inReadLine) {
+                w.write(JLINE_PROMPT)
+            }
+            w.flush()
+        }
 
         @Volatile
         var running = true
@@ -75,6 +126,7 @@ class ConsoleInputReader(
 
             val lineReader = builder.build()
             reader = lineReader
+            ansiCapableTerminal = terminal.type != "dumb"
 
             // Bind Ctrl+C to a custom widget that triggers shutdown *inside* the readLine scope
             // This prevents JLine from throwing UserInterruptException and resetting the terminal
@@ -90,16 +142,14 @@ class ConsoleInputReader(
                 KeyMap.ctrl('c')
             )
 
-            // Spigot-style bright yellow prompt
-            val prompt = "\u001B[93m>\u001B[0m "
-
             while (running) {
                 if (Main.isStopping()) {
                     Thread.sleep(50)
                     continue
                 }
+                inReadLine = true
                 val line = try {
-                    lineReader.readLine(prompt)
+                    lineReader.readLine(JLINE_PROMPT)
                 } catch (e: UserInterruptException) {
                     // Handle Ctrl+C: stop the platform gracefully
                     runBlocking {
@@ -108,28 +158,50 @@ class ConsoleInputReader(
                     null
                 } catch (e: EndOfFileException) {
                     break
+                } catch (e: java.io.IOError) {
+                    // JLine may throw IOError (not IOException) when stdin / PTY breaks:
+                    // Docker without TTY, IDE run, systemd, closed pipe, etc.
+                    try {
+                        terminal.close()
+                    } catch (_: Exception) {
+                    }
+                    return false
                 } catch (e: java.io.IOException) {
                     // On Windows, JLine can throw "The handle is invalid" when stdin
                     // is not a real console (e.g. IDE, service, redirected input).
                     // Fall back to basic reader.
                     try { terminal.close() } catch (_: Exception) {}
                     return false
+                } finally {
+                    inReadLine = false
                 } ?: continue
 
                 if (line.isNotBlank() && running) {
                     if (Main.IS_GUI) {
-                        // JLine already echoes on the terminal; show in GUI too
+                        // Best-effort: try to repaint the just-typed terminal line in grey so it
+                        // matches the GUI submitCommand history color. This works on real ANSI TTYs
+                        // and on IntelliJ Run when "Emulate terminal in output console" is enabled.
+                        // Pure-text consoles ignore the cursor escapes — there we leave the original
+                        // (white live-prompt) line untouched rather than risk a duplicate row.
+                        if (ansiCapableTerminal) {
+                            val w = lineReader.terminal.writer()
+                            w.write("\u001B[A\r\u001B[K\u001B[90m>\u001B[0m $line\n")
+                            w.flush()
+                        }
+
                         com.panomc.platform.util.UiConsole.appendToConsole("\u001B[90m>\u001B[0m $line\n")
                     } else {
                         Main.logger.info("\u001B[90m>\u001B[0m $line")
                     }
-                    
+
                     // Add to GUI history
                     com.panomc.platform.util.UiConsole.addToHistory(line)
-                    
+
                     commandManager.executeCommand(consoleSender, line)
                 }
             }
+        } catch (e: java.io.IOError) {
+            return false
         } catch (e: java.io.IOException) {
             // Terminal creation itself failed — not usable
             return false
@@ -175,6 +247,8 @@ class ConsoleInputReader(
                     commandManager.executeCommand(consoleSender, line)
                 }
             }
+        } catch (e: java.io.IOError) {
+            Main.logger.warn("Console input is not available (I/O error). Console commands are disabled.")
         } catch (e: java.io.IOException) {
             // stdin is not available at all (e.g. running as a Windows service)
             Main.logger.warn("Console input is not available. Console commands are disabled.")

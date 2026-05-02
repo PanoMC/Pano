@@ -19,7 +19,6 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.util.*
-import kotlin.Error
 
 @Endpoint
 class PanelGetInstallResourceStoreStreamAPI(
@@ -78,8 +77,10 @@ class PanelGetInstallResourceStoreStreamAPI(
 
         response.write("data: ${responseBody}\n\n")
 
-        if (result is Error) {
-            result.printStackTrace()
+        if (result is com.panomc.platform.model.Error) {
+            if (!result.hasExtra("licenseDeniedReason")) {
+                result.printStackTrace()
+            }
             response.end()
         }
     }

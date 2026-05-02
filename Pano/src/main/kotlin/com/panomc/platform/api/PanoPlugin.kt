@@ -206,4 +206,24 @@ abstract class PanoPlugin : Plugin() {
     open suspend fun onStop() {}
     open suspend fun onDisable() {}
     open suspend fun onUninstall() {}
+
+    /**
+     * Premium plugins override this to perform plugin-side license verification (RS256 signature
+     * check with the embedded public key, claim cross-checks, anti-tamper checks). Typically just:
+     *
+     * ```
+     * override suspend fun verifyLicense() {
+     *     licenseClient.requireValidLicense()
+     * }
+     * ```
+     *
+     * Called by the panel "Refresh license" endpoint AFTER the host fetches a fresh JWT, so the
+     * panel reflects the actual license outcome (signature/issuer/version/hash) instead of the
+     * host's optimistic "token received" view. Should throw [com.panomc.platform.license.LicenseRequiredException]
+     * on failure — the host catches it and records the failure via
+     * [com.panomc.platform.license.LicenseManager.recordFailure] so the panel surfaces the right status.
+     *
+     * Default: no-op (free plugins).
+     */
+    open suspend fun verifyLicense() {}
 }

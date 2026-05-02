@@ -132,6 +132,12 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     }
 
     override fun startPlugin(pluginId: String?): PluginState? {
+        // Previous startup failures can leave a stale wrapper.failedException. If we don't
+        // clear it before a retry, the old LicenseRequiredException keeps forcing FAILED.
+        if (pluginId != null) {
+            getPlugin(pluginId)?.failedException = null
+        }
+
         val state = super.startPlugin(pluginId)
         if (pluginId != null) {
             val wrapper = getPlugin(pluginId)
@@ -175,6 +181,12 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
                 )
             }
             captureLicenseFailureIfAny(pluginId)
+        }
+
+        if (pluginId != null && state == PluginState.STARTED) {
+            runCatching {
+                Main.applicationContext.getBean(LicenseManager::class.java).clearFailure(pluginId)
+            }
         }
         return state
     }

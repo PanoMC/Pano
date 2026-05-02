@@ -71,8 +71,16 @@ class PanelRefreshPluginLicenseAPI(
 
         try {
             licenseManager.requireLicense(plugin, resourceId, version)
-        } catch (_: LicenseRequiredException) {
-            // failure is already recorded by requireLicense; fall through and return status.
+            // Re-run the plugin's own verification step so a token the host happily cached but the
+            // plugin rejects (e.g. RS256 signature/issuer mismatch from a different license server)
+            // is surfaced here instead of only when the operator clicks Enable. Without this the
+            // panel showed "LICENSED" right after refresh while the very next start attempt threw
+            // SIGNATURE_INVALID from PluginLicenseClient.
+            plugin.verifyLicense()
+        } catch (e: LicenseRequiredException) {
+            // Plugin-side verification failures aren't recorded by requireLicense; do it here
+            // so the panel reflects the real license state immediately after refresh.
+            licenseManager.recordFailure(pluginId, e)
         } catch (_: Throwable) {
             // never propagate refresh failures as HTTP errors.
         }

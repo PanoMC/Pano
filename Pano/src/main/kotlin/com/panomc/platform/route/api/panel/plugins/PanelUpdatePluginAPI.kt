@@ -1,18 +1,14 @@
 package com.panomc.platform.route.api.panel.plugins
 
 
-import com.panomc.platform.PanoApiManager
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.DisabledPluginLog
 import com.panomc.platform.auth.panel.log.EnabledPluginLog
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
-import com.panomc.platform.license.LicenseManager
-import com.panomc.platform.license.LicensePanelView
 import com.panomc.platform.license.isPluginStartupBlockedByLicense
 import com.panomc.platform.license.panelPluginStartupErrorText
 import com.panomc.platform.model.*
@@ -32,10 +28,7 @@ import org.slf4j.LoggerFactory
 class PanelUpdatePluginAPI(
     private val authProvider: AuthProvider,
     private val pluginManager: PluginManager,
-    private val databaseManager: DatabaseManager,
-    private val licenseManager: LicenseManager,
-    private val configManager: ConfigManager,
-    private val panoApiManager: PanoApiManager
+    private val databaseManager: DatabaseManager
 ) : PanelApi() {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -75,28 +68,6 @@ class PanelUpdatePluginAPI(
                 if (status) {
                     if (pluginWrapper.pluginState == PluginState.STARTED) {
                         return Successful()
-                    }
-
-                    val licenseFields = LicensePanelView.buildLicenseFields(
-                        pluginId = pluginId,
-                        licenseManager = licenseManager,
-                        configManager = configManager,
-                        isPanoConnected = panoApiManager.isConnected()
-                    )
-                    val premium = licenseFields["premium"] as Boolean
-                    val licensed = licenseFields["licensed"] as Boolean
-                    if (premium && !licensed) {
-                        log.warn(
-                            "Panel ENABLE '{}' rejected: premium addon without valid license (licensed=false)",
-                            pluginId,
-                        )
-                        return Successful(
-                            mapOf(
-                                "status" to PluginState.FAILED,
-                                "startupBlockedByLicense" to true,
-                                "error" to null
-                            )
-                        )
                     }
 
                     context.vertx().executeBlocking<Unit> {

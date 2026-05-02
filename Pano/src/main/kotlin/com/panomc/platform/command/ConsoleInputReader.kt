@@ -108,6 +108,14 @@ class ConsoleInputReader(
                     null
                 } catch (e: EndOfFileException) {
                     break
+                } catch (e: java.io.IOError) {
+                    // JLine may throw IOError (not IOException) when stdin / PTY breaks:
+                    // Docker without TTY, IDE run, systemd, closed pipe, etc.
+                    try {
+                        terminal.close()
+                    } catch (_: Exception) {
+                    }
+                    return false
                 } catch (e: java.io.IOException) {
                     // On Windows, JLine can throw "The handle is invalid" when stdin
                     // is not a real console (e.g. IDE, service, redirected input).
@@ -130,6 +138,8 @@ class ConsoleInputReader(
                     commandManager.executeCommand(consoleSender, line)
                 }
             }
+        } catch (e: java.io.IOError) {
+            return false
         } catch (e: java.io.IOException) {
             // Terminal creation itself failed — not usable
             return false
@@ -175,6 +185,8 @@ class ConsoleInputReader(
                     commandManager.executeCommand(consoleSender, line)
                 }
             }
+        } catch (e: java.io.IOError) {
+            Main.logger.warn("Console input is not available (I/O error). Console commands are disabled.")
         } catch (e: java.io.IOException) {
             // stdin is not available at all (e.g. running as a Windows service)
             Main.logger.warn("Console input is not available. Console commands are disabled.")

@@ -1,5 +1,6 @@
 package com.panomc.platform.util
 
+import com.panomc.platform.command.ConsoleInputReader
 import com.panomc.platform.util.UiConsole.markReady
 import kotlinx.coroutines.runBlocking
 import java.awt.*
@@ -237,14 +238,17 @@ object UiConsole {
         val mono = pickMonospaceFont()
         pane.font = mono.deriveFont(14f)
 
-        val promptLabel = JLabel("> ").apply {
-            foreground = fg
+        // Match JLine ANSI 93 `>` so the prompt is obvious next to the field (esp. vs log text).
+        val promptYellow = Color(0xF5, 0xD7, 0x42)
+        val promptLabel = JLabel(">").apply {
+            foreground = promptYellow
             background = fieldBg
             isOpaque = true
-            font = mono.deriveFont(14f)
+            font = mono.deriveFont(Font.BOLD, 14f)
+            horizontalAlignment = SwingConstants.TRAILING
             border = BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 0, 0, 0, borderTop),
-                BorderFactory.createEmptyBorder(6, 8, 6, 0)
+                BorderFactory.createEmptyBorder(6, 10, 6, 4)
             )
         }
 
@@ -365,13 +369,28 @@ object UiConsole {
         field.text = ""
         updateSendEnabled()
 
-        // Echo the command to the GUI text pane
-        val echoText = "\u001B[90m>\u001B[0m $cmd\n"
-        parseAnsiAndAppend(echoText)
+        // Echo in the Swing pane (classic `> cmd` line).
+        val echoPane = "\u001B[90m>\u001B[0m $cmd\n"
+        parseAnsiAndAppend(echoPane)
 
-        // Also tee to the terminal so both stay in sync
-        originalOut?.print(echoText)
-        originalOut?.flush()
+        // Mirror the command on the original stdout exactly like a typed terminal entry: `> cmd`.
+        // Real TTYs use printAbove so JLine can keep the user's in-progress buffer; dumb TTYs
+        // (IntelliJ Run, pipes) use a manual rewrite to avoid printAbove's blank-line redraw bug.
+        val termEcho = ConsoleInputReader.terminalStyleCommandLine(cmd)
+        val jlr = ConsoleInputReader.reader
+        try {
+            when {
+                jlr != null && ConsoleInputReader.ansiCapableTerminal -> jlr.printAbove(termEcho)
+                jlr != null -> ConsoleInputReader.emitWithPromptRefresh(termEcho)
+                else -> {
+                    originalOut?.print(termEcho)
+                    originalOut?.flush()
+                }
+            }
+        } catch (_: Throwable) {
+            originalOut?.print(termEcho)
+            originalOut?.flush()
+        }
 
         addToHistory(cmd)
         historyIndex = -1
@@ -467,38 +486,63 @@ object UiConsole {
 
             override fun write(b: Int) {
                 buffer.write(b)
-                if (b == '\n'.toInt()) {
+                if (b == '\n'.code) {
                     flush()
                 }
             }
 
             override fun write(b: ByteArray, off: Int, len: Int) {
                 buffer.write(b, off, len)
-                if (b.sliceArray(off until off + len).contains('\n'.toByte())) {
+                if (b.sliceArray(off until off + len).contains('\n'.code.toByte())) {
                     flush()
                 }
             }
 
+            /**
+             * Drain the in-memory buffer to both the Swing pane and the original stream.
+             *
+             * Only complete lines (terminated by `\n`) are forwarded to the tee path. Any trailing
+             * partial line stays buffered until the next `\n` arrives. This prevents JLine's
+             * `printAbove` from being called twice for one logical log line — which is what caused
+             * the "ekstra boş satırlar" symptom in IntelliJ Run consoles when log4j or any consumer
+             * happened to flush mid-line.
+             */
             override fun flush() {
                 val data = buffer.toByteArray()
                 if (data.isEmpty()) return
-                
+
                 val s = String(data, Charsets.UTF_8)
                 parseAnsiAndAppend(s)
-                
+
                 if (teeToOriginal) {
-                    val jlineReader = com.panomc.platform.command.ConsoleInputReader.reader
-                    if (jlineReader != null) {
-                        // Use JLine's printAbove to keep the prompt at the bottom
-                        jlineReader.printAbove(s)
-                    } else {
-                        // Fallback to direct output
-                        if (isErr) originalErr?.print(s) else originalOut?.print(s)
-                        if (isErr) originalErr?.flush() else originalOut?.flush()
+                    val lastNl = s.lastIndexOf('\n')
+                    val complete = if (lastNl >= 0) s.substring(0, lastNl + 1) else ""
+                    val partial = if (lastNl >= 0) s.substring(lastNl + 1) else s
+
+                    if (complete.isNotEmpty()) {
+                        val jlr = ConsoleInputReader.reader
+                        try {
+                            when {
+                                jlr != null && ConsoleInputReader.ansiCapableTerminal -> jlr.printAbove(complete)
+                                jlr != null -> ConsoleInputReader.emitWithPromptRefresh(complete)
+                                else -> {
+                                    if (isErr) originalErr?.print(complete) else originalOut?.print(complete)
+                                    if (isErr) originalErr?.flush() else originalOut?.flush()
+                                }
+                            }
+                        } catch (_: Throwable) {
+                            if (isErr) originalErr?.print(complete) else originalOut?.print(complete)
+                            if (isErr) originalErr?.flush() else originalOut?.flush()
+                        }
                     }
+
+                    buffer.reset()
+                    if (partial.isNotEmpty()) {
+                        buffer.write(partial.toByteArray(Charsets.UTF_8))
+                    }
+                } else {
+                    buffer.reset()
                 }
-                
-                buffer.reset()
             }
         }
 

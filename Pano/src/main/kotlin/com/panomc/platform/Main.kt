@@ -104,6 +104,7 @@ class Main : CoroutineVerticle() {
 
         val START_TIME = System.currentTimeMillis()
 
+        @Volatile
         var IS_GUI = false
             private set
 

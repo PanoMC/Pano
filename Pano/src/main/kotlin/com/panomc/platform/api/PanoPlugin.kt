@@ -141,6 +141,7 @@ abstract class PanoPlugin : Plugin() {
                 wrapper.failedException = e
             } catch (_: Throwable) {
             }
+            throw e
         }
     }
 

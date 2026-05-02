@@ -138,11 +138,13 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             val licenseException = wrapper?.failedException.findLicenseRequiredInCauseChain()
             if (licenseException != null) {
                 wrapper?.pluginState = PluginState.FAILED
+                forceDisableBlockedPlugin(pluginId)
                 log.warn(
-                    "Plugin '{}' startup blocked by license: {}",
+                    "Plugin '{}' startup blocked by license and forced to DISABLED: {}",
                     pluginId,
                     licenseException.message,
                 )
+                captureLicenseFailureIfAny(pluginId)
                 return PluginState.FAILED
             }
         }
@@ -152,8 +154,9 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             if (fe != null) {
                 val licenseException = fe.findLicenseRequiredInCauseChain()
                 if (licenseException != null) {
+                    forceDisableBlockedPlugin(pluginId)
                     log.warn(
-                        "Plugin '{}' startup blocked by license: {}",
+                        "Plugin '{}' startup blocked by license and forced to DISABLED: {}",
                         pluginId,
                         licenseException.message,
                     )
@@ -174,6 +177,22 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             captureLicenseFailureIfAny(pluginId)
         }
         return state
+    }
+
+    /**
+     * Avoids running plugin lifecycle hooks while persisting PF4J DISABLED state.
+     * This prevents unlicensed premium plugins from coming back as enabled next startup.
+     */
+    private fun forceDisableBlockedPlugin(pluginId: String) {
+        runCatching {
+            super.disablePlugin(pluginId)
+        }.onFailure {
+            log.warn(
+                "Could not persist DISABLED state for license-blocked plugin '{}': {}",
+                pluginId,
+                it.message,
+            )
+        }
     }
 
     /**

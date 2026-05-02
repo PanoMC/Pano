@@ -343,14 +343,14 @@ class PanoApiManager(
     suspend fun getVersionInfo(versionId: UUID): JsonObject {
         val response: HttpResponse<Buffer>
         val data: JsonObject
+        val responseBody: JsonObject
 
         try {
             response = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}")
                 .send()
                 .coAwait()
 
-            val responseBody = response.bodyAsJsonObject()
-            data = responseBody.getJsonObject("data")
+            responseBody = response.bodyAsJsonObject()!!
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw PanoConnectFailed()
@@ -363,6 +363,8 @@ class PanoApiManager(
         if (response.statusCode() == 404) {
             throw NotFound()
         }
+
+        data = responseBody.getJsonObject("data")
 
         return data
     }

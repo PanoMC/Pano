@@ -494,7 +494,8 @@ class InstallManager(
         return pluginDescriptorFinder.find(pluginPath) as PanoPluginDescriptor
     }
 
-    fun fixVersion(version: String) = (if (!version.startsWith("v")) "v" else "") + version
+    /** Strips a leading `v` only; does not add or otherwise normalize the string. */
+    private fun stripLeadingV(version: String) = version.removePrefix("v")
 
     fun isInstalled(resourceId: String, type: ResourceType): Boolean {
         if (type == ResourceType.PLUGIN) {
@@ -507,11 +508,13 @@ class InstallManager(
     fun isInstalled(resourceId: String, version: String, type: ResourceType): Boolean {
         if (type == ResourceType.PLUGIN) {
             return pluginManager.resolvedPlugins.any {
-                it.pluginId == resourceId && fixVersion(it.descriptor.version) == fixVersion(version)
+                it.pluginId == resourceId && stripLeadingV(it.descriptor.version) == stripLeadingV(version)
             }
         }
 
-        return uiManager.installedThemeList.any { it.id == resourceId && fixVersion(it.version) == fixVersion(version) }
+        return uiManager.installedThemeList.any {
+            it.id == resourceId && stripLeadingV(it.version) == stripLeadingV(version)
+        }
     }
 
     fun getResourceInfo(resourceId: String, type: ResourceType): Map<String, Any> {
@@ -521,7 +524,7 @@ class InstallManager(
 
             return mapOf(
                 "id" to plugin.pluginId,
-                "version" to fixVersion(descriptor.version),
+                "version" to stripLeadingV(descriptor.version),
                 "hash" to plugin.hash,
                 "license" to descriptor.license
             )
@@ -531,7 +534,7 @@ class InstallManager(
 
         return mapOf(
             "id" to theme.id,
-            "version" to theme.version,
+            "version" to stripLeadingV(theme.version),
             "hash" to theme.hash,
             "createdAt" to theme.createdAt,
             "installedBy" to theme.installedBy,

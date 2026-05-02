@@ -116,9 +116,7 @@ class InstallManager(
                     fromVersion = existingPlugin.descriptor.version
                     val originalPath = existingPlugin.pluginPath.toAbsolutePath().normalize()
 
-                    pluginManager.stopPlugin(pluginId)
-                    pluginManager.disablePlugin(pluginId)
-                    pluginManager.unloadPlugin(pluginId)
+                    unloadPluginForInstall(pluginId)
 
                     val backupPath = Paths.get(originalPath.toString() + ROLLBACK_SUFFIX)
 
@@ -145,14 +143,13 @@ class InstallManager(
                     }.coAwait()
 
                     try {
-                        vertx.executeBlocking<Unit> {
+                        val state = vertx.executeBlocking<PluginState?> {
                             pluginManager.loadPlugin(originalPath)
+                            pluginManager.enablePlugin(pluginId)
+                            pluginManager.startPlugin(pluginId)
                         }.coAwait()
-                        pluginManager.enablePlugin(pluginId)
-                        if (pluginManager.startPlugin(pluginId) != PluginState.STARTED) {
-                            throw FailedToInstallResource(
-                                extras = mapOf("message" to "Plugin failed to start after update.")
-                            )
+                        if (state != PluginState.STARTED) {
+                            throw pluginStartFailure(pluginId, "update")
                         }
                     } catch (e: Throwable) {
                         try {
@@ -179,18 +176,20 @@ class InstallManager(
                         }
                     }.coAwait()
                 } else {
-                    vertx.executeBlocking<Unit> {
+                    val state = vertx.executeBlocking<PluginState?> {
                         pluginManager.loadPlugin(resourceFile.toPath())
+                        pluginManager.enablePlugin(pluginId)
+                        pluginManager.startPlugin(pluginId)
                     }.coAwait()
-                    pluginManager.enablePlugin(pluginId)
-                    if (pluginManager.startPlugin(pluginId) != PluginState.STARTED) {
+                    if (state != PluginState.STARTED) {
+                        val failure = pluginStartFailure(pluginId, "install")
                         try {
-                            pluginManager.unloadPlugin(pluginId)
+                            vertx.executeBlocking<Unit> {
+                                pluginManager.unloadPlugin(pluginId)
+                            }.coAwait()
                         } catch (_: Throwable) {
                         }
-                        throw FailedToInstallResource(
-                            extras = mapOf("message" to "Plugin failed to start after install.")
-                        )
+                        throw failure
                     }
                 }
 
@@ -571,6 +570,34 @@ class InstallManager(
                 throw IllegalStateException("Restored plugin did not reach STARTED (state=$state)")
             }
         }.coAwait()
+    }
+
+    private suspend fun unloadPluginForInstall(pluginId: String) {
+        vertx.executeBlocking<Unit> {
+            pluginManager.stopPlugin(pluginId)
+            pluginManager.disablePlugin(pluginId)
+            pluginManager.unloadPlugin(pluginId)
+        }.coAwait()
+    }
+
+    private fun pluginStartFailure(pluginId: String, action: String): FailedToInstallResource {
+        val licenseException = pluginManager.getPlugin(pluginId)
+            ?.failedException
+            .findLicenseRequiredInCauseChain()
+
+        if (licenseException != null) {
+            return FailedToInstallResource(
+                extras = mapOf(
+                    "message" to licenseException.message,
+                    "licenseDeniedReason" to licenseException.reason.publicId,
+                    "pluginId" to licenseException.pluginId
+                )
+            )
+        }
+
+        return FailedToInstallResource(
+            extras = mapOf("message" to "Plugin failed to start after $action.")
+        )
     }
 
     private fun isValidZip(file: File): Boolean {

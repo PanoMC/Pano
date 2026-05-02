@@ -24,6 +24,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import io.vertx.kotlin.coroutines.coAwait
 import org.pf4j.PluginState
 import org.slf4j.LoggerFactory
 
@@ -98,8 +99,10 @@ class PanelUpdatePluginAPI(
                         )
                     }
 
-                    pluginManager.enablePlugin(pluginId)
-                    pluginManager.startPlugin(pluginId)
+                    context.vertx().executeBlocking<Unit> {
+                        pluginManager.enablePlugin(pluginId)
+                        pluginManager.startPlugin(pluginId)
+                    }.coAwait()
 
                     val sqlClient = databaseManager.getSqlClient()
                     val userId = authProvider.getUserIdFromRoutingContext(context)
@@ -123,13 +126,15 @@ class PanelUpdatePluginAPI(
                         pluginManager.plugins.filter { it.pluginState != PluginState.DISABLED && it.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
                             .map { it.pluginId }
 
-                    dependents.forEach {
-                        pluginManager.stopPlugin(it)
-                        pluginManager.disablePlugin(it)
-                    }
+                    context.vertx().executeBlocking<Unit> {
+                        dependents.forEach {
+                            pluginManager.stopPlugin(it)
+                            pluginManager.disablePlugin(it)
+                        }
 
-                    pluginManager.stopPlugin(pluginId)
-                    pluginManager.disablePlugin(pluginId)
+                        pluginManager.stopPlugin(pluginId)
+                        pluginManager.disablePlugin(pluginId)
+                    }.coAwait()
 
                     val sqlClient = databaseManager.getSqlClient()
                     val userId = authProvider.getUserIdFromRoutingContext(context)

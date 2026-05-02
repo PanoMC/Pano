@@ -62,19 +62,19 @@ data class PanoConfig(
     val auth: AuthConfig = AuthConfig(),
 ) {
     /**
-     * JWT `iss` plugins expect when verifying license tokens. No extra config key: derived from
-     * [panoApiUrl] first (licenses are issued by that host; must match its `licensing.issuer`),
-     * then hostname of [panoWebsiteUrl] if the API URL is blank. Mapping examples:
-     * `api.panomc.com` → `panomc.com`, `api-dev.panomc.com` → `dev.panomc.com`; unknown API hosts
-     * fall through to [issuerHintFromLicenseApiHost] (often the API hostname).
+     * JWT `iss` plugins expect when verifying license tokens. No extra config key: uses the
+     * hostname of [panoWebsiteUrl] (scheme and port stripped, e.g. `https://dev.panomc.com` →
+     * `dev.panomc.com`, `https://local.panomc.com:3003` → `local.panomc.com`). If the website URL
+     * is missing or unparsable, falls back to [panoApiUrl] via [issuerHintFromLicenseApiHost]
+     * (`api.panomc.com` → `panomc.com`, `api-dev.panomc.com` → `dev.panomc.com`, else the API host).
      */
     fun resolvedLicenseJwtIssuer(): String {
+        hostnameFromHttpUrl(panoWebsiteUrl.trim())?.takeIf { it.isNotBlank() }?.let { return it }
         val apiHost = hostnameFromHttpUrl(panoApiUrl.trim())
         if (!apiHost.isNullOrBlank()) {
             val fromApi = issuerHintFromLicenseApiHost(apiHost)
             if (fromApi.isNotBlank()) return fromApi
         }
-        hostnameFromHttpUrl(panoWebsiteUrl.trim())?.takeIf { it.isNotBlank() }?.let { return it }
         return "panomc.com"
     }
 

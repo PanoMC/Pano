@@ -8,7 +8,8 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.error.*
 import com.panomc.platform.license.LicenseManager
-import com.panomc.platform.model.Error
+import com.panomc.platform.license.findLicenseRequiredInCauseChain
+import com.panomc.platform.model.Error as DomainError
 import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
@@ -562,14 +563,27 @@ class PanoApiManager(
             installManager.installResource(userId, hash, verified, file, versionType) {
                 progressHandler.invoke(it)
 
-                if (it is Error) {
+                if (it is DomainError) {
                     file.delete()
                 }
             }
-        } catch (e: Error) {
+        } catch (e: DomainError) {
             progressHandler.invoke(e)
         } catch (e: Exception) {
             progressHandler.invoke(FailedToInstallResource(extras = mapOf("message" to e.message)))
+        } catch (e: Throwable) {
+            val licenseException = e.findLicenseRequiredInCauseChain()
+            val extras =
+                if (licenseException != null) {
+                    mapOf(
+                        "message" to licenseException.message,
+                        "licenseDeniedReason" to licenseException.reason.publicId,
+                        "pluginId" to licenseException.pluginId
+                    )
+                } else {
+                    mapOf("message" to e.message)
+                }
+            progressHandler.invoke(FailedToInstallResource(extras = extras))
         }
     }
 

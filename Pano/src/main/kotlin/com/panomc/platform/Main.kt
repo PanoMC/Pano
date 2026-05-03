@@ -351,6 +351,8 @@ class Main : CoroutineVerticle() {
             initUpdateManager()
 
             initOnlinePlayerTracker()
+
+            initLicenseManager()
         }
 
         executeBlocking {
@@ -396,6 +398,14 @@ class Main : CoroutineVerticle() {
         val onlinePlayerTracker = applicationContext.getBean(OnlinePlayerTracker::class.java)
 
         onlinePlayerTracker.start()
+    }
+
+    private fun initLicenseManager() {
+        logger.info("Initializing license manager (renewal sweep)")
+
+        val licenseManager = applicationContext.getBean(com.panomc.platform.license.LicenseManager::class.java)
+
+        licenseManager.init()
     }
 
     private fun initPluginManager() {

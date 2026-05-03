@@ -93,7 +93,12 @@ class ConsoleInputReader(
         
         thread(name = "ConsoleInputReader", isDaemon = true) {
             if (!startWithJLine()) {
-                Main.logger.warn("JLine console is not available (likely not a real terminal). Falling back to basic console reader.")
+                Main.logger.warn(
+                    "Interactive console is unavailable — there is no TTY attached " +
+                        "(often after a detached restart, e.g. platform update launching in the background). " +
+                        "Console commands cannot be typed into this stdout log; restart Pano manually from an interactive terminal " +
+                        "or use the GUI console if enabled. Falling back to a basic reader."
+                )
                 startWithBasicReader()
             }
         }

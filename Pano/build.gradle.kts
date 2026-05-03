@@ -325,6 +325,9 @@ tasks {
 
             attrMap["VERSION"] = version.toString()
             attrMap["BUILD_TYPE"] = buildType
+            // JDK 22+ restricted native methods (JNI): avoids warnings when launching with java -jar
+            // See https://openjdk.org/jeps/472 — ignored by older JVMs
+            attrMap["Enable-Native-Access"] = "ALL-UNNAMED"
 
             attributes(attrMap)
         }

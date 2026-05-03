@@ -109,11 +109,21 @@ open class SpringConfig {
             .setConnectTimeout(10000)
             .setKeepAlive(true)
             // Vert.x default keep-alive timeout is 60s, but the Bun/SvelteKit adapter-node
-            // upstream closes idle keep-alive connections after ~5s (Node default). When
-            // the page sits idle for ≥5s the upstream silently sends FIN; Vert.x still has
-            // the socket in the pool and reuses it on the next request, getting RST/EOF and
-            // surfacing it as 502. Keep our timeout below the upstream's so the pooled
-            // socket is evicted *before* it can become stale.
+            // upstream closes idle keep-alive connections after ~5s (Node's default
+            // [server.keepAliveTimeout]). When the page sits idle for ≥5s the upstream
+            // silently sends FIN; Vert.x still has the socket in the pool and reuses it on
+            // the next request, getting RST/EOF and surfacing it as a [Stream reset: 0]
+            // logged by [HttpClientRequestImpl] (the proxy's exception handler resets the
+            // upstream request with code 0 on any downstream failure). The user-visible
+            // symptom is broken page assets that "magically" load after F5.
+            //
+            // Keep our timeout WELL below the upstream's so the pooled socket is evicted
+            // before it can go stale. Note that eviction only happens on pool-cleaner
+            // ticks (default [PoolOptions.cleanerPeriod] = 1000ms), so the actual eviction
+            // delay is up to keepAliveTimeout + cleanerPeriod. With a 4s timeout that
+            // worst-case is ~5s, exactly Bun's idle-close — a race we lost in practice.
+            // 2s timeout + 500ms cleaner gives a hard ceiling of ~2.5s, comfortably below
+            // Bun's 5s.
             //
             // NOTE: Only [setKeepAliveTimeout] is set, NOT [setIdleTimeout]. The two are
             // very different: keepAliveTimeout is HTTP/1.x specific and only affects the
@@ -121,7 +131,7 @@ open class SpringConfig {
             // socket-level read/write inactivity timeout that ALSO kills upgraded
             // connections such as the Vite HMR WebSocket in theme dev mode, which would
             // make the dev page silently reload every few seconds.
-            .setKeepAliveTimeout(4)
+            .setKeepAliveTimeout(2)
             .setIdleTimeout(60)
             .setIdleTimeoutUnit(TimeUnit.SECONDS),
         // Default pool size in Vert.x 5 is 5 connections per origin (HTTP/1.x). This
@@ -132,10 +142,14 @@ open class SpringConfig {
         // wait-queue is also exhausted the request fails immediately with
         // ConnectionPoolTooBusyException, which the proxy turns into a 502 Bad Gateway.
         // Pool sizing in Vert.x 5 lives on PoolOptions, not HttpClientOptions.
+        //
+        // [setCleanerPeriod] tightens the eviction loop from the default 1000ms to 500ms
+        // — see the [setKeepAliveTimeout] comment above for why we need it.
         PoolOptions()
             .setHttp1MaxSize(256)
             .setHttp2MaxSize(256)
             .setMaxWaitQueueSize(-1)
+            .setCleanerPeriod(500)
     )
 
     @Bean

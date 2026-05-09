@@ -7,7 +7,10 @@
     "link": {
       "code-message": "&aBağlantı kodunuz: &e{{code}}\n&aBu kod 30 saniye geçerlidir.",
       "failed": "&cBağlantı kodu oluşturulamadı. Lütfen daha sonra tekrar deneyin.",
-      "only-players": "&cBu komutu sadece oyuncular kullanabilir."
+      "only-players": "&cBu komutu sadece oyuncular kullanabilir.",
+      "already-registered": "&cZaten kayıtlısınız. /link komutunu kullanmanıza gerek yok.",
+      "user-not-found": "&cHesabınız bulunamadı. Lütfen sunucuya tekrar giriş yapıp deneyin.",
+      "cooldown": "&e/link komutunu tekrar kullanmadan önce &6{{seconds}}&e saniye bekleyin."
     }
   }
 }

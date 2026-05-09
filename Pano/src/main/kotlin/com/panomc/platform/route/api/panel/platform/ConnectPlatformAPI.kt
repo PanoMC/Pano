@@ -2,6 +2,8 @@ package com.panomc.platform.route.api.panel.platform
 
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -14,7 +16,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class ConnectPlatformAPI(
-    private val panoApiManager: PanoApiManager
+    private val panoApiManager: PanoApiManager,
+    private val authProvider: AuthProvider,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/platform/connect", RouteType.POST))
 
@@ -31,6 +34,8 @@ class ConnectPlatformAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 

@@ -11,6 +11,8 @@ import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.*
 import com.panomc.platform.model.*
+import com.panomc.platform.server.ServerManager
+import com.panomc.platform.server.message.PermissionsSnapshotUpdatedMessage
 import com.panomc.platform.token.TokenProvider
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
@@ -29,7 +31,8 @@ class PanelDeletePlayerAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val serverManager: ServerManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/delete", RouteType.POST))
 
@@ -121,6 +124,17 @@ class PanelDeletePlayerAPI(
 
         databaseManager.panelActivityLogDao.add(DeletedPlayerLog(authUserId, authUsername, username), sqlClient)
 
+        broadcastPermissionsSnapshotUpdated()
+
         return Successful()
+    }
+
+    private fun broadcastPermissionsSnapshotUpdated() {
+        val msg = PermissionsSnapshotUpdatedMessage()
+        serverManager.getConnectedServers().keys
+            .filter { it.settings.permissionIntegration }
+            .forEach { srv ->
+                serverManager.sendMessage(msg, srv)
+            }
     }
 }

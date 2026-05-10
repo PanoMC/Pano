@@ -74,7 +74,13 @@ class PanelUpdatePlayerAPI(
             throw NoPermission()
         }
 
-        validateForm(username, emailNormalized, newPassword, newPasswordRepeat, clearPassword)
+        validateForm(
+            username,
+            if (clearPassword) null else emailNormalized,
+            newPassword,
+            newPasswordRepeat,
+            clearPassword
+        )
 
         val sqlClient = getSqlClient()
 
@@ -112,7 +118,7 @@ class PanelUpdatePlayerAPI(
             }
         }
 
-        if (emailNormalized != user.email) {
+        if (!clearPassword && emailNormalized != user.email) {
             if (emailNormalized != null) {
                 val emailExists = databaseManager.userDao.isEmailExists(emailNormalized, sqlClient)
 
@@ -133,13 +139,17 @@ class PanelUpdatePlayerAPI(
         }
 
         if (clearPassword) {
-            databaseManager.userDao.clearPasswordAndMcLinkById(user.id, sqlClient)
+            databaseManager.userDao.clearWebsiteCredentialsAndMcLinkById(user.id, sqlClient)
         } else if (newPassword.isNotEmpty()) {
             databaseManager.userDao.setPasswordById(user.id, newPassword, sqlClient)
         }
 
         if (playerId != userId) {
-            databaseManager.userDao.updateEmailVerifyStatusById(playerId, isEmailVerified, sqlClient)
+            databaseManager.userDao.updateEmailVerifyStatusById(
+                playerId,
+                if (clearPassword) false else isEmailVerified,
+                sqlClient
+            )
             databaseManager.userDao.updateCanCreateTicketStatusById(playerId, canCreateTicket, sqlClient)
         }
 
@@ -170,7 +180,7 @@ class PanelUpdatePlayerAPI(
                 errors["newPassword"] = "CONFLICT"
             }
         } else {
-            if (newPassword.isNotEmpty() && (newPassword.length < 6 || newPassword.length > 128))
+            if (newPassword.isNotEmpty() && (newPassword.isBlank() || newPassword.length < 6 || newPassword.length > 128))
                 errors["newPassword"] = "INVALID"
 
             if (newPasswordRepeat != newPassword)

@@ -12,6 +12,10 @@ class ChangePasswordEvent(
     private val databaseManager: DatabaseManager
 ) : ServerEvent<ChangePasswordEventRequest, ChangePasswordEventResponse>() {
     override suspend fun handle(request: ChangePasswordEventRequest, server: Server): ChangePasswordEventResponse {
+        if (request.password.isBlank() || request.password.length < 6 || request.password.length > 128) {
+            return ChangePasswordEventResponse("INVALID_PASSWORD")
+        }
+
         val sqlClient = databaseManager.getSqlClient()
 
         val userId = databaseManager.userDao.getUserIdFromUsername(request.username, sqlClient)!!

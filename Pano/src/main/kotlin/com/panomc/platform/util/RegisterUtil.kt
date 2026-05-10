@@ -28,7 +28,7 @@ object RegisterUtil {
             throw RegisterEmailEmpty()
         }
 
-        if (password.isEmpty()) {
+        if (password.isBlank()) {
             throw PasswordEmpty()
         }
 

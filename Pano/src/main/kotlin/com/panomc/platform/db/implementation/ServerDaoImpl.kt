@@ -256,6 +256,15 @@ class ServerDaoImpl : ServerDao() {
             .coAwait()
     }
 
+    override suspend fun updateCustomNameById(id: Long, customName: String?, sqlClient: SqlClient) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `customName` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(customName, id))
+            .coAwait()
+    }
+
     override suspend fun updateServerForOfflineById(id: Long, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `status` = ?, `playerCount` = ? WHERE `id` = ?"
 

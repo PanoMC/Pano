@@ -79,6 +79,12 @@ abstract class ServerDao : Dao<Server>(Server::class.java) {
         sqlClient: SqlClient
     )
 
+    abstract suspend fun updateCustomNameById(
+        id: Long,
+        customName: String?,
+        sqlClient: SqlClient
+    )
+
     abstract suspend fun update(
         server: Server,
         sqlClient: SqlClient

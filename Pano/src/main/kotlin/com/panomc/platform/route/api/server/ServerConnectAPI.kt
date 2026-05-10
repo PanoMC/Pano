@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.server
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.error.InstallationRequired
@@ -28,7 +29,8 @@ class ServerConnectAPI(
     private val setupManager: SetupManager,
     private val serverAuthProvider: ServerAuthProvider,
     private val serverManager: ServerManager,
-    private val panelRealtimeHub: PanelRealtimeHub
+    private val panelRealtimeHub: PanelRealtimeHub,
+    private val authProvider: AuthProvider
 ) : Api() {
     override val paths = listOf(Path("/api/server/connection", RouteType.GET))
 
@@ -82,8 +84,11 @@ class ServerConnectAPI(
         val sqlClient = databaseManager.getSqlClient()
 
         val server = databaseManager.serverDao.getById(serverId, sqlClient)!!
+        val remoteAddress = authProvider.getRemoteIP(context)
 
+        server.remoteAddress = remoteAddress
         databaseManager.serverDao.updateStatusById(serverId, ServerStatus.ONLINE, sqlClient)
+        databaseManager.serverDao.updateRemoteAddressById(serverId, remoteAddress, sqlClient)
 
         serverManager.onServerConnect(server, serverWebSocket)
 

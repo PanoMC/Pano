@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.server
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -39,7 +40,8 @@ class ServerConnectNewAPI(
     private val tokenProvider: TokenProvider,
     private val setupManager: SetupManager,
     private val notificationManager: NotificationManager,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val authProvider: AuthProvider
 ) : Api() {
     override val paths = listOf(Path("/api/server/connect", RouteType.POST))
 
@@ -116,6 +118,7 @@ class ServerConnectNewAPI(
             name = data.getString("serverName"),
             motd = data.getString("motd") ?: "",
             host = data.getString("host"),
+            remoteAddress = authProvider.getRemoteIP(context),
             port = data.getInteger("port"),
             playerCount = data.getLong("playerCount"),
             maxPlayerCount = data.getLong("maxPlayerCount"),

@@ -24,6 +24,7 @@ class ServerDaoImpl : ServerDao() {
                               `name` varchar(255) NOT NULL,
                               `motd` text NOT NULL,
                               `host` varchar(255) NOT NULL,
+                              `remoteAddress` varchar(255),
                               `port` int(5) NOT NULL,
                               `playerCount` bigint NOT NULL,
                               `maxPlayerCount` bigint NOT NULL,
@@ -52,8 +53,8 @@ class ServerDaoImpl : ServerDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`, `aesKey`, `settings`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`name`, `motd`, `host`, `remoteAddress`, `port`, `playerCount`, `maxPlayerCount`, `type`, `version`, `favicon`, `status`, `addedTime`, `acceptedTime`, `startTime`, `stopTime`, `aesKey`, `settings`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -62,6 +63,7 @@ class ServerDaoImpl : ServerDao() {
                     server.name,
                     server.motd,
                     server.host,
+                    server.remoteAddress,
                     server.port,
                     server.playerCount,
                     server.maxPlayerCount,
@@ -149,6 +151,20 @@ class ServerDaoImpl : ServerDao() {
             .execute(
                 Tuple.of(
                     status.name,
+                    id
+                )
+            )
+            .coAwait()
+    }
+
+    override suspend fun updateRemoteAddressById(id: Long, remoteAddress: String?, sqlClient: SqlClient) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `remoteAddress` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    remoteAddress,
                     id
                 )
             )
@@ -285,7 +301,7 @@ class ServerDaoImpl : ServerDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `port` = ?, `playerCount` = ?, `maxPlayerCount` = ?, `type` = ?, `version` = ?, `favicon` = ?, `status` = ?, `startTime` = ?, `customName` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `name` = ?, `motd` = ?, `host` = ?, `remoteAddress` = ?, `port` = ?, `playerCount` = ?, `maxPlayerCount` = ?, `type` = ?, `version` = ?, `favicon` = ?, `status` = ?, `startTime` = ?, `customName` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -294,6 +310,7 @@ class ServerDaoImpl : ServerDao() {
                     server.name,
                     server.motd,
                     server.host,
+                    server.remoteAddress,
                     server.port,
                     server.playerCount,
                     server.maxPlayerCount,

@@ -34,6 +34,12 @@ abstract class ServerDao : Dao<Server>(Server::class.java) {
         sqlClient: SqlClient
     )
 
+    abstract suspend fun updateRemoteAddressById(
+        id: Long,
+        remoteAddress: String?,
+        sqlClient: SqlClient
+    )
+
     abstract suspend fun updatePermissionGrantedById(
         id: Long,
         permissionGranted: Boolean,
@@ -76,6 +82,12 @@ abstract class ServerDao : Dao<Server>(Server::class.java) {
 
     abstract suspend fun updateServerForOfflineById(
         id: Long,
+        sqlClient: SqlClient
+    )
+
+    abstract suspend fun updateCustomNameById(
+        id: Long,
+        customName: String?,
         sqlClient: SqlClient
     )
 

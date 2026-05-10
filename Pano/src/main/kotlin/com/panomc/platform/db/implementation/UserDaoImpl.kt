@@ -979,17 +979,19 @@ class UserDaoImpl : UserDao() {
             .coAwait()
     }
 
-    override suspend fun clearPasswordAndMcLinkById(
+    override suspend fun clearWebsiteCredentialsAndMcLinkById(
         id: Long,
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `password` = NULL, `mcUuid` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `email` = NULL, `password` = NULL, `emailVerified` = ?, `pendingEmail` = ?, `mcUuid` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
+                    0,
+                    "",
                     "",
                     id
                 )

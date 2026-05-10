@@ -13,12 +13,18 @@ whole platform.
 **No public key is embedded in Pano core** and **no extra HTTP round-trip** runs on startup; the JWT
 is obtained only when a plugin requests a license (or the operator hits refresh in the panel).
 
+After plugins start, [`LicenseManager.init`](LicenseManager.kt) schedules a periodic background sweep
+that proactively renews cached JWTs around their half-life (license tokens are short-lived — the
+default issuer TTL is 1h) and force-disables any plugin whose license has lapsed and cannot be
+renewed (purchase refunded, account disconnected, version mismatch, …) so it stops serving routes
+and event handlers instead of silently running with an unverifiable token.
+
 ## Files
 
 - [`LicenseManager.kt`](LicenseManager.kt) — Spring `@Component`. Receives `requireLicense` from
   plugins, fetches a JWT via [`PanoApiManager.issueLicense`](../PanoApiManager.kt), parses claims
   (unsigned on the host), cross-checks basic fields vs the request, caches for the panel, records
-  failures.
+  failures, and runs the post-startup periodic renewal sweep.
 - [`SignedLicense.kt`](SignedLicense.kt), [`LicenseClaims.kt`](LicenseClaims.kt) — wrappers around
   the RS256 JWT; plugins verify via [SignedLicense.verifySignature].
 - [`LicenseRequiredException.kt`](LicenseRequiredException.kt), [`LicenseDeniedReason.kt`](LicenseDeniedReason.kt),
@@ -46,6 +52,13 @@ is obtained only when a plugin requests a license (or the operator hits refresh 
   - GET /api/panel/plugins/:id/license          -> claims + status (from cache / failures)
   - POST /api/panel/plugins/:id/license/refresh -> host re-fetch + parse (plugin verifies on restart)
   - GET /api/panel/dashboard                    -> licenseFailedPluginCount
+
+[periodic renewal sweep] (LicenseManager.init, scheduled once after plugins start)
+  - every minute, for each STARTED plugin that has used the DRM flow this session:
+      - if cached token has passed its half-life: renew via PanoApiManager.issueLicense
+      - on success: cache fresh JWT, clear stale failure (if any)
+      - on failure WHILE token still valid: log warn, retry next tick
+      - on failure AND token is past expiry: record failure, stop+disable plugin (and dependents)
 ```
 
 ## Key rotation runbook (v1)

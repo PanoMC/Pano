@@ -32,17 +32,21 @@ class OnPlayerJoinEvent(
         databaseManager.serverPlayerDao.add(serverPlayer, sqlClient)
         databaseManager.serverDao.updatePlayerCountById(server.id, request.playerCount, sqlClient)
 
-        val userId = databaseManager.userDao.getUserIdFromUsername(player.username, sqlClient)
+        val user = databaseManager.userDao.getByUsername(player.username, sqlClient)
+        val playerUuid = player.uuid.toString()
 
-        if (userId != null) {
-            databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
+        if (user != null) {
+            databaseManager.userDao.updateLastLoginDate(user.id, sqlClient)
+            if (user.mcUuid != playerUuid) {
+                databaseManager.userDao.setMcUuidById(user.id, playerUuid, sqlClient)
+            }
         } else {
             // Create user
             val newUser = User(
                 username = player.username,
                 email = null,
                 registeredIp = player.ipAddress,
-                mcUuid = player.uuid.toString()
+                mcUuid = playerUuid
             )
 
             try {

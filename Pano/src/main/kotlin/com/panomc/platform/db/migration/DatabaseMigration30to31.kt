@@ -4,46 +4,45 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseMigration
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.SqlClient
+import io.vertx.sqlclient.Tuple
 
 @Migration
 class DatabaseMigration30to31 : DatabaseMigration(
     30,
     31,
-    "Add source column to ban_history table and create banned_ip table."
+    "Add remote address column to server table."
 ) {
     override val handlers: List<suspend (SqlClient) -> Unit> = listOf(
-        addSourceColumnToBanHistoryTable(),
-        createBannedIpTable()
+        addRemoteAddressColumnToServerTable()
     )
 
-    private fun addSourceColumnToBanHistoryTable(): suspend (sqlClient: SqlClient) -> Unit =
+    private fun addRemoteAddressColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = """
-                ALTER TABLE `${getTablePrefix()}ban_history`
-                ADD COLUMN `source` VARCHAR(255) NULL;
-            """.trimIndent()
+            val tableName = "${getTablePrefix()}server"
 
-            sqlClient.preparedQuery(query).execute().coAwait()
+            if (!columnExists(sqlClient, tableName, "remoteAddress")) {
+                val query = """
+                    ALTER TABLE `$tableName`
+                    ADD COLUMN `remoteAddress` VARCHAR(255) NULL AFTER `host`;
+                """.trimIndent()
+
+                sqlClient.query(query).execute().coAwait()
+            }
         }
 
-    private fun createBannedIpTable(): suspend (sqlClient: SqlClient) -> Unit =
-        { sqlClient: SqlClient ->
-            val query = """
-                CREATE TABLE IF NOT EXISTS `${getTablePrefix()}banned_ip` (
-                  `id` bigint NOT NULL AUTO_INCREMENT,
-                  `ip` varchar(45) NOT NULL,
-                  `reason` varchar(255),
-                  `bannedUntil` bigint,
-                  `bannedBy` varchar(255),
-                  `source` varchar(255),
-                  `bannedBySystem` tinyint(1) NOT NULL DEFAULT 0,
-                  `createdAt` BIGINT(20) NOT NULL,
-                  `updatedAt` BIGINT(20) NOT NULL,
-                  PRIMARY KEY (`id`),
-                  UNIQUE KEY `uq_banned_ip_ip` (`ip`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IP ban list.';
-            """.trimIndent()
+    private suspend fun columnExists(sqlClient: SqlClient, tableName: String, columnName: String): Boolean {
+        val query = """
+            SELECT COUNT(*) FROM `information_schema`.`COLUMNS`
+            WHERE `TABLE_SCHEMA` = DATABASE()
+              AND `TABLE_NAME` = ?
+              AND `COLUMN_NAME` = ?
+        """.trimIndent()
 
-            sqlClient.preparedQuery(query).execute().coAwait()
-        }
+        val rows = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(tableName, columnName))
+            .coAwait()
+
+        return rows.toList()[0].getLong(0) > 0
+    }
 }

@@ -108,7 +108,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
         run: |
-          npx semantic-release
+          npx semantic-release@24.2.6
 
       # Append UI changelog to latest release with a Markdown separator
       - name: Append UI changelog to latest release

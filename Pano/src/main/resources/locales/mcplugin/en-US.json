@@ -7,7 +7,10 @@
     "link": {
       "code-message": "&aYour link code is: &e{{code}}\n&aIt is valid for 30 seconds.",
       "failed": "&cFailed to generate link code. Please try again later.",
-      "only-players": "&cOnly players can use this command."
+      "only-players": "&cOnly players can use this command.",
+      "already-registered": "&cYou are already registered. There is no need to use /link.",
+      "user-not-found": "&cYour account could not be found. Please rejoin the server and try again.",
+      "cooldown": "&ePlease wait &6{{seconds}}&e seconds before using /link again."
     }
   }
 }

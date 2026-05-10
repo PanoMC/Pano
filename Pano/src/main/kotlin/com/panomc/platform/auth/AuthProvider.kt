@@ -12,6 +12,7 @@ import com.panomc.platform.util.Regexes
 import com.panomc.platform.util.TextUtil
 import io.vertx.core.http.Cookie
 import io.vertx.core.http.CookieSameSite
+import io.vertx.core.http.HttpServerRequest
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -123,14 +124,7 @@ class AuthProvider(
         val response = routingContext.response()
         val request = routingContext.request()
         val domain = resolveCookieDomain(routingContext)
-        val forwardedProto = request.getHeader("X-Forwarded-Proto")
-            ?.split(",")
-            ?.firstOrNull()
-            ?.trim()
-            ?.lowercase()
-
-        // Secure flag should follow the effective request protocol, not website-url config.
-        val isSecure = request.isSSL || forwardedProto == "https"
+        val isSecure = effectiveConnectionIsSecure(request)
 
         val authTokenCookie = Cookie.cookie(getJwtCookieName(isSecure), authToken)
         val csrfTokenCookie = Cookie.cookie(getCsrfCookieName(isSecure), csrfToken)
@@ -168,6 +162,61 @@ class AuthProvider(
         }
 
         return true
+    }
+
+    /**
+     * TLS is often terminated before Vert.x; infer HTTPS only from the connection and trusted proxy headers.
+     * If a proxy explicitly says `http`, cookies stay non-secure. No `website-url` involvement.
+     */
+    private fun effectiveConnectionIsSecure(request: HttpServerRequest): Boolean {
+        if (request.isSSL) {
+            return true
+        }
+
+        val xfp = commaSeparatedTokens(request.getHeader("X-Forwarded-Proto"))
+        if (xfp.any { it == "https" }) {
+            return true
+        }
+        if (xfp.any { it == "http" }) {
+            return false
+        }
+
+        val xForwardedProtocol = commaSeparatedTokens(request.getHeader("X-Forwarded-Protocol"))
+        if (xForwardedProtocol.any { it == "https" }) {
+            return true
+        }
+        if (xForwardedProtocol.any { it == "http" }) {
+            return false
+        }
+
+        when (request.getHeader("CF-Connecting-Proto")?.trim()?.lowercase()) {
+            "https" -> return true
+            "http" -> return false
+            else -> { /* continue */ }
+        }
+
+        if (forwardedHeaderHasProtoHttps(request.getHeader("Forwarded"))) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun commaSeparatedTokens(header: String?): List<String> =
+        header?.split(",")?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }.orEmpty()
+
+    private fun forwardedHeaderHasProtoHttps(header: String?): Boolean {
+        if (header.isNullOrBlank()) {
+            return false
+        }
+        return header.split(",").any { part ->
+            part.split(";").any { param ->
+                val kv = param.trim().split("=", limit = 2)
+                kv.size == 2 &&
+                    kv[0].trim().equals("proto", ignoreCase = true) &&
+                    kv[1].trim().equals("https", ignoreCase = true)
+            }
+        }
     }
 
     private fun resolveCookieDomain(routingContext: RoutingContext): String? {

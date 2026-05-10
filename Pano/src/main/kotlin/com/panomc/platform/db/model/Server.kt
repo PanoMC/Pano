@@ -10,6 +10,7 @@ data class Server(
     var name: String,
     var motd: String,
     var host: String,
+    var remoteAddress: String? = null,
     var port: Int,
     var playerCount: Long,
     var maxPlayerCount: Long,

@@ -9,9 +9,11 @@ import com.panomc.platform.db.model.PermissionTrack
 import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.User
+import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.ServerEvent
 import com.panomc.platform.server.ServerEventResponse
 import com.panomc.platform.server.event.request.SavePermissionsSnapshotEventRequest
+import com.panomc.platform.server.message.PermissionsSnapshotUpdatedMessage
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
@@ -31,7 +33,8 @@ import io.vertx.sqlclient.SqlClient
 @Event
 class SavePermissionsSnapshotEvent(
     private val databaseManager: DatabaseManager,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val serverManager: ServerManager
 ) : ServerEvent<SavePermissionsSnapshotEventRequest, ServerEventResponse>() {
 
     override suspend fun handle(request: SavePermissionsSnapshotEventRequest, server: Server): ServerEventResponse? {
@@ -171,12 +174,9 @@ class SavePermissionsSnapshotEvent(
                 }
 
                 HolderType.USER -> {
-                    // Prefer resolving by username (we just made sure every referenced username
-                    // has a Pano user). Fall back to explicit holderId when it's a valid id.
-                    val nameKey = obj.getString("holderName")
-                    val byName = nameKey?.let { userIdByUsername[it] }
-                    val explicitId = obj.getLong("holderId")?.takeIf { it > 0 }
-                    byName ?: explicitId ?: return@forEach
+                    // User permissions coming from LuckPerms are mapped by username only.
+                    val nameKey = obj.getString("holderName") ?: return@forEach
+                    userIdByUsername[nameKey] ?: return@forEach
                 }
             }
 
@@ -198,23 +198,33 @@ class SavePermissionsSnapshotEvent(
         }
 
         permissionManager.refresh()
+        broadcastSnapshotUpdated(server)
 
         return null
+    }
+
+    private fun broadcastSnapshotUpdated(sourceServer: Server) {
+        val msg = PermissionsSnapshotUpdatedMessage()
+        serverManager.getConnectedServers().keys
+            .filter { it.id != sourceServer.id }
+            .filter { it.settings.permissionIntegration }
+            .forEach { srv ->
+                serverManager.sendMessage(msg, srv)
+            }
     }
 
     /**
      * Build a username -> user-id map for every USER-holder node in the snapshot.
      *
-     * If a referenced username does not yet have a Pano user row we create one on the fly,
-     * using the Minecraft UUID from the payload (when provided) so that the MC account ends up
-     * linked correctly on first sync.
+     * If a referenced username does not yet have a Pano user row we create one on the fly.
+     * Permission sync is username-authoritative; Minecraft UUID linking is handled by join/link
+     * flows, not by LuckPerms snapshot imports.
      */
     private suspend fun resolveUserIdsForSnapshot(
         incomingNodes: JsonArray,
         sqlClient: SqlClient
     ): Map<String, Long> {
         val usernames = mutableSetOf<String>()
-        val uuidByUsername = mutableMapOf<String, String>()
 
         incomingNodes.forEach { el ->
             val obj = when (el) {
@@ -225,9 +235,6 @@ class SavePermissionsSnapshotEvent(
             if (obj.getString("holderType") != "USER") return@forEach
             val username = obj.getString("holderName")?.takeIf { it.isNotBlank() } ?: return@forEach
             usernames.add(username)
-            obj.getString("holderUniqueId")?.takeIf { it.isNotBlank() }?.let { uuid ->
-                uuidByUsername.putIfAbsent(username, uuid)
-            }
         }
 
         if (usernames.isEmpty()) return emptyMap()
@@ -245,8 +252,7 @@ class SavePermissionsSnapshotEvent(
                 email = null,
                 registeredIp = "",
                 registerDate = now,
-                lastLoginDate = now,
-                mcUuid = uuidByUsername[username]
+                lastLoginDate = now
             )
 
             val newId = try {

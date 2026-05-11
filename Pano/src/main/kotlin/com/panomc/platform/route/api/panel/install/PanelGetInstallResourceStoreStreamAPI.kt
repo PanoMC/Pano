@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.error.BadRequest
+import com.panomc.platform.error.FailedToInstallSystemResource
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Progress
@@ -78,7 +79,7 @@ class PanelGetInstallResourceStoreStreamAPI(
         response.write("data: ${responseBody}\n\n")
 
         if (result is com.panomc.platform.model.Error) {
-            if (!result.hasExtra("licenseDeniedReason")) {
+            if (result !is FailedToInstallSystemResource && !result.hasExtra("licenseDeniedReason")) {
                 result.printStackTrace()
             }
             response.end()

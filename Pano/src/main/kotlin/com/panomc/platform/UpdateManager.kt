@@ -374,7 +374,7 @@ class UpdateManager(
         checkResourceUpdates(background)
     }
 
-    suspend fun updatePlatform(userId: Long?, state: UUID, progressHandler: (result: Result) -> Unit) {
+    suspend fun updatePlatform(userId: Long?, state: UUID, background: Boolean = false, progressHandler: (result: Result) -> Unit) {
         try {
             val sqlClient = databaseManager.getSqlClient()
 
@@ -455,12 +455,14 @@ class UpdateManager(
                 "--restart"
             )
 
-            if (!IS_GUI) {
-                logger.info("Starting update in non-gui mode.")
-                args.add("-nogui")
-            } else {
-                logger.info("Starting update in gui mode.")
-            }
+            // GUI and -bg are independent: GUI controls whether the Swing console window opens,
+            // -bg controls whether the new process is detached from the launching terminal. We
+            // preserve the current platform's GUI/no-GUI mode and OR the bg flag with the
+            // caller's request (so a user already in -bg keeps it after the update).
+            val wantBackground = background || Main.IS_BG
+            if (!IS_GUI) args.add("-nogui")
+            if (wantBackground) args.add("-bg")
+            logger.info("Starting update (gui={}, background={}).", IS_GUI, wantBackground)
 
             ProcessBuilder(args)
                 .inheritIO()

@@ -114,8 +114,19 @@ class Main : CoroutineVerticle() {
         var IS_DEMO = false
             private set
 
+        @Volatile
+        var IS_BG = false
+            private set
+
         var STARTUP_ARGS: Array<String> = emptyArray()
             private set
+
+        /**
+         * Env marker set on the respawned child so we know not to fork again. The parent process
+         * (the one the user launched) spawns a detached copy of itself and exits — the copy sees
+         * this var and proceeds with the normal boot sequence in background mode.
+         */
+        private const val BG_RESPAWN_ENV = "PANO_BG_ACTIVE"
 
         @JvmStatic
         fun main(args: Array<String>) {
@@ -126,6 +137,18 @@ class Main : CoroutineVerticle() {
             IS_DEV = Args.hasFlag(args, "--dev")
             IS_DEMO = Args.hasFlag(args, "--demo")
             val noGui = Args.hasFlag(args, "-nogui")
+            val bg = Args.hasFlag(args, "-bg")
+
+            // -bg only controls terminal detachment. The launching process spawns a child with
+            // the same args (env marker prevents an infinite loop) and exits, so closing the
+            // terminal/SSH session no longer kills the platform. GUI / -nogui is independent:
+            // -bg alone still tries to open the Swing GUI, -bg -nogui stays headless.
+            if (bg && System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()) {
+                respawnDetachedAndExit(args)
+                return
+            }
+
+            IS_BG = bg
 
             if (!noGui) {
                 // Try GUI first; if it fails (headless or no display), do normal start.
@@ -140,24 +163,28 @@ class Main : CoroutineVerticle() {
 
             runBlocking {
                 vertx.deployVerticle(Main()).coAwait()
-                
+
                 // Wait for the shutdown signal from anywhere (stop command, ctrl+c, gui close)
                 mainShutdownDeferred.await()
-                
-                // Final cleanup: stop terminal reader loop
-                ConsoleInputReader.stop(false)
-                
+
+                // ConsoleInputReader is skipped in -bg mode (stdin is /dev/null) — only stop it
+                // when it was actually started.
+                if (!IS_BG) {
+                    ConsoleInputReader.stop(false)
+                }
+
                 logger.info("Pano is now stopped. Bye!")
-                
+
                 // Final flush
                 System.out.flush()
                 System.err.flush()
-                
+
                 // Give a tiny bit of time for logs to process
                 delay(100)
-                
-                // Truly stop terminal and JVM
-                ConsoleInputReader.stop(true)
+
+                if (!IS_BG) {
+                    ConsoleInputReader.stop(true)
+                }
                 exitProcess(0)
             }
         }
@@ -179,6 +206,47 @@ class Main : CoroutineVerticle() {
 
         val logger by lazy {
             LoggerFactory.getLogger("Pano")
+        }
+
+        /**
+         * Spawn a fresh JVM with the same args as the current one, set the respawn marker, and
+         * exit. On Windows we prefer javaw.exe so no stray console window pops up; on POSIX the
+         * orphaned child gets reparented to init/launchd, which is what we want.
+         */
+        private fun respawnDetachedAndExit(args: Array<String>) {
+            try {
+                val javaHome = System.getProperty("java.home")
+                val isWindows = System.getProperty("os.name").lowercase().contains("win")
+                val javaExe = if (isWindows) {
+                    val w = java.nio.file.Path.of(javaHome, "bin", "javaw.exe")
+                    if (java.nio.file.Files.exists(w)) w.toString()
+                    else java.nio.file.Path.of(javaHome, "bin", "java.exe").toString()
+                } else {
+                    java.nio.file.Path.of(javaHome, "bin", "java").toString()
+                }
+
+                val targetJar = java.nio.file.Path.of(
+                    Main::class.java.protectionDomain.codeSource.location.toURI()
+                ).toAbsolutePath().toString()
+
+                val cmd = mutableListOf(javaExe, "-jar", targetJar)
+                cmd.addAll(args)
+
+                val pb = ProcessBuilder(cmd)
+                pb.environment()[BG_RESPAWN_ENV] = "1"
+                pb.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                pb.redirectError(ProcessBuilder.Redirect.DISCARD)
+                pb.redirectInput(ProcessBuilder.Redirect.from(File(if (isWindows) "NUL" else "/dev/null")))
+
+                val child = pb.start()
+                println("Pano is starting in background (pid=${child.pid()}). Stdout/stderr are discarded; check the logs folder.")
+                System.out.flush()
+                exitProcess(0)
+            } catch (e: Exception) {
+                System.err.println("Failed to respawn in background mode: ${e.message}")
+                e.printStackTrace()
+                exitProcess(1)
+            }
         }
 
         /** Bold green + reset so the Pano URL stands out in the console. */
@@ -240,7 +308,11 @@ class Main : CoroutineVerticle() {
             commandManager.executeCommand(UiConsoleCommandSender(), cmd)
         }
 
-        ConsoleInputReader(this, commandManager, configManager).start()
+        // In -bg mode there is no terminal attached; spinning up JLine just spams warnings
+        // and leaks a thread that can't read anything anyway.
+        if (!IS_BG) {
+            ConsoleInputReader(this, commandManager, configManager).start()
+        }
     }
 
     private class UiConsoleCommandSender : CommandSender {

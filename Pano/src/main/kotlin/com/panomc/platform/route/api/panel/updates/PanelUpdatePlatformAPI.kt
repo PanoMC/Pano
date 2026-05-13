@@ -7,10 +7,12 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.core.http.HttpMethod
+import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.util.*
 
@@ -28,6 +30,7 @@ class PanelUpdatePlatformAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .queryParameter(param("state", stringSchema()))
+            .queryParameter(optionalParam("background", booleanSchema()))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result? {
@@ -36,6 +39,7 @@ class PanelUpdatePlatformAPI(
         val parameters = getParameters(context)
 
         val state = UUID.fromString(parameters.queryParameter("state").string)
+        val background = parameters.queryParameter("background")?.boolean ?: false
 
         val response = context.response()
 
@@ -48,7 +52,7 @@ class PanelUpdatePlatformAPI(
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        updateManager.updatePlatform(userId, state) {
+        updateManager.updatePlatform(userId, state, background) {
             sendServerSentEventMessage(context, it)
 
             if (it is Successful && it !is Progress) {

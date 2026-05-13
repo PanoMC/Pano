@@ -64,6 +64,7 @@ class PanelGetSettingsAPI(
         val settingType = if (settingTypeQuery == null) null else SettingType.valueOf(settingTypeQuery)
 
         val result = mutableMapOf<String, Any?>()
+        result["runMode"] = currentRunMode()
 
         if (settingType == SettingType.GENERAL || settingType == SettingType.UPDATES) {
             val panoAccountConfig = configManager.config.panoAccount
@@ -142,6 +143,10 @@ class PanelGetSettingsAPI(
 
         return Successful(result)
     }
+
+    private fun currentRunMode(): JsonObject = JsonObject()
+        .put("gui", Main.IS_GUI)
+        .put("background", Main.IS_BG)
 
     enum class SettingType {
         GENERAL,

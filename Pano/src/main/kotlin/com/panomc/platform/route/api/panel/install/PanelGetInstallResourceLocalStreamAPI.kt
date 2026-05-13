@@ -9,6 +9,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.FailedToInstallResource
+import com.panomc.platform.error.FailedToInstallSystemResource
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUtil
@@ -132,7 +133,7 @@ class PanelGetInstallResourceLocalStreamAPI(
 
         if (result is com.panomc.platform.model.Error) {
             context.get<File>("file")?.delete()
-            if (!result.hasExtra("licenseDeniedReason")) {
+            if (result !is FailedToInstallSystemResource && !result.hasExtra("licenseDeniedReason")) {
                 result.printStackTrace()
             }
             response.end()

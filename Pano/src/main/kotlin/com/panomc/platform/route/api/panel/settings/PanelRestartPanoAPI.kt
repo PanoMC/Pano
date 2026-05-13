@@ -15,6 +15,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.dispatcher
@@ -39,6 +40,7 @@ class PanelRestartPanoAPI(
                 json(
                     objectSchema()
                         .requiredProperty("password", stringSchema())
+                        .optionalProperty("background", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -51,6 +53,7 @@ class PanelRestartPanoAPI(
         val data = parameters.body().jsonObject
 
         val password = data.getString("password")
+        val background = data.getBoolean("background", false)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val sqlClient = getSqlClient()
@@ -73,13 +76,13 @@ class PanelRestartPanoAPI(
 
         // Restart the application by starting a new process and stopping the current one
         CoroutineScope(context.vertx().dispatcher()).launch {
-            restartApplication()
+            restartApplication(background)
         }
 
         return Successful()
     }
 
-    private suspend fun restartApplication() {
+    private suspend fun restartApplication(background: Boolean) {
         try {
             // Get current jar path
             val targetJar = Paths.get(
@@ -93,14 +96,15 @@ class PanelRestartPanoAPI(
                 if (System.getProperty("os.name").lowercase().contains("win")) "java.exe" else "java"
             ).toString()
 
-            // Get current process command line arguments
-            val currentArgs = getCurrentProcessArgs()
-
-            // Build command arguments
+            // Build command arguments. Start from the original startup args; if the caller
+            // requested background, add -bg (independent of -nogui — the child's Main will
+            // self-respawn detached but still honor -nogui / GUI as a separate decision).
             val args = mutableListOf(javaBin, "-jar", targetJar)
-
-            // Add all original arguments (excluding jar path)
-            args.addAll(currentArgs)
+            val baseArgs = Main.STARTUP_ARGS.toMutableList()
+            if (background && !baseArgs.contains("-bg")) {
+                baseArgs.add("-bg")
+            }
+            args.addAll(baseArgs)
 
             // Start new process
             ProcessBuilder(args)
@@ -113,10 +117,5 @@ class PanelRestartPanoAPI(
         } catch (e: Exception) {
             e.printStackTrace()
         }
-    }
-
-    private fun getCurrentProcessArgs(): List<String> {
-        // Use the startup arguments stored in Main companion object
-        return Main.STARTUP_ARGS.toList()
     }
 }

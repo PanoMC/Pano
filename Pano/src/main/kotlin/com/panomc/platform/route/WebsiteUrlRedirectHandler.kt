@@ -99,7 +99,7 @@ class WebsiteUrlRedirectHandler(
             ?.firstOrNull()
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
-        val hostHeader = forwardedHost ?: request.getHeader("Host") ?: request.host() ?: return null
+        val hostHeader = forwardedHost ?: request.getHeader("Host") ?: return null
         return stripPort(hostHeader.trim()).takeIf { it.isNotEmpty() }
     }
 

@@ -58,6 +58,13 @@ class RouterProvider private constructor(
     fun initialize() {
         if (isInitialized) return
 
+        // Canonical-host redirect runs before everything so cross-host browser traffic
+        // is bounced to website-url before any cookie-bearing handler touches it.
+        val websiteUrlRedirectHandler = applicationContext.getBean(WebsiteUrlRedirectHandler::class.java)
+        router.route("/*")
+            .order(-1)
+            .handler(websiteUrlRedirectHandler.create())
+
         // Register rate limiting handler FIRST (order 0) for all API routes.
         // This ensures rate-limited requests are rejected immediately without
         // any processing overhead (no body parsing, no validation, etc.).

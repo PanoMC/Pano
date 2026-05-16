@@ -110,5 +110,8 @@ private fun LicenseDeniedReason.toLicenseStatus(): LicenseStatus = when (this) {
     LicenseDeniedReason.PLATFORM_MISMATCH -> LicenseStatus.PLATFORM_MISMATCH
     LicenseDeniedReason.KEY_NOT_AVAILABLE -> LicenseStatus.UNKNOWN
     LicenseDeniedReason.INVALID_RESPONSE -> LicenseStatus.UNKNOWN
+    // Theme-only at the moment, but we surface it through the same panel pipeline as
+    // JAR_TAMPERED so the UI just shows "files have been modified after install".
+    LicenseDeniedReason.FILE_TAMPERED -> LicenseStatus.JAR_TAMPERED
     LicenseDeniedReason.UNKNOWN -> LicenseStatus.UNKNOWN
 }

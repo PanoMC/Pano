@@ -18,5 +18,12 @@ enum class LicenseDeniedReason(val publicId: String) {
     PLATFORM_MISMATCH("platform-mismatch"),
     KEY_NOT_AVAILABLE("key-not-available"),
     INVALID_RESPONSE("invalid-response"),
+    /**
+     * A premium theme's extracted folder on disk no longer matches the
+     * `fileFingerprint` it shipped with — likely tampering or partial update.
+     * Surfaced by the host before spawning the bun process and by the theme's
+     * own runtime helper as a defence-in-depth pass.
+     */
+    FILE_TAMPERED("file-tampered"),
     UNKNOWN("unknown")
 }

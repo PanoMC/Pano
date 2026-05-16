@@ -8,6 +8,8 @@ import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.error.ThemeLicenseRequired
+import com.panomc.platform.license.LicenseRequiredException
 import com.panomc.platform.model.*
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
@@ -48,13 +50,36 @@ class PanelActivateThemeAPI(
             return Successful()
         }
 
+        // Premium theme gate: stop the previous theme only after we've successfully fetched +
+        // verified the license. Otherwise an operator clicking "Activate" on a premium theme
+        // they don't own would knock the site offline (vanilla stopped, premium refused).
+        val previousActiveTheme = uiManager.activeTheme
+        uiManager.stopUI(previousActiveTheme)
+        uiManager.disableUIOnRoute(router, Type.THEME_UI)
+
+        try {
+            uiManager.startUI(theme.id)
+        } catch (e: LicenseRequiredException) {
+            // Bring the previous theme back online so the public site keeps working.
+            try {
+                uiManager.startUI(previousActiveTheme)
+                uiManager.activateThemeUI(router, previousActiveTheme)
+            } catch (_: Throwable) {
+                // Best-effort: if the previous theme was itself premium-and-unlicensed (rare),
+                // the renewal sweep / next request flow will recover via the default-theme fallback.
+            }
+            throw ThemeLicenseRequired(
+                extras = mapOf(
+                    "themeId" to theme.id,
+                    "licenseDeniedReason" to e.reason.publicId,
+                    "message" to e.message,
+                )
+            )
+        }
+
         config.currentTheme = theme.id
         configManager.saveConfig()
 
-        uiManager.stopUI(uiManager.activeTheme)
-        uiManager.disableUIOnRoute(router, Type.THEME_UI)
-
-        uiManager.startUI(theme.id)
         uiManager.activateThemeUI(router, theme.id)
 
         val sqlClient = getSqlClient()

@@ -5,8 +5,13 @@ import com.panomc.platform.AppConstants.DEFAULT_THEME_ID
 import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.license.LicenseDeniedReason
+import com.panomc.platform.license.LicenseManager
+import com.panomc.platform.license.LicenseRequiredException
+import com.panomc.platform.license.ThemeLicenseFailure
 import com.panomc.platform.model.Route
 import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.util.HashUtil.computeStableFileFingerprint
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
@@ -19,9 +24,11 @@ import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
@@ -45,12 +52,31 @@ class UIManager(
     private val setupManager: SetupManager,
     private val httpClient: HttpClient,
     private val authProvider: AuthProvider,
-    private val main: Main
+    private val main: Main,
+    private val applicationContext: ApplicationContext
 ) {
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
     private val panelUIFolderPath = System.getProperty("pano.panelUIFolder", "panel-ui")
     private val defaultThemeFolderPath = THEMES_FOLDER_PATH + File.separator + DEFAULT_THEME_ID
+
+    /**
+     * Lazy to break the construction cycle: [LicenseManager] also looks up [UIManager] lazily
+     * for the active-premium-theme fallback callback ([fallbackToDefaultThemeBecausePremiumLicenseLost]).
+     */
+    private val licenseManager: LicenseManager by lazy {
+        applicationContext.getBean(LicenseManager::class.java)
+    }
+
+    /**
+     * The Vert.x router for re-wiring the theme-UI proxy route during license-loss fallback.
+     * Lazy because the bean is built later in startup; null until then (in which case the
+     * fallback only stops the bun process and updates active-theme bookkeeping; routes get
+     * re-bound on the next prepareUI() pass).
+     */
+    private val routerForFallback: Router? by lazy {
+        runCatching { applicationContext.getBean(Router::class.java) }.getOrNull()
+    }
 
     val manifestFileName = "manifest.json"
 
@@ -333,7 +359,9 @@ class UIManager(
             hash,
             System.currentTimeMillis(),
             System.currentTimeMillis(),
-            InstalledBy.SYSTEM
+            InstalledBy.SYSTEM,
+            themeManifest.premium,
+            themeManifest.fileFingerprint
         )
 
         manifestFile.writeText(installedTheme.encode())
@@ -350,7 +378,12 @@ class UIManager(
         }
     }
 
-    private fun startUI(id: String, uiFolder: String, port: Int = findAvailablePort()) {
+    private fun startUI(
+        id: String,
+        uiFolder: String,
+        port: Int = findAvailablePort(),
+        licenseJwt: String? = null
+    ) {
         val processBuilder = ProcessBuilder()
 
         processBuilder.redirectErrorStream(true)
@@ -368,6 +401,14 @@ class UIManager(
         environment["API_URL"] = "http://${serverHost}:${serverPort}/api"
         environment["PANO_WEBSITE_URL"] = config.panoWebsiteUrl
         environment["PANO_WEBSITE_API_URL"] = config.panoApiUrl
+        if (!licenseJwt.isNullOrBlank()) {
+            // The premium theme's own bun process verifies the RS256 signature with the embedded
+            // public key and inspects claims. Free themes ignore the variable (its presence is
+            // not a leak — without the matching public key it can't be turned into proof of
+            // license for an unrelated theme).
+            environment["PANO_LICENSE_JWT"] = licenseJwt
+            environment["PANO_LICENSE_ISSUER"] = config.resolvedLicenseJwtIssuer()
+        }
 
         val process = processBuilder.start()
 
@@ -386,8 +427,138 @@ class UIManager(
 
     fun startUI(id: String, port: Int = findAvailablePort()) {
         val uiFolder = THEMES_FOLDER_PATH + File.separator + id
+        val theme = _installedThemeList.find { it.id == id }
 
+        if (theme != null && theme.premium) {
+            // File-fingerprint cross-check BEFORE we contact panomc.com for a license. If the
+            // theme folder has been altered after install (someone patched out the license
+            // check, swapped a script, dropped in extra files…) the cumulative SHA-256 won't
+            // match the value the build pipeline stamped into the manifest. Refusing here
+            // means a tampered premium theme never even gets a JWT issued for it.
+            val claimedFingerprint = theme.fileFingerprint?.trim().orEmpty()
+            if (claimedFingerprint.isNotEmpty()) {
+                val themeDir = File(uiFolder)
+                val computed = computeStableFileFingerprint(themeDir)
+                if (!computed.equals(claimedFingerprint, ignoreCase = true)) {
+                    val detail = "expected ${claimedFingerprint.take(12)}…, got ${computed.take(12)}…"
+                    logger.warn(
+                        "Refusing to start premium theme '{}' v{} — file integrity violation ({})",
+                        theme.id, theme.version, detail,
+                    )
+                    throw LicenseRequiredException(
+                        theme.id,
+                        LicenseDeniedReason.FILE_TAMPERED,
+                        "theme files modified after install: $detail"
+                    )
+                }
+            } else {
+                // A premium theme without a fileFingerprint indicates the theme was packed
+                // without the postbuild plugin (or the publisher stripped it). We hard-fail
+                // — quietly accepting it would let the publisher ship un-verifiable builds.
+                logger.warn(
+                    "Premium theme '{}' v{} has no fileFingerprint in its manifest — refusing to start.",
+                    theme.id, theme.version,
+                )
+                throw LicenseRequiredException(
+                    theme.id,
+                    LicenseDeniedReason.FILE_TAMPERED,
+                    "manifest.json has no fileFingerprint; rebuild the theme with the postbuild plugin"
+                )
+            }
+
+            // Premium theme: fetch (or reuse cached) RS256 license JWT from panomc.com via the
+            // license manager. On failure we DO NOT start the process — the caller is expected
+            // to be a flow that already knows how to deal with it (init() falls back to
+            // vanilla; PanelActivateThemeAPI rejects the activate request and reports the
+            // failure reason).
+            val jwt = try {
+                runBlocking {
+                    licenseManager.requireThemeLicense(theme.id, theme.version, theme.hash.lowercase()).rawJwt
+                }
+            } catch (e: LicenseRequiredException) {
+                logger.warn(
+                    "Refusing to start premium theme '{}' v{}: {}",
+                    theme.id, theme.version, e.message,
+                )
+                throw e
+            }
+            licenseManager.setActivePremiumTheme(theme.id, theme.version, theme.hash.lowercase())
+            startUI(id, uiFolder, port, licenseJwt = jwt)
+            return
+        }
+
+        // Free theme (or non-theme UI like setup-ui / panel-ui): clear premium bookkeeping so
+        // the renewal sweep does not try to refresh a theme that's no longer running.
+        if (theme != null && !theme.premium) {
+            licenseManager.clearActivePremiumTheme()
+        }
         startUI(id, uiFolder, port)
+    }
+
+    /**
+     * Callback invoked by [LicenseManager] when the active premium theme's license cannot be
+     * renewed (revoked purchase, Pano account disconnect, expired-and-network-down, etc.).
+     * Stops the bun process, swaps the active theme to [DEFAULT_THEME_ID] in config, and
+     * re-binds the theme proxy route so requests start being served by the vanilla theme.
+     */
+    fun fallbackToDefaultThemeBecausePremiumLicenseLost(lostThemeId: String) {
+        if (activeTheme != lostThemeId) {
+            // Already swapped (or theme changed by the operator in the meantime). Best-effort stop.
+            stopUI(lostThemeId)
+            return
+        }
+
+        stopUI(lostThemeId)
+        val router = routerForFallback
+        if (router != null) {
+            disableUIOnRoute(router, Route.Type.THEME_UI)
+        }
+
+        val config = configManager.config
+        config.currentTheme = DEFAULT_THEME_ID
+        try {
+            configManager.saveConfig()
+        } catch (t: Throwable) {
+            logger.error("Failed to persist fallback theme in config: {}", t.message, t)
+        }
+
+        val defaultFolder = File(themesFolder.absolutePath + File.separator + DEFAULT_THEME_ID)
+        if (!defaultFolder.exists()) {
+            logger.error(
+                "Default theme '{}' missing on disk during license fallback — cannot bring theme UI back online",
+                DEFAULT_THEME_ID,
+            )
+            return
+        }
+
+        try {
+            startUI(DEFAULT_THEME_ID)
+            if (router != null) {
+                activateThemeUI(router, DEFAULT_THEME_ID)
+            }
+        } catch (t: Throwable) {
+            logger.error(
+                "Failed to bring up default theme after license fallback: {}",
+                t.message,
+                t,
+            )
+        }
+        logger.warn(
+            "Premium theme '{}' has been forcibly replaced with '{}' because its license could not be validated/renewed",
+            lostThemeId, DEFAULT_THEME_ID,
+        )
+    }
+
+    /**
+     * No-op callback invoked by [LicenseManager] after a periodic renewal succeeds for the
+     * active premium theme. Kept as a seam so future work can hot-rotate the JWT into the
+     * running bun process if it ever needs the freshest token in-flight (today the theme
+     * caches the JWT it received at boot and is already covered by signature verify and an
+     * expiration check; the next renewal cycle simply reissues a fresh token in the host
+     * cache that the theme will pick up if it restarts).
+     */
+    fun onActiveThemeLicenseRenewed(themeId: String) {
+        logger.debug("Theme license renewed for '{}'", themeId)
     }
 
     fun stopUI(id: String) {
@@ -534,13 +705,38 @@ class UIManager(
 
         activeTheme = theme
 
+        // Populate installedThemeList BEFORE attempting to start a premium theme, otherwise
+        // startUI() can't see the manifest and treats it as a free theme (skipping the
+        // license check).
+        reloadInstalledThemes()
+
         if (config.initUi) {
             try {
                 if (!setupManager.isSetupDone()) {
                     startUI("setup-ui", setupUIFolder.absolutePath)
                 }
                 startUI("panel-ui", panelUIFolder.absolutePath)
-                startUI(theme)
+                try {
+                    startUI(theme)
+                } catch (e: LicenseRequiredException) {
+                    // Premium theme cannot be licensed right now (no account connected, no
+                    // purchase, expired, network down, etc.). Persist a fallback to the bundled
+                    // vanilla theme so subsequent restarts also boot cleanly — the operator can
+                    // manually re-activate the premium theme from the panel once the license
+                    // issue is resolved.
+                    logger.warn(
+                        "Active theme '{}' has no valid license at boot ({}); booting with default theme '{}' instead",
+                        theme, e.reason.publicId, DEFAULT_THEME_ID,
+                    )
+                    activeTheme = DEFAULT_THEME_ID
+                    config.currentTheme = DEFAULT_THEME_ID
+                    try {
+                        configManager.saveConfig()
+                    } catch (t: Throwable) {
+                        logger.error("Failed to persist fallback theme at boot: {}", t.message, t)
+                    }
+                    startUI(DEFAULT_THEME_ID)
+                }
             } catch (e: Exception) {
                 logger.error("Failed to start UI.", e)
 
@@ -548,8 +744,6 @@ class UIManager(
                 return
             }
         }
-
-        reloadInstalledThemes()
     }
 
     fun activateSetupUI(router: Router) {
@@ -764,7 +958,23 @@ class UIManager(
             val license: String? = null,
             val sourceUrl: String? = null,
             val panoVersion: String,
-            val screenshots: List<String>
+            val screenshots: List<String>,
+            /**
+             * Marks a theme as premium. Set by the theme's manifest.json at build time.
+             * The host (LicenseManager + UIManager) refuses to start a premium theme without a
+             * verifiable license from panomc.com; the theme itself performs an independent
+             * RS256 signature check on the JWT it receives via env var. See [com.panomc.platform.license.LicenseManager.requireThemeLicense].
+             */
+            val premium: Boolean = false,
+            /**
+             * Cumulative SHA-256 of every file in the built theme (except manifest.json),
+             * stamped here by the theme's vite postbuild plugin (`themeFingerprintPlugin`).
+             * The host re-computes the hash when installing the theme and again every time
+             * it starts the bun process, refusing to spawn a premium theme whose extracted
+             * folder no longer matches what was shipped. See [com.panomc.platform.util.HashUtil.computeStableFileFingerprint].
+             * Optional for backward compatibility with old free themes that ship without it.
+             */
+            val fileFingerprint: String? = null
         )
 
         @StrictValidation
@@ -781,7 +991,9 @@ class UIManager(
             val hash: String,
             val createdAt: Long,
             val updatedAt: Long,
-            val installedBy: InstalledBy
+            val installedBy: InstalledBy,
+            val premium: Boolean = false,
+            val fileFingerprint: String? = null
         )
     }
 }

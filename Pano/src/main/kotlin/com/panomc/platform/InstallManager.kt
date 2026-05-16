@@ -20,6 +20,7 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.Route
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
+import com.panomc.platform.util.HashUtil.computeStableFileFingerprint
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
@@ -257,6 +258,35 @@ class InstallManager(
                     throw InvalidResourceFile()
                 }
 
+                // File-fingerprint cross-check: the theme's vite postbuild plugin stamps
+                // the cumulative SHA-256 of every file (except manifest.json) into the
+                // manifest. We re-compute it from the just-extracted folder and refuse to
+                // install if it doesn't match — that either means the build pipeline was
+                // skipped (no fingerprint), or someone repacked the zip after the
+                // fingerprint was written. Free themes built without the postbuild plugin
+                // are tolerated (fingerprint is optional).
+                val claimedFingerprint = try {
+                    val raw = uiManager.parseThemeManifest(manifestFile).fileFingerprint
+                    raw?.trim().orEmpty()
+                } catch (_: Exception) {
+                    ""
+                }
+                if (claimedFingerprint.isNotBlank()) {
+                    val computed = vertx.executeBlocking<String> {
+                        computeStableFileFingerprint(tempThemeFolder)
+                    }.coAwait()
+                    if (!computed.equals(claimedFingerprint, ignoreCase = true)) {
+                        tempThemeFolder.deleteRecursively()
+                        throw InvalidResourceFile(
+                            extras = mapOf(
+                                "message" to "Theme fileFingerprint mismatch (expected ${claimedFingerprint.take(12)}…, got ${computed.take(12)}…). The theme zip may be tampered or built with a stale toolchain.",
+                                "expectedFingerprint" to claimedFingerprint,
+                                "actualFingerprint" to computed
+                            )
+                        )
+                    }
+                }
+
                 val parsedInstalledTheme: InstalledTheme
 
                 try {
@@ -293,7 +323,9 @@ class InstallManager(
                         calculatedHash,
                         createdAt,
                         System.currentTimeMillis(),
-                        InstalledBy.USER
+                        InstalledBy.USER,
+                        manifest.premium,
+                        manifest.fileFingerprint
                     )
 
                     manifestFile.writeText(parsedInstalledTheme.encode())

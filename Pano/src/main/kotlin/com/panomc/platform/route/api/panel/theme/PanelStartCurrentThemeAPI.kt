@@ -1,11 +1,14 @@
 package com.panomc.platform.route.api.panel.theme
 
+import com.panomc.platform.AppConstants.DEFAULT_THEME_ID
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.StartedCurrentThemeLog
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.license.LicenseRequiredException
 import com.panomc.platform.model.*
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
@@ -17,7 +20,8 @@ class PanelStartCurrentThemeAPI(
     private val uiManager: UIManager,
     private val authProvider: AuthProvider,
     @param:Lazy private val router: Router,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val configManager: ConfigManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes", RouteType.POST))
 
@@ -30,7 +34,40 @@ class PanelStartCurrentThemeAPI(
             return Successful()
         }
 
-        uiManager.startUI(uiManager.activeTheme)
+        val requestedTheme = uiManager.activeTheme
+        try {
+            uiManager.startUI(requestedTheme)
+        } catch (e: LicenseRequiredException) {
+            // The configured premium theme cannot be started because its license is
+            // invalid/missing/expired. Auto-fall back to the bundled vanilla theme so the
+            // site keeps serving instead of returning an error to the operator. Same
+            // behaviour as the boot path and the renewal-failure path — keep them aligned.
+            configManager.config.currentTheme = DEFAULT_THEME_ID
+            try {
+                configManager.saveConfig()
+            } catch (_: Throwable) {
+            }
+            uiManager.startUI(DEFAULT_THEME_ID)
+            uiManager.activateThemeUI(router, DEFAULT_THEME_ID)
+
+            val sqlClient = databaseManager.getSqlClient()
+            val userId = authProvider.getUserIdFromRoutingContext(context)
+            val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+            databaseManager.panelActivityLogDao.add(
+                StartedCurrentThemeLog(userId, username, DEFAULT_THEME_ID), sqlClient
+            )
+
+            // Surface the underlying license reason in the success payload so the panel can
+            // toast the operator ("falling back to vanilla — premium license blocked").
+            return Successful(
+                mapOf(
+                    "fellBackTo" to DEFAULT_THEME_ID,
+                    "originalTheme" to requestedTheme,
+                    "licenseDeniedReason" to e.reason.publicId,
+                    "message" to e.message,
+                )
+            )
+        }
         uiManager.activateThemeUI(router, uiManager.activeTheme)
 
         val sqlClient = databaseManager.getSqlClient()

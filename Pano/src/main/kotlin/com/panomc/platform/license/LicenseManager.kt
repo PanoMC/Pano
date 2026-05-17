@@ -150,7 +150,10 @@ class LicenseManager(
         }
 
         val apiUrl = runCatching { configManager.config.panoApiUrl }.getOrNull() ?: "(unknown)"
-        logger.info(
+        // DEBUG: periodic renewal calls this on every half-life tick, which would otherwise
+        // spam INFO with one line per plugin per ~30 min. Operators see denials (WARN) and
+        // the panel UI; that's enough surface for the normal case.
+        logger.debug(
             "Fetching license token for premium plugin '{}' (resource={}, version={}) from {}",
             pluginId, resourceId, version, apiUrl
         )
@@ -208,7 +211,7 @@ class LicenseManager(
         }
 
         val apiUrl = runCatching { configManager.config.panoApiUrl }.getOrNull() ?: "(unknown)"
-        logger.info(
+        logger.debug(
             "Fetching license token for premium theme '{}' (version={}) from {}",
             themeId, version, apiUrl
         )
@@ -598,11 +601,31 @@ class LicenseManager(
     private suspend fun refreshInactivePremiumThemeCachesIfExpired() {
         if (!panoApiManager.isConnected()) return
         val activeId = activePremiumTheme.get()?.themeId
+        val now = System.currentTimeMillis()
         for (theme in uiManager.installedThemeList) {
             if (!theme.premium) continue
             if (theme.id.equals(activeId, ignoreCase = true)) continue
             val cached = themeCache[theme.id]
-            if (cached != null && !cached.claims.isExpired()) continue
+            // Match the half-life refresh policy plugins use (processPluginRenewal): refresh
+            // at the JWT's half-life (or 5 minutes before expiry as a fallback). Without
+            // this the panel briefly shows EXPIRED before the cache catches up — and worse,
+            // any operator opening the panel during that window would see a fresh "license
+            // problem" badge that resolves itself in <60 seconds.
+            val needsRefresh = when {
+                cached == null -> true
+                cached.claims.isExpired() -> true
+                else -> {
+                    val refreshAt = if (cached.claims.issuedAtMs > 0 &&
+                        cached.claims.expiresAtMs > cached.claims.issuedAtMs
+                    ) {
+                        cached.claims.issuedAtMs + (cached.claims.expiresAtMs - cached.claims.issuedAtMs) / 2
+                    } else {
+                        cached.claims.expiresAtMs - REFRESH_FALLBACK_MARGIN_MS
+                    }
+                    now >= refreshAt
+                }
+            }
+            if (!needsRefresh) continue
             try {
                 val normalizedVersion = theme.version.removePrefix("v")
                 requireThemeLicense(theme.id, normalizedVersion, theme.hash.lowercase())
@@ -849,7 +872,7 @@ class LicenseManager(
         cache[pluginId] = license
         // Recovering from a previous failure for the same plugin (e.g. after a reload).
         failures.remove(pluginId)
-        logger.info(
+        logger.debug(
             "License token cached for premium plugin '{}' (resource={}, version={}, expires={}); plugin must verify signature.",
             pluginId, resourceId, version, java.time.Instant.ofEpochMilli(claims.expiresAtMs)
         )
@@ -921,7 +944,7 @@ class LicenseManager(
         val license = SignedLicense(rawJwt, claims)
         themeCache[themeId] = license
         themeFailures.remove(themeId)
-        logger.info(
+        logger.debug(
             "License token cached for premium theme '{}' (version={}, expires={}); theme process must verify signature.",
             themeId, version, java.time.Instant.ofEpochMilli(claims.expiresAtMs)
         )

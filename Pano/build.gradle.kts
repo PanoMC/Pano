@@ -44,6 +44,10 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.3")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.3")
+    // Gradle 9 requires the JUnit Platform launcher to be declared explicitly on the
+    // test runtime classpath; without it `gradle test` errors with "Failed to load
+    // JUnit Platform" even when jupiter-api + jupiter-engine are present.
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.3")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -603,5 +607,18 @@ fun parseLicenseFromPom(pomContent: String, groupId: String, artifactId: String,
         "repository" to "https://mvnrepository.com/artifact/$groupId/$artifactId/$version",
         "homepage" to null,
         "author" to null
+    )
+}
+// Use JUnit Platform for JUnit Jupiter tests (HashUtilTest et al.). Without this the test
+// task uses the legacy JUnit 4 discovery and finds nothing, even though we depend on
+// junit-jupiter-engine. Also force the test executor onto JDK 21 — gradle defaults to
+// the system JAVA_HOME (JDK 11 on a typical dev machine), but the bytecode our main
+// classes compile to needs 21+ to run.
+tasks.named<Test>("test") {
+    useJUnitPlatform()
+    javaLauncher.set(
+        javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        }
     )
 }

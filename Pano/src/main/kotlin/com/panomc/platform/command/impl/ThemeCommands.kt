@@ -61,7 +61,7 @@ class ThemeCommands(
                     sender.sendMessage("\u001B[31mTheme is already started.\u001B[0m")
                     return
                 }
-                uiManager.startUI(uiManager.activeTheme)
+                uiManager.startUIBlocking(uiManager.activeTheme)
                 uiManager.activateThemeUI(router, uiManager.activeTheme)
                 sender.sendMessage("\u001B[32mStarted currently active theme: ${uiManager.activeTheme}\u001B[0m")
             }
@@ -93,7 +93,7 @@ class ThemeCommands(
                 uiManager.disableUIOnRoute(router, Route.Type.THEME_UI)
                 
                 // 3. Start new theme and activate route
-                uiManager.startUI(theme.id)
+                uiManager.startUIBlocking(theme.id)
                 uiManager.activateThemeUI(router, theme.id)
                 
                 sender.sendMessage("\u001B[32mTheme switched to '$id'.\u001B[0m")
@@ -131,7 +131,7 @@ class ThemeCommands(
                     uiManager.disableUIOnRoute(router, Route.Type.THEME_UI)
 
                     if (config.initUi) {
-                        uiManager.startUI(AppConstants.DEFAULT_THEME_ID)
+                        uiManager.startUIBlocking(AppConstants.DEFAULT_THEME_ID)
                     }
 
                     uiManager.activateThemeUI(router, AppConstants.DEFAULT_THEME_ID)

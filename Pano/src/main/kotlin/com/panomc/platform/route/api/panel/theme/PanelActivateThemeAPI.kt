@@ -8,6 +8,8 @@ import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.error.ThemeLicenseRequired
+import com.panomc.platform.license.LicenseRequiredException
 import com.panomc.platform.model.*
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
@@ -48,13 +50,34 @@ class PanelActivateThemeAPI(
             return Successful()
         }
 
+        // Start the NEW theme first (license check + fingerprint check + bun spawn). The
+        // previous theme stays on its existing port until we're sure the new one came up
+        // successfully — that way:
+        //   1. A premium theme the operator doesn't own throws LicenseRequiredException
+        //      here without ever touching the running site.
+        //   2. Panel/UI requests landing during the panomc.com round-trip keep hitting the
+        //      old theme via the route that's still bound; no transient 503 / NPE on
+        //      THEME_UI being missing from _activatedUIList.
+        val previousActiveTheme = uiManager.activeTheme
+        try {
+            uiManager.startUI(theme.id)
+        } catch (e: LicenseRequiredException) {
+            throw ThemeLicenseRequired(
+                extras = mapOf(
+                    "themeId" to theme.id,
+                    "licenseDeniedReason" to e.reason.publicId,
+                    "message" to e.message,
+                )
+            )
+        }
+
+        // New theme is up. Swap atomically: persist the choice, tear down the old route +
+        // bun process, then point THEME_UI at the new one.
         config.currentTheme = theme.id
         configManager.saveConfig()
 
-        uiManager.stopUI(uiManager.activeTheme)
+        uiManager.stopUI(previousActiveTheme)
         uiManager.disableUIOnRoute(router, Type.THEME_UI)
-
-        uiManager.startUI(theme.id)
         uiManager.activateThemeUI(router, theme.id)
 
         val sqlClient = getSqlClient()

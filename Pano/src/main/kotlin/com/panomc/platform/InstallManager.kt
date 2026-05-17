@@ -20,6 +20,7 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.Route
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
+import com.panomc.platform.util.HashUtil.computeStableFileFingerprint
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
@@ -55,7 +56,8 @@ class InstallManager(
     private val configManager: ConfigManager,
     @param:Lazy private val router: Router,
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val licenseManager: com.panomc.platform.license.LicenseManager
 ) {
     companion object {
         enum class ResourceType {
@@ -257,6 +259,64 @@ class InstallManager(
                     throw InvalidResourceFile()
                 }
 
+                // File-fingerprint cross-check: the theme's vite postbuild plugin stamps
+                // the cumulative SHA-256 of every file (except manifest.json) into the
+                // manifest. We re-compute it from the just-extracted folder and refuse to
+                // install if it doesn't match — that either means the build pipeline was
+                // skipped (no fingerprint), or someone repacked the zip after the
+                // fingerprint was written. Free themes built without the postbuild plugin
+                // are tolerated (fingerprint is optional).
+                val claimedFingerprint = try {
+                    val raw = uiManager.parseThemeManifest(manifestFile).fileFingerprint
+                    raw?.trim().orEmpty()
+                } catch (_: Exception) {
+                    ""
+                }
+                if (claimedFingerprint.isNotBlank()) {
+                    val computed = vertx.executeBlocking<String> {
+                        computeStableFileFingerprint(tempThemeFolder)
+                    }.coAwait()
+                    if (!computed.equals(claimedFingerprint, ignoreCase = true)) {
+                        tempThemeFolder.deleteRecursively()
+                        throw InvalidResourceFile(
+                            extras = mapOf(
+                                "message" to "Theme fileFingerprint mismatch (expected ${claimedFingerprint.take(12)}…, got ${computed.take(12)}…). The theme zip may be tampered or built with a stale toolchain.",
+                                "expectedFingerprint" to claimedFingerprint,
+                                "actualFingerprint" to computed
+                            )
+                        )
+                    }
+                }
+
+                // Premium gate: if the manifest declares the theme premium, fetch a license
+                // from panomc.com BEFORE writing anything to the themes/ folder. Installing
+                // a theme the operator can't actually run wastes disk and confuses the panel
+                // (theme card with permanent license-required badge). Refusing here surfaces
+                // the failure to the install flow as a normal install error.
+                run {
+                    val previewManifest = try {
+                        uiManager.parseThemeManifest(manifestFile)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (previewManifest != null && previewManifest.premium) {
+                        val normalizedVersion = previewManifest.version.removePrefix("v")
+                        try {
+                            licenseManager.requireThemeLicense(
+                                previewManifest.id,
+                                normalizedVersion,
+                                calculatedHash.lowercase()
+                            )
+                        } catch (e: com.panomc.platform.license.LicenseRequiredException) {
+                            tempThemeFolder.deleteRecursively()
+                            // Re-throw verbatim; the outer catch-all on installResource
+                            // converts LicenseRequiredException into FailedToInstallResource
+                            // with a stable licenseDeniedReason via findLicenseRequiredInCauseChain.
+                            throw e
+                        }
+                    }
+                }
+
                 val parsedInstalledTheme: InstalledTheme
 
                 try {
@@ -293,7 +353,9 @@ class InstallManager(
                         calculatedHash,
                         createdAt,
                         System.currentTimeMillis(),
-                        InstalledBy.USER
+                        InstalledBy.USER,
+                        manifest.premium,
+                        manifest.fileFingerprint
                     )
 
                     manifestFile.writeText(parsedInstalledTheme.encode())

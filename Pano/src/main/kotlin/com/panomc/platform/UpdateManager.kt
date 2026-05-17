@@ -4,6 +4,7 @@ import com.panomc.platform.AppConstants.UPDATER_JAR
 import com.panomc.platform.AppConstants.UPDATE_ICON_FOLDER
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.Main.Companion.IS_GUI
+import com.panomc.platform.UIManager.Companion.InstalledBy
 import com.panomc.platform.auth.panel.log.UpdatedPlatformLog
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
@@ -745,6 +746,11 @@ class UpdateManager(
 
                 if (installManager.isInstalled(id, type)) {
                     val resourceInfo = installManager.getResourceInfo(id, type)
+
+                    if (type == ResourceType.THEME && resourceInfo["installedBy"] == InstalledBy.SYSTEM) {
+                        return@filter false
+                    }
+
                     val installedVersion = resourceInfo["version"] as String
                     val updateVersion = it.getString("version")
 

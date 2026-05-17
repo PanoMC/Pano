@@ -30,6 +30,14 @@ class StrictNotNullTypeAdapterFactory : TypeAdapterFactory {
 
                 val missingParams = primaryConstructor.parameters
                     .filter { it.type.isMarkedNullable.not() }
+                    // Parameters with a default value in Kotlin (`val foo: Int = 0`) are
+                    // already safe to omit from JSON — Kotlin fills them in. The strict
+                    // check only needs to reject fields that have no default AND aren't
+                    // nullable. Without this guard, adding a new backwards-compatible
+                    // field with a default value would break every old manifest.json that
+                    // didn't ship with it (e.g. embedded setup-ui / panel-ui manifests
+                    // pre-dating ThemeManifest.premium).
+                    .filter { !it.isOptional }
                     .mapNotNull { param ->
                         val name = param.name
                         if (name != null && !jsonObject.has(name)) name else null

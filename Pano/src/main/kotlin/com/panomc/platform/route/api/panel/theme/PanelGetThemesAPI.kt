@@ -8,6 +8,8 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.license.LicenseManager
+import com.panomc.platform.license.deriveThemeLicenseStatusLabel
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUtil.getSize
 import com.panomc.platform.util.ResourceHashStatus
@@ -25,7 +27,8 @@ class PanelGetThemesAPI(
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager,
     private val authProvider: AuthProvider,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val licenseManager: LicenseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes", RouteType.GET))
 
@@ -95,7 +98,9 @@ class PanelGetThemesAPI(
                         "verifyStatus" to if (theme.installedBy == InstalledBy.SYSTEM) ResourceHashStatus.VERIFIED else if (resourceHashes[theme.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[theme.hash]!!.status,
                         "sourceUrl" to theme.sourceUrl,
                         "updateVersion" to updateInfo?.getString("version"),
-                        "updateState" to updateInfo?.getString("state")
+                        "updateState" to updateInfo?.getString("state"),
+                        "premium" to theme.premium,
+                        "licenseStatus" to deriveThemeLicenseStatusLabel(theme, licenseManager),
                     )
                 }
             )

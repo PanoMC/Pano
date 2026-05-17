@@ -50,24 +50,18 @@ class PanelActivateThemeAPI(
             return Successful()
         }
 
-        // Premium theme gate: stop the previous theme only after we've successfully fetched +
-        // verified the license. Otherwise an operator clicking "Activate" on a premium theme
-        // they don't own would knock the site offline (vanilla stopped, premium refused).
+        // Start the NEW theme first (license check + fingerprint check + bun spawn). The
+        // previous theme stays on its existing port until we're sure the new one came up
+        // successfully — that way:
+        //   1. A premium theme the operator doesn't own throws LicenseRequiredException
+        //      here without ever touching the running site.
+        //   2. Panel/UI requests landing during the panomc.com round-trip keep hitting the
+        //      old theme via the route that's still bound; no transient 503 / NPE on
+        //      THEME_UI being missing from _activatedUIList.
         val previousActiveTheme = uiManager.activeTheme
-        uiManager.stopUI(previousActiveTheme)
-        uiManager.disableUIOnRoute(router, Type.THEME_UI)
-
         try {
             uiManager.startUI(theme.id)
         } catch (e: LicenseRequiredException) {
-            // Bring the previous theme back online so the public site keeps working.
-            try {
-                uiManager.startUI(previousActiveTheme)
-                uiManager.activateThemeUI(router, previousActiveTheme)
-            } catch (_: Throwable) {
-                // Best-effort: if the previous theme was itself premium-and-unlicensed (rare),
-                // the renewal sweep / next request flow will recover via the default-theme fallback.
-            }
             throw ThemeLicenseRequired(
                 extras = mapOf(
                     "themeId" to theme.id,
@@ -77,9 +71,13 @@ class PanelActivateThemeAPI(
             )
         }
 
+        // New theme is up. Swap atomically: persist the choice, tear down the old route +
+        // bun process, then point THEME_UI at the new one.
         config.currentTheme = theme.id
         configManager.saveConfig()
 
+        uiManager.stopUI(previousActiveTheme)
+        uiManager.disableUIOnRoute(router, Type.THEME_UI)
         uiManager.activateThemeUI(router, theme.id)
 
         val sqlClient = getSqlClient()

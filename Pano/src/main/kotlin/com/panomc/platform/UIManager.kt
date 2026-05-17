@@ -21,6 +21,7 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
 import io.vertx.httpproxy.ProxyOptions
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -53,7 +54,8 @@ class UIManager(
     private val httpClient: HttpClient,
     private val authProvider: AuthProvider,
     private val main: Main,
-    private val applicationContext: ApplicationContext
+    private val applicationContext: ApplicationContext,
+    private val vertx: io.vertx.core.Vertx
 ) {
     private val librariesFolderPath = System.getProperty("pano.librariesFolder", "libraries")
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
@@ -425,35 +427,31 @@ class UIManager(
         logger.info("\"$id\" started at port: {}", port)
     }
 
-    fun startUI(id: String, port: Int = findAvailablePort()) {
+    /**
+     * Suspend variant for callers in a coroutine context (panel API handlers, install flow,
+     * etc.). For a free UI this is functionally identical to [startUIBlocking]. For a
+     * premium theme it does the expensive blocking work — fingerprint hashing (~hundreds
+     * of files) and the panomc.com license fetch — on Vert.x worker threads instead of
+     * the event loop, so a slow API response or a big build folder never blocks the
+     * eventloop (which used to trip the BlockedThreadChecker after ~2s).
+     *
+     * Throws [LicenseRequiredException] when a premium theme cannot be started; callers
+     * deal with that explicitly (panel returns ThemeLicenseRequired, init() falls back to
+     * vanilla, etc.).
+     */
+    suspend fun startUI(id: String, port: Int = findAvailablePort()) {
         val uiFolder = THEMES_FOLDER_PATH + File.separator + id
         val theme = _installedThemeList.find { it.id == id }
 
         if (theme != null && theme.premium) {
-            // File-fingerprint cross-check BEFORE we contact panomc.com for a license. If the
-            // theme folder has been altered after install (someone patched out the license
-            // check, swapped a script, dropped in extra files…) the cumulative SHA-256 won't
-            // match the value the build pipeline stamped into the manifest. Refusing here
-            // means a tampered premium theme never even gets a JWT issued for it.
+            // File-fingerprint cross-check BEFORE we contact panomc.com for a license.
+            // The hash walks every file in the theme directory; for a 700-file vanilla-
+            // sized tree that's ~50ms locally but seconds on slow disks, so we always push
+            // it to a worker thread.
             val claimedFingerprint = theme.fileFingerprint?.trim().orEmpty()
-            if (claimedFingerprint.isNotEmpty()) {
-                val themeDir = File(uiFolder)
-                val computed = computeStableFileFingerprint(themeDir)
-                if (!computed.equals(claimedFingerprint, ignoreCase = true)) {
-                    val detail = "expected ${claimedFingerprint.take(12)}…, got ${computed.take(12)}…"
-                    logger.warn(
-                        "Refusing to start premium theme '{}' v{} — file integrity violation ({})",
-                        theme.id, theme.version, detail,
-                    )
-                    throw LicenseRequiredException(
-                        theme.id,
-                        LicenseDeniedReason.FILE_TAMPERED,
-                        "theme files modified after install: $detail"
-                    )
-                }
-            } else {
+            if (claimedFingerprint.isEmpty()) {
                 // A premium theme without a fileFingerprint indicates the theme was packed
-                // without the postbuild plugin (or the publisher stripped it). We hard-fail
+                // without the postbuild step (or the publisher stripped it). We hard-fail
                 // — quietly accepting it would let the publisher ship un-verifiable builds.
                 logger.warn(
                     "Premium theme '{}' v{} has no fileFingerprint in its manifest — refusing to start.",
@@ -462,33 +460,51 @@ class UIManager(
                 throw LicenseRequiredException(
                     theme.id,
                     LicenseDeniedReason.FILE_TAMPERED,
-                    "manifest.json has no fileFingerprint; rebuild the theme with the postbuild plugin"
+                    "manifest.json has no fileFingerprint; rebuild the theme with the postbuild step"
                 )
             }
 
-            // Premium theme: fetch (or reuse cached) RS256 license JWT from panomc.com via the
-            // license manager. On failure we DO NOT start the process — the caller is expected
-            // to be a flow that already knows how to deal with it (init() falls back to
-            // vanilla; PanelActivateThemeAPI rejects the activate request and reports the
-            // failure reason).
+            val computed = vertx.executeBlocking<String> {
+                computeStableFileFingerprint(File(uiFolder))
+            }.coAwait()
+            if (!computed.equals(claimedFingerprint, ignoreCase = true)) {
+                val detail = "expected ${claimedFingerprint.take(12)}…, got ${computed.take(12)}…"
+                logger.warn(
+                    "Refusing to start premium theme '{}' v{} — file integrity violation ({})",
+                    theme.id, theme.version, detail,
+                )
+                throw LicenseRequiredException(
+                    theme.id,
+                    LicenseDeniedReason.FILE_TAMPERED,
+                    "theme files modified after install: $detail"
+                )
+            }
+
+            // Premium theme: fetch (or reuse cached) RS256 license JWT from panomc.com via
+            // the license manager. requireThemeLicense is suspend, so the HTTP call goes
+            // through Vert.x's web client without blocking the eventloop here.
+            //
+            // Strip the leading "v" from the manifest version before sending to the API:
+            // ResourceVersion.tag on the backend is stored without it (e.g. "1.0.0-dev.44"),
+            // matching plugin behaviour where PluginBuildConstants.VERSION is "v"-less. The
+            // theme's manifest.json keeps the user-facing "v…" form for the panel UI.
+            val normalizedVersion = theme.version.removePrefix("v")
             val jwt = try {
-                runBlocking {
-                    licenseManager.requireThemeLicense(theme.id, theme.version, theme.hash.lowercase()).rawJwt
-                }
+                licenseManager.requireThemeLicense(theme.id, normalizedVersion, theme.hash.lowercase()).rawJwt
             } catch (e: LicenseRequiredException) {
                 logger.warn(
-                    "Refusing to start premium theme '{}' v{}: {}",
+                    "Refusing to start premium theme '{}' {}: {}",
                     theme.id, theme.version, e.message,
                 )
                 throw e
             }
-            licenseManager.setActivePremiumTheme(theme.id, theme.version, theme.hash.lowercase())
+            licenseManager.setActivePremiumTheme(theme.id, normalizedVersion, theme.hash.lowercase())
             startUI(id, uiFolder, port, licenseJwt = jwt)
             return
         }
 
-        // Free theme (or non-theme UI like setup-ui / panel-ui): clear premium bookkeeping so
-        // the renewal sweep does not try to refresh a theme that's no longer running.
+        // Free theme (or non-theme UI like setup-ui / panel-ui): clear premium bookkeeping
+        // so the renewal sweep does not try to refresh a theme that's no longer running.
         if (theme != null && !theme.premium) {
             licenseManager.clearActivePremiumTheme()
         }
@@ -496,12 +512,26 @@ class UIManager(
     }
 
     /**
+     * Blocking entry point for code paths that aren't in a coroutine (boot init, the
+     * license-renewal fallback). The fallback path is always for the bundled vanilla
+     * theme — free, no fingerprint check, no panomc.com call — so it's fast even on the
+     * eventloop. Boot init runs on a Vert.x worker thread so the `runBlocking` here is
+     * safe (no deadlock, no eventloop pressure).
+     */
+    fun startUIBlocking(id: String, port: Int = findAvailablePort()) = runBlocking {
+        startUI(id, port)
+    }
+
+    /**
      * Callback invoked by [LicenseManager] when the active premium theme's license cannot be
      * renewed (revoked purchase, Pano account disconnect, expired-and-network-down, etc.).
      * Stops the bun process, swaps the active theme to [DEFAULT_THEME_ID] in config, and
      * re-binds the theme proxy route so requests start being served by the vanilla theme.
+     *
+     * suspend because callers run on the Vert.x eventloop dispatcher (renewal sweep,
+     * Pano-disconnect flow). Calling `runBlocking` from there would deadlock.
      */
-    fun fallbackToDefaultThemeBecausePremiumLicenseLost(lostThemeId: String) {
+    suspend fun fallbackToDefaultThemeBecausePremiumLicenseLost(lostThemeId: String) {
         if (activeTheme != lostThemeId) {
             // Already swapped (or theme changed by the operator in the meantime). Best-effort stop.
             stopUI(lostThemeId)
@@ -532,6 +562,9 @@ class UIManager(
         }
 
         try {
+            // Default theme is vanilla (free), so suspend startUI is essentially synchronous
+            // here — no fingerprint walk, no panomc.com call. We're already in a suspend
+            // context (renewal sweep / removePanoAccount) so we can call it directly.
             startUI(DEFAULT_THEME_ID)
             if (router != null) {
                 activateThemeUI(router, DEFAULT_THEME_ID)
@@ -717,7 +750,7 @@ class UIManager(
                 }
                 startUI("panel-ui", panelUIFolder.absolutePath)
                 try {
-                    startUI(theme)
+                    startUIBlocking(theme)
                 } catch (e: LicenseRequiredException) {
                     // Premium theme cannot be licensed right now (no account connected, no
                     // purchase, expired, network down, etc.). Persist a fallback to the bundled
@@ -735,13 +768,26 @@ class UIManager(
                     } catch (t: Throwable) {
                         logger.error("Failed to persist fallback theme at boot: {}", t.message, t)
                     }
-                    startUI(DEFAULT_THEME_ID)
+                    startUIBlocking(DEFAULT_THEME_ID)
                 }
             } catch (e: Exception) {
                 logger.error("Failed to start UI.", e)
 
                 System.exit(1)
                 return
+            }
+        }
+
+        // Fire-and-forget: verify license for EVERY installed premium theme (not just the
+        // active one) so the panel UI can show a correct licensed/unlicensed badge before
+        // the operator tries to activate. The active theme is already cached above; this
+        // sweep covers the others. Failures populate LicenseManager.themeFailures; the
+        // periodic renewal sweep keeps caches fresh long-term.
+        CoroutineScope(vertx.dispatcher()).launch {
+            try {
+                licenseManager.verifyAllInstalledPremiumThemesBestEffort()
+            } catch (t: Throwable) {
+                logger.debug("Initial premium theme license sweep failed: {}", t.message)
             }
         }
     }
@@ -820,7 +866,19 @@ class UIManager(
                     }
 
                     request.resume()
-                    _activatedUIList[Route.Type.THEME_UI]!!.proxyHandler.handle(context)
+                    // Theme UI may be transiently unbound while an admin is switching themes
+                    // (route gets disabled, new theme bun process starts, route gets re-bound).
+                    // A panel request landing in that window used to NPE on `!!`; serve a 503
+                    // briefly instead so the client can retry.
+                    val themeUi = _activatedUIList[Route.Type.THEME_UI]
+                    if (themeUi == null) {
+                        context.response()
+                            .setStatusCode(503)
+                            .putHeader("retry-after", "1")
+                            .end("Theme UI is being switched; retry shortly.")
+                    } else {
+                        themeUi.proxyHandler.handle(context)
+                    }
                 }
             }
             .failureHandler { it.failure().printStackTrace() }

@@ -98,6 +98,35 @@ enum class LicenseStatus(val publicId: String) {
     UNKNOWN("UNKNOWN")
 }
 
+/**
+ * SCREAMING_SNAKE label panels render for a premium resource's license status.
+ *
+ * Helpers below derive it for plugins (via [PluginLicenseFailure] from [LicenseManager])
+ * and for themes (via [com.panomc.platform.license.ThemeLicenseFailure]). The shape mirrors
+ * the [LicenseStatus] enum so the panel-ui `LicenseStatusBadge` / `AddonLicenseCard`
+ * components can be reused for themes without divergence.
+ */
+internal fun deriveThemeLicenseStatusLabel(
+    theme: com.panomc.platform.UIManager.Companion.InstalledTheme,
+    licenseManager: LicenseManager,
+): String {
+    // Free themes return the sentinel value `panel-ui/LicenseStatusBadge` already hides
+    // with `if (status && status !== 'NOT_PREMIUM')`. Keeps the public id stable across
+    // plugin / theme cases.
+    if (!theme.premium) return "NOT_PREMIUM"
+    val cached = licenseManager.getCachedThemeLicense(theme.id)
+    if (cached != null && !cached.claims.isExpired()) return LicenseStatus.LICENSED.publicId
+    val failure = licenseManager.getThemeFailure(theme.id)
+    if (failure != null) return failure.reason.toLicenseStatus().publicId
+    // No cache, no failure: boot-time bulk verify hasn't completed yet, or the renewal
+    // sweep just dropped expired state. Panel renders "UNKNOWN" as a neutral icon.
+    return LicenseStatus.UNKNOWN.publicId
+}
+
+/** Same mapping plugins use; promoted from private so the theme view can reuse it. */
+internal fun LicenseDeniedReason.toLicenseStatusPublicId(): String =
+    this.toLicenseStatus().publicId
+
 private fun LicenseDeniedReason.toLicenseStatus(): LicenseStatus = when (this) {
     LicenseDeniedReason.NOT_CONNECTED -> LicenseStatus.NOT_CONNECTED
     LicenseDeniedReason.NO_PURCHASE -> LicenseStatus.NO_PURCHASE

@@ -281,6 +281,43 @@ class LicenseManager(
     fun getActivePremiumTheme(): ActiveThemeRef? = activePremiumTheme.get()
 
     /**
+     * Best-effort pass over every installed premium theme: fetches a license JWT for each
+     * (populating [themeCache] on success, [themeFailures] on denial) so the panel UI can
+     * show an accurate licensed/unlicensed badge BEFORE the operator tries to activate.
+     *
+     * Called once after boot (when `UIManager.installedThemeList` has been populated) and
+     * also periodically by the renewal sweep so inactive premium themes don't permanently
+     * drift to "unknown" once their initial JWT expires.
+     *
+     * Silently skipped when no panomc.com account is connected — every theme would just
+     * report `NOT_CONNECTED` and spam the logs.
+     */
+    suspend fun verifyAllInstalledPremiumThemesBestEffort() {
+        if (!panoApiManager.isConnected()) return
+        val premiumThemes = uiManager.installedThemeList.filter { it.premium }
+        if (premiumThemes.isEmpty()) return
+
+        logger.info("Verifying licenses for {} installed premium theme(s)", premiumThemes.size)
+        for (theme in premiumThemes) {
+            // Skip themes whose cache is already populated and not yet near expiry — the
+            // active-theme renewal path keeps that one fresh on its own.
+            val cached = themeCache[theme.id]
+            if (cached != null && !cached.claims.isExpired()) continue
+            try {
+                val normalizedVersion = theme.version.removePrefix("v")
+                requireThemeLicense(theme.id, normalizedVersion, theme.hash.lowercase())
+            } catch (_: LicenseRequiredException) {
+                // Recorded on [themeFailures]; panel will surface it.
+            } catch (t: Throwable) {
+                logger.debug(
+                    "Best-effort license verify failed for premium theme '{}': {}",
+                    theme.id, t.message,
+                )
+            }
+        }
+    }
+
+    /**
      * True if this JVM session has seen this plugin participate in host DRM flow
      * ([requireLicense] or [recordFailure]). Survives clearing cache/failures on Pano disconnect.
      */
@@ -318,7 +355,7 @@ class LicenseManager(
      * Also force-falls back the active premium theme (if any) to the bundled vanilla theme so a
      * disconnected install never keeps serving a premium theme it no longer has a license for.
      */
-    fun clearHostLicenseStateBecausePanoDisconnected() {
+    suspend fun clearHostLicenseStateBecausePanoDisconnected() {
         cache.clear()
         failures.clear()
         logger.info("Cleared plugin license cache and failures (Pano account disconnected)")
@@ -338,8 +375,11 @@ class LicenseManager(
      * because the license can no longer be renewed. UIManager handles stopping the bun process,
      * swapping the proxy route, and persisting `current-theme` in config. No-op when the active
      * theme is free or unset.
+     *
+     * suspend because UIManager.fallbackToDefaultThemeBecausePremiumLicenseLost has to be
+     * suspend too — the eventloop dispatcher would deadlock on a runBlocking wrap.
      */
-    private fun fallbackActivePremiumThemeBecauseLicenseLost(
+    private suspend fun fallbackActivePremiumThemeBecauseLicenseLost(
         reason: LicenseDeniedReason,
         message: String?
     ) {
@@ -530,8 +570,7 @@ class LicenseManager(
             }
         }
 
-        // Theme renewal: only the currently active premium theme has a process and needs a
-        // fresh JWT. Inactive premium themes are dormant on disk.
+        // Active premium theme: needs a fresh JWT so the bun process keeps a valid token.
         val themeRef = activePremiumTheme.get()
         if (themeRef != null) {
             try {
@@ -542,6 +581,37 @@ class LicenseManager(
                     themeRef.themeId,
                     t.message,
                     t,
+                )
+            }
+        }
+
+        // Inactive premium themes: re-fetch when their cached JWT has expired (or there's
+        // no cache yet) so the panel keeps showing accurate license status long after boot.
+        // No process, no fingerprint walk, no fallback handling — just a license refresh.
+        try {
+            refreshInactivePremiumThemeCachesIfExpired()
+        } catch (t: Throwable) {
+            logger.debug("Inactive premium theme refresh sweep failed: {}", t.message)
+        }
+    }
+
+    private suspend fun refreshInactivePremiumThemeCachesIfExpired() {
+        if (!panoApiManager.isConnected()) return
+        val activeId = activePremiumTheme.get()?.themeId
+        for (theme in uiManager.installedThemeList) {
+            if (!theme.premium) continue
+            if (theme.id.equals(activeId, ignoreCase = true)) continue
+            val cached = themeCache[theme.id]
+            if (cached != null && !cached.claims.isExpired()) continue
+            try {
+                val normalizedVersion = theme.version.removePrefix("v")
+                requireThemeLicense(theme.id, normalizedVersion, theme.hash.lowercase())
+            } catch (_: LicenseRequiredException) {
+                // Already on [themeFailures]; panel reflects it.
+            } catch (t: Throwable) {
+                logger.debug(
+                    "Renewal of inactive premium theme '{}' failed: {}",
+                    theme.id, t.message,
                 )
             }
         }

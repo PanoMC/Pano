@@ -56,7 +56,8 @@ class InstallManager(
     private val configManager: ConfigManager,
     @param:Lazy private val router: Router,
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val licenseManager: com.panomc.platform.license.LicenseManager
 ) {
     companion object {
         enum class ResourceType {
@@ -284,6 +285,35 @@ class InstallManager(
                                 "actualFingerprint" to computed
                             )
                         )
+                    }
+                }
+
+                // Premium gate: if the manifest declares the theme premium, fetch a license
+                // from panomc.com BEFORE writing anything to the themes/ folder. Installing
+                // a theme the operator can't actually run wastes disk and confuses the panel
+                // (theme card with permanent license-required badge). Refusing here surfaces
+                // the failure to the install flow as a normal install error.
+                run {
+                    val previewManifest = try {
+                        uiManager.parseThemeManifest(manifestFile)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (previewManifest != null && previewManifest.premium) {
+                        val normalizedVersion = previewManifest.version.removePrefix("v")
+                        try {
+                            licenseManager.requireThemeLicense(
+                                previewManifest.id,
+                                normalizedVersion,
+                                calculatedHash.lowercase()
+                            )
+                        } catch (e: com.panomc.platform.license.LicenseRequiredException) {
+                            tempThemeFolder.deleteRecursively()
+                            // Re-throw verbatim; the outer catch-all on installResource
+                            // converts LicenseRequiredException into FailedToInstallResource
+                            // with a stable licenseDeniedReason via findLicenseRequiredInCauseChain.
+                            throw e
+                        }
                     }
                 }
 

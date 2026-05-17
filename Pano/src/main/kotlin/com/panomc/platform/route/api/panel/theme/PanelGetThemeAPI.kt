@@ -10,6 +10,7 @@ import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.license.LicenseManager
+import com.panomc.platform.license.deriveThemeLicenseStatusLabel
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUtil.getSize
 import com.panomc.platform.util.ResourceHashStatus
@@ -57,10 +58,6 @@ class PanelGetThemeAPI(
 
         val running = uiManager.activeTheme == theme.id && uiManager.activatedUIList.containsKey(Type.THEME_UI)
 
-        val licenseFailure = if (theme.premium) licenseManager.getThemeFailure(theme.id) else null
-        val hasValidLicense = theme.premium && licenseManager.getCachedThemeLicense(theme.id)
-            ?.takeIf { !it.claims.isExpired() } != null
-
         return Successful(
             mapOf(
                 "data" to mapOf(
@@ -85,13 +82,7 @@ class PanelGetThemeAPI(
                     "updateVersion" to updateInfo?.getString("version"),
                     "updateState" to updateInfo?.getString("state"),
                     "premium" to theme.premium,
-                    "licenseStatus" to when {
-                        !theme.premium -> "free"
-                        hasValidLicense -> "ok"
-                        licenseFailure != null -> licenseFailure.reason.publicId
-                        else -> "unknown"
-                    },
-                    "licenseFailureMessage" to licenseFailure?.message,
+                    "licenseStatus" to deriveThemeLicenseStatusLabel(theme, licenseManager),
                 )
             )
         )

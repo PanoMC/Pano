@@ -24,8 +24,10 @@ import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -512,14 +514,24 @@ class UIManager(
     }
 
     /**
-     * Blocking entry point for code paths that aren't in a coroutine (boot init, the
-     * license-renewal fallback). The fallback path is always for the bundled vanilla
-     * theme — free, no fingerprint check, no panomc.com call — so it's fast even on the
-     * eventloop. Boot init runs on a Vert.x worker thread so the `runBlocking` here is
-     * safe (no deadlock, no eventloop pressure).
+     * Blocking entry point for code paths that aren't in a coroutine (boot init,
+     * ThemeCommands console handler). MUST wrap the suspend chain in `Dispatchers.IO`
+     * — mirrors the pattern PanoPlugin.start() uses for the same reason:
+     *
+     * `runBlocking { ... }` uses the BlockingEventLoop dispatcher by default, which parks
+     * the calling thread. Inside startUI() we make Vert.x WebClient calls via `coAwait()`
+     * — those resume on the Vert.x eventloop thread. With a BlockingEventLoop dispatcher
+     * the resumed coroutine never gets back to the parked thread, and boot hangs forever
+     * (panomc.com license fetch for a premium active theme is the trigger we saw in the
+     * wild).
+     *
+     * `Dispatchers.IO` is a thread-pool dispatcher; suspending and resuming the
+     * coroutine across the Vert.x eventloop boundary works cleanly there.
      */
     fun startUIBlocking(id: String, port: Int = findAvailablePort()) = runBlocking {
-        startUI(id, port)
+        withContext(Dispatchers.IO) {
+            startUI(id, port)
+        }
     }
 
     /**

@@ -2,8 +2,6 @@ package com.panomc.platform.config
 
 import com.panomc.platform.Main.Companion.IS_DEV
 import com.panomc.platform.annotation.Migration
-import com.typesafe.config.ConfigFactory
-import com.typesafe.config.ConfigRenderOptions
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
@@ -39,13 +37,6 @@ open class ConfigManager(
     }
 
     fun saveConfig() {
-        val renderOptions = ConfigRenderOptions
-            .defaults()
-            .setJson(false)           // false: HOCON, true: JSON
-            .setOriginComments(false) // true: add comment showing the origin of a value
-            .setComments(true)        // true: keep original comment
-            .setFormatted(true)
-
         val configToPersist =
             if (IS_DEV) {
                 config.copy(
@@ -56,13 +47,12 @@ open class ConfigManager(
                 config
             }
 
-        val parsedConfig = ConfigFactory.parseString(configToPersist.toString())
-
         if (configFile.parentFile != null && !configFile.parentFile.exists()) {
             configFile.parentFile.mkdirs()
         }
 
-        configFile.writeText(parsedConfig.root().render(renderOptions))
+        val json = JsonObject(configToPersist.toString())
+        configFile.writeText(HoconWriter.render(json, PanoConfig::class.java))
     }
 
     internal suspend fun init() {

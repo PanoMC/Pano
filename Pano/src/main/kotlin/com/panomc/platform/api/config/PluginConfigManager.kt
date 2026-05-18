@@ -4,8 +4,8 @@ import com.google.gson.Gson
 import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.api.PanoPlugin
+import com.panomc.platform.config.HoconWriter
 import com.typesafe.config.ConfigFactory
-import com.typesafe.config.ConfigRenderOptions
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
@@ -59,20 +59,11 @@ class PluginConfigManager<T : PluginConfig>(
     }
 
     fun saveConfig(config: JsonObject) {
-        val renderOptions = ConfigRenderOptions
-            .defaults()
-            .setJson(false)           // false: HOCON, true: JSON
-            .setOriginComments(false) // true: add comment showing the origin of a value
-            .setComments(true)        // true: keep original comment
-            .setFormatted(true)
-
-        val parsedConfig = ConfigFactory.parseString(config.toString())
-
         if (configFile.parentFile != null && !configFile.parentFile.exists()) {
             configFile.parentFile.mkdirs()
         }
 
-        configFile.writeText(parsedConfig.root().render(renderOptions))
+        configFile.writeText(HoconWriter.render(config, pluginConfigClass))
 
         updateConfig(config)
     }

@@ -32,8 +32,12 @@ object HashUtil {
      *
      * `manifest.json` is excluded because it's where the expected fingerprint is written;
      * a value cannot be part of its own input.
+     *
+     * `.pano-license.jwt` is excluded because the host writes the freshest license token
+     * there at runtime ([com.panomc.platform.UIManager.writeThemeLicenseFile]); including
+     * it in the hash would invalidate every theme on the first renewal.
      */
-    val DEFAULT_THEME_FINGERPRINT_EXCLUDES = setOf("manifest.json")
+    val DEFAULT_THEME_FINGERPRINT_EXCLUDES = setOf("manifest.json", ".pano-license.jwt")
 
     /**
      * Stable cumulative SHA-256 of every regular file under [dir] (recursively), with

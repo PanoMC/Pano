@@ -501,6 +501,11 @@ class UIManager(
                 throw e
             }
             licenseManager.setActivePremiumTheme(theme.id, normalizedVersion, theme.hash.lowercase())
+            // Persist the JWT into the theme folder so the bun process can re-read it
+            // after the host's renewal sweep refreshes the cache mid-flight. Env vars are
+            // a one-shot delivery channel; without this file the theme runtime would only
+            // ever see the JWT it was launched with and would `expired` out at TTL.
+            writeThemeLicenseFile(theme.id, jwt)
             startUI(id, uiFolder, port, licenseJwt = jwt)
             return
         }
@@ -604,6 +609,55 @@ class UIManager(
      */
     fun onActiveThemeLicenseRenewed(themeId: String) {
         logger.debug("Theme license renewed for '{}'", themeId)
+        // Push the fresh JWT into the theme folder so the running bun process picks it
+        // up via license-runtime.js's getCurrentJwt() before the previously-injected
+        // env-var JWT expires.
+        val cached = licenseManager.getCachedThemeLicense(themeId) ?: return
+        writeThemeLicenseFile(themeId, cached.rawJwt)
+    }
+
+    /**
+     * Atomically writes the JWT into `<themeFolder>/.pano-license.jwt` so the theme's bun
+     * process can re-read it as the host renews the cache. File is in the exclude list for
+     * the cumulative file fingerprint (see [HashUtil.DEFAULT_THEME_FINGERPRINT_EXCLUDES]),
+     * so writing it does NOT invalidate the integrity check.
+     *
+     * Permissions are tightened to 0600 on POSIX filesystems — the bun process runs as
+     * the same user as Pano, so it can read the file; other local users on the box can't.
+     * Falls back silently on filesystems without POSIX perms (Windows).
+     */
+    private fun writeThemeLicenseFile(themeId: String, jwt: String) {
+        val themeDir = File(THEMES_FOLDER_PATH, themeId)
+        if (!themeDir.exists() || !themeDir.isDirectory) return
+        val target = File(themeDir, ".pano-license.jwt")
+        val tmp = File(themeDir, ".pano-license.jwt.tmp")
+        try {
+            tmp.writeText(jwt, Charsets.UTF_8)
+            try {
+                Files.move(
+                    tmp.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+            try {
+                val perms = java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")
+                Files.setPosixFilePermissions(target.toPath(), perms)
+            } catch (_: UnsupportedOperationException) {
+                // Non-POSIX filesystem (Windows); skip.
+            } catch (_: Throwable) {
+                // Best-effort.
+            }
+        } catch (t: Throwable) {
+            logger.warn("Failed to write license JWT for theme '{}': {}", themeId, t.message)
+            try {
+                if (tmp.exists()) tmp.delete()
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     fun stopUI(id: String) {

@@ -82,6 +82,14 @@ class UpdateManager(
     @Autowired
     private lateinit var logger: Logger
 
+    /**
+     * State for the background update sweep so we only log the "Failed to check Pano updates!"
+     * and "No resource update found!" lines on transitions instead of every minute. Read/written
+     * from the periodic coroutine only — no cross-thread access.
+     */
+    private var lastPlatformCheckFailed: Boolean = false
+    private var lastResourceUpdatesPayload: String? = null
+
     suspend fun checkPlatformUpdate(background: Boolean) {
         try {
             val channel = configManager.config.releaseChannel
@@ -191,14 +199,24 @@ class UpdateManager(
                     value = versionInfo.encode()
                 ), sqlClient
             )
-        } catch (e: Exception) {
-            e.printStackTrace()
-
             if (background) {
-                logger.error("Failed to check Pano updates!")
+                lastPlatformCheckFailed = false
+            }
+        } catch (e: Exception) {
+            if (background) {
+                if (!lastPlatformCheckFailed) {
+                    // First failure in a streak: log full ERROR with stacktrace so operators can
+                    // diagnose. Subsequent same-streak failures (every minute) drop to DEBUG so
+                    // GitHub being down for an hour does not produce 60 identical stacktraces.
+                    logger.error("Failed to check Pano updates!", e)
+                    lastPlatformCheckFailed = true
+                } else {
+                    logger.debug("Pano update check still failing: {}", e.message)
+                }
                 return
             }
 
+            e.printStackTrace()
             throw InternalServerError()
         }
     }
@@ -206,9 +224,10 @@ class UpdateManager(
     private suspend fun deletePlatformUpdateInfo(background: Boolean) {
         val sqlClient = databaseManager.getSqlClient()
 
+        val wasPresent = databaseManager.systemPropertyDao.existsByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
         databaseManager.systemPropertyDao.deleteByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
 
-        if (background) {
+        if (background && wasPresent) {
             logger.info("No Pano update found!")
         }
     }
@@ -313,13 +332,23 @@ class UpdateManager(
             }
 
             if (background) {
-                if (updates.size() == 0) {
-                    logger.info("No resource update found!")
-                } else {
-                    logger.info(
-                        "{} resource updates found! {}",
-                        updates.size(),
-                        updates.map { it as JsonObject }.map { "${it.getString("id")}@${it.getString("version")}" })
+                // Each update embeds a fresh random "state" UUID per check; strip those before
+                // comparing so a no-content-change tick does not register as new. We just want
+                // "did the underlying set of updates change since last sweep?"
+                val updatesFingerprint = updates.map { it as JsonObject }
+                    .map { "${it.getString("id")}@${it.getString("version")}" }
+                    .sorted()
+                    .toString()
+                if (updatesFingerprint != lastResourceUpdatesPayload) {
+                    if (updates.size() == 0) {
+                        logger.info("No resource update found!")
+                    } else {
+                        logger.info(
+                            "{} resource updates found! {}",
+                            updates.size(),
+                            updates.map { it as JsonObject }.map { "${it.getString("id")}@${it.getString("version")}" })
+                    }
+                    lastResourceUpdatesPayload = updatesFingerprint
                 }
             }
 
@@ -366,7 +395,10 @@ class UpdateManager(
 
     suspend fun checkUpdates(background: Boolean = false) {
         if (background) {
-            logger.info("Checking for updates...")
+            // DEBUG: this fires once per minute on the periodic sweep. INFO would flood the log
+            // with a no-news heartbeat; operators only care about transitions (update found,
+            // update no longer offered, check started failing) and those still log at INFO/ERROR.
+            logger.debug("Checking for updates...")
         }
 
         updateLastCheck()

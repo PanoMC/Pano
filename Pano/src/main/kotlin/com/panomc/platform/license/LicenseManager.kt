@@ -60,6 +60,14 @@ class LicenseManager(
     private val failures = ConcurrentHashMap<String, PluginLicenseFailure>()
 
     /**
+     * Last reason we already emitted a WARN for, per plugin id. The periodic renewal sweep
+     * re-attempts every minute; without this tracker an unrecoverable failure (no purchase,
+     * Pano disconnected, etc.) would spam the same WARN line on every tick. Cleared on
+     * successful re-fetch so a *new* failure after a recovery still WARNs.
+     */
+    private val lastWarnedPluginReason = ConcurrentHashMap<String, LicenseDeniedReason>()
+
+    /**
      * Plugin IDs that have invoked [requireLicense] this JVM lifetime.
      * Used to re-issue JWTs after the operator connects a Pano account (without restarting plugins).
      */
@@ -81,6 +89,9 @@ class LicenseManager(
 
     /** Most recent license failure per theme id, surfaced via the panel. */
     private val themeFailures = ConcurrentHashMap<String, ThemeLicenseFailure>()
+
+    /** Theme-side counterpart to [lastWarnedPluginReason]. */
+    private val lastWarnedThemeReason = ConcurrentHashMap<String, LicenseDeniedReason>()
 
     /** Theme ids that participated in DRM flow this JVM session (license attempted ≥ 1 time). */
     private val drmThemeIds = ConcurrentHashMap.newKeySet<String>()
@@ -168,16 +179,56 @@ class LicenseManager(
                 reason = e.reason,
                 message = e.message
             )
-            logger.warn(
-                "License denied for plugin '{}' (resource={}, version={}): reason={} detail={}",
-                pluginId, resourceId, version, e.reason.publicId, e.message ?: "-"
-            )
+            warnPluginFailureOnce(pluginId, e.reason) {
+                logger.warn(
+                    "License denied for plugin '{}' (resource={}, version={}): reason={} detail={}",
+                    pluginId, resourceId, version, e.reason.publicId, e.message ?: "-"
+                )
+            }
             throw e
         }
     }
 
     /** Returns the in-memory cached license for a plugin id, or null. */
     fun getCachedLicense(pluginId: String): SignedLicense? = cache[pluginId]
+
+    /**
+     * Emits [emit] only when [reason] differs from the last reason WARN-logged for [pluginId].
+     * Identical repeated failures (the renewal sweep retrying the same hopeless fetch every
+     * minute) demote to DEBUG so operators do not get a wall of duplicate WARNs.
+     */
+    private inline fun warnPluginFailureOnce(
+        pluginId: String,
+        reason: LicenseDeniedReason,
+        emit: () -> Unit
+    ) {
+        val previous = lastWarnedPluginReason.put(pluginId, reason)
+        if (previous != reason) {
+            emit()
+        } else {
+            logger.debug(
+                "Suppressed repeated license-failure WARN for plugin '{}' (reason still {})",
+                pluginId, reason.publicId,
+            )
+        }
+    }
+
+    /** Theme-side counterpart to [warnPluginFailureOnce]. */
+    private inline fun warnThemeFailureOnce(
+        themeId: String,
+        reason: LicenseDeniedReason,
+        emit: () -> Unit
+    ) {
+        val previous = lastWarnedThemeReason.put(themeId, reason)
+        if (previous != reason) {
+            emit()
+        } else {
+            logger.debug(
+                "Suppressed repeated license-failure WARN for theme '{}' (reason still {})",
+                themeId, reason.publicId,
+            )
+        }
+    }
 
     // ---------- Theme DRM (parallel to the plugin DRM above) -------------------------
 
@@ -225,10 +276,12 @@ class LicenseManager(
                 reason = e.reason,
                 message = e.message
             )
-            logger.warn(
-                "License denied for theme '{}' (version={}): reason={} detail={}",
-                themeId, version, e.reason.publicId, e.message ?: "-"
-            )
+            warnThemeFailureOnce(themeId, e.reason) {
+                logger.warn(
+                    "License denied for theme '{}' (version={}): reason={} detail={}",
+                    themeId, version, e.reason.publicId, e.message ?: "-"
+                )
+            }
             throw e
         }
     }
@@ -245,6 +298,7 @@ class LicenseManager(
     /** Clear the recorded failure for a theme (e.g. after a successful retry / reinstall). */
     fun clearThemeFailure(themeId: String) {
         themeFailures.remove(themeId)
+        lastWarnedThemeReason.remove(themeId)
     }
 
     /**
@@ -348,6 +402,7 @@ class LicenseManager(
     /** Clears the recorded failure for a plugin (called when plugin is uninstalled/reloaded). */
     fun clearFailure(pluginId: String) {
         failures.remove(pluginId)
+        lastWarnedPluginReason.remove(pluginId)
     }
 
     /**
@@ -361,11 +416,13 @@ class LicenseManager(
     suspend fun clearHostLicenseStateBecausePanoDisconnected() {
         cache.clear()
         failures.clear()
+        lastWarnedPluginReason.clear()
         logger.info("Cleared plugin license cache and failures (Pano account disconnected)")
         stopStartedDrmPluginsAfterHostLicenseRemoved()
 
         themeCache.clear()
         themeFailures.clear()
+        lastWarnedThemeReason.clear()
         logger.info("Cleared theme license cache and failures (Pano account disconnected)")
         fallbackActivePremiumThemeBecauseLicenseLost(
             reason = LicenseDeniedReason.NOT_CONNECTED,
@@ -696,10 +753,12 @@ class LicenseManager(
                     message = e.message
                 )
             } else {
-                logger.warn(
-                    "License renewal for active premium theme '{}' failed (reason={}); current token still valid until {}. Will retry.",
-                    themeRef.themeId, e.reason.publicId, java.time.Instant.ofEpochMilli(previousExpiresAt),
-                )
+                warnThemeFailureOnce(themeRef.themeId, e.reason) {
+                    logger.warn(
+                        "License renewal for active premium theme '{}' failed (reason={}); current token still valid until {}. Will retry.",
+                        themeRef.themeId, e.reason.publicId, java.time.Instant.ofEpochMilli(previousExpiresAt),
+                    )
+                }
             }
         }
     }
@@ -774,10 +833,12 @@ class LicenseManager(
                 stopPluginSubtreeLikePanel(pluginId)
             } else {
                 // Still inside the validity window — log and try again next tick.
-                logger.warn(
-                    "License renewal for plugin '{}' failed (reason={}); current token still valid until {}. Will retry.",
-                    pluginId, e.reason.publicId, java.time.Instant.ofEpochMilli(previousExpiresAt),
-                )
+                warnPluginFailureOnce(pluginId, e.reason) {
+                    logger.warn(
+                        "License renewal for plugin '{}' failed (reason={}); current token still valid until {}. Will retry.",
+                        pluginId, e.reason.publicId, java.time.Instant.ofEpochMilli(previousExpiresAt),
+                    )
+                }
             }
         }
     }
@@ -818,13 +879,15 @@ class LicenseManager(
             ?: throw LicenseRequiredException(pluginId, LicenseDeniedReason.UNKNOWN, "jar-not-found")
 
         if (!panoApiManager.isConnected()) {
-            val apiUrl = runCatching { configManager.config.panoApiUrl }.getOrNull() ?: "(unknown)"
-            logger.warn(
-                "Premium plugin '{}' requires a license but no panomc.com account is connected to this Pano. " +
-                    "Open the panel, go to Settings → panomc.com, and connect an account that owns this plugin. " +
-                    "(target API: {})",
-                pluginId, apiUrl
-            )
+            warnPluginFailureOnce(pluginId, LicenseDeniedReason.NOT_CONNECTED) {
+                val apiUrl = runCatching { configManager.config.panoApiUrl }.getOrNull() ?: "(unknown)"
+                logger.warn(
+                    "Premium plugin '{}' requires a license but no panomc.com account is connected to this Pano. " +
+                        "Open the panel, go to Settings → panomc.com, and connect an account that owns this plugin. " +
+                        "(target API: {})",
+                    pluginId, apiUrl
+                )
+            }
             throw LicenseRequiredException(pluginId, LicenseDeniedReason.NOT_CONNECTED)
         }
 
@@ -872,6 +935,7 @@ class LicenseManager(
         cache[pluginId] = license
         // Recovering from a previous failure for the same plugin (e.g. after a reload).
         failures.remove(pluginId)
+        lastWarnedPluginReason.remove(pluginId)
         logger.debug(
             "License token cached for premium plugin '{}' (resource={}, version={}, expires={}); plugin must verify signature.",
             pluginId, resourceId, version, java.time.Instant.ofEpochMilli(claims.expiresAtMs)
@@ -891,13 +955,15 @@ class LicenseManager(
         zipHash: String
     ): SignedLicense {
         if (!panoApiManager.isConnected()) {
-            val apiUrl = runCatching { configManager.config.panoApiUrl }.getOrNull() ?: "(unknown)"
-            logger.warn(
-                "Premium theme '{}' requires a license but no panomc.com account is connected to this Pano. " +
-                    "Open the panel, go to Settings → panomc.com, and connect an account that owns this theme. " +
-                    "(target API: {})",
-                themeId, apiUrl
-            )
+            warnThemeFailureOnce(themeId, LicenseDeniedReason.NOT_CONNECTED) {
+                val apiUrl = runCatching { configManager.config.panoApiUrl }.getOrNull() ?: "(unknown)"
+                logger.warn(
+                    "Premium theme '{}' requires a license but no panomc.com account is connected to this Pano. " +
+                        "Open the panel, go to Settings → panomc.com, and connect an account that owns this theme. " +
+                        "(target API: {})",
+                    themeId, apiUrl
+                )
+            }
             throw LicenseRequiredException(themeId, LicenseDeniedReason.NOT_CONNECTED)
         }
 
@@ -944,6 +1010,7 @@ class LicenseManager(
         val license = SignedLicense(rawJwt, claims)
         themeCache[themeId] = license
         themeFailures.remove(themeId)
+        lastWarnedThemeReason.remove(themeId)
         logger.debug(
             "License token cached for premium theme '{}' (version={}, expires={}); theme process must verify signature.",
             themeId, version, java.time.Instant.ofEpochMilli(claims.expiresAtMs)

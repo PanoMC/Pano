@@ -14,6 +14,7 @@ import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.EncryptUtil
+import com.panomc.platform.util.FileUtil
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.ProgressWriteStream
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
@@ -421,20 +422,37 @@ class PanoApiManager(
 
         val fileSystem = vertx.fileSystem()
         val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + "pano-download_" + getCurrentTimeStamp()
-        val writeStream = fileSystem.open(
-            temporaryFilePath,
-            OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
-        ).coAwait()
 
-        val size = versionInfo.getLong("size") ?: -1L
-        val progressWriteStream = ProgressWriteStream(writeStream, size) {
-            progressHandler.invoke(Progress(it))
+        suspend fun openProgressStream(): ProgressWriteStream {
+            val stream = fileSystem.open(
+                temporaryFilePath,
+                OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
+            ).coAwait()
+            val totalSize = versionInfo.getLong("size") ?: -1L
+            return ProgressWriteStream(stream, totalSize) {
+                progressHandler.invoke(Progress(it))
+            }
         }
 
-        val getFileResponse = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}/file")
-            .`as`(BodyCodec.pipe(progressWriteStream))
+        // Don't auto-follow: the storage backend (e.g. S3) is on a different host and chokes
+        // on our Authorization: Bearer header. We follow once manually without that header.
+        val initialResponse = createRequest(HttpMethod.GET, "/platform/api/store/versions/${versionId}/file")
+            .followRedirects(false)
+            .`as`(BodyCodec.pipe(openProgressStream()))
             .send()
             .coAwait()
+
+        val getFileResponse = if (initialResponse.statusCode() in 300..399) {
+            val location = initialResponse.getHeader("Location")
+                ?: throw PanoConnectFailed()
+
+            webClient.getAbs(location)
+                .`as`(BodyCodec.pipe(openProgressStream()))
+                .send()
+                .coAwait()
+        } else {
+            initialResponse
+        }
 
         if (getFileResponse.statusCode() != 200) {
             throw PanoConnectFailed()
@@ -443,6 +461,7 @@ class PanoApiManager(
         progressHandler.invoke(Successful()) // Downloading file success
 
         val contentDisposition = getFileResponse.getHeader("Content-Disposition")
+        val uploadedFileName = versionInfo.getString("uploadedFileName")?.takeIf { it.isNotBlank() }
         val defaultFileName = if (versionType == ResourceType.PLUGIN) {
             "plugin"
         } else {
@@ -453,7 +472,7 @@ class PanoApiManager(
             ?.let {
                 val regex = Regex("filename=\"?([^\";]+)\"?")
                 regex.find(it)?.groups?.get(1)?.value
-            } ?: defaultFileName
+            } ?: uploadedFileName ?: defaultFileName
 
         val resourceFolder = File(resourceFolderPath)
 
@@ -462,7 +481,12 @@ class PanoApiManager(
             resourceFolder.mkdirs()
         }
 
-        val newFilePath = resourceFolderPath + File.separator + fileName
+        var newFilePath = resourceFolderPath + File.separator + fileName
+
+        if (File(newFilePath).exists()) {
+            newFilePath = FileUtil.getAvailableFilePath(newFilePath)
+        }
+
         fileSystem.move(temporaryFilePath, newFilePath).coAwait()
 
         val hash = versionInfo.getString("hash")

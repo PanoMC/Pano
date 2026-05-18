@@ -14,6 +14,7 @@ import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.EncryptUtil
+import com.panomc.platform.util.FileUtil
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.ProgressWriteStream
 import com.panomc.platform.util.TimeUtil.getCurrentTimeStamp
@@ -480,7 +481,12 @@ class PanoApiManager(
             resourceFolder.mkdirs()
         }
 
-        val newFilePath = resourceFolderPath + File.separator + fileName
+        var newFilePath = resourceFolderPath + File.separator + fileName
+
+        if (File(newFilePath).exists()) {
+            newFilePath = FileUtil.getAvailableFilePath(newFilePath)
+        }
+
         fileSystem.move(temporaryFilePath, newFilePath).coAwait()
 
         val hash = versionInfo.getString("hash")

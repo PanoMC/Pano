@@ -241,7 +241,14 @@ data class PanoConfig(
             @SerializedName("ssl-cert") var sslCert: String? = null,
 
             @ConfigComment("Raw private key content (only when ssl-mode = MANUAL).")
-            @SerializedName("ssl-key") var sslKey: String? = null
+            @SerializedName("ssl-key") var sslKey: String? = null,
+
+            @ConfigComment(
+                "Max memory (MB) for EACH spawned UI runtime (setup-ui, panel-ui, active theme).",
+                "Pano restarts a UI process that exceeds this (they are stateless renderers).",
+                "Set 0 to disable the limit. Total RAM ≈ JVM (-Xmx…) + this × running UIs."
+            )
+            @SerializedName("ui-max-memory-mb") var uiMaxMemoryMb: Int = 200
         )
 
         data class AuthConfig(

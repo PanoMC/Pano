@@ -42,6 +42,7 @@ import java.nio.file.*
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import kotlin.io.path.name
@@ -391,7 +392,10 @@ class UIManager(
         val processBuilder = ProcessBuilder()
 
         processBuilder.redirectErrorStream(true)
-        processBuilder.command(bunFilePath, "run", uiFolder + File.separator + "index.js")
+        // `--smol` runs Bun (JSC) in low-memory mode — smaller heap, more frequent GC. It's the
+        // portable lever that works on every platform Pano runs on (Linux/macOS/Windows/Android);
+        // the per-UI hard ceiling is enforced separately by startUiMemoryWatchdog().
+        processBuilder.command(bunFilePath, "--smol", "run", uiFolder + File.separator + "index.js")
 
         val environment = processBuilder.environment()
 
@@ -422,7 +426,7 @@ class UIManager(
 
         redirectStreamToConsole(id, process.inputStream)
 
-        val startedUI = LoadedUI(id, serverHost, port, process)
+        val startedUI = LoadedUI(id, serverHost, port, process, uiFolder, licenseJwt)
 
         startedUIList.add(startedUI)
 
@@ -672,6 +676,129 @@ class UIManager(
         }
     }
 
+    /**
+     * Caps the memory of the Bun-based UI runtimes (setup-ui, panel-ui, active theme) that Pano
+     * spawns. There is no portable per-process hard cap (cgroup is Linux-only, Job Objects are
+     * Windows-only, macOS has none), so Pano enforces it itself: every interval it reads each UI
+     * process's resident memory cross-platform and restarts any that exceed the configured limit.
+     * The UIs are stateless SSR renderers and the restart reuses the SAME port, so the already-bound
+     * proxy route keeps working untouched. Disabled when server.ui-max-memory-mb <= 0. Combined with
+     * the `--smol` launch flag the UIs normally stay well under the limit; this is the safety net.
+     */
+    private fun startUiMemoryWatchdog() {
+        val capMb = configManager.config.server.uiMaxMemoryMb
+
+        if (capMb <= 0) {
+            logger.info("UI memory watchdog disabled (server.ui-max-memory-mb <= 0)")
+            return
+        }
+
+        val capBytes = capMb.toLong() * 1024L * 1024L
+
+        vertx.setPeriodic(UI_MEMORY_WATCHDOG_INTERVAL_MS) {
+            // Probing /proc or shelling out + respawning is blocking work — keep it off the eventloop.
+            vertx.executeBlocking<Unit> {
+                for (ui in startedUIList) {
+                    try {
+                        val rssBytes = readProcessResidentBytes(ui.process.pid())
+
+                        // Only act on a real overshoot; never restart on an unreadable/zero reading.
+                        if (rssBytes > 0 && rssBytes > capBytes) {
+                            logger.warn(
+                                "UI \"{}\" using {}MB exceeds {}MB cap — restarting on port {}.",
+                                ui.id, rssBytes / (1024L * 1024L), capMb, ui.port
+                            )
+
+                            restartUiKeepingPort(ui)
+                        }
+                    } catch (e: Exception) {
+                        logger.error("UI memory watchdog failed for \"${ui.id}\"", e)
+                    }
+                }
+            }
+        }
+
+        logger.info(
+            "UI memory watchdog started: {}MB cap per UI, checked every {}s.",
+            capMb, UI_MEMORY_WATCHDOG_INTERVAL_MS / 1000
+        )
+    }
+
+    /**
+     * Stops the over-limit UI process and starts it again on the SAME port, so the proxy route that
+     * captured that port at bind time keeps pointing at it (no rebind needed). Reuses the stored
+     * launch parameters, so it works for any UI — setup-ui, panel-ui or a (premium) theme.
+     */
+    private fun restartUiKeepingPort(ui: LoadedUI) {
+        try {
+            ui.process.destroyForcibly()
+            // Wait for the process to actually exit so its port is released before we rebind it.
+            ui.process.waitFor(10, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            logger.warn("Couldn't cleanly stop UI \"${ui.id}\" before restart: {}", e.message)
+        }
+
+        startedUIList.remove(ui)
+
+        startUI(ui.id, ui.uiFolder, ui.port, ui.licenseJwt)
+    }
+
+    /**
+     * Resident memory (RSS / working set) of a child process in bytes, cross-platform and with no
+     * external dependency. Returns -1 when it can't be read (the watchdog then skips that process —
+     * it never kills on a bad reading). Linux/Android read /proc directly; macOS/Windows shell out
+     * to a cheap built-in (the watchdog runs infrequently, so the spawn cost is negligible).
+     */
+    private fun readProcessResidentBytes(pid: Long): Long {
+        return try {
+            when (Main.OPERATING_SYSTEM) {
+                OperatingSystem.LINUX -> {
+                    // /proc/<pid>/statm: "size resident shared ..." in pages. Field 2 = resident.
+                    val statm = File("/proc/$pid/statm")
+                    if (!statm.exists()) return -1
+                    val residentPages =
+                        statm.readText().trim().split(" ").getOrNull(1)?.toLongOrNull() ?: return -1
+                    // 4 KiB pages on virtually all Linux/Android x64/arm64 targets. Larger pages would
+                    // only make us under-count (a less eager cap), never a false kill — so it's safe.
+                    residentPages * 4096L
+                }
+
+                OperatingSystem.DARWIN -> {
+                    // ps reports RSS in KiB.
+                    val kib = runMemoryProbe(listOf("ps", "-o", "rss=", "-p", pid.toString()))
+                        ?.trim()?.toLongOrNull() ?: return -1
+                    kib * 1024L
+                }
+
+                OperatingSystem.WINDOWS -> {
+                    // WorkingSet64 is already in bytes.
+                    runMemoryProbe(
+                        listOf("powershell", "-NoProfile", "-Command", "(Get-Process -Id $pid).WorkingSet64")
+                    )?.trim()?.toLongOrNull() ?: -1
+                }
+            }
+        } catch (e: Exception) {
+            -1
+        }
+    }
+
+    /** Runs a short probe command and returns its stdout, or null on any failure/timeout. */
+    private fun runMemoryProbe(command: List<String>): String? {
+        return try {
+            val probe = ProcessBuilder(command).redirectErrorStream(false).start()
+
+            if (!probe.waitFor(5, TimeUnit.SECONDS)) {
+                probe.destroyForcibly()
+                return null
+            }
+
+            // Output is a single number — safe to read after exit without a pipe-fill deadlock.
+            if (probe.exitValue() == 0) probe.inputStream.bufferedReader().readText() else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun initUiFolders() {
         if (!setupUIFolder.exists()) {
             logger.warn("Setup UI not found, installing...")
@@ -771,6 +898,8 @@ class UIManager(
 
     internal fun init() {
         val config = configManager.config
+
+        startUiMemoryWatchdog()
 
         if (config.initUi) {
             if (!librariesFolder.exists()) {
@@ -1045,6 +1174,8 @@ class UIManager(
     }
 
     companion object {
+        private const val UI_MEMORY_WATCHDOG_INTERVAL_MS = 30_000L
+
         private val gson by lazy {
             GsonBuilder()
                 .registerTypeAdapterFactory(StrictNotNullTypeAdapterFactory())
@@ -1058,7 +1189,10 @@ class UIManager(
             val id: String,
             val host: String,
             val port: Int,
-            val process: Process
+            val process: Process,
+            // Stored so the memory watchdog can respawn this UI on the same port if it grows too big.
+            val uiFolder: String,
+            val licenseJwt: String?
         )
 
         class ActivatedUI(

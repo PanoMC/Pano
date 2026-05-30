@@ -110,6 +110,21 @@ via rollup, zipped into resources). Key points:
   to compile each plugin and copy its jar into `build/plugins`, which the dev `run` task loads via
   the `pf4j.pluginsDir` system property. Plugin DB tables go through `PluginDatabaseManager`
   (per-plugin migrations + orphan cleanup), not `DatabaseManager`.
+- **Plugin dev loop**: for easy iteration the plugin repo lives **inside the backend's runtime
+  `plugins/` folder** — `Pano/plugins/<plugin>/` when running from the codebase (the working dir is
+  `Pano/`, which also holds `config.conf`, `logs`, `file-uploads`), or `<release-dir>/plugins/` for a
+  packaged release. That folder is `pf4j.pluginsDir` (default `./plugins`); it holds both the plugin
+  source folder and its built jar (a `disabled.txt` lists disabled plugin ids). Build that jar with
+  **`-Pnoui`** (the plugin build reads `project.hasProperty("noui")` and skips the Bun/rollup
+  `zipPluginUI` step, so the UI is *not* baked into the jar), then run **`bun dev`**
+  (`DEV=true rollup -c --watch`) in the plugin repo — it watches `src/` and rebuilds the UI into
+  `src/main/resources/plugin-ui/{client,server}`, and with the platform in **development mode**
+  (`init-ui = true`) the new UI shows on a plain page refresh (F5), no jar rebuild or Pano restart.
+  Caveats: **backend (Kotlin) changes always need a jar rebuild** + plugin reload to take effect, and
+  other jar resources such as **locale JSON** (`src/main/resources/locales/*.json`) likewise need a
+  rebuild — F5 only picks up the live rollup output. A normal (production) jar build *without*
+  `-Pnoui` runs the Bun build and bundles the UI into the jar; `bun run build` is the standalone
+  one-shot UI build.
 - Premium plugins/themes use the **license system** (`com.panomc.platform.license`): host fetches an
   RS256 JWT from panomc.com; the plugin verifies it with an embedded public key. See `PanoPlugin`'s
   `getLicenseManager()`/`verifyLicense()` docs.
@@ -125,7 +140,9 @@ There are **no front-end sources in this repo**. `UIManager` reverse-proxies req
 SvelteKit apps (`panel-ui`, `setup-ui`, active theme) running as Bun/adapter-node upstreams.
 Production bundles are pinned in `ui-releases.yml` and pulled by `downloadUIReleases` into
 `Pano/src/main/resources/UIFiles`. `scripts/aggregate-ui-changelog.js` builds the UI changelog
-section appended to GitHub releases.
+section appended to GitHub releases. The **`init-ui` config flag** (`config.conf`, default `false`)
+gates whether `UIManager` actually launches the setup/panel/theme engines at startup (and downloads
+the Bun runtime); set `init-ui = true` to serve any UI — required when developing UI or plugin UIs.
 
 ### Other subsystems
 - **Config**: HOCON (`config.conf`) via Typesafe Config → `ConfigManager` / `PanoConfig`; versioned

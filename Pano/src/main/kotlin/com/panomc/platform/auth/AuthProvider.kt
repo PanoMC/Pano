@@ -1,10 +1,15 @@
 package com.panomc.platform.auth
 
 import com.panomc.platform.AppConstants
+import com.panomc.platform.PluginEventManager
+import com.panomc.platform.api.event.AuthEventListener
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.PendingAuthSession
+import com.panomc.platform.db.model.User
 import com.panomc.platform.error.*
+import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.util.BanUtil
@@ -34,9 +39,89 @@ class AuthProvider(
     companion object {
         const val HEADER_PREFIX = "Bearer "
         private const val INSECURE_COOKIE_SUFFIX = "_http"
+
+        /** Pending-session TTL: long enough for a slow 2FA challenge, short enough to limit replay. */
+        private const val PENDING_SESSION_TTL_MS = 10L * 60L * 1000L
     }
 
     private val permissions = mutableListOf<Permission>()
+
+    // --- Auth lifecycle hook runners ---
+    // Public entry points so ANY flow can run the AuthEventListener pipeline: the core
+    // Login/RegisterAPI, or a plugin running its own login/register (e.g. social login). Plugins
+    // register listeners via @EventListener but cannot dispatch them (getPanoEventListeners is
+    // internal); these are the supported way to execute the hooks, so cross-cutting auth plugins
+    // (captcha, 2FA, …) apply everywhere. Each returns the first non-Allow decision, or null.
+
+    suspend fun runOnBeforeAuthenticate(
+        context: RoutingContext,
+        sqlClient: SqlClient
+    ): AuthEventListener.LoginDecision? {
+        PluginEventManager.getPanoEventListeners<AuthEventListener>().forEach { listener ->
+            val decision = listener.onBeforeAuthenticate(context, sqlClient)
+            if (decision != null && decision !is AuthEventListener.LoginDecision.Allow) return decision
+        }
+        return null
+    }
+
+    suspend fun runOnBeforeLogin(
+        user: User,
+        context: RoutingContext,
+        sqlClient: SqlClient
+    ): AuthEventListener.LoginDecision? {
+        PluginEventManager.getPanoEventListeners<AuthEventListener>().forEach { listener ->
+            val decision = listener.onBeforeLogin(user, context, sqlClient)
+            if (decision != null && decision !is AuthEventListener.LoginDecision.Allow) return decision
+        }
+        return null
+    }
+
+    suspend fun runOnAfterLogin(user: User, context: RoutingContext, sqlClient: SqlClient) {
+        PluginEventManager.getPanoEventListeners<AuthEventListener>().forEach { it.onAfterLogin(user, context, sqlClient) }
+    }
+
+    suspend fun runOnAfterRegister(user: User, sqlClient: SqlClient) {
+        PluginEventManager.getPanoEventListeners<AuthEventListener>().forEach { it.onAfterRegister(user, sqlClient) }
+    }
+
+    // --- Pending-session API ---
+    // A pending session is "I've already identified this user out-of-band; please complete the auth
+    // lifecycle for me." Entry adapters (social login, magic link, SAML, …) create one when their
+    // own auth succeeded; `POST /api/auth/complete-pending` consumes it through the standard
+    // onBeforeLogin pipeline so cross-cutting plugins (2FA, …) get to run.
+
+    /**
+     * Mint a pending-session token bound to [userId]. The [source] is opaque to the core (used only
+     * for diagnostics / UI context); pass something like "social-login:google" or "magic-link".
+     */
+    suspend fun createPendingSession(userId: Long, source: String, sqlClient: SqlClient): String {
+        databaseManager.pendingAuthSessionDao.deleteExpired(sqlClient)
+
+        val token = CSRFTokenGenerator.nextToken() + CSRFTokenGenerator.nextToken()
+        val now = System.currentTimeMillis()
+        databaseManager.pendingAuthSessionDao.add(
+            PendingAuthSession(
+                token = token,
+                userId = userId,
+                source = source,
+                createdAt = now,
+                expiresAt = now + PENDING_SESSION_TTL_MS
+            ),
+            sqlClient
+        )
+        return token
+    }
+
+    /** Peek (does NOT consume) — returns null if missing or expired. Wrong-input retries can re-peek. */
+    suspend fun peekPendingSession(token: String, sqlClient: SqlClient): PendingAuthSession? {
+        val row = databaseManager.pendingAuthSessionDao.getByToken(token, sqlClient) ?: return null
+        if (row.expiresAt < System.currentTimeMillis()) return null
+        return row
+    }
+
+    suspend fun consumePendingSession(token: String, sqlClient: SqlClient) {
+        databaseManager.pendingAuthSessionDao.deleteByToken(token, sqlClient)
+    }
 
     init {
         permissions.addAll(applicationContext.getBeansOfType(Permission::class.java).map { it.value })

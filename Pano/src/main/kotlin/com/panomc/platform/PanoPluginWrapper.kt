@@ -5,6 +5,7 @@ import com.typesafe.config.ConfigFactory
 import io.vertx.core.json.JsonObject
 import org.pf4j.PluginDescriptor
 import org.pf4j.PluginWrapper
+import org.slf4j.LoggerFactory
 import java.nio.file.*
 import kotlin.io.path.name
 import kotlin.io.path.readText
@@ -15,6 +16,8 @@ class PanoPluginWrapper(
     pluginPath: Path,
     internal val pluginClassLoader: ClassLoader
 ) : PluginWrapper(pluginManager, descriptor, pluginPath, pluginClassLoader) {
+    private val logger = LoggerFactory.getLogger(PanoPluginWrapper::class.java)
+
     internal val config by lazy {
         val configResource = pluginClassLoader.getResourceAsStream("config.conf") ?: return@lazy null
 
@@ -46,7 +49,15 @@ class PanoPluginWrapper(
             Files
                 .list(dirPath)
                 .filter { it.name.endsWith(".json") }
-                .forEach { locales[it.name.split(".json")[0]] = JsonObject(it.readText()) }
+                .forEach {
+                    try {
+                        locales[it.name.split(".json")[0]] = JsonObject(it.readText())
+                    } catch (e: Exception) {
+                        // A single malformed locale JSON must not crash the whole translations
+                        // response; skip it and keep the other locales (mirrors PluginDevUtil).
+                        logger.error("Failed to parse locale file ${it.name} in plugin $pluginId", e)
+                    }
+                }
         }
 
         locales

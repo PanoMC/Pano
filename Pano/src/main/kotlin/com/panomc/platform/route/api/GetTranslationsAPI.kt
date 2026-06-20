@@ -20,6 +20,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import org.pf4j.PluginState
+import org.slf4j.LoggerFactory
 
 @Endpoint
 class GetTranslationsAPI(
@@ -28,6 +29,8 @@ class GetTranslationsAPI(
     private val pluginManager: PluginManager,
     private val configManager: ConfigManager
 ) : Api() {
+    private val logger = LoggerFactory.getLogger(GetTranslationsAPI::class.java)
+
     override val paths = listOf(Path("/api/locales/:code/translations/types/:type", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -78,26 +81,32 @@ class GetTranslationsAPI(
             pluginManager.getPluginWrappers()
                 .filter { it.pluginState == PluginState.STARTED }
                 .mapNotNull { wrapper ->
-                    val pluginTranslationsFromDev = if (configManager.config.developmentMode) {
-                        val localesDir = PluginDevUtil.getPluginResourceDir(wrapper.pluginId, "locales")
-                        if (localesDir != null) {
-                            val locales = PluginDevUtil.getPluginLocalesFromDir(localesDir)
-                            locales[code] ?: locales[AppConstants.DEFAULT_LOCALE_CODE]
+                    try {
+                        val pluginTranslationsFromDev = if (configManager.config.developmentMode) {
+                            val localesDir = PluginDevUtil.getPluginResourceDir(wrapper.pluginId, "locales")
+                            if (localesDir != null) {
+                                val locales = PluginDevUtil.getPluginLocalesFromDir(localesDir)
+                                locales[code] ?: locales[AppConstants.DEFAULT_LOCALE_CODE]
+                            } else null
                         } else null
-                    } else null
 
-                    val pluginTranslations = pluginTranslationsFromDev
-                        ?: wrapper.pluginLocales[code]
-                        ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+                        val pluginTranslations = pluginTranslationsFromDev
+                            ?: wrapper.pluginLocales[code]
+                            ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
 
-                    if (pluginTranslations == null) return@mapNotNull null
+                        if (pluginTranslations == null) return@mapNotNull null
 
-                    JsonObjectUtil.flattenJsonObject(pluginTranslations)
-                        .map { (key, value) ->
-                            val newKey = "plugins.${wrapper.pluginId}.$key"
+                        JsonObjectUtil.flattenJsonObject(pluginTranslations)
+                            .map { (key, value) ->
+                                val newKey = "plugins.${wrapper.pluginId}.$key"
 
-                            newKey to (customPluginTranslations[newKey] ?: value)
-                        }
+                                newKey to (customPluginTranslations[newKey] ?: value)
+                            }
+                    } catch (e: Exception) {
+                        // One plugin's broken locales must not abort the whole merge.
+                        logger.error("Failed to load translations for plugin ${wrapper.pluginId}", e)
+                        null
+                    }
                 }
                 .flatten()
                 .toMap()

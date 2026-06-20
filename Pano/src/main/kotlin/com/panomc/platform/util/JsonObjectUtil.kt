@@ -47,7 +47,15 @@ object JsonObjectUtil {
             var current = root
             for (i in 0 until keys.size - 1) {
                 val key = keys[i]
-                val next = current.getJsonObject(key) ?: JsonObject().also { current.put(key, it) }
+                // An intermediate segment may already hold a non-object (prefix-colliding keys
+                // like "a.b" and "a.b.c"). Don't blindly cast via getJsonObject (which throws a
+                // ClassCastException); overwrite with a fresh object instead (last-write-wins).
+                val existing = current.getValue(key)
+                val next = if (existing is JsonObject) {
+                    existing
+                } else {
+                    JsonObject().also { current.put(key, it) }
+                }
                 current = next
             }
             current.put(keys.last(), value)

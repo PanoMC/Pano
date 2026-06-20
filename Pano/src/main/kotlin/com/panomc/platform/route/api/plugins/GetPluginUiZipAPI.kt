@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.plugins
 
+import com.panomc.platform.Main
 import com.panomc.platform.PluginManager
 import com.panomc.platform.PluginUiManager
 import com.panomc.platform.annotation.Endpoint
@@ -63,24 +64,28 @@ class GetPluginUiZipAPI(
         val response = context.response()
         val mimeType = MimeTypeUtil.getMimeTypeFromFileName(pluginUiZipFileName)
 
-        response.putHeader("Content-Type", mimeType)
-        response.isChunked = true
-
-        val config = configManager.config
-        if (config.developmentMode) {
+        // Use the same mode source as plugin UI registration (PluginUiManager) so a plugin
+        // registered with the dev "dev-build" hash is also served via the dev re-zip path,
+        // instead of falling through to a NotFound after headers were already written.
+        if (Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT) {
             val uiResourcesDir = PluginDevUtil.getPluginResourceDir(pluginId, "plugin-ui")
 
             if (uiResourcesDir != null) {
                 val zipBytes = buildDevZip(context, pluginId, uiResourcesDir)
 
-                response.isChunked = false
+                response.putHeader("Content-Type", mimeType)
                 response.putHeader("Content-Length", zipBytes.size.toString())
                 response.end(io.vertx.core.buffer.Buffer.buffer(zipBytes))
                 return null
             }
         }
 
+        // Resolve the resource before touching the response so the NotFound error path starts
+        // from a clean response (no half-set Content-Type / chunked body).
         val resource = plugin.getResource(pluginUiZipFileName) ?: throw NotFound()
+
+        response.putHeader("Content-Type", mimeType)
+        response.isChunked = true
 
         resource.writeToResponse(response)
 

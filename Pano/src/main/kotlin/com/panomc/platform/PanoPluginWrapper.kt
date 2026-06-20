@@ -38,26 +38,36 @@ class PanoPluginWrapper(
         val resourceDirUri = pluginClassLoader.getResource("locales")?.toURI()
 
         if (resourceDirUri != null) {
+            // When running the JAR directly we open a zip FileSystem for the URI; it must be
+            // closed afterwards or the handle leaks (which blocks replacing the jar on Windows).
+            var openedFileSystem: FileSystem? = null
+
             val dirPath = try {
                 Paths.get(resourceDirUri)
             } catch (e: FileSystemNotFoundException) {
                 // If this is thrown, then it means that we are running the JAR directly (example: not from an IDE)
                 val env = mutableMapOf<String, String>()
-                FileSystems.newFileSystem(resourceDirUri, env).getPath("locales")
+                val fileSystem = FileSystems.newFileSystem(resourceDirUri, env)
+                openedFileSystem = fileSystem
+                fileSystem.getPath("locales")
             }
 
-            Files
-                .list(dirPath)
-                .filter { it.name.endsWith(".json") }
-                .forEach {
-                    try {
-                        locales[it.name.split(".json")[0]] = JsonObject(it.readText())
-                    } catch (e: Exception) {
-                        // A single malformed locale JSON must not crash the whole translations
-                        // response; skip it and keep the other locales (mirrors PluginDevUtil).
-                        logger.error("Failed to parse locale file ${it.name} in plugin $pluginId", e)
+            try {
+                Files
+                    .list(dirPath)
+                    .filter { it.name.endsWith(".json") }
+                    .forEach {
+                        try {
+                            locales[it.name.split(".json")[0]] = JsonObject(it.readText())
+                        } catch (e: Exception) {
+                            // A single malformed locale JSON must not crash the whole translations
+                            // response; skip it and keep the other locales (mirrors PluginDevUtil).
+                            logger.error("Failed to parse locale file ${it.name} in plugin $pluginId", e)
+                        }
                     }
-                }
+            } finally {
+                openedFileSystem?.close()
+            }
         }
 
         locales

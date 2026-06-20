@@ -108,13 +108,13 @@ class PanelGetPluginLogoAPI(
 
         response.isChunked = true
         val resource: InputStream = pluginWrapper.getResource(logoFileName)!!
-        resource.writeToResponse(response)
+        resource.writeToResponse(context.vertx(), response)
         response.end()
 
         return null
     }
 
-    private fun sendDefault(context: RoutingContext, requestedHash: String?) {
+    private suspend fun sendDefault(context: RoutingContext, requestedHash: String?) {
         val path = "assets/img/default-plugin.png"
         val inputStream = this.javaClass.classLoader.getResourceAsStream(path)
 
@@ -165,7 +165,7 @@ class PanelGetPluginLogoAPI(
         response.putHeader("Content-Disposition", "inline; filename=\"default-plugin.png\"")
         response.isChunked = true
 
-        this.javaClass.classLoader.getResourceAsStream(path)?.writeToResponse(response)
+        this.javaClass.classLoader.getResourceAsStream(path)?.writeToResponse(context.vertx(), response)
         response.end()
     }
 

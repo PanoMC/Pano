@@ -106,7 +106,7 @@ class PanelGetThemeScreenshotAPI(
 
         response.isChunked = true
 
-        screenshotFile.writeToResponse(response)
+        screenshotFile.writeToResponse(context.vertx(), response)
 
         response.end()
 

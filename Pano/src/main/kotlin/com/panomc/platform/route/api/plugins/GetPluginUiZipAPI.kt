@@ -23,10 +23,8 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.coAwait
-import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -87,11 +85,7 @@ class GetPluginUiZipAPI(
         response.putHeader("Content-Type", mimeType)
         response.isChunked = true
 
-        resource.writeToResponse(response)
-
-        withContext(context.vertx().dispatcher()) {
-            resource.close()
-        }
+        resource.writeToResponse(context.vertx(), response)
 
         response.end()
 

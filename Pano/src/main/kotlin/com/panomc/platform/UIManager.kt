@@ -16,15 +16,21 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
 import com.panomc.platform.util.annotation.StrictValidation
+import io.vertx.core.Future
 import io.vertx.core.http.HttpClient
+import io.vertx.core.http.HttpMethod
+import io.vertx.core.http.RequestOptions
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
+import io.vertx.httpproxy.ProxyContext
+import io.vertx.httpproxy.ProxyInterceptor
 import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -383,7 +389,7 @@ class UIManager(
         }
     }
 
-    private fun startUI(
+    private suspend fun startUI(
         id: String,
         uiFolder: String,
         port: Int = findAvailablePort(),
@@ -430,7 +436,62 @@ class UIManager(
 
         startedUIList.add(startedUI)
 
+        // `process.isAlive` only means bun forked — the SvelteKit HTTP listener binds a beat
+        // later. Routing to the port before that yields a 502 window at boot and after a
+        // memory-watchdog restart, so hold "started" until the upstream actually answers.
+        waitUntilUiResponds(id, serverHost, port)
+
         logger.info("\"$id\" started at port: {}", port)
+    }
+
+    /**
+     * Readiness probe for a freshly-spawned UI upstream: GETs the UI's base path every
+     * [UI_READINESS_POLL_INTERVAL_MS] until ANY HTTP response arrives (any status code means
+     * the listener is up — SvelteKit answers 200/404/500 the moment it binds). Gives up after
+     * [UI_READINESS_TIMEOUT_MS] with a warning and lets startup continue as before — a slow
+     * UI must degrade to the old 502-until-up behavior, never block or fail the platform.
+     *
+     * suspend + non-blocking on purpose: callers reach this from the Vert.x eventloop
+     * dispatcher (panel API handlers via the suspend [startUI]) as well as from
+     * `Dispatchers.IO` bridges ([startUIBlocking], [restartUiKeepingPort]), so it must
+     * `delay()`/`coAwait()` rather than sleep.
+     */
+    private suspend fun waitUntilUiResponds(id: String, host: String, port: Int) {
+        val basePath = if (id == "panel-ui") "/panel" else "/"
+        val deadline = System.currentTimeMillis() + UI_READINESS_TIMEOUT_MS
+
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                val request = httpClient.request(
+                    RequestOptions()
+                        .setMethod(HttpMethod.GET)
+                        .setHost(host)
+                        .setPort(port)
+                        .setURI(basePath)
+                        .setTimeout(2_000L)
+                ).coAwait()
+
+                val response = request.send().coAwait()
+                // Do NOT call response.end() here: the head future resuming on our
+                // dispatcher races the event loop that keeps delivering body+end, so
+                // end() can observe an already-ended stream and throw (misclassifying
+                // a ready UI as down) or await an end event that already fired. An
+                // unconsumed response is drained and the connection recycled by Vert.x
+                // automatically once the body handler defaults kick in.
+
+                logger.info("\"$id\" is answering HTTP {} on port {}.", response.statusCode(), port)
+
+                return
+            } catch (e: Exception) {
+                // Connection refused / reset — listener not bound yet. Poll again shortly.
+                delay(UI_READINESS_POLL_INTERVAL_MS)
+            }
+        }
+
+        logger.warn(
+            "\"$id\" did not answer HTTP on port {} within {}s — continuing anyway, early requests may fail until it comes up.",
+            port, UI_READINESS_TIMEOUT_MS / 1000
+        )
     }
 
     /**
@@ -740,7 +801,15 @@ class UIManager(
 
         startedUIList.remove(ui)
 
-        startUI(ui.id, ui.uiFolder, ui.port, ui.licenseJwt)
+        // Same `runBlocking { withContext(Dispatchers.IO) { ... } }` bridge as
+        // [startUIBlocking] (see its doc comment for why Dispatchers.IO is mandatory):
+        // we are on a Vert.x worker thread here (the watchdog's executeBlocking), and the
+        // readiness probe inside startUI() coAwait()s HTTP calls that resume on the eventloop.
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                startUI(ui.id, ui.uiFolder, ui.port, ui.licenseJwt)
+            }
+        }
     }
 
     /**
@@ -940,10 +1009,16 @@ class UIManager(
 
         if (config.initUi) {
             try {
-                if (!setupManager.isSetupDone()) {
-                    startUI("setup-ui", setupUIFolder.absolutePath)
+                // Same Dispatchers.IO bridge as [startUIBlocking] (see its doc comment):
+                // startUI() is suspend now that it ends with the HTTP readiness probe.
+                runBlocking {
+                    withContext(Dispatchers.IO) {
+                        if (!setupManager.isSetupDone()) {
+                            startUI("setup-ui", setupUIFolder.absolutePath)
+                        }
+                        startUI("panel-ui", panelUIFolder.absolutePath)
+                    }
                 }
-                startUI("panel-ui", panelUIFolder.absolutePath)
                 try {
                     startUIBlocking(theme)
                 } catch (e: LicenseRequiredException) {
@@ -987,12 +1062,69 @@ class UIManager(
         }
     }
 
+    /**
+     * Response-side cache policy stamped onto everything the UI reverse-proxies serve. The
+     * Bun/SvelteKit upstreams only mark their own `/_app/immutable` assets; the rest ships
+     * without Cache-Control, which lets intermediaries make bad guesses. Policy:
+     *
+     * - `text/html` → `no-cache`: SSR HTML must always revalidate so a stale document can
+     *   never outlive the hashed assets (importmap URLs, runtime shim `?v=` params) it
+     *   references.
+     * - `/lib/<16-hex-hash>/…` (and `/panel/lib/…`) → immutable for a year: the bootstrap
+     *   bundles are content-hashed, so a URL's payload can never change.
+     * - `/runtime/…` (and `/panel/runtime/…`) → immutable for a year, but ONLY when requested
+     *   with the `?v=` cache-busting param the importmap appends; the bare stable URL must
+     *   stay `no-cache` — its content changes across theme/panel releases.
+     *
+     * Immutable is additionally gated on a 2xx status so an upstream error/404 on those
+     * paths can never be pinned into caches for a year.
+     *
+     * Registered via the single-arg [HttpProxy.addInterceptor], which marks the interceptor
+     * as NOT supporting WebSocket upgrades — the proxy skips it entirely for upgrade
+     * requests, so WebSocket traffic (Vite HMR etc.) passes through untouched.
+     */
+    private val uiCacheControlInterceptor = object : ProxyInterceptor {
+        override fun handleProxyResponse(context: ProxyContext): Future<Void> {
+            val response = context.response()
+            val proxiedRequest = context.request().proxiedRequest()
+            val path = proxiedRequest.path() ?: ""
+
+            val contentType = response.headers().get("Content-Type")
+            val isSuccess = response.statusCode in 200..299
+
+            when {
+                contentType != null && contentType.contains("text/html", ignoreCase = true) ->
+                    response.putHeader("Cache-Control", "no-cache")
+
+                LIB_HASHED_PATH_REGEX.containsMatchIn(path) -> {
+                    if (isSuccess) {
+                        response.putHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL)
+                    }
+                }
+
+                RUNTIME_PATH_REGEX.containsMatchIn(path) -> {
+                    if (isSuccess && proxiedRequest.getParam("v") != null) {
+                        response.putHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL)
+                    } else if (response.statusCode != 304) {
+                        // A bare 304 must stay header-less: per RFC 9111 clients freshen the
+                        // stored response with any headers on the 304, so stamping no-cache
+                        // here would permanently downgrade a correctly-immutable cache entry.
+                        response.putHeader("Cache-Control", "no-cache")
+                    }
+                }
+            }
+
+            return context.sendResponse()
+        }
+    }
+
     fun activateSetupUI(router: Router) {
         if (_activatedUIList.containsKey(Route.Type.SETUP_UI)) {
             return
         }
 
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        setupUI.addInterceptor(uiCacheControlInterceptor)
 
         val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
@@ -1020,6 +1152,7 @@ class UIManager(
         }
 
         val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        panelUI.addInterceptor(uiCacheControlInterceptor)
 
         val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
 
@@ -1088,6 +1221,7 @@ class UIManager(
         }
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        themeUI.addInterceptor(uiCacheControlInterceptor)
 
         val startedThemeUI = startedUIList.find { it.id == id }
         activeTheme = id
@@ -1175,6 +1309,17 @@ class UIManager(
 
     companion object {
         private const val UI_MEMORY_WATCHDOG_INTERVAL_MS = 30_000L
+
+        private const val UI_READINESS_TIMEOUT_MS = 20_000L
+        private const val UI_READINESS_POLL_INTERVAL_MS = 250L
+
+        private const val IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+
+        /** Content-hashed bootstrap bundle dirs emitted by scripts/bundle-internal-libs.js. */
+        private val LIB_HASHED_PATH_REGEX = Regex("^(/panel)?/lib/[0-9a-f]{16}/")
+
+        /** Stable-URL runtime shims (scripts/generate-runtime-shims.js); versioned via `?v=`. */
+        private val RUNTIME_PATH_REGEX = Regex("^(/panel)?/runtime/")
 
         private val gson by lazy {
             GsonBuilder()

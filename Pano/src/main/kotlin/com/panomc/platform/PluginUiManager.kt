@@ -4,9 +4,12 @@ import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.util.FileResourceUtil.getResource
 import com.panomc.platform.util.HashUtil.hash
 import org.pf4j.PluginState
+import java.util.concurrent.ConcurrentHashMap
 
 class PluginUiManager {
-    private val pluginUiRegisterList = mutableMapOf<PanoPlugin, String>()
+    // ConcurrentHashMap: mutated on Vert.x worker threads (plugin load/unload) while HTTP handlers
+    // iterate it on the event loop. Iteration is weakly-consistent and won't throw a CME.
+    private val pluginUiRegisterList = ConcurrentHashMap<PanoPlugin, String>()
 
     internal fun getRegisteredPlugins() = pluginUiRegisterList.toList()
 

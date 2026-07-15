@@ -13,6 +13,7 @@ import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.JsonObjectUtil
 import com.panomc.platform.util.PluginDevUtil
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -20,6 +21,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import org.pf4j.PluginState
+import org.slf4j.LoggerFactory
 
 @Endpoint
 class GetTranslationsAPI(
@@ -28,6 +30,8 @@ class GetTranslationsAPI(
     private val pluginManager: PluginManager,
     private val configManager: ConfigManager
 ) : Api() {
+    private val logger = LoggerFactory.getLogger(GetTranslationsAPI::class.java)
+
     override val paths = listOf(Path("/api/locales/:code/translations/types/:type", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -74,10 +78,17 @@ class GetTranslationsAPI(
 
         translations.putAll(customTranslations.associate { it.key to it.value })
 
-        translations.putAll(
-            pluginManager.getPluginWrappers()
-                .filter { it.pluginState == PluginState.STARTED }
-                .mapNotNull { wrapper ->
+        // Build the per-plugin translations under a dedicated "plugins" object keyed by the
+        // literal pluginId. Nesting the pluginId as a real map key (instead of joining it into a
+        // dotted flat key) keeps it from being split on '.' when a pluginId — or a translation
+        // key — itself contains a dot, which previously produced wrong/cross-plugin translations.
+        val pluginsObject = JsonObject()
+        var pluginTranslationCount = 0
+
+        pluginManager.getPluginWrappers()
+            .filter { it.pluginState == PluginState.STARTED }
+            .forEach { wrapper ->
+                try {
                     val pluginTranslationsFromDev = if (configManager.config.developmentMode) {
                         val localesDir = PluginDevUtil.getPluginResourceDir(wrapper.pluginId, "locales")
                         if (localesDir != null) {
@@ -89,25 +100,40 @@ class GetTranslationsAPI(
                     val pluginTranslations = pluginTranslationsFromDev
                         ?: wrapper.pluginLocales[code]
                         ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
+                        ?: return@forEach
 
-                    if (pluginTranslations == null) return@mapNotNull null
-
-                    JsonObjectUtil.flattenJsonObject(pluginTranslations)
+                    val pluginFlatTranslations = JsonObjectUtil.flattenJsonObject(pluginTranslations)
                         .map { (key, value) ->
-                            val newKey = "plugins.${wrapper.pluginId}.$key"
+                            // DB overrides are still stored under the legacy flat "plugins.{id}.{key}"
+                            // key; look them up by that string but never split it into the structure.
+                            val overrideKey = "plugins.${wrapper.pluginId}.$key"
 
-                            newKey to (customPluginTranslations[newKey] ?: value)
+                            key to (customPluginTranslations[overrideKey] ?: value)
                         }
+                        .toMap()
+
+                    pluginsObject.put(
+                        wrapper.pluginId,
+                        JsonObjectUtil.unflattenToJsonObject(pluginFlatTranslations)
+                    )
+                    pluginTranslationCount += pluginFlatTranslations.size
+                } catch (e: Exception) {
+                    // One plugin's broken locales must not abort the whole merge.
+                    logger.error("Failed to load translations for plugin ${wrapper.pluginId}", e)
                 }
-                .flatten()
-                .toMap()
-        )
+            }
+
+        val data = JsonObjectUtil.unflattenToJsonObject(translations)
+
+        if (!pluginsObject.isEmpty) {
+            data.put("plugins", pluginsObject)
+        }
 
         return Successful(
             mutableMapOf(
-                "data" to JsonObjectUtil.unflattenToJsonObject(translations),
+                "data" to data,
                 "meta" to mapOf(
-                    "totalCount" to translations.count(),
+                    "totalCount" to (translations.count() + pluginTranslationCount),
                 )
             )
         )

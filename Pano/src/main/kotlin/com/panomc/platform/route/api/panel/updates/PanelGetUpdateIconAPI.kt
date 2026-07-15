@@ -120,7 +120,7 @@ class PanelGetUpdateIconAPI(
         return null
     }
 
-    private fun sendDefault(context: RoutingContext, requestedHash: String?, type: String?) {
+    private suspend fun sendDefault(context: RoutingContext, requestedHash: String?, type: String?) {
         val defaultIcon = if (type == "THEME") "assets/img/default-theme.png" else "assets/img/default-plugin.png"
         val inputStream = this.javaClass.classLoader.getResourceAsStream(defaultIcon)
 
@@ -175,7 +175,8 @@ class PanelGetUpdateIconAPI(
         response.isChunked = true
 
         com.panomc.platform.util.FileResourceUtil.run {
-            this@PanelGetUpdateIconAPI.javaClass.classLoader.getResourceAsStream(defaultIcon)?.writeToResponse(response)
+            this@PanelGetUpdateIconAPI.javaClass.classLoader.getResourceAsStream(defaultIcon)
+                ?.writeToResponse(context.vertx(), response)
         }
         
         response.end()

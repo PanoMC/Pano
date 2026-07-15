@@ -16,15 +16,21 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
 import com.panomc.platform.util.annotation.StrictValidation
+import io.vertx.core.Future
 import io.vertx.core.http.HttpClient
+import io.vertx.core.http.HttpMethod
+import io.vertx.core.http.RequestOptions
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
+import io.vertx.httpproxy.ProxyContext
+import io.vertx.httpproxy.ProxyInterceptor
 import io.vertx.httpproxy.ProxyOptions
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -42,6 +48,7 @@ import java.nio.file.*
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import kotlin.io.path.name
@@ -382,7 +389,7 @@ class UIManager(
         }
     }
 
-    private fun startUI(
+    private suspend fun startUI(
         id: String,
         uiFolder: String,
         port: Int = findAvailablePort(),
@@ -391,7 +398,10 @@ class UIManager(
         val processBuilder = ProcessBuilder()
 
         processBuilder.redirectErrorStream(true)
-        processBuilder.command(bunFilePath, "run", uiFolder + File.separator + "index.js")
+        // `--smol` runs Bun (JSC) in low-memory mode — smaller heap, more frequent GC. It's the
+        // portable lever that works on every platform Pano runs on (Linux/macOS/Windows/Android);
+        // the per-UI hard ceiling is enforced separately by startUiMemoryWatchdog().
+        processBuilder.command(bunFilePath, "--smol", "run", uiFolder + File.separator + "index.js")
 
         val environment = processBuilder.environment()
 
@@ -422,11 +432,66 @@ class UIManager(
 
         redirectStreamToConsole(id, process.inputStream)
 
-        val startedUI = LoadedUI(id, serverHost, port, process)
+        val startedUI = LoadedUI(id, serverHost, port, process, uiFolder, licenseJwt)
 
         startedUIList.add(startedUI)
 
+        // `process.isAlive` only means bun forked — the SvelteKit HTTP listener binds a beat
+        // later. Routing to the port before that yields a 502 window at boot and after a
+        // memory-watchdog restart, so hold "started" until the upstream actually answers.
+        waitUntilUiResponds(id, serverHost, port)
+
         logger.info("\"$id\" started at port: {}", port)
+    }
+
+    /**
+     * Readiness probe for a freshly-spawned UI upstream: GETs the UI's base path every
+     * [UI_READINESS_POLL_INTERVAL_MS] until ANY HTTP response arrives (any status code means
+     * the listener is up — SvelteKit answers 200/404/500 the moment it binds). Gives up after
+     * [UI_READINESS_TIMEOUT_MS] with a warning and lets startup continue as before — a slow
+     * UI must degrade to the old 502-until-up behavior, never block or fail the platform.
+     *
+     * suspend + non-blocking on purpose: callers reach this from the Vert.x eventloop
+     * dispatcher (panel API handlers via the suspend [startUI]) as well as from
+     * `Dispatchers.IO` bridges ([startUIBlocking], [restartUiKeepingPort]), so it must
+     * `delay()`/`coAwait()` rather than sleep.
+     */
+    private suspend fun waitUntilUiResponds(id: String, host: String, port: Int) {
+        val basePath = if (id == "panel-ui") "/panel" else "/"
+        val deadline = System.currentTimeMillis() + UI_READINESS_TIMEOUT_MS
+
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                val request = httpClient.request(
+                    RequestOptions()
+                        .setMethod(HttpMethod.GET)
+                        .setHost(host)
+                        .setPort(port)
+                        .setURI(basePath)
+                        .setTimeout(2_000L)
+                ).coAwait()
+
+                val response = request.send().coAwait()
+                // Do NOT call response.end() here: the head future resuming on our
+                // dispatcher races the event loop that keeps delivering body+end, so
+                // end() can observe an already-ended stream and throw (misclassifying
+                // a ready UI as down) or await an end event that already fired. An
+                // unconsumed response is drained and the connection recycled by Vert.x
+                // automatically once the body handler defaults kick in.
+
+                logger.info("\"$id\" is answering HTTP {} on port {}.", response.statusCode(), port)
+
+                return
+            } catch (e: Exception) {
+                // Connection refused / reset — listener not bound yet. Poll again shortly.
+                delay(UI_READINESS_POLL_INTERVAL_MS)
+            }
+        }
+
+        logger.warn(
+            "\"$id\" did not answer HTTP on port {} within {}s — continuing anyway, early requests may fail until it comes up.",
+            port, UI_READINESS_TIMEOUT_MS / 1000
+        )
     }
 
     /**
@@ -672,6 +737,137 @@ class UIManager(
         }
     }
 
+    /**
+     * Caps the memory of the Bun-based UI runtimes (setup-ui, panel-ui, active theme) that Pano
+     * spawns. There is no portable per-process hard cap (cgroup is Linux-only, Job Objects are
+     * Windows-only, macOS has none), so Pano enforces it itself: every interval it reads each UI
+     * process's resident memory cross-platform and restarts any that exceed the configured limit.
+     * The UIs are stateless SSR renderers and the restart reuses the SAME port, so the already-bound
+     * proxy route keeps working untouched. Disabled when server.ui-max-memory-mb <= 0. Combined with
+     * the `--smol` launch flag the UIs normally stay well under the limit; this is the safety net.
+     */
+    private fun startUiMemoryWatchdog() {
+        val capMb = configManager.config.server.uiMaxMemoryMb
+
+        if (capMb <= 0) {
+            logger.info("UI memory watchdog disabled (server.ui-max-memory-mb <= 0)")
+            return
+        }
+
+        val capBytes = capMb.toLong() * 1024L * 1024L
+
+        vertx.setPeriodic(UI_MEMORY_WATCHDOG_INTERVAL_MS) {
+            // Probing /proc or shelling out + respawning is blocking work — keep it off the eventloop.
+            vertx.executeBlocking<Unit> {
+                for (ui in startedUIList) {
+                    try {
+                        val rssBytes = readProcessResidentBytes(ui.process.pid())
+
+                        // Only act on a real overshoot; never restart on an unreadable/zero reading.
+                        if (rssBytes > 0 && rssBytes > capBytes) {
+                            logger.warn(
+                                "UI \"{}\" using {}MB exceeds {}MB cap — restarting on port {}.",
+                                ui.id, rssBytes / (1024L * 1024L), capMb, ui.port
+                            )
+
+                            restartUiKeepingPort(ui)
+                        }
+                    } catch (e: Exception) {
+                        logger.error("UI memory watchdog failed for \"${ui.id}\"", e)
+                    }
+                }
+            }
+        }
+
+        logger.info(
+            "UI memory watchdog started: {}MB cap per UI, checked every {}s.",
+            capMb, UI_MEMORY_WATCHDOG_INTERVAL_MS / 1000
+        )
+    }
+
+    /**
+     * Stops the over-limit UI process and starts it again on the SAME port, so the proxy route that
+     * captured that port at bind time keeps pointing at it (no rebind needed). Reuses the stored
+     * launch parameters, so it works for any UI — setup-ui, panel-ui or a (premium) theme.
+     */
+    private fun restartUiKeepingPort(ui: LoadedUI) {
+        try {
+            ui.process.destroyForcibly()
+            // Wait for the process to actually exit so its port is released before we rebind it.
+            ui.process.waitFor(10, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            logger.warn("Couldn't cleanly stop UI \"${ui.id}\" before restart: {}", e.message)
+        }
+
+        startedUIList.remove(ui)
+
+        // Same `runBlocking { withContext(Dispatchers.IO) { ... } }` bridge as
+        // [startUIBlocking] (see its doc comment for why Dispatchers.IO is mandatory):
+        // we are on a Vert.x worker thread here (the watchdog's executeBlocking), and the
+        // readiness probe inside startUI() coAwait()s HTTP calls that resume on the eventloop.
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                startUI(ui.id, ui.uiFolder, ui.port, ui.licenseJwt)
+            }
+        }
+    }
+
+    /**
+     * Resident memory (RSS / working set) of a child process in bytes, cross-platform and with no
+     * external dependency. Returns -1 when it can't be read (the watchdog then skips that process —
+     * it never kills on a bad reading). Linux/Android read /proc directly; macOS/Windows shell out
+     * to a cheap built-in (the watchdog runs infrequently, so the spawn cost is negligible).
+     */
+    private fun readProcessResidentBytes(pid: Long): Long {
+        return try {
+            when (Main.OPERATING_SYSTEM) {
+                OperatingSystem.LINUX -> {
+                    // /proc/<pid>/statm: "size resident shared ..." in pages. Field 2 = resident.
+                    val statm = File("/proc/$pid/statm")
+                    if (!statm.exists()) return -1
+                    val residentPages =
+                        statm.readText().trim().split(" ").getOrNull(1)?.toLongOrNull() ?: return -1
+                    // 4 KiB pages on virtually all Linux/Android x64/arm64 targets. Larger pages would
+                    // only make us under-count (a less eager cap), never a false kill — so it's safe.
+                    residentPages * 4096L
+                }
+
+                OperatingSystem.DARWIN -> {
+                    // ps reports RSS in KiB.
+                    val kib = runMemoryProbe(listOf("ps", "-o", "rss=", "-p", pid.toString()))
+                        ?.trim()?.toLongOrNull() ?: return -1
+                    kib * 1024L
+                }
+
+                OperatingSystem.WINDOWS -> {
+                    // WorkingSet64 is already in bytes.
+                    runMemoryProbe(
+                        listOf("powershell", "-NoProfile", "-Command", "(Get-Process -Id $pid).WorkingSet64")
+                    )?.trim()?.toLongOrNull() ?: -1
+                }
+            }
+        } catch (e: Exception) {
+            -1
+        }
+    }
+
+    /** Runs a short probe command and returns its stdout, or null on any failure/timeout. */
+    private fun runMemoryProbe(command: List<String>): String? {
+        return try {
+            val probe = ProcessBuilder(command).redirectErrorStream(false).start()
+
+            if (!probe.waitFor(5, TimeUnit.SECONDS)) {
+                probe.destroyForcibly()
+                return null
+            }
+
+            // Output is a single number — safe to read after exit without a pipe-fill deadlock.
+            if (probe.exitValue() == 0) probe.inputStream.bufferedReader().readText() else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun initUiFolders() {
         if (!setupUIFolder.exists()) {
             logger.warn("Setup UI not found, installing...")
@@ -772,6 +968,8 @@ class UIManager(
     internal fun init() {
         val config = configManager.config
 
+        startUiMemoryWatchdog()
+
         if (config.initUi) {
             if (!librariesFolder.exists()) {
                 librariesFolder.mkdirs()
@@ -811,10 +1009,16 @@ class UIManager(
 
         if (config.initUi) {
             try {
-                if (!setupManager.isSetupDone()) {
-                    startUI("setup-ui", setupUIFolder.absolutePath)
+                // Same Dispatchers.IO bridge as [startUIBlocking] (see its doc comment):
+                // startUI() is suspend now that it ends with the HTTP readiness probe.
+                runBlocking {
+                    withContext(Dispatchers.IO) {
+                        if (!setupManager.isSetupDone()) {
+                            startUI("setup-ui", setupUIFolder.absolutePath)
+                        }
+                        startUI("panel-ui", panelUIFolder.absolutePath)
+                    }
                 }
-                startUI("panel-ui", panelUIFolder.absolutePath)
                 try {
                     startUIBlocking(theme)
                 } catch (e: LicenseRequiredException) {
@@ -858,12 +1062,69 @@ class UIManager(
         }
     }
 
+    /**
+     * Response-side cache policy stamped onto everything the UI reverse-proxies serve. The
+     * Bun/SvelteKit upstreams only mark their own `/_app/immutable` assets; the rest ships
+     * without Cache-Control, which lets intermediaries make bad guesses. Policy:
+     *
+     * - `text/html` → `no-cache`: SSR HTML must always revalidate so a stale document can
+     *   never outlive the hashed assets (importmap URLs, runtime shim `?v=` params) it
+     *   references.
+     * - `/lib/<16-hex-hash>/…` (and `/panel/lib/…`) → immutable for a year: the bootstrap
+     *   bundles are content-hashed, so a URL's payload can never change.
+     * - `/runtime/…` (and `/panel/runtime/…`) → immutable for a year, but ONLY when requested
+     *   with the `?v=` cache-busting param the importmap appends; the bare stable URL must
+     *   stay `no-cache` — its content changes across theme/panel releases.
+     *
+     * Immutable is additionally gated on a 2xx status so an upstream error/404 on those
+     * paths can never be pinned into caches for a year.
+     *
+     * Registered via the single-arg [HttpProxy.addInterceptor], which marks the interceptor
+     * as NOT supporting WebSocket upgrades — the proxy skips it entirely for upgrade
+     * requests, so WebSocket traffic (Vite HMR etc.) passes through untouched.
+     */
+    private val uiCacheControlInterceptor = object : ProxyInterceptor {
+        override fun handleProxyResponse(context: ProxyContext): Future<Void> {
+            val response = context.response()
+            val proxiedRequest = context.request().proxiedRequest()
+            val path = proxiedRequest.path() ?: ""
+
+            val contentType = response.headers().get("Content-Type")
+            val isSuccess = response.statusCode in 200..299
+
+            when {
+                contentType != null && contentType.contains("text/html", ignoreCase = true) ->
+                    response.putHeader("Cache-Control", "no-cache")
+
+                LIB_HASHED_PATH_REGEX.containsMatchIn(path) -> {
+                    if (isSuccess) {
+                        response.putHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL)
+                    }
+                }
+
+                RUNTIME_PATH_REGEX.containsMatchIn(path) -> {
+                    if (isSuccess && proxiedRequest.getParam("v") != null) {
+                        response.putHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL)
+                    } else if (response.statusCode != 304) {
+                        // A bare 304 must stay header-less: per RFC 9111 clients freshen the
+                        // stored response with any headers on the 304, so stamping no-cache
+                        // here would permanently downgrade a correctly-immutable cache entry.
+                        response.putHeader("Cache-Control", "no-cache")
+                    }
+                }
+            }
+
+            return context.sendResponse()
+        }
+    }
+
     fun activateSetupUI(router: Router) {
         if (_activatedUIList.containsKey(Route.Type.SETUP_UI)) {
             return
         }
 
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        setupUI.addInterceptor(uiCacheControlInterceptor)
 
         val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
@@ -891,6 +1152,7 @@ class UIManager(
         }
 
         val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        panelUI.addInterceptor(uiCacheControlInterceptor)
 
         val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
 
@@ -959,6 +1221,7 @@ class UIManager(
         }
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+        themeUI.addInterceptor(uiCacheControlInterceptor)
 
         val startedThemeUI = startedUIList.find { it.id == id }
         activeTheme = id
@@ -1045,6 +1308,19 @@ class UIManager(
     }
 
     companion object {
+        private const val UI_MEMORY_WATCHDOG_INTERVAL_MS = 30_000L
+
+        private const val UI_READINESS_TIMEOUT_MS = 20_000L
+        private const val UI_READINESS_POLL_INTERVAL_MS = 250L
+
+        private const val IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+
+        /** Content-hashed bootstrap bundle dirs emitted by scripts/bundle-internal-libs.js. */
+        private val LIB_HASHED_PATH_REGEX = Regex("^(/panel)?/lib/[0-9a-f]{16}/")
+
+        /** Stable-URL runtime shims (scripts/generate-runtime-shims.js); versioned via `?v=`. */
+        private val RUNTIME_PATH_REGEX = Regex("^(/panel)?/runtime/")
+
         private val gson by lazy {
             GsonBuilder()
                 .registerTypeAdapterFactory(StrictNotNullTypeAdapterFactory())
@@ -1058,7 +1334,10 @@ class UIManager(
             val id: String,
             val host: String,
             val port: Int,
-            val process: Process
+            val process: Process,
+            // Stored so the memory watchdog can respawn this UI on the same port if it grows too big.
+            val uiFolder: String,
+            val licenseJwt: String?
         )
 
         class ActivatedUI(

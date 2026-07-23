@@ -18,6 +18,7 @@ import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
+import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -282,10 +283,17 @@ class PanelUpdateSettingsAPI(
             configManager.config.websiteDescription = websiteDescription
         }
 
-        if (websiteUrl != null && websiteUrl != configManager.config.websiteUrl) {
-            authProvider.requirePassword(password, context)
-            configManager.config.websiteUrl = websiteUrl
-            platformStateManager.restartRequired = true
+        if (websiteUrl != null) {
+            // Compare both sides normalized: the stored value may predate normalization (trailing
+            // slash, default port), and treating that as a change would demand a password the
+            // panel never prompted for.
+            val normalizedWebsiteUrl = WebsiteUrlUtil.normalize(websiteUrl)
+
+            if (normalizedWebsiteUrl != WebsiteUrlUtil.normalize(configManager.config.websiteUrl)) {
+                authProvider.requirePassword(password, context)
+                configManager.config.websiteUrl = normalizedWebsiteUrl
+                platformStateManager.restartRequired = true
+            }
         }
 
         if (registerAgreement != null) {

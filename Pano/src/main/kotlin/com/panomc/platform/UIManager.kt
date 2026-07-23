@@ -412,7 +412,17 @@ class UIManager(
 
         environment["PORT"] = port.toString()
         environment["HOST"] = serverHost
-        environment["API_URL"] = "http://${serverHost}:${serverPort}/api"
+        // The UI CONNECTS to this URL for SSR fetches. Wildcard LISTEN addresses
+        // (0.0.0.0 / ::) are not connectable targets — Linux happens to route them to
+        // loopback, but Windows/macOS refuse the connection outright, breaking every
+        // SSR fetch of a packaged install there. Always hand the UI a loopback address
+        // when the platform listens on a wildcard.
+        val apiHost = when (serverHost) {
+            "0.0.0.0" -> "127.0.0.1"
+            "::", "[::]" -> "[::1]"
+            else -> serverHost
+        }
+        environment["API_URL"] = "http://${apiHost}:${serverPort}/api"
         environment["PANO_WEBSITE_URL"] = config.panoWebsiteUrl
         environment["PANO_WEBSITE_API_URL"] = config.panoApiUrl
         if (!licenseJwt.isNullOrBlank()) {
@@ -457,7 +467,12 @@ class UIManager(
      * `delay()`/`coAwait()` rather than sleep.
      */
     private suspend fun waitUntilUiResponds(id: String, host: String, port: Int) {
-        val basePath = if (id == "panel-ui") "/panel" else "/"
+        // Probe a STATIC SvelteKit asset, not the page root: a page GET triggers SSR,
+        // and during platform boot the UIs come up before our own HTTP server, so the
+        // SSR's backend fetches fail and every boot logs a scary 500 + stack from the
+        // theme. version.json is served by adapter-node without SSR and without any
+        // backend dependency; ANY response (even 404) still proves the listener is up.
+        val basePath = if (id == "panel-ui") "/panel/_app/version.json" else "/_app/version.json"
         val deadline = System.currentTimeMillis() + UI_READINESS_TIMEOUT_MS
 
         while (System.currentTimeMillis() < deadline) {

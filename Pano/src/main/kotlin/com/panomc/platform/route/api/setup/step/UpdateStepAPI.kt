@@ -4,6 +4,7 @@ import com.panomc.platform.AppConstants.DEFAULT_LOCALES
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
@@ -127,7 +128,7 @@ class UpdateStepAPI(
         ) {
             configManager.config.websiteName = websiteName
             configManager.config.websiteDescription = websiteDescription
-            configManager.config.websiteUrl = websiteUrl
+            configManager.config.websiteUrl = WebsiteUrlUtil.normalize(websiteUrl)
 
             configManager.saveConfig()
             return true

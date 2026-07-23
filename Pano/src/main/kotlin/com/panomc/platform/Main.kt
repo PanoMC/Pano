@@ -680,6 +680,17 @@ class Main : CoroutineVerticle() {
         val fromConfig = buildPanoUrlFromWebsiteUrl()
         if (fromConfig != null) {
             logger.info("${green}You can visit your Pano at: $fromConfig$reset")
+
+            val explicitPort = WebsiteUrlUtil.explicitPort(configManager.config.websiteUrl)
+            if (explicitPort != null && explicitPort == port) {
+                logger.warn(
+                    "website-url ('${configManager.config.websiteUrl}') includes port :$explicitPort, the same " +
+                            "port Pano listens on internally. If visitors reach your site through a reverse proxy " +
+                            "(Nginx/Apache/Cloudflare), remove the port from website-url (e.g. https://your-domain.com) " +
+                            "so redirects and email/cookie links don't leak the internal port. If Pano is exposed " +
+                            "directly on this port, you can ignore this."
+                )
+            }
         } else {
             val fallback = buildLocalPanoUrl(scheme, host, port)
             logger.info("${green}You can visit your Pano at: $fallback (set website-url in config to your public site URL if users reach Pano through a different host or port).$reset")

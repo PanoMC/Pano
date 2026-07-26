@@ -105,6 +105,83 @@ abstract class PanoPlugin : Plugin() {
         applicationContext.getBean(com.panomc.platform.license.LicenseManager::class.java)
 
     /**
+     * True when this platform owns **at least** the given freemium tier, so the plugin can unlock
+     * the matching paid feature:
+     *
+     * ```
+     * if (hasTier("pro")) { enableProFeature() }
+     * ```
+     *
+     * Tiers are published by the store (panomc.com), not declared here, and are ordered by level —
+     * owning a higher tier satisfies every lower one, so an upgrade needs no code change.
+     *
+     * Only valid on a plugin whose manifest declares `freemium: true`; a premium plugin gates
+     * itself with [getLicenseManager] instead and calling this throws.
+     *
+     * Answered from a cached snapshot of what panomc.com reports, so this never blocks. A purchase
+     * made after startup is picked up when the operator refreshes packages on the addon page (or on
+     * the next restart), which is why buying mid-session does not unlock instantly.
+     */
+    fun hasTier(tierId: String): Boolean {
+        requireFreemium("hasTier")
+
+        val entitlementManager =
+            applicationContext.getBean(com.panomc.platform.license.EntitlementManager::class.java)
+
+        warmEntitlements(entitlementManager)
+
+        return entitlementManager.hasTier(pluginId, tierId)
+    }
+
+    /**
+     * Id of the freemium tier this platform owns, or null when nothing is owned.
+     * Prefer [hasTier] for feature gating; this is for display and logging.
+     */
+    fun activeTier(): String? {
+        requireFreemium("activeTier")
+
+        val entitlementManager =
+            applicationContext.getBean(com.panomc.platform.license.EntitlementManager::class.java)
+
+        warmEntitlements(entitlementManager)
+
+        return entitlementManager.activeTier(pluginId)
+    }
+
+    @Volatile
+    private var entitlementsRequested = false
+
+    /**
+     * Kicks off the first entitlement fetch in the background.
+     *
+     * Plugins ask about tiers from ordinary (blocking) code during startup, so the first answer is
+     * necessarily "nothing owned" — the fetch lands moments later and every later call sees the real
+     * snapshot. The panel's refresh action exists for exactly this gap.
+     */
+    private fun warmEntitlements(entitlementManager: com.panomc.platform.license.EntitlementManager) {
+        if (entitlementsRequested) {
+            return
+        }
+
+        entitlementsRequested = true
+
+        entitlementManager.refreshInBackground(pluginId)
+    }
+
+    /** Catches the wrong-plugin-kind mistake at the call site instead of silently answering false. */
+    private fun requireFreemium(method: String) {
+        val descriptor = applicationContext.getBean(PluginManager::class.java)
+            .getPlugin(pluginId)?.descriptor as? PanoPluginDescriptor
+
+        if (descriptor?.freemium != true) {
+            throw IllegalStateException(
+                "Plugin '$pluginId' called $method() but does not declare freemium: true in its " +
+                        "manifest. Freemium tiers only apply to freemium plugins."
+            )
+        }
+    }
+
+    /**
      * JWT `iss` value to use when verifying license tokens ([com.panomc.platform.license.SignedLicense.verifySignature]).
      * Derived from `pano-website-url` hostname, or from `pano-api-url` when the website URL is empty; must match
      * `licensing.issuer` on the license API.

@@ -148,6 +148,12 @@ class LicenseManager(
         version: String
     ): SignedLicense {
         val pluginId = plugin.pluginId
+
+        // Freemium and premium are mutually exclusive: a freemium plugin is free to install and
+        // run, and gates paid features through PanoPlugin.hasTier() instead of DRM. Reject before
+        // touching drmPluginIds, otherwise the panel would report the plugin as premium.
+        requireNotFreemium(pluginId)
+
         drmPluginIds.add(pluginId)
 
         cache[pluginId]?.let { cached ->
@@ -379,6 +385,27 @@ class LicenseManager(
      * ([requireLicense] or [recordFailure]). Survives clearing cache/failures on Pano disconnect.
      */
     fun hasSeenLicenseRequirement(pluginId: String): Boolean = drmPluginIds.contains(pluginId)
+
+    /** True when the plugin's manifest declares `freemium: true`. */
+    fun isFreemium(pluginId: String): Boolean {
+        val wrapper = pluginManager.getPlugin(pluginId) as? PanoPluginWrapper ?: return false
+        return (wrapper.descriptor as? PanoPluginDescriptor)?.freemium == true
+    }
+
+    /**
+     * Guards the premium/freemium split. Throws when a plugin that declared itself freemium tries
+     * to take the DRM path — a programming error in the plugin, so it fails startup loudly rather
+     * than silently behaving like a premium plugin.
+     */
+    private fun requireNotFreemium(pluginId: String) {
+        if (isFreemium(pluginId)) {
+            throw IllegalStateException(
+                "Plugin '$pluginId' declares freemium: true in its manifest and cannot require a " +
+                        "license. Freemium plugins install and run for free; gate paid features " +
+                        "with PanoPlugin.hasTier(...) instead."
+            )
+        }
+    }
 
     // ---------- Failure tracking (host post-startup) ---------------------------------
 

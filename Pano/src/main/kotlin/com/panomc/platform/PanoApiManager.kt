@@ -37,6 +37,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.io.File
+import java.net.URLEncoder
 import java.security.KeyFactory
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.*
@@ -292,6 +293,95 @@ class PanoApiManager(
         } catch (_: Exception) {
             throw PanoConnectFailed()
         }
+    }
+
+    /**
+     * Mints a short-lived, single-use token for the freemium license view the panel embeds from
+     * panomc.com. Sibling of [getStoreAuthorizeToken]; the token is bound to this platform and the
+     * given resource, and is exchanged by the website for the tier catalogue and ownership.
+     *
+     * @return `(token, state)` — both go into the embed URL query.
+     */
+    suspend fun getLicenseEmbedToken(resourceId: String): Pair<String, String> {
+        if (!isConnected()) {
+            throw PanoNotConnected()
+        }
+
+        val encodedResourceId = URLEncoder.encode(resourceId, Charsets.UTF_8)
+
+        val response = try {
+            createRequest(HttpMethod.GET, "/platform/api/license/embed/token?resourceId=$encodedResourceId")
+                .send()
+                .coAwait()
+        } catch (e: Exception) {
+            logger.error("Failed to fetch license embed token for '{}'", resourceId, e)
+
+            throw PanoConnectFailed()
+        }
+
+        // Checked outside the try/catch on purpose: wrapping these in it would rewrite
+        // PanoNotConnected into PanoConnectFailed and the panel could not tell the operator to
+        // connect their Pano account.
+        if (response.statusCode() == 401) {
+            throw PanoNotConnected()
+        }
+
+        if (response.statusCode() != 200) {
+            throw PanoConnectFailed()
+        }
+
+        val responseData = response.bodyAsJsonObject()?.getJsonObject("data") ?: throw PanoConnectFailed()
+
+        val token = responseData.getString("token") ?: throw PanoConnectFailed()
+        val state = responseData.getString("state") ?: throw PanoConnectFailed()
+
+        return Pair(token, state)
+    }
+
+    /**
+     * Asks panomc.com which freemium package this platform owns for a resource.
+     *
+     * A purchase is not pushed to the platform, so this is only consulted on demand — at startup
+     * and when the operator hits "refresh packages" in the panel after buying one.
+     *
+     * @return `(activeTierId or null, activeTierLevel, tierId -> level for the catalogue)`
+     */
+    suspend fun getEntitlements(resourceId: String): Triple<String?, Int, Map<String, Int>> {
+        if (!isConnected()) {
+            throw PanoNotConnected()
+        }
+
+        val encodedResourceId = URLEncoder.encode(resourceId, Charsets.UTF_8)
+
+        val response = try {
+            createRequest(HttpMethod.GET, "/platform/api/license/entitlements?resourceId=$encodedResourceId")
+                .send()
+                .coAwait()
+        } catch (e: Exception) {
+            logger.error("Failed to fetch entitlements for '{}'", resourceId, e)
+
+            throw PanoConnectFailed()
+        }
+
+        if (response.statusCode() == 401) {
+            throw PanoNotConnected()
+        }
+
+        if (response.statusCode() != 200) {
+            throw PanoConnectFailed()
+        }
+
+        val data = response.bodyAsJsonObject()?.getJsonObject("data") ?: throw PanoConnectFailed()
+
+        val tierLevels = data.getJsonObject("tierLevels") ?: JsonObject()
+
+        return Triple(
+            data.getString("activeTierId"),
+            data.getInteger("activeTierLevel") ?: 0,
+            tierLevels.map.mapNotNull { (key, value) ->
+                (value as? Number)?.let { key to it.toInt() }
+            }.toMap()
+        )
     }
 
     suspend fun updatePlatformMetadata() {

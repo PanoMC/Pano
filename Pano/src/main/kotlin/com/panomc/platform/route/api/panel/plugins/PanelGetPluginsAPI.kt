@@ -102,6 +102,7 @@ class PanelGetPluginsAPI(
                     "openSourceLicense" to panoPluginDescriptor.license,
                     "license" to panoPluginDescriptor.license,
                     "sourceUrl" to panoPluginDescriptor.sourceUrl,
+                    "freemium" to panoPluginDescriptor.freemium,
                     "status" to plugin.pluginState,
                     "hash" to plugin.hash,
                     "dependencies" to panoPluginDescriptor.dependencies,

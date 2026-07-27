@@ -10,6 +10,16 @@ class PanoPluginDescriptor : DefaultPluginDescriptor() {
     lateinit var developer: String
     var sourceUrl: String? = null
 
+    /**
+     * Marks the plugin as freemium: free to install and run, with optional paid features
+     * unlocked through in-addon purchases. Set by the plugin's `freemium` manifest attribute.
+     *
+     * Mutually exclusive with premium (DRM): a freemium plugin must not call
+     * [com.panomc.platform.license.LicenseManager.requireLicense], which rejects it outright.
+     * Feature gating goes through [com.panomc.platform.api.PanoPlugin.hasTier] instead.
+     */
+    var freemium: Boolean = false
+
     @Deprecated("Do not use", level = DeprecationLevel.HIDDEN)
     override fun getProvider(): String? {
         return super.getProvider()

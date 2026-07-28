@@ -716,16 +716,30 @@ class MaintenanceModeManager(
      * editor's job is to show the admin the whole interface they can restyle. A live request only
      * ever shows the subset that applies to it.
      */
-    suspend fun renderPreviewOf(drafts: Map<PageTemplate, String>, showSiteLogo: Boolean): String {
+    suspend fun renderPreviewOf(
+        drafts: Map<PageTemplate, String>,
+        showSiteLogo: Boolean,
+        focus: PageTemplate
+    ): String {
         val page = drafts[PageTemplate.PAGE] ?: templateSource(PageTemplate.PAGE)
         val source = if (showSiteLogo) page else LOGO_BLOCK_REGEX.replace(page, "")
 
+        // Only the state that exercises the block being edited is simulated: the login form tab
+        // previews the login page, the skip tab previews what a bypasser sees. Filling every slot
+        // at once would show a page no visitor ever gets.
         val slots = baseSlots(
-            // Any notice will do; the editor is here to style the banner, not to pick its wording.
-            noticeBlock = renderNotice(Notice.THEME_SWITCHING, drafts),
-            loginBlock = renderLoginButtonBlock(DEFAULT_LOGIN_LOCATION, drafts) +
-                    renderLoginFormBlock(null, drafts),
-            skipBlock = renderSkipBlock(drafts)
+            noticeBlock = if (focus == PageTemplate.NOTICE) {
+                // Any notice will do; the tab styles the banner, it does not pick its wording.
+                renderNotice(Notice.THEME_SWITCHING, drafts)
+            } else {
+                ""
+            },
+            loginBlock = when (focus) {
+                PageTemplate.LOGIN_FORM -> renderLoginFormBlock(null, drafts)
+                PageTemplate.LOGIN_BUTTON -> renderLoginButtonBlock(DEFAULT_LOGIN_LOCATION, drafts)
+                else -> ""
+            },
+            skipBlock = if (focus == PageTemplate.SKIP) renderSkipBlock(drafts) else ""
         )
 
         return try {

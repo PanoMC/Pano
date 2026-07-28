@@ -14,14 +14,16 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 /**
  * Renders the page the given drafts would produce, without saving anything. The panel editor shows
  * the result under the markup it is editing: the composed page is the only faithful preview, and a
  * hand-written copy of the template in the panel would drift from it on the first change.
  *
- * Every block is populated at once so the editor shows the whole interface, not the subset a
- * particular visitor would get.
+ * `focus` names the block being edited, and the preview simulates the page state that block
+ * actually appears in — the login form tab renders the login page, the skip tab renders what a
+ * bypasser sees. Editing a block you cannot see is the thing this avoids.
  */
 @Endpoint
 class PanelPreviewMaintenancePageAPI(
@@ -37,6 +39,8 @@ class PanelPreviewMaintenancePageAPI(
                     objectSchema()
                         .requiredProperty("templates", objectSchema())
                         .optionalProperty("showSiteLogo", booleanSchema())
+                        // The block being edited; decides which page state the preview simulates.
+                        .optionalProperty("focus", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -52,11 +56,16 @@ class PanelPreviewMaintenancePageAPI(
             templates.getString(template.name)?.takeIf { it.isNotBlank() }?.let { template to it }
         }.toMap()
 
+        val focus = data.getString("focus")
+            ?.let { name -> PageTemplate.entries.firstOrNull { it.name == name } }
+            ?: PageTemplate.PAGE
+
         return Successful(
             mapOf(
                 "html" to maintenanceModeManager.renderPreviewOf(
                     drafts,
-                    data.getBoolean("showSiteLogo", true)
+                    data.getBoolean("showSiteLogo", true),
+                    focus
                 )
             )
         )

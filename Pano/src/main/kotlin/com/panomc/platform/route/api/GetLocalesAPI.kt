@@ -14,6 +14,9 @@ class GetLocalesAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/locales", RouteType.GET))
 
+    // panel-ui bootstraps its i18n from here, both SSR and CSR.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .build()

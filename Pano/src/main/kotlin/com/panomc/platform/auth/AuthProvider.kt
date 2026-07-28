@@ -237,7 +237,9 @@ class AuthProvider(
             getJwtCookieName(true),
             getCsrfCookieName(true),
             getJwtCookieName(false),
-            getCsrfCookieName(false)
+            getCsrfCookieName(false),
+            getMaintenanceSkipCookieName(true),
+            getMaintenanceSkipCookieName(false)
         ).forEach { cookieName ->
             val cookie = Cookie.cookie(cookieName, "deleted")
             domain?.let { cookie.domain = it }
@@ -248,6 +250,65 @@ class AuthProvider(
 
         return true
     }
+
+    /**
+     * Marks the caller as wanting the real site instead of the maintenance page. The value is an
+     * opaque flag, never a token: the bypass permission is re-derived on every request, so this
+     * cookie on its own grants nothing.
+     */
+    fun setMaintenanceSkipCookie(routingContext: RoutingContext): Boolean {
+        val response = routingContext.response()
+        val request = routingContext.request()
+        val domain = resolveCookieDomain(routingContext)
+        val isSecure = effectiveConnectionIsSecure(request)
+
+        val cookie = Cookie.cookie(getMaintenanceSkipCookieName(isSecure), "1")
+
+        domain?.let { cookie.domain = it }
+        // No max-age: the gate spends the cookie on the navigation it was granted for, so this is
+        // only the backstop for a request that never reaches the gate.
+        cookie.path = "/"
+        cookie.isSecure = isSecure
+        cookie.isHttpOnly = true
+        cookie.sameSite = CookieSameSite.LAX
+
+        response.addCookie(cookie)
+
+        return true
+    }
+
+    fun clearMaintenanceSkipCookie(routingContext: RoutingContext): Boolean {
+        val response = routingContext.response()
+        val domain = resolveCookieDomain(routingContext)
+
+        listOf(
+            getMaintenanceSkipCookieName(true),
+            getMaintenanceSkipCookieName(false)
+        ).forEach { cookieName ->
+            val cookie = Cookie.cookie(cookieName, "deleted")
+            domain?.let { cookie.domain = it }
+            cookie.maxAge = 0
+            cookie.path = "/"
+            response.addCookie(cookie)
+        }
+
+        return true
+    }
+
+    /**
+     * Reads the raw `cookie` header like [getTokenFromRoutingContext] instead of
+     * `request().getCookie(...)`, so it works in handlers that run before cookie parsing.
+     */
+    fun hasMaintenanceSkipCookie(routingContext: RoutingContext): Boolean {
+        val cookies = parseCookies(routingContext.request().getHeader("cookie") ?: "")
+
+        return cookies[getMaintenanceSkipCookieName(true)] != null ||
+                cookies[getMaintenanceSkipCookieName(false)] != null
+    }
+
+    /** The skip cookie name this connection would be served, i.e. the `_http` variant on plain HTTP. */
+    fun getMaintenanceSkipCookieName(routingContext: RoutingContext): String =
+        getMaintenanceSkipCookieName(effectiveConnectionIsSecure(routingContext.request()))
 
     /**
      * TLS is often terminated before Vert.x; infer HTTPS only from the connection and trusted proxy headers.
@@ -455,6 +516,11 @@ class AuthProvider(
     private fun getCsrfCookieName(secureVariant: Boolean): String {
         val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
         return AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME + suffix
+    }
+
+    private fun getMaintenanceSkipCookieName(secureVariant: Boolean): String {
+        val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
+        return AppConstants.COOKIE_PREFIX + AppConstants.MAINTENANCE_SKIP_COOKIE_NAME + suffix
     }
 
     suspend fun logout(routingContext: RoutingContext, sqlClient: SqlClient) {

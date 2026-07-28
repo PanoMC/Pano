@@ -7,6 +7,8 @@ import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InternalServerError
 import com.panomc.platform.error.DisabledForDemo
+import com.panomc.platform.error.MaintenanceModeEnabled
+import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
@@ -35,6 +37,17 @@ abstract class Api : Route() {
     private val setupManager by lazy {
         applicationContext.getBean(SetupManager::class.java)
     }
+
+    private val maintenanceModeManager by lazy {
+        applicationContext.getBean(MaintenanceModeManager::class.java)
+    }
+
+    /**
+     * Whether this endpoint stays reachable while maintenance mode is on. Defaults to
+     * [MaintenanceAccess.BYPASSER_ONLY], so a plugin endpoint registered at runtime is covered
+     * without anyone maintaining a list.
+     */
+    open val maintenanceAccess: MaintenanceAccess = MaintenanceAccess.BYPASSER_ONLY
 
     suspend fun getSqlClient(): SqlClient {
         return databaseManager.getSqlClient()
@@ -132,12 +145,32 @@ abstract class Api : Route() {
         checkSetup()
 
         checkDemoMode(context)
+
+        checkMaintenance(context)
     }
 
     protected fun checkDemoMode(context: RoutingContext) {
         if (Main.IS_DEMO && !isAllowedInDemo(context.request().method())) {
             throw DisabledForDemo()
         }
+    }
+
+    protected suspend fun checkMaintenance(context: RoutingContext) {
+        if (maintenanceAccess == MaintenanceAccess.ALWAYS) {
+            return
+        }
+
+        if (!maintenanceModeManager.isEnabled()) {
+            return
+        }
+
+        // Keys on the permission only, never on the skip cookie: the cookie decides which UI is
+        // served, the permission decides which APIs answer.
+        if (maintenanceModeManager.resolveAccess(context).canBypass) {
+            return
+        }
+
+        throw MaintenanceModeEnabled()
     }
 
     open fun isAllowedInDemo(method: HttpMethod): Boolean {

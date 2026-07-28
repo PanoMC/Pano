@@ -6,9 +6,11 @@ import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -26,7 +28,8 @@ class PanelGetSettingsAPI(
     private val panoApiManager: PanoApiManager,
     private val databaseManager: DatabaseManager,
     private val updateManager: UpdateManager,
-    private val platformStateManager: PlatformStateManager
+    private val platformStateManager: PlatformStateManager,
+    private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
     override val paths = listOf(
         Path("/api/panel/settings", RouteType.GET),
@@ -136,6 +139,26 @@ class PanelGetSettingsAPI(
             result["passwordHashAlgorithm"] = configManager.config.auth.passwordHashAlgorithm
         }
 
+        if (settingType == SettingType.MAINTENANCE) {
+            val maintenance = maintenanceModeManager.settings()
+
+            result["maintenance"] = JsonObject()
+                .put("enabled", maintenance.enabled)
+                .put("bypassPermissionNode", maintenance.bypassPermissionNode)
+                .put("showLoginButton", maintenance.showLoginButton)
+                .put("customLoginUrl", maintenance.customLoginUrl)
+                .put("showSiteLogo", maintenance.showSiteLogo)
+                .put("title", maintenance.title)
+                .put("messageHtml", maintenance.messageHtml)
+                .put("customCss", maintenance.customCss)
+
+            // Sibling keys, not part of the object the panel sends back: the panel shows the real
+            // node string as the placeholder instead of hardcoding it, and the badge on the
+            // collapsed banned-IP list needs a count without fetching the list itself.
+            result["defaultBypassPermissionNode"] = AccessPanelPermission().toString()
+            result["maintenanceBannedIpCount"] = maintenanceModeManager.bannedIpCount()
+        }
+
         if (settingType == SettingType.ABOUT) {
             result["platformVersion"] = Main.VERSION
             result["platformStage"] = Main.STAGE.toString()
@@ -153,6 +176,7 @@ class PanelGetSettingsAPI(
         WEBSITE,
         UPDATES,
         AUTH,
+        MAINTENANCE,
         ABOUT;
     }
 }

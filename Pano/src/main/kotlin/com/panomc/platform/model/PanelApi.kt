@@ -8,6 +8,10 @@ import com.panomc.platform.error.NoPermission
 import io.vertx.ext.web.RoutingContext
 
 abstract class PanelApi : LoggedInApi() {
+    // Already demands login + pano.panel.access.panel, which is the default bypass permission, so
+    // the panel API self-authorises and must never be gated.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     private val authProvider by lazy {
         applicationContext.getBean(AuthProvider::class.java)
     }

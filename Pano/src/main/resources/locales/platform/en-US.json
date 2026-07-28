@@ -88,5 +88,31 @@
       "register-support": "If you have any questions or need help getting started, don't hesitate to contact our support team.",
       "see-you-ingame": "We're excited to have you on board. See you in-game!"
     }
+  },
+  "maintenance": {
+    "default-title": "We'll be right back",
+    "default-message": "<p>The site is temporarily unavailable while we carry out maintenance. Please check back in a little while.</p>",
+    "created-with": "Created with {pano}.",
+    "login": {
+      "heading": "Sign in to continue",
+      "username-or-email-label": "Username or e-mail",
+      "username-or-email-placeholder": "Enter your username or e-mail",
+      "password-label": "Password",
+      "password-placeholder": "Enter your password",
+      "submit-button": "Log in"
+    },
+    "notice": {
+      "invalid": "Incorrect username or password.",
+      "ip-banned": "Too many failed sign-in attempts. This IP address has been blocked. Contact the site owner to regain access.",
+      "no-access": "You are signed in, but your account is not allowed to skip maintenance mode.",
+      "rate-limited": "Too many attempts. Please wait a moment and try again.",
+      "csrf": "This request could not be verified. Please reload the page and try again.",
+      "theme-switching": "The site theme is being switched right now. Please try again in a moment."
+    },
+    "button": {
+      "login": "Log in",
+      "skip": "Skip maintenance mode"
+    },
+    "skip-description": "You are signed in and allowed to browse the site during maintenance."
   }
 }

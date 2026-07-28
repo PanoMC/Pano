@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.api.event.ProfilePictureEventListener
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Api
+import com.panomc.platform.model.MaintenanceAccess
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
@@ -20,6 +21,9 @@ class GetProfilePictureAPI(
     private val databaseManager: DatabaseManager
 ) : Api() {
     override val paths = listOf(Path("/api/profile/picture/:username", RouteType.GET))
+
+    // Panel chrome — rendered on nearly every panel screen.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
 
     companion object {
         private const val CACHE_TTL_SECONDS = 5 * 60 // 5 minutes

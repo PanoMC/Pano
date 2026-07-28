@@ -12,6 +12,10 @@ class PanelPermissionGetRegisteredAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/panel/permission/registered", RouteType.GET))
 
+    // Lives under /api/panel/ but extends Api, not PanelApi — it feeds the panel's permission-node
+    // autocomplete, including the maintenance settings card.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {

@@ -9,6 +9,7 @@ import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
 import com.panomc.platform.server.PlatformCodeManager
 import io.vertx.ext.web.RoutingContext
@@ -20,7 +21,8 @@ class PanelGetBasicDataAPI(
     private val databaseManager: DatabaseManager,
     private val platformCodeManager: PlatformCodeManager,
     private val configManager: ConfigManager,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/basicData", RouteType.GET))
 
@@ -84,6 +86,8 @@ class PanelGetBasicDataAPI(
 
             result["hasUpdate"] = platformUpdate != null || resourceUpdatesInfo.isNotEmpty()
         }
+
+        result["maintenanceMode"] = maintenanceModeManager.isEnabled()
 
         if (authProvider.hasPermission(ManageServersPermission(), context)) {
             val mainServerId = databaseManager.systemPropertyDao.getByOption(

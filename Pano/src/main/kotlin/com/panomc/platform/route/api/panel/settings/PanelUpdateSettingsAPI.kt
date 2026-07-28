@@ -5,6 +5,7 @@ import com.panomc.platform.ReleaseStage
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.MaintenanceModeToggledLog
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
@@ -12,6 +13,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.*
 import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.response.GetServerSettingsEventResponse
@@ -40,6 +42,7 @@ class PanelUpdateSettingsAPI(
     private val updateManager: UpdateManager,
     private val serverManager: ServerManager,
     private val i18nManager: I18nManager,
+    private val maintenanceModeManager: MaintenanceModeManager,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
@@ -131,6 +134,20 @@ class PanelUpdateSettingsAPI(
                                 .requiredProperty("sender", stringSchema())
                                 .optionalProperty("authMethods", stringSchema())
                         )
+                        .optionalProperty(
+                            // One nested object, like "email" above, so the maintenance card can
+                            // never be half-applied.
+                            "maintenance",
+                            objectSchema()
+                                .requiredProperty("enabled", booleanSchema())
+                                .requiredProperty("bypassPermissionNode", stringSchema())
+                                .requiredProperty("showLoginButton", booleanSchema())
+                                .requiredProperty("customLoginUrl", stringSchema())
+                                .requiredProperty("showSiteLogo", booleanSchema())
+                                .requiredProperty("title", stringSchema())
+                                .requiredProperty("messageHtml", stringSchema())
+                                .requiredProperty("customCss", stringSchema())
+                        )
                         .optionalProperty("password", stringSchema())
                         .optionalProperty("requireEmailVerification", booleanSchema())
                         .optionalProperty("passwordHashAlgorithm", enumSchema("ARGON2ID", "BCRYPT", "SHA256", "MD5"))
@@ -176,6 +193,8 @@ class PanelUpdateSettingsAPI(
 
         val requireEmailVerification = data.getBoolean("requireEmailVerification")
         val passwordHashAlgorithm = data.getString("passwordHashAlgorithm")
+
+        val maintenance = data.getJsonObject("maintenance")
 
         if (fileUploads.isNotEmpty()) {
             val savedFiles = FileUploadUtil.saveFiles(fileUploads, acceptedFileFields, configManager)
@@ -398,8 +417,90 @@ class PanelUpdateSettingsAPI(
             configManager.config.auth.passwordHashAlgorithm = passwordHashAlgorithm
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null) {
+        // Null while the master switch keeps its current position; the toggle is the only part of
+        // the card that gets an activity log entry.
+        var maintenanceToggledTo: Boolean? = null
+
+        if (maintenance != null) {
+            val bypassPermissionNode = maintenance.getString("bypassPermissionNode", "").trim()
+
+            // Wildcards are asymmetric: the node is matched as a literal target, so "admins.*"
+            // would only ever match users literally holding "admins.*".
+            if (bypassPermissionNode.length > 128 ||
+                bypassPermissionNode.contains("*") ||
+                bypassPermissionNode.any { it.isWhitespace() }
+            ) {
+                throw BadRequest()
+            }
+
+            val customLoginUrl = maintenance.getString("customLoginUrl", "").trim()
+
+            if (customLoginUrl.isNotEmpty()) {
+                // The invariant, not a character allowlist: the router matches on the normalized
+                // path, so a value that is not already in normalized form ("//evil.example",
+                // "/staff/../entrance", "/entr%61nce") can never match a real request and would
+                // leave the maintenance login form unreachable. normalizePath also rejects the API
+                // prefixes and anything that loses a query/fragment on the way through, so this one
+                // comparison replaces the old per-character rules. Non-ASCII paths such as "/giriş"
+                // normalize to themselves and stay allowed.
+                if (customLoginUrl.length > 128 ||
+                    customLoginUrl.any { it.isWhitespace() || it.isISOControl() } ||
+                    maintenanceModeManager.normalizePath(customLoginUrl) != customLoginUrl
+                ) {
+                    throw BadRequest()
+                }
+            }
+
+            // A hand-deleted `maintenance { }` block deserialises to null through Gson's Unsafe
+            // path even though the Kotlin type is non-null.
+            val currentMaintenance: PanoConfig.Companion.MaintenanceConfig? = configManager.config.maintenance
+            val maintenanceConfig = currentMaintenance ?: PanoConfig.Companion.MaintenanceConfig().also {
+                configManager.config.maintenance = it
+            }
+
+            val wasEnabled = maintenanceConfig.enabled
+            val nowEnabled = maintenance.getBoolean("enabled")
+
+            // Taking the public site down — or putting it back up — is re-authenticated like the
+            // other critical settings. The rest of the card saves without a password.
+            if (nowEnabled != wasEnabled) {
+                authProvider.requirePassword(password, context)
+            }
+
+            maintenanceConfig.enabled = nowEnabled
+            maintenanceConfig.bypassPermissionNode = bypassPermissionNode
+            maintenanceConfig.showLoginButton = maintenance.getBoolean("showLoginButton")
+            maintenanceConfig.customLoginUrl = customLoginUrl
+            maintenanceConfig.showSiteLogo = maintenance.getBoolean("showSiteLogo")
+            maintenanceConfig.title = maintenance.getString("title", "").take(200)
+            maintenanceConfig.messageHtml = maintenance.getString("messageHtml", "")
+            maintenanceConfig.customCss = maintenance.getString("customCss", "").take(64 * 1024)
+
+            if (nowEnabled != wasEnabled) {
+                maintenanceToggledTo = nowEnabled
+            }
+        }
+
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null || maintenance != null) {
             configManager.saveConfig()
+        }
+
+        if (maintenance != null) {
+            // Maintenance mode is applied live: the page is recomposed from the saved settings and
+            // the 30 s bypass cache is dropped so the new rules take effect on the next request.
+            // Deliberately no platformStateManager.restartRequired.
+            maintenanceModeManager.composeAndSavePage()
+            maintenanceModeManager.invalidateAccessCache()
+
+            if (maintenanceToggledTo != null) {
+                val authUserId = authProvider.getUserIdFromRoutingContext(context)
+                val authUsername = databaseManager.userDao.getUsernameFromUserId(authUserId, sqlClient)!!
+
+                databaseManager.panelActivityLogDao.add(
+                    MaintenanceModeToggledLog(authUserId, authUsername, maintenanceToggledTo),
+                    sqlClient
+                )
+            }
         }
 
         return Successful()

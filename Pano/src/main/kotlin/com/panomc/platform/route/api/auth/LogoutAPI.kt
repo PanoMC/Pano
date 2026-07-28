@@ -14,6 +14,9 @@ class LogoutAPI(
 ) : LoggedInApi() {
     override val paths = listOf(Path("/api/auth/logout", RouteType.POST))
 
+    // Logging out must stay possible while the site is closed.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     override fun isAllowedInDemo(method: HttpMethod) = true
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

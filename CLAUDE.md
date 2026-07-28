@@ -147,6 +147,11 @@ the Bun runtime); set `init-ui = true` to serve any UI — required when develop
 ### Other subsystems
 - **Config**: HOCON (`config.conf`) via Typesafe Config → `ConfigManager` / `PanoConfig`; versioned
   `ConfigMigration` classes under `config/migration`. Custom `HoconWriter` preserves comments.
+  **A `ConfigMigration` that adds, renames or removes a key is not done until the docs match it**:
+  update the key reference under `website/documentation/platform/configuration/` (the `server {}`
+  keys live in `configuration/server/`, top-level keys in `configuration/`) **in all three locales**
+  — root (en), `tr/`, `ru/`. The docs are a separate repo (`website`'s `documentation` submodule),
+  so this is easy to forget and nothing checks it. Same for a new panel setting that writes config.
 - **Setup**: `SetupManager.isSetupDone()` gates DB-dependent init and most APIs (`checkSetup()`).
 - **Auth/tokens**: JWT cookies (`AppConstants`), CSRF tokens, Argon2/bcrypt password hashing;
   permissions are `@PermissionDefinition` classes registered by `PermissionRegistry`.

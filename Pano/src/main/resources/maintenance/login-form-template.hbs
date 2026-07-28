@@ -1,0 +1,13 @@
+<form class="pano-form" method="post" action="{{action}}" autocomplete="on">
+<p class="pano-form-title">{{heading}}</p>
+<input type="hidden" name="{{nonceField}}" value="{{nonce}}">
+<div class="pano-field">
+<label for="pano-u">{{usernameLabel}}</label>
+<input id="pano-u" name="{{usernameField}}" type="text" autocomplete="username" placeholder="{{usernamePlaceholder}}" required autofocus>
+</div>
+<div class="pano-field">
+<label for="pano-p">{{passwordLabel}}</label>
+<input id="pano-p" name="{{passwordField}}" type="password" autocomplete="current-password" placeholder="{{passwordPlaceholder}}" required>
+</div>
+<button class="pano-btn" type="submit">{{submit}}</button>
+</form>

@@ -40,6 +40,8 @@ abstract class LoggedInApi : Api() {
 
         checkDemoMode(context)
 
+        checkMaintenance(context)
+
         checkLoggedIn(context)
 
         updateLastActivityTime(context)

@@ -7,6 +7,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.Api
+import com.panomc.platform.model.MaintenanceAccess
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
@@ -38,6 +39,10 @@ class GetPluginUiZipAPI(
     private val logger: Logger
 ) : Api() {
     override val paths = listOf(Path("/api/plugins/:pluginId/resources/plugin-ui.zip", RouteType.GET))
+
+    // Fetched by panel-ui during SSR with no user cookie, and the failure is swallowed there, so
+    // gating this would make panel plugin UIs vanish silently.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

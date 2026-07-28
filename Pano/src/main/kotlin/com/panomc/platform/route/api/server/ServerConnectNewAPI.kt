@@ -45,6 +45,9 @@ class ServerConnectNewAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/server/connect", RouteType.POST))
 
+    // Minecraft plugin surface — see ServerConnectAPI.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .body(

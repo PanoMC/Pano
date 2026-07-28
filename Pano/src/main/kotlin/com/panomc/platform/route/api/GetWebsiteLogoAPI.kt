@@ -4,6 +4,7 @@ import com.panomc.platform.AppConstants.DEFAULT_WEBSITE_LOGO_FILE
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.Api
+import com.panomc.platform.model.MaintenanceAccess
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
@@ -20,6 +21,9 @@ import java.io.File
 @Endpoint
 class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
     override val paths = listOf(Path("/api/websiteLogo", RouteType.GET))
+
+    // Panel chrome, and the maintenance page's own logo.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
 
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
 

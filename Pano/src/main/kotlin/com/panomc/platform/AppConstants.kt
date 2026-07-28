@@ -15,6 +15,8 @@ object AppConstants {
 
     const val JWT_COOKIE_NAME = "auth_token"
 
+    const val MAINTENANCE_SKIP_COOKIE_NAME = "maintenance_skip"
+
     val CSRF_HEADER = "X-CSRF-Token".lowercase()
 
     val AVAILABLE_LOCALES = listOf("tr", "en-US", "ru")
@@ -24,6 +26,8 @@ object AppConstants {
 
     val THEMES_FOLDER_PATH: String = System.getProperty("pano.themesFolder", "themes")
     const val DEFAULT_THEME_ID = "vanilla-theme"
+
+    val MAINTENANCE_FOLDER_PATH: String = System.getProperty("pano.maintenanceFolder", "maintenance")
 
     const val TEMP_FOLDER = ".temp"
 

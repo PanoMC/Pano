@@ -34,6 +34,9 @@ class GetTranslationsAPI(
 
     override val paths = listOf(Path("/api/locales/:code/translations/types/:type", RouteType.GET))
 
+    // panel-ui bootstraps its i18n from here, both SSR and CSR.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
             .pathParameter(param("code", stringSchema()))

@@ -88,5 +88,31 @@
       "register-support": "Başlangıç konusunda herhangi bir sorunuz varsa veya yardıma ihtiyacınız olursa, destek ekibimizle iletişime geçmekten çekinmeyin.",
       "see-you-ingame": "Sizi aramızda görmekten heyecan duyuyoruz. Oyun içinde görüşürüz!"
     }
+  },
+  "maintenance": {
+    "default-title": "Birazdan döneceğiz",
+    "default-message": "<p>Bakım çalışması yaptığımız için site geçici olarak kapalı. Lütfen kısa bir süre sonra tekrar deneyin.</p>",
+    "created-with": "{pano} ile oluşturuldu.",
+    "login": {
+      "heading": "Devam etmek için giriş yapın",
+      "username-or-email-label": "Kullanıcı adı veya e-posta",
+      "username-or-email-placeholder": "Kullanıcı adınızı veya e-postanızı girin",
+      "password-label": "Şifre",
+      "password-placeholder": "Şifrenizi girin",
+      "submit-button": "Giriş yap"
+    },
+    "notice": {
+      "invalid": "Kullanıcı adı veya şifre hatalı.",
+      "ip-banned": "Çok fazla başarısız giriş denemesi yapıldı. Bu IP adresi engellendi. Erişim için site sahibiyle iletişime geçin.",
+      "no-access": "Giriş yaptınız ancak hesabınızın bakım modunu atlama izni yok.",
+      "rate-limited": "Çok fazla deneme yaptınız. Lütfen biraz bekleyip tekrar deneyin.",
+      "csrf": "Bu istek doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin.",
+      "theme-switching": "Site teması şu anda değiştiriliyor. Lütfen birazdan tekrar deneyin."
+    },
+    "button": {
+      "login": "Giriş yap",
+      "skip": "Bakım modunu atla"
+    },
+    "skip-description": "Giriş yaptınız ve bakım sırasında siteyi görüntüleme izniniz var."
   }
 }

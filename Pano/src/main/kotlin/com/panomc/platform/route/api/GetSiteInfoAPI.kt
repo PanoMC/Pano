@@ -28,6 +28,9 @@ class GetSiteInfoAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/siteInfo", RouteType.GET))
 
+    // panel-ui blocks on this during SSR, with no user cookie — the panel will not boot without it.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

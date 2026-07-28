@@ -18,6 +18,9 @@ class ServerDisconnectAPI(
 ) : Api() {
     override val paths = listOf(Path("/api/server/disconnect", RouteType.POST))
 
+    // Minecraft plugin surface — see ServerConnectAPI.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {

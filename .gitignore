@@ -36,6 +36,7 @@ bin
 Pano/src/main/resources/licenses.json
 Pano/certificates
 Pano/data
+Pano/maintenance
 
 .console_history
 .config_history

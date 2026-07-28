@@ -129,6 +129,14 @@ data class PanoConfig(
 
     @ConfigSection("Authentication")
     val auth: AuthConfig = AuthConfig(),
+
+    @ConfigSection("Maintenance Mode")
+    @ConfigComment(
+        "Controlled by Panel → Settings → Platform → Maintenance Mode.",
+        "Recovery: if you lock yourself out, set enabled = false here — the change is picked up",
+        "within ~5 seconds without restarting Pano."
+    )
+    var maintenance: MaintenanceConfig = MaintenanceConfig(),
 ) {
     /**
      * JWT `iss` plugins expect when verifying license tokens. No extra config key: uses the
@@ -248,7 +256,17 @@ data class PanoConfig(
                 "Pano restarts a UI process that exceeds this (they are stateless renderers).",
                 "Set 0 to disable the limit. Total RAM ≈ JVM (-Xmx…) + this × running UIs."
             )
-            @SerializedName("ui-max-memory-mb") var uiMaxMemoryMb: Int = 200
+            @SerializedName("ui-max-memory-mb") var uiMaxMemoryMb: Int = 200,
+
+            @ConfigComment(
+                "Reverse proxies allowed to declare the real client IP via X-Forwarded-For.",
+                "The header is honoured ONLY when the connecting socket peer is listed here;",
+                "otherwise the socket peer address itself is used as the client IP.",
+                "An empty list means every connection is treated as direct — no header is trusted.",
+                "Example: [\"127.0.0.1\", \"::1\"]",
+                "Currently consumed by maintenance mode (login IP bans and rate limiting)."
+            )
+            @SerializedName("trusted-proxies") var trustedProxies: List<String> = emptyList()
         )
 
         data class AuthConfig(
@@ -257,6 +275,66 @@ data class PanoConfig(
 
             @ConfigComment("Password hashing algorithm.")
             @SerializedName("password-hash-algorithm") var passwordHashAlgorithm: String = "ARGON2ID",
+        )
+
+        data class MaintenanceConfig(
+            @ConfigComment(
+                "Master switch. When enabled, normal visitors get the maintenance page instead of",
+                "the theme and every public API endpoint returns 503. Users holding the bypass",
+                "permission are unaffected. Panel, setup and the Minecraft plugin API keep working."
+            )
+            var enabled: Boolean = false,
+
+            @ConfigComment(
+                "Permission node required to bypass maintenance mode.",
+                "Empty = the panel access permission (pano.panel.access.panel).",
+                "You may set your own node instead, e.g. \"admins.test\". Wildcards are NOT allowed",
+                "here: the node is matched as a literal target, so \"admins.*\" would only match",
+                "users that literally hold \"admins.*\" (or \"*\")."
+            )
+            @SerializedName("bypass-permission-node") var bypassPermissionNode: String = "",
+
+            @ConfigComment("Show a \"Log in\" button on the maintenance page.")
+            @SerializedName("show-login-button") var showLoginButton: Boolean = true,
+
+            @ConfigComment(
+                "Path that serves the maintenance login form, e.g. \"/staff-entrance\".",
+                "Empty = /login. Only honoured while show-login-button is false: hiding the",
+                "button hides the button, it does not move the form."
+            )
+            @SerializedName("custom-login-url") var customLoginUrl: String = "",
+
+            @ConfigComment("Show the website logo at the top of the maintenance page.")
+            @SerializedName("show-site-logo") var showSiteLogo: Boolean = true,
+
+            @ConfigComment("Maintenance page title (also the browser tab title). Empty = built-in default.")
+            var title: String = "",
+
+            @ConfigComment(
+                "Maintenance page body (HTML, edited with the rich-text editor in the panel).",
+                "Source of truth: maintenance/page.hbs is re-rendered from this on every save,",
+                "so hand-edits to that file are overwritten the next time the panel saves."
+            )
+            @SerializedName("message-html") var messageHtml: String = "",
+
+            @ConfigComment("Extra CSS injected into the maintenance page <style> block.")
+            @SerializedName("custom-css") var customCss: String = "",
+
+            @ConfigComment(
+                "Wrong-password attempts from one IP before that IP is permanently banned from the",
+                "maintenance login. 0 disables IP banning. Loopback addresses are never banned.",
+                "Not exposed in the panel — this key is the only place to change it."
+            )
+            @SerializedName("max-login-attempts") var maxLoginAttempts: Int = 3,
+
+            @ConfigComment(
+                "True once the whole maintenance page has been written from the panel's full-page",
+                "editor. maintenance/page.hbs then becomes the source of truth: Pano stops composing",
+                "it from the fields above and stops replacing it when an update ships a new default",
+                "design. Set back to false (or press \"Reset to default\" in the panel) to hand the",
+                "page back to Pano."
+            )
+            @SerializedName("custom-page") var customPage: Boolean = false,
         )
 
         enum class SslMode {

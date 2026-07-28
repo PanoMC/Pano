@@ -8,6 +8,7 @@ import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InvalidToken
 import com.panomc.platform.error.NeedPermission
 import com.panomc.platform.model.Api
+import com.panomc.platform.model.MaintenanceAccess
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
@@ -33,6 +34,10 @@ class ServerConnectAPI(
     private val authProvider: AuthProvider
 ) : Api() {
     override val paths = listOf(Path("/api/server/connection", RouteType.GET))
+
+    // Authenticates with a server token, never a user JWT, so a user-permission bypass could never
+    // succeed here — the Minecraft plugin needs a hard exemption.
+    override val maintenanceAccess = MaintenanceAccess.ALWAYS
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

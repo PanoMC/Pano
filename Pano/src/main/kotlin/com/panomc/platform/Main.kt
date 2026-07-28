@@ -12,6 +12,7 @@ import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.route.RouterProvider
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
@@ -425,6 +426,14 @@ class Main : CoroutineVerticle() {
             initOnlinePlayerTracker()
 
             initLicenseManager()
+
+            // Must follow initI18nManager(): composing page.hbs resolves its title and message from
+            // the translation bundle. Before setup that bundle is empty, and the manager is not
+            // needed anyway (isEnabled() requires setupDone, and resolveCompiledPage() composes on
+            // demand once FinishAPI has loaded the translations).
+            executeBlocking {
+                initMaintenanceModeManager()
+            }
         }
 
         executeBlocking {
@@ -524,6 +533,16 @@ class Main : CoroutineVerticle() {
         applicationContext.beanFactory.registerSingleton("main", this)
         applicationContext.beanFactory.registerSingleton("commandManager", commandManager)
         applicationContext.refresh()
+    }
+
+    // Reads/repairs maintenance/page.hbs and loads the ban store, so it must run inside
+    // executeBlocking and before initRoutes() registers the maintenance gate.
+    private fun initMaintenanceModeManager() {
+        logger.info("Initializing maintenance mode manager")
+
+        val maintenanceModeManager = applicationContext.getBean(MaintenanceModeManager::class.java)
+
+        maintenanceModeManager.init()
     }
 
     private fun initUiManager() {

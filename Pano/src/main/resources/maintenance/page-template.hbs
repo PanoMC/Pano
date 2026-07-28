@@ -1,0 +1,254 @@
+<!doctype html>
+<!--PANO_TEMPLATE:2-->
+<html lang="{{#if lang}}{{lang}}{{else}}en{{/if}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title><!--PANO_TITLE--></title>
+<link rel="icon" href="/api/favicon">
+<style>
+/* Deliberately light in every environment: color-scheme is pinned so the browser does not
+   dark-ify form controls, and there is no prefers-color-scheme block to override the palette.
+   A site that wants a dark maintenance page redefines these variables in Custom CSS. */
+:root {
+  color-scheme: light;
+  --pano-bg: #ffffff;
+  --pano-glow: rgba(47, 111, 235, .07);
+  --pano-fg: #14171c;
+  --pano-muted: #616a78;
+  --pano-faint: #8b93a1;
+  --pano-line: #e6e9ee;
+  --pano-field: #f6f7f9;
+  --pano-accent: #2f6feb;
+  --pano-accent-fg: #ffffff;
+  --pano-accent-hover: #2a60cd;
+  --pano-danger: #a4291f;
+  --pano-danger-bg: #fdf3f2;
+  --pano-info: #2c5282;
+  --pano-info-bg: #f1f5fb;
+}
+
+*, *::before, *::after { box-sizing: border-box }
+
+html, body { margin: 0; padding: 0 }
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+  padding: 3rem 1.5rem 2rem;
+  background-color: var(--pano-bg);
+  background-image: radial-gradient(48rem 26rem at 50% -6rem, var(--pano-glow), transparent 72%);
+  background-repeat: no-repeat;
+  color: var(--pano-fg);
+  font: 1rem/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.pano-main {
+  width: 100%;
+  max-width: 27rem;
+  margin: auto;
+  text-align: center;
+}
+
+/* Height leads, width follows: a wordmark and a square icon are both common here, so the logo is
+   sized by how tall it may be and only clamped horizontally so it cannot outgrow the column. */
+.pano-logo {
+  display: block;
+  margin: 0 auto 2rem;
+  max-width: 100%;
+  max-height: 256px;
+  width: auto;
+  height: auto;
+}
+
+.pano-title {
+  margin: 0 0 .875rem;
+  font-size: clamp(1.75rem, 1.35rem + 1.7vw, 2.375rem);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -.03em;
+}
+
+.pano-message {
+  color: var(--pano-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.pano-message > :first-child { margin-top: 0 }
+.pano-message > :last-child { margin-bottom: 0 }
+.pano-message a { color: var(--pano-accent) }
+.pano-message img { max-width: 100%; height: auto }
+.pano-message ul, .pano-message ol, .pano-message table, .pano-message blockquote { text-align: start }
+
+.pano-message pre {
+  overflow-x: auto;
+  padding: .75rem;
+  border-radius: 10px;
+  background: var(--pano-field);
+  text-align: start;
+}
+
+.pano-notice {
+  margin: 0 0 2rem;
+  padding: .75rem 1rem;
+  border-radius: 12px;
+  background: var(--pano-danger-bg);
+  color: var(--pano-danger);
+  font-size: .875rem;
+  line-height: 1.5;
+  text-align: start;
+}
+
+.pano-notice--info {
+  background: var(--pano-info-bg);
+  color: var(--pano-info);
+}
+
+.pano-actions {
+  margin: 2rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: .625rem;
+}
+
+.pano-btn {
+  display: block;
+  width: 100%;
+  padding: .75rem 1.25rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--pano-accent);
+  color: var(--pano-accent-fg);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+
+.pano-btn:hover { background: var(--pano-accent-hover) }
+
+.pano-btn:focus-visible {
+  outline: 2px solid var(--pano-accent);
+  outline-offset: 2px;
+}
+
+.pano-btn--ghost {
+  background: transparent;
+  color: var(--pano-faint);
+  font-weight: 500;
+}
+
+.pano-btn--ghost:hover {
+  background: var(--pano-field);
+  color: var(--pano-fg);
+}
+
+.pano-form {
+  margin: 2rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: .875rem;
+  text-align: start;
+}
+
+.pano-form-title {
+  margin: 0 0 .25rem;
+  font-size: .9375rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+.pano-field {
+  display: flex;
+  flex-direction: column;
+  gap: .375rem;
+}
+
+.pano-field label {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--pano-muted);
+}
+
+.pano-field input {
+  width: 100%;
+  padding: .75rem .875rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--pano-field);
+  color: var(--pano-fg);
+  font: inherit;
+}
+
+.pano-field input::placeholder { color: var(--pano-faint) }
+
+.pano-field input:focus {
+  outline: 2px solid var(--pano-accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.pano-hr {
+  margin: 2.25rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--pano-line);
+}
+
+.pano-foot {
+  margin: 1rem 0 0;
+  font-size: .8125rem;
+  line-height: 1.5;
+  color: var(--pano-faint);
+}
+
+.pano-credit {
+  font-size: .8125rem;
+  color: var(--pano-faint);
+}
+
+.pano-credit a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+.pano-credit a:hover { color: var(--pano-fg) }
+
+@media (max-width: 480px) {
+  body { padding: 2rem 1.25rem 1.5rem; gap: 2.25rem }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+<!--PANO_CSS-->
+</style>
+</head>
+<body>
+<main class="pano-main">
+{{{noticeBlock}}}
+<!--PANO_LOGO_START--><img class="pano-logo" src="{{logoUrl}}" alt=""><!--PANO_LOGO_END-->
+<h1 class="pano-title"><!--PANO_TITLE--></h1>
+<div class="pano-message"><!--PANO_MESSAGE--></div>
+{{{loginBlock}}}
+{{{skipBlock}}}
+</main>
+<footer class="pano-credit">{{{creditBlock}}}</footer>
+</body>
+</html>

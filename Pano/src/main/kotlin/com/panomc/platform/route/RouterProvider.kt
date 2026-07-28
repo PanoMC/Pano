@@ -7,6 +7,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.api.event.RouterEventListener
+import com.panomc.platform.maintenance.MaintenanceGateHandler
 import com.panomc.platform.model.Route
 import com.panomc.platform.util.RateLimitManager
 import io.vertx.core.Vertx
@@ -72,6 +73,16 @@ class RouterProvider private constructor(
         router.route("/api/*")
             .order(0)
             .handler(rateLimitManager.createHandler())
+
+        // Maintenance gate: order 2 sits above the panel proxy (4) and the theme proxy (5) and
+        // below every @Endpoint (1), so it owns all page traffic while maintenance mode is on.
+        // API traffic is NOT gated here — @Endpoint handlers at order 1 terminate without calling
+        // next(), so an order-2 handler never sees them; APIs are gated in Api.checkMaintenance.
+        // .order() must be called before .handler() or Vert.x throws once the route is active.
+        val maintenanceGateHandler = applicationContext.getBean(MaintenanceGateHandler::class.java)
+        router.route("/*")
+            .order(2)
+            .handler(maintenanceGateHandler.create())
 
         val routerEventHandlers = PluginEventManager.getPanoEventListeners<RouterEventListener>()
 

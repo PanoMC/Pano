@@ -512,21 +512,20 @@ class UserDaoImpl : UserDao() {
         usernameList: List<String>,
         sqlClient: SqlClient
     ): Map<String, Long> {
-        var listText = ""
-
-        usernameList.forEach { username ->
-            if (listText == "")
-                listText = "'$username'"
-            else
-                listText += ", '$username'"
+        if (usernameList.isEmpty()) {
+            return mapOf()
         }
 
+        // Usernames can originate from untrusted sources (e.g. an uploaded LuckPerms database),
+        // so they are bound as parameters instead of being interpolated into the query text.
+        val placeholders = usernameList.joinToString(", ") { "?" }
+
         val query =
-            "SELECT `username`, `id` FROM `${getTablePrefix() + tableName}` where `username` IN ($listText)"
+            "SELECT `username`, `id` FROM `${getTablePrefix() + tableName}` where `username` IN ($placeholders)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.from(usernameList))
             .coAwait()
 
         val listOfUsers = mutableMapOf<String, Long>()

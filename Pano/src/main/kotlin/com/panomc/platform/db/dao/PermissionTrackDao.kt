@@ -10,6 +10,14 @@ abstract class PermissionTrackDao : Dao<PermissionTrack>(PermissionTrack::class.
         sqlClient: SqlClient
     ): Long
 
+    /**
+     * Overwrite an existing track's description and group chain, keyed by its id.
+     */
+    abstract suspend fun update(
+        permissionTrack: PermissionTrack,
+        sqlClient: SqlClient
+    )
+
     abstract suspend fun getAll(
         sqlClient: SqlClient
     ): List<PermissionTrack>

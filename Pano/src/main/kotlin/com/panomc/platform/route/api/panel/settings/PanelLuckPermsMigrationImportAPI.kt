@@ -10,12 +10,14 @@ import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionNode
 import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
 import com.panomc.platform.db.model.PermissionTrack
+import com.panomc.platform.db.model.User
 import com.panomc.platform.error.InvalidData
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.mysqlclient.MySQLException
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Bodies
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
@@ -46,7 +48,13 @@ class PanelLuckPermsMigrationImportAPI(
                         .requiredProperty("selectedGroups", arraySchema().items(stringSchema()))
                         .optionalProperty("selectedTracks", arraySchema().items(stringSchema()))
                         .optionalProperty("importUserPermissions", booleanSchema())
+                        .optionalProperty("createMissingPlayers", booleanSchema())
                         .optionalProperty("mergeStrategy", stringSchema()) // 'replace' or 'merge'
+                        .optionalProperty("nodeEdits", arraySchema().items(objectSchema()))
+                        .optionalProperty("playerEdits", arraySchema().items(objectSchema()))
+                        .optionalProperty("skippedPlayers", arraySchema().items(stringSchema()))
+                        .optionalProperty("deletedExistingNodes", arraySchema().items(numberSchema()))
+                        .optionalProperty("trackEdits", arraySchema().items(objectSchema()))
                 )
             )
             .build()
@@ -60,7 +68,42 @@ class PanelLuckPermsMigrationImportAPI(
         val selectedGroups = body.getJsonArray("selectedGroups").map { it as String }.toSet()
         val selectedTracks = body.getJsonArray("selectedTracks")?.map { it as String }?.toSet() ?: emptySet()
         val importUserPermissions = body.getBoolean("importUserPermissions") ?: true
+        val createMissingPlayers = body.getBoolean("createMissingPlayers") ?: true
         val mergeStrategy = body.getString("mergeStrategy") ?: "merge" // 'replace' or 'merge'
+        val nodeEdits = body.getJsonArray("nodeEdits")?.mapNotNull { it as? JsonObject } ?: emptyList()
+
+        // The admin can retarget a LuckPerms player at a different Pano username on the review
+        // screen — used to fix a rename or a spelling mismatch before anything is written.
+        val playerUsernameOverrides = body.getJsonArray("playerEdits")
+            ?.mapNotNull { it as? JsonObject }
+            ?.mapNotNull { edit ->
+                val uuid = edit.getString("uuid")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val username = edit.getString("username")?.trim()?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+
+                uuid to username
+            }
+            ?.toMap() ?: emptyMap()
+
+        // Players the admin explicitly excluded from the import, by LuckPerms UUID.
+        val skippedPlayerUuids = body.getJsonArray("skippedPlayers")
+            ?.mapNotNull { it as? String }
+            ?.toSet() ?: emptySet()
+
+        // Existing Pano nodes the admin deleted on the review screen.
+        val deletedExistingNodeIds = body.getJsonArray("deletedExistingNodes")
+            ?.mapNotNull { (it as? Number)?.toLong() }
+            ?.distinct() ?: emptyList()
+
+        // Per-track overrides: a reordered or trimmed group chain, and a description.
+        val trackEdits = body.getJsonArray("trackEdits")
+            ?.mapNotNull { it as? JsonObject }
+            ?.mapNotNull { edit ->
+                val name = edit.getString("name")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+
+                name to edit
+            }
+            ?.toMap() ?: emptyMap()
 
         if (selectedGroups.isEmpty()) {
             throw InvalidData(extras = mapOf("message" to "No groups selected for import"))
@@ -80,9 +123,16 @@ class PanelLuckPermsMigrationImportAPI(
         @Suppress("UNCHECKED_CAST")
         val configMap: Map<String, Any> = yaml.load(configText) as Map<String, Any>
 
-        val storageMethod = (configMap["storage-method"] as? String)?.uppercase() ?: "H2"
         val dataSection = getNestedMap(configMap, "data")
-        val tablePrefix = (dataSection?.get("table-prefix") as? String) ?: "luckperms_"
+
+        // Prefer the settings the upload step actually connected with — they may include panel
+        // overrides (host, port, credentials, table prefix) that config.yml alone does not carry.
+        val sourceInfo = readSourceInfo()
+
+        val storageMethod = sourceInfo?.getString("storageMethod")?.uppercase()
+            ?: (configMap["storage-method"] as? String)?.uppercase() ?: "H2"
+        val tablePrefix = sourceInfo?.getString("tablePrefix")
+            ?: (dataSection?.get("table-prefix") as? String) ?: "luckperms_"
 
         // Read LuckPerms data again from source
         val luckPermsData: PanelLuckPermsMigrationUploadAPI.LuckPermsData = when (storageMethod) {
@@ -95,11 +145,19 @@ class PanelLuckPermsMigrationImportAPI(
             }
 
             "MYSQL", "MARIADB" -> {
-                val host = (dataSection?.get("address") as? String) ?: "localhost"
-                val port = 3306
-                val dbName = (dataSection?.get("database") as? String) ?: "minecraft"
-                val username = (dataSection?.get("username") as? String) ?: "root"
-                val password = (dataSection?.get("password") as? String) ?: ""
+                // LuckPerms writes `address` as "host" or "host:port".
+                val address = (dataSection?.get("address") as? String) ?: "localhost"
+                val addressParts = address.split(":")
+
+                val host = sourceInfo?.getString("host") ?: addressParts[0].ifBlank { "localhost" }
+                val port = sourceInfo?.getInteger("port")
+                    ?: addressParts.getOrNull(1)?.toIntOrNull() ?: 3306
+                val dbName = sourceInfo?.getString("database")
+                    ?: (dataSection?.get("database") as? String) ?: "minecraft"
+                val username = sourceInfo?.getString("username")
+                    ?: (dataSection?.get("username") as? String) ?: "root"
+                val password = sourceInfo?.getString("password")
+                    ?: (dataSection?.get("password") as? String) ?: ""
 
                 readFromMySQL(host, port, dbName, username, password, tablePrefix)
             }
@@ -107,13 +165,23 @@ class PanelLuckPermsMigrationImportAPI(
             else -> throw InvalidData(extras = mapOf("message" to "Unsupported storage method: $storageMethod"))
         }
 
+        // Apply the admin's review-step edits (added, changed and removed nodes) on top of the
+        // freshly read source data before anything is written.
+        LuckPermsNodeEditor.apply(luckPermsData, nodeEdits)
+
         val sqlClient = getSqlClient()
         var importedGroupCount = 0
         var updatedGroupCount = 0
         var importedTrackCount = 0
+        var updatedTrackCount = 0
+        var skippedTrackGroupCount = 0
         var importedNodeCount = 0
         var importedUserNodeCount = 0
+        var overwrittenNodeCount = 0
+        var deletedNodeCount = 0
         var skippedNodeCount = 0
+        var createdUserCount = 0
+        var skippedUserCount = 0
         val errors = mutableListOf<Map<String, String>>()
 
         // If replace mode, clear existing permission data
@@ -122,6 +190,26 @@ class PanelLuckPermsMigrationImportAPI(
             sqlClient.query("DELETE FROM `${prefix}permission_node`").execute().coAwait()
             sqlClient.query("DELETE FROM `${prefix}permission_track`").execute().coAwait()
             sqlClient.query("DELETE FROM `${prefix}permission_group`").execute().coAwait()
+        }
+
+        // In merge mode a node that already exists for the same holder is replaced rather than
+        // duplicated, so the "will overwrite" status shown during review is what actually happens
+        // and re-running an import stays idempotent.
+        val existingNodesByHolder = if (mergeStrategy == "replace") {
+            emptyMap()
+        } else {
+            databaseManager.permissionNodeDao.getPermissionNodes(sqlClient)
+                .groupBy { Triple(it.holderType, it.holderId, it.node) }
+        }
+
+        // Existing nodes the admin removed on the review screen. In replace mode everything is gone
+        // already, so there is nothing left to delete.
+        val alreadyDeletedNodeIds = mutableSetOf<Long>()
+
+        if (mergeStrategy != "replace" && deletedExistingNodeIds.isNotEmpty()) {
+            databaseManager.permissionNodeDao.deleteByIds(deletedExistingNodeIds, sqlClient)
+            alreadyDeletedNodeIds.addAll(deletedExistingNodeIds)
+            deletedNodeCount += deletedExistingNodeIds.size
         }
 
         // Get existing groups for merge mode
@@ -172,6 +260,32 @@ class PanelLuckPermsMigrationImportAPI(
             }
         }
 
+        val now = System.currentTimeMillis()
+
+        // Drop the Pano group nodes that the incoming permissions replace, so merge mode overwrites
+        // instead of piling up duplicates.
+        val replacedGroupNodeIds = mutableListOf<Long>()
+
+        for (perm in luckPermsData.groupPermissions) {
+            val groupName = perm.groupName ?: continue
+            if (groupName !in selectedGroups) continue
+            if (perm.expiry > 0 && perm.expiry < now / 1000) continue
+
+            val groupId = groupIdByName[groupName] ?: continue
+
+            existingNodesByHolder[Triple(HolderType.GROUP, groupId, perm.permission)]
+                ?.forEach { replacedGroupNodeIds.add(it.id) }
+        }
+
+        // Anything the admin already deleted above must not be counted or deleted a second time.
+        val replacedGroupNodeIdsToDelete = replacedGroupNodeIds.distinct() - alreadyDeletedNodeIds
+
+        if (replacedGroupNodeIdsToDelete.isNotEmpty()) {
+            databaseManager.permissionNodeDao.deleteByIds(replacedGroupNodeIdsToDelete, sqlClient)
+            alreadyDeletedNodeIds.addAll(replacedGroupNodeIdsToDelete)
+            overwrittenNodeCount += replacedGroupNodeIdsToDelete.size
+        }
+
         // Import group permissions (for selected groups only)
         for (perm in luckPermsData.groupPermissions) {
             val groupName = perm.groupName ?: continue
@@ -180,7 +294,7 @@ class PanelLuckPermsMigrationImportAPI(
             val groupId = groupIdByName[groupName] ?: continue
 
             // Skip expired permissions
-            if (perm.expiry > 0 && perm.expiry < System.currentTimeMillis() / 1000) {
+            if (perm.expiry > 0 && perm.expiry < now / 1000) {
                 skippedNodeCount++
                 continue
             }
@@ -207,18 +321,54 @@ class PanelLuckPermsMigrationImportAPI(
         }
 
         // Import tracks (for selected tracks only)
+        val existingTrackByName = databaseManager.permissionTrackDao.getAll(sqlClient).associateBy { it.name }
+
         for (track in luckPermsData.tracks) {
             if (track.name !in selectedTracks) continue
 
             try {
-                val trackGroupIds = track.groups.mapNotNull { groupIdByName[it] }
-                val permTrack = PermissionTrack(
-                    name = track.name,
-                    description = "",
-                    groupIds = trackGroupIds
-                )
-                databaseManager.permissionTrackDao.add(permTrack, sqlClient)
-                importedTrackCount++
+                val edit = trackEdits[track.name]
+                val groupNames = edit?.getJsonArray("groups")?.mapNotNull { it as? String } ?: track.groups
+                val description = edit?.getString("description") ?: ""
+
+                val trackGroupIds = groupNames.mapNotNull { groupIdByName[it] }
+
+                // A track is an ordered chain of groups. Any group that is not part of this import
+                // has no id to point at and silently disappears from the chain, which quietly
+                // reorders promotions — so say which ones were dropped instead of hiding it.
+                val droppedGroups = groupNames.filter { groupIdByName[it] == null }
+
+                if (droppedGroups.isNotEmpty()) {
+                    skippedTrackGroupCount += droppedGroups.size
+                    errors.add(
+                        mapOf(
+                            "item" to "Track: ${track.name}",
+                            "error" to "Groups not imported, left out of the track order: ${droppedGroups.joinToString(", ")}"
+                        )
+                    )
+                }
+
+                val existing = existingTrackByName[track.name]
+
+                if (existing == null) {
+                    databaseManager.permissionTrackDao.add(
+                        PermissionTrack(name = track.name, description = description, groupIds = trackGroupIds),
+                        sqlClient
+                    )
+                    importedTrackCount++
+                } else {
+                    // The name column is UNIQUE, so re-adding an existing track fails outright.
+                    // Overwrite its chain instead of erroring out on every re-import.
+                    databaseManager.permissionTrackDao.update(
+                        existing.copy(
+                            description = description.ifBlank { existing.description },
+                            groupIds = trackGroupIds,
+                            updatedAt = now
+                        ),
+                        sqlClient
+                    )
+                    updatedTrackCount++
+                }
             } catch (e: Exception) {
                 errors.add(mapOf("item" to "Track: ${track.name}", "error" to (e.message ?: "Unknown error")))
             }
@@ -226,34 +376,162 @@ class PanelLuckPermsMigrationImportAPI(
 
         // Import user permissions (if enabled)
         if (importUserPermissions) {
+            val defaultGroupNode = "group.${permissionManager.defaultGroupName}"
+
             // Build UUID -> username map from LP players
             val uuidToUsername = luckPermsData.players.associateBy({ it.uuid }, { it.username })
 
-            // Get usernames for all UUIDs that have permissions
-            val userUuids = luckPermsData.userPermissions.mapNotNull { it.uuid }.distinct()
-            val relevantUsernames = userUuids.mapNotNull { uuidToUsername[it] }.distinct()
-            val userIdMap = if (relevantUsernames.isNotEmpty()) {
-                databaseManager.userDao.getIdsByListOfUsername(relevantUsernames, sqlClient)
-            } else {
-                emptyMap()
+            // Everything the import would actually write, keyed by player. Default-group nodes are
+            // implied by Pano and expired entries are dead, so both are dropped up front — that way
+            // no player gets created for permissions that would be discarded anyway.
+            val importableNodesByUuid = luckPermsData.userPermissions
+                .filter { it.uuid != null && it.permission != defaultGroupNode }
+                .filter { it.expiry <= 0 || it.expiry >= now / 1000 }
+                .groupBy { it.uuid!! }
+
+            skippedNodeCount += luckPermsData.userPermissions.count {
+                it.uuid != null && it.permission != defaultGroupNode &&
+                        it.expiry > 0 && it.expiry < now / 1000
             }
 
-            for (perm in luckPermsData.userPermissions) {
-                val uuid = perm.uuid ?: continue
-                val username = uuidToUsername[uuid] ?: continue
-                val userId = userIdMap[username] ?: continue // Skip if user doesn't exist in Pano
-
-                // Skip expired permissions
-                if (perm.expiry > 0 && perm.expiry < System.currentTimeMillis() / 1000) {
-                    skippedNodeCount++
-                    continue
+            // Players worth touching: they either carry a permission node, or a primary group that
+            // is part of this import. LuckPerms normally also stores the primary group as a
+            // group.<name> node, but not every backend does — importing it explicitly is what makes
+            // an in-game player's rank actually survive the migration.
+            // Nodes the admin added by hand were folded into the source data by applyNodeEdits, so
+            // they are already accounted for here.
+            val relevantPlayers = luckPermsData.players.filter { player ->
+                if (player.uuid in skippedPlayerUuids) {
+                    return@filter false
                 }
 
-                // Skip default group assignment nodes (LP already implies them)
-                if (perm.permission == "group.${permissionManager.defaultGroupName}") {
-                    continue
-                }
+                importableNodesByUuid.containsKey(player.uuid) ||
+                        (player.primaryGroup != permissionManager.defaultGroupName &&
+                                player.primaryGroup in selectedGroups)
+            }
 
+            // Whatever the admin retargeted on the review screen wins over the LuckPerms spelling.
+            val usernameOf = { player: PanelLuckPermsMigrationUploadAPI.LPPlayer ->
+                playerUsernameOverrides[player.uuid] ?: player.username
+            }
+
+            // MySQL matches usernames case-insensitively but returns them as stored, so both sides
+            // are normalised — otherwise a casing difference would look like a missing player.
+            val userIdByUsername = mutableMapOf<String, Long>()
+
+            if (relevantPlayers.isNotEmpty()) {
+                databaseManager.userDao
+                    .getIdsByListOfUsername(relevantPlayers.map(usernameOf).distinct(), sqlClient)
+                    .forEach { (username, id) -> userIdByUsername[username.lowercase()] = id }
+            }
+
+            // Create the players LuckPerms knows about but Pano does not. Without this the import is
+            // pointless for servers whose players never registered on the website: their in-game
+            // ranks would silently go nowhere.
+            if (createMissingPlayers) {
+                for (player in relevantPlayers) {
+                    val username = usernameOf(player)
+
+                    if (userIdByUsername.containsKey(username.lowercase())) continue
+
+                    try {
+                        val newUser = User(
+                            username = username,
+                            email = null,
+                            registeredIp = "",
+                            registerDate = now,
+                            lastLoginDate = now,
+                            mcUuid = player.uuid
+                        )
+
+                        val newId = try {
+                            databaseManager.userDao.add(newUser, null, sqlClient, false)
+                        } catch (e: MySQLException) {
+                            // A join or register flow may have created the row in the meantime.
+                            if (e.errorCode == 1062) {
+                                databaseManager.userDao.getUserIdFromUsername(username, sqlClient)
+                                    ?: throw e
+                            } else {
+                                throw e
+                            }
+                        }
+
+                        userIdByUsername[username.lowercase()] = newId
+                        createdUserCount++
+                    } catch (e: Exception) {
+                        errors.add(
+                            mapOf(
+                                "item" to "Player: $username",
+                                "error" to (e.message ?: "Unknown error")
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Whatever is still unresolved at this point is genuinely skipped — either because
+            // creating players was turned off, or because creating that one failed above.
+            skippedUserCount += relevantPlayers.count {
+                !userIdByUsername.containsKey(usernameOf(it).lowercase())
+            }
+
+            // Nodes belonging to players that were excluded or could not be resolved are dropped.
+            val importedUuids = relevantPlayers
+                .filter { userIdByUsername.containsKey(usernameOf(it).lowercase()) }
+                .map { it.uuid }
+                .toSet()
+
+            importableNodesByUuid.forEach { (uuid, nodes) ->
+                if (uuid !in importedUuids) {
+                    skippedNodeCount += nodes.size
+                }
+            }
+
+            // Collect every user node to write, including the synthesised primary-group node.
+            val userNodesToImport = mutableListOf<Pair<Long, PanelLuckPermsMigrationUploadAPI.LPPermission>>()
+
+            for (player in relevantPlayers) {
+                val userId = userIdByUsername[usernameOf(player).lowercase()] ?: continue
+                val playerNodes = importableNodesByUuid[player.uuid] ?: emptyList()
+
+                playerNodes.forEach { userNodesToImport.add(userId to it) }
+
+                val primaryGroupNode = "group.${player.primaryGroup}"
+                val needsPrimaryGroup = player.primaryGroup != permissionManager.defaultGroupName &&
+                        player.primaryGroup in selectedGroups &&
+                        playerNodes.none { it.permission == primaryGroupNode }
+
+                if (needsPrimaryGroup) {
+                    userNodesToImport.add(
+                        userId to PanelLuckPermsMigrationUploadAPI.LPPermission(
+                            groupName = null,
+                            uuid = player.uuid,
+                            permission = primaryGroupNode,
+                            value = true,
+                            server = "global",
+                            world = "global",
+                            expiry = 0L,
+                            contexts = "{}"
+                        )
+                    )
+                }
+            }
+
+            // Overwrite rather than duplicate, same as for group nodes.
+            val replacedUserNodeIds = userNodesToImport
+                .flatMap { (userId, perm) ->
+                    existingNodesByHolder[Triple(HolderType.USER, userId, perm.permission)]
+                        ?.map { it.id } ?: emptyList()
+                }
+                .distinct() - alreadyDeletedNodeIds
+
+            if (replacedUserNodeIds.isNotEmpty()) {
+                databaseManager.permissionNodeDao.deleteByIds(replacedUserNodeIds, sqlClient)
+                alreadyDeletedNodeIds.addAll(replacedUserNodeIds)
+                overwrittenNodeCount += replacedUserNodeIds.size
+            }
+
+            for ((userId, perm) in userNodesToImport) {
                 try {
                     val context = buildContextJson(perm.server, perm.world, perm.contexts)
                     val expiresAt = if (perm.expiry > 0) perm.expiry * 1000 else null
@@ -270,7 +548,13 @@ class PanelLuckPermsMigrationImportAPI(
                     databaseManager.permissionNodeDao.add(permissionNode, sqlClient)
                     importedUserNodeCount++
                 } catch (e: Exception) {
-                    errors.add(mapOf("item" to "User perm: ${perm.permission} ($username)", "error" to (e.message ?: "Unknown error")))
+                    val username = perm.uuid?.let { uuidToUsername[it] } ?: perm.uuid
+                    errors.add(
+                        mapOf(
+                            "item" to "User perm: ${perm.permission} ($username)",
+                            "error" to (e.message ?: "Unknown error")
+                        )
+                    )
                     skippedNodeCount++
                 }
             }
@@ -283,6 +567,10 @@ class PanelLuckPermsMigrationImportAPI(
         try {
             File(AppConstants.TEMP_FOLDER + File.separator + "luckperms_migration.mv.db").delete()
             File(AppConstants.TEMP_FOLDER + File.separator + "luckperms_migration_config.yml").delete()
+            File(
+                AppConstants.TEMP_FOLDER + File.separator +
+                        PanelLuckPermsMigrationUploadAPI.SOURCE_INFO_FILE_NAME
+            ).delete()
         } catch (_: Exception) {
         }
 
@@ -291,12 +579,34 @@ class PanelLuckPermsMigrationImportAPI(
                 "importedGroups" to importedGroupCount,
                 "updatedGroups" to updatedGroupCount,
                 "importedTracks" to importedTrackCount,
+                "updatedTracks" to updatedTrackCount,
+                "skippedTrackGroups" to skippedTrackGroupCount,
                 "importedGroupNodes" to importedNodeCount,
                 "importedUserNodes" to importedUserNodeCount,
+                "overwrittenNodes" to overwrittenNodeCount,
+                "deletedNodes" to deletedNodeCount,
                 "skippedNodes" to skippedNodeCount,
+                "createdUsers" to createdUserCount,
+                "skippedUsers" to skippedUserCount,
                 "errors" to errors
             )
         )
+    }
+
+    /**
+     * Read the connection settings the upload step recorded, if they are still around.
+     */
+    private fun readSourceInfo(): JsonObject? {
+        return try {
+            val file = File(
+                AppConstants.TEMP_FOLDER + File.separator +
+                        PanelLuckPermsMigrationUploadAPI.SOURCE_INFO_FILE_NAME
+            )
+
+            if (file.exists()) JsonObject(file.readText()) else null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**
@@ -304,16 +614,20 @@ class PanelLuckPermsMigrationImportAPI(
      */
     private fun buildContextJson(server: String, world: String, contextsStr: String): JsonObject {
         val context = JsonObject()
+
         if (server.isNotBlank() && server != "global") {
             context.put("server", server)
         }
+
         if (world.isNotBlank() && world != "global") {
             context.put("world", world)
         }
+
         // Parse additional contexts if any
-        if (contextsStr.isNotBlank() && contextsStr != "{}" && contextsStr != "{}") {
+        if (contextsStr.isNotBlank() && contextsStr != "{}") {
             try {
                 val parsed = JsonObject(contextsStr)
+
                 parsed.forEach { (key, value) ->
                     if (!context.containsKey(key)) {
                         context.put(key, value)
@@ -323,6 +637,7 @@ class PanelLuckPermsMigrationImportAPI(
                 // Ignore malformed contexts
             }
         }
+
         return context
     }
 

@@ -54,6 +54,25 @@ class PermissionTrackDaoImpl : PermissionTrackDao() {
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
+    override suspend fun update(
+        permissionTrack: PermissionTrack,
+        sqlClient: SqlClient
+    ) {
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET `description` = ?, `groupIds` = ?, `updatedAt` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    permissionTrack.description,
+                    JsonArray(permissionTrack.groupIds).encode(),
+                    permissionTrack.updatedAt,
+                    permissionTrack.id
+                )
+            ).coAwait()
+    }
+
     override suspend fun getAll(sqlClient: SqlClient): List<PermissionTrack> {
         val query =
             "SELECT `id`, `name`, `description`, `groupIds`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}`"

@@ -107,12 +107,12 @@ class ServerConnectAPI(
 
         serverWebSocket.closeHandler {
             CoroutineScope(context.vertx().dispatcher()).launch {
-                onConnectionClosed(server)
+                onConnectionClosed(server, serverWebSocket)
             }
         }
     }
 
-    private suspend fun onConnectionClosed(server: Server) {
+    private suspend fun onConnectionClosed(server: Server, serverWebSocket: ServerWebSocket) {
         val sqlClient = databaseManager.getSqlClient()
 
         val serverExists = databaseManager.serverDao.existsById(server.id, sqlClient)
@@ -122,7 +122,7 @@ class ServerConnectAPI(
             databaseManager.serverDao.updateServerForOfflineById(server.id, sqlClient)
         }
 
-        serverManager.onServerDisconnect(server)
+        serverManager.onServerDisconnect(server, serverWebSocket)
 
         if (serverExists) {
             panelRealtimeHub.notifyServerUpdated(server.id)

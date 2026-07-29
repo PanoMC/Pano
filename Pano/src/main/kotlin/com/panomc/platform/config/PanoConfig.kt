@@ -137,6 +137,16 @@ data class PanoConfig(
         "within ~5 seconds without restarting Pano."
     )
     var maintenance: MaintenanceConfig = MaintenanceConfig(),
+
+    @ConfigSection("Minecraft Server Connection")
+    @ConfigComment("Application-level WebSocket heartbeat for connected Minecraft servers.")
+    // Nullable despite ConfigMigration27To28 always writing this block: PanoConfig has no no-arg
+    // constructor, so Gson allocates it via Unsafe, and a config.conf that has config-version = 28
+    // (so the migration never runs) but is missing this block regardless -- hand-edited, partially
+    // merged, or restored from a backup with the version bumped -- deserialises this field to null
+    // at runtime no matter what the Kotlin type says. Callers must read it with a safe call and
+    // fall back to the default, same as ServerManager does.
+    @SerializedName("mc-server-connection") var mcServerConnection: McServerConnectionConfig? = McServerConnectionConfig(),
 ) {
     /**
      * JWT `iss` plugins expect when verifying license tokens. No extra config key: uses the
@@ -336,6 +346,25 @@ data class PanoConfig(
             )
             @SerializedName("custom-page") var customPage: Boolean = false,
         )
+
+        data class McServerConnectionConfig(
+            @ConfigComment("Seconds between heartbeat pings sent to each connected Minecraft server.")
+            @SerializedName("heartbeat-interval-seconds") var heartbeatIntervalSeconds: Int = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+
+            @ConfigComment("Seconds without a pong before a Minecraft server connection is considered dead.")
+            @SerializedName("heartbeat-timeout-seconds") var heartbeatTimeoutSeconds: Int = DEFAULT_HEARTBEAT_TIMEOUT_SECONDS,
+        ) {
+            companion object {
+                // Single source of truth for the heartbeat defaults, shared with ServerManager's
+                // resolveHeartbeatSettings() fallback so a nonsense (or missing, see
+                // PanoConfig.mcServerConnection) config value and the hardcoded default it falls
+                // back to can never drift apart. Mirrors the client-side
+                // PanoConfig.DEFAULT_HEARTBEAT_INTERVAL_SECONDS/DEFAULT_HEARTBEAT_TIMEOUT_SECONDS
+                // in pano-mc-plugin.
+                const val DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 25
+                const val DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 75
+            }
+        }
 
         enum class SslMode {
             DISABLED,

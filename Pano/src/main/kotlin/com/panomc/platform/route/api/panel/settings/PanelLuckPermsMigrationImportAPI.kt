@@ -54,6 +54,7 @@ class PanelLuckPermsMigrationImportAPI(
                         .optionalProperty("playerEdits", arraySchema().items(objectSchema()))
                         .optionalProperty("skippedPlayers", arraySchema().items(stringSchema()))
                         .optionalProperty("deletedExistingNodes", arraySchema().items(numberSchema()))
+                        .optionalProperty("trackEdits", arraySchema().items(objectSchema()))
                 )
             )
             .build()
@@ -93,6 +94,16 @@ class PanelLuckPermsMigrationImportAPI(
         val deletedExistingNodeIds = body.getJsonArray("deletedExistingNodes")
             ?.mapNotNull { (it as? Number)?.toLong() }
             ?.distinct() ?: emptyList()
+
+        // Per-track overrides: a reordered or trimmed group chain, and a description.
+        val trackEdits = body.getJsonArray("trackEdits")
+            ?.mapNotNull { it as? JsonObject }
+            ?.mapNotNull { edit ->
+                val name = edit.getString("name")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+
+                name to edit
+            }
+            ?.toMap() ?: emptyMap()
 
         if (selectedGroups.isEmpty()) {
             throw InvalidData(extras = mapOf("message" to "No groups selected for import"))
@@ -162,6 +173,8 @@ class PanelLuckPermsMigrationImportAPI(
         var importedGroupCount = 0
         var updatedGroupCount = 0
         var importedTrackCount = 0
+        var updatedTrackCount = 0
+        var skippedTrackGroupCount = 0
         var importedNodeCount = 0
         var importedUserNodeCount = 0
         var overwrittenNodeCount = 0
@@ -308,18 +321,54 @@ class PanelLuckPermsMigrationImportAPI(
         }
 
         // Import tracks (for selected tracks only)
+        val existingTrackByName = databaseManager.permissionTrackDao.getAll(sqlClient).associateBy { it.name }
+
         for (track in luckPermsData.tracks) {
             if (track.name !in selectedTracks) continue
 
             try {
-                val trackGroupIds = track.groups.mapNotNull { groupIdByName[it] }
-                val permTrack = PermissionTrack(
-                    name = track.name,
-                    description = "",
-                    groupIds = trackGroupIds
-                )
-                databaseManager.permissionTrackDao.add(permTrack, sqlClient)
-                importedTrackCount++
+                val edit = trackEdits[track.name]
+                val groupNames = edit?.getJsonArray("groups")?.mapNotNull { it as? String } ?: track.groups
+                val description = edit?.getString("description") ?: ""
+
+                val trackGroupIds = groupNames.mapNotNull { groupIdByName[it] }
+
+                // A track is an ordered chain of groups. Any group that is not part of this import
+                // has no id to point at and silently disappears from the chain, which quietly
+                // reorders promotions — so say which ones were dropped instead of hiding it.
+                val droppedGroups = groupNames.filter { groupIdByName[it] == null }
+
+                if (droppedGroups.isNotEmpty()) {
+                    skippedTrackGroupCount += droppedGroups.size
+                    errors.add(
+                        mapOf(
+                            "item" to "Track: ${track.name}",
+                            "error" to "Groups not imported, left out of the track order: ${droppedGroups.joinToString(", ")}"
+                        )
+                    )
+                }
+
+                val existing = existingTrackByName[track.name]
+
+                if (existing == null) {
+                    databaseManager.permissionTrackDao.add(
+                        PermissionTrack(name = track.name, description = description, groupIds = trackGroupIds),
+                        sqlClient
+                    )
+                    importedTrackCount++
+                } else {
+                    // The name column is UNIQUE, so re-adding an existing track fails outright.
+                    // Overwrite its chain instead of erroring out on every re-import.
+                    databaseManager.permissionTrackDao.update(
+                        existing.copy(
+                            description = description.ifBlank { existing.description },
+                            groupIds = trackGroupIds,
+                            updatedAt = now
+                        ),
+                        sqlClient
+                    )
+                    updatedTrackCount++
+                }
             } catch (e: Exception) {
                 errors.add(mapOf("item" to "Track: ${track.name}", "error" to (e.message ?: "Unknown error")))
             }
@@ -530,6 +579,8 @@ class PanelLuckPermsMigrationImportAPI(
                 "importedGroups" to importedGroupCount,
                 "updatedGroups" to updatedGroupCount,
                 "importedTracks" to importedTrackCount,
+                "updatedTracks" to updatedTrackCount,
+                "skippedTrackGroups" to skippedTrackGroupCount,
                 "importedGroupNodes" to importedNodeCount,
                 "importedUserNodes" to importedUserNodeCount,
                 "overwrittenNodes" to overwrittenNodeCount,

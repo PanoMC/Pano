@@ -219,10 +219,20 @@ class PanelLuckPermsMigrationUploadAPI(
             )
         }
 
+        // A track is an ordered chain of groups. Report the chain Pano already has alongside the
+        // incoming one, and flag groups the import would drop because they are not being imported.
+        val existingTrackByName = existingTracks.associateBy { it.name }
+        val importableGroupNames = luckPermsData.groups.toSet() + existingGroupNames
+
         val tracksPreview = luckPermsData.tracks.map { track ->
+            val existing = existingTrackByName[track.name]
+
             mapOf(
                 "name" to track.name,
                 "groups" to track.groups,
+                "existingGroups" to (existing?.groupIds?.mapNotNull { groupNameById[it] } ?: emptyList()),
+                "existingDescription" to (existing?.description ?: ""),
+                "unknownGroups" to track.groups.filter { it !in importableGroupNames },
                 "status" to if (track.name in existingTrackNames) "existing" else "new"
             )
         }

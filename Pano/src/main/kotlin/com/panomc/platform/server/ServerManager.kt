@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.crypto.SecretKey
 
 // Resolved (and already-validated) heartbeat cadence, in milliseconds so it drops straight into
@@ -51,6 +52,22 @@ class ServerManager(
     // nothing leaks when a server goes away or is closed for timing out.
     private val lastPongAtMap = ConcurrentHashMap<Server, Long>()
 
+    // Guards startHeartbeatSweep so the periodic timer is armed exactly once no matter which of
+    // its two call sites gets there first. init() calls it unconditionally on boot, but init() is
+    // itself only reached via Main.initServerManager() when the platform is already installed
+    // (Main.init() checks SetupManager.isSetupDone() first) - on a freshly installed Pano, the
+    // setup wizard's FinishAPI never calls serverManager.init(), so without this the sweep would
+    // never start until the process is restarted, and a Minecraft server that connects in that
+    // window would get no pings and never be timed out if it died. onServerConnect() is the actual
+    // fix: it also calls startHeartbeatSweep(), so the very first connection - fresh install or
+    // not - arms the timer regardless of whether init() ever ran. Plain HTTP connection handling
+    // can dispatch concurrent onServerConnect calls onto different event-loop threads (a Vert.x
+    // HttpServer bound to one port balances across all of them), and init() could in principle
+    // race a very early connection too, so this needs to be safe under concurrent callers, not
+    // just idempotent under sequential ones - hence compareAndSet rather than a plain boolean
+    // check-then-set.
+    private val heartbeatSweepStarted = AtomicBoolean(false)
+
     private val eventListeners by lazy {
         val beans = applicationContext.getBeansWithAnnotation(Event::class.java)
 
@@ -78,6 +95,10 @@ class ServerManager(
     }
 
     fun onServerConnect(server: Server, serverWebSocket: ServerWebSocket) {
+        // See heartbeatSweepStarted's own doc: this is what actually covers the fresh-install
+        // gap, since init() alone isn't guaranteed to run before the first connection.
+        startHeartbeatSweep()
+
         connectedServers[server] = serverWebSocket
         serverSecretKeyMap[server] = Aes256GcmUtil.base64ToSecretKey(server.aesKey)
 
@@ -176,6 +197,13 @@ class ServerManager(
     }
 
     private fun startHeartbeatSweep() {
+        // compareAndSet makes "only the first caller wins" atomic across concurrent callers (see
+        // heartbeatSweepStarted's doc) - anything after the first returns immediately instead of
+        // arming a second competing vertx.setPeriodic timer.
+        if (!heartbeatSweepStarted.compareAndSet(false, true)) {
+            return
+        }
+
         val settings = resolveHeartbeatSettings()
 
         vertx.setPeriodic(settings.intervalMs) {

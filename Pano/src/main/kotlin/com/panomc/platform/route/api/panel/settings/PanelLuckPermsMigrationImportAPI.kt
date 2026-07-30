@@ -105,6 +105,9 @@ class PanelLuckPermsMigrationImportAPI(
             }
             ?.toMap() ?: emptyMap()
 
+        // Group names are matched case-insensitively throughout, mirroring the database collation.
+        val selectedGroupsLowercase = selectedGroups.map { it.lowercase() }.toSet()
+
         if (selectedGroups.isEmpty()) {
             throw InvalidData(extras = mapOf("message" to "No groups selected for import"))
         }
@@ -214,24 +217,24 @@ class PanelLuckPermsMigrationImportAPI(
 
         // Get existing groups for merge mode
         val existingGroups = databaseManager.permissionGroupDao.getPermissionGroups(sqlClient)
-        val existingGroupByName = existingGroups.associateBy { it.name }
+        val existingGroupByName = existingGroups.associateBy { it.name.lowercase() }
 
         // Map to store group name -> Pano group ID
         val groupIdByName = mutableMapOf<String, Long>()
 
         // Populate existing group IDs
         existingGroups.forEach { grp ->
-            groupIdByName[grp.name] = grp.id
+            groupIdByName[grp.name.lowercase()] = grp.id
         }
 
         // Ensure "default" group always exists
-        if (!groupIdByName.containsKey(permissionManager.defaultGroupName)) {
+        if (!groupIdByName.containsKey(permissionManager.defaultGroupName.lowercase())) {
             val defaultGroup = PermissionGroup(
                 name = permissionManager.defaultGroupName,
                 displayName = permissionManager.defaultGroupName
             )
             val newId = databaseManager.permissionGroupDao.add(defaultGroup, sqlClient)
-            groupIdByName[permissionManager.defaultGroupName] = newId
+            groupIdByName[permissionManager.defaultGroupName.lowercase()] = newId
             importedGroupCount++
         }
 
@@ -240,10 +243,10 @@ class PanelLuckPermsMigrationImportAPI(
             if (!luckPermsData.groups.contains(groupName)) continue
 
             try {
-                val existing = existingGroupByName[groupName]
+                val existing = existingGroupByName[groupName.lowercase()]
                 if (existing != null) {
                     // Group exists, keep its ID
-                    groupIdByName[groupName] = existing.id
+                    groupIdByName[groupName.lowercase()] = existing.id
                     updatedGroupCount++
                 } else {
                     // New group
@@ -252,7 +255,7 @@ class PanelLuckPermsMigrationImportAPI(
                         displayName = groupName
                     )
                     val newId = databaseManager.permissionGroupDao.add(newGroup, sqlClient)
-                    groupIdByName[groupName] = newId
+                    groupIdByName[groupName.lowercase()] = newId
                     importedGroupCount++
                 }
             } catch (e: Exception) {
@@ -268,10 +271,10 @@ class PanelLuckPermsMigrationImportAPI(
 
         for (perm in luckPermsData.groupPermissions) {
             val groupName = perm.groupName ?: continue
-            if (groupName !in selectedGroups) continue
+            if (groupName.lowercase() !in selectedGroupsLowercase) continue
             if (perm.expiry > 0 && perm.expiry < now / 1000) continue
 
-            val groupId = groupIdByName[groupName] ?: continue
+            val groupId = groupIdByName[groupName.lowercase()] ?: continue
 
             existingNodesByHolder[Triple(HolderType.GROUP, groupId, perm.permission)]
                 ?.forEach { replacedGroupNodeIds.add(it.id) }
@@ -289,9 +292,9 @@ class PanelLuckPermsMigrationImportAPI(
         // Import group permissions (for selected groups only)
         for (perm in luckPermsData.groupPermissions) {
             val groupName = perm.groupName ?: continue
-            if (groupName !in selectedGroups) continue
+            if (groupName.lowercase() !in selectedGroupsLowercase) continue
 
-            val groupId = groupIdByName[groupName] ?: continue
+            val groupId = groupIdByName[groupName.lowercase()] ?: continue
 
             // Skip expired permissions
             if (perm.expiry > 0 && perm.expiry < now / 1000) {
@@ -331,12 +334,12 @@ class PanelLuckPermsMigrationImportAPI(
                 val groupNames = edit?.getJsonArray("groups")?.mapNotNull { it as? String } ?: track.groups
                 val description = edit?.getString("description") ?: ""
 
-                val trackGroupIds = groupNames.mapNotNull { groupIdByName[it] }
+                val trackGroupIds = groupNames.mapNotNull { groupIdByName[it.lowercase()] }
 
                 // A track is an ordered chain of groups. Any group that is not part of this import
                 // has no id to point at and silently disappears from the chain, which quietly
                 // reorders promotions — so say which ones were dropped instead of hiding it.
-                val droppedGroups = groupNames.filter { groupIdByName[it] == null }
+                val droppedGroups = groupNames.filter { groupIdByName[it.lowercase()] == null }
 
                 if (droppedGroups.isNotEmpty()) {
                     skippedTrackGroupCount += droppedGroups.size
@@ -381,17 +384,89 @@ class PanelLuckPermsMigrationImportAPI(
             // Build UUID -> username map from LP players
             val uuidToUsername = luckPermsData.players.associateBy({ it.uuid }, { it.username })
 
-            // Everything the import would actually write, keyed by player. Default-group nodes are
-            // implied by Pano and expired entries are dead, so both are dropped up front — that way
-            // no player gets created for permissions that would be discarded anyway.
-            val importableNodesByUuid = luckPermsData.userPermissions
-                .filter { it.uuid != null && it.permission != defaultGroupNode }
+            // Everything the import would actually write, keyed by player. Expired entries are dead,
+            // and an *active* group.default is already implied by Pano — both snapshot paths strip
+            // it, so storing it would only be undone on the next sync. A negated group.default is
+            // meaningful, though, and must survive.
+            val isImpliedDefault = { perm: PanelLuckPermsMigrationUploadAPI.LPPermission ->
+                perm.permission == defaultGroupNode && perm.value
+            }
+
+            val allImportableNodes = luckPermsData.userPermissions
+                .filter { it.uuid != null && !isImpliedDefault(it) }
                 .filter { it.expiry <= 0 || it.expiry >= now / 1000 }
                 .groupBy { it.uuid!! }
 
+            // Rows the panel showed for Pano users that are not in the LuckPerms export at all carry
+            // a synthetic "pano:<userId>" key instead of a real uuid. They are written straight to
+            // that user rather than going through the LuckPerms player matching below.
+            val (panoHolderNodes, importableNodesByUuid) = allImportableNodes.entries
+                .partition { it.key.startsWith(PanelLuckPermsMigrationUploadAPI.PANO_HOLDER_PREFIX) }
+                .let { (pano, lp) -> pano.associate { it.key to it.value } to lp.associate { it.key to it.value } }
+
             skippedNodeCount += luckPermsData.userPermissions.count {
-                it.uuid != null && it.permission != defaultGroupNode &&
+                it.uuid != null && !isImpliedDefault(it) &&
                         it.expiry > 0 && it.expiry < now / 1000
+            }
+
+            // Write the edits made against existing Pano users. Only ids that really exist are
+            // accepted, so a bad key cannot leave orphan permission rows behind.
+            val panoHolderIds = panoHolderNodes.keys
+                .mapNotNull { it.removePrefix(PanelLuckPermsMigrationUploadAPI.PANO_HOLDER_PREFIX).toLongOrNull() }
+                .distinct()
+
+            val knownPanoHolderIds = if (panoHolderIds.isEmpty()) {
+                emptySet()
+            } else {
+                databaseManager.userDao.getUsernameByListOfId(panoHolderIds, sqlClient).keys
+            }
+
+            panoHolderNodes.forEach { (holderKey, nodes) ->
+                val userId = holderKey.removePrefix(PanelLuckPermsMigrationUploadAPI.PANO_HOLDER_PREFIX)
+                    .toLongOrNull()
+
+                if (userId == null || userId !in knownPanoHolderIds) {
+                    skippedNodeCount += nodes.size
+                    return@forEach
+                }
+
+                val replacedIds = nodes
+                    .flatMap { perm ->
+                        existingNodesByHolder[Triple(HolderType.USER, userId, perm.permission)]
+                            ?.map { it.id } ?: emptyList()
+                    }
+                    .distinct() - alreadyDeletedNodeIds
+
+                if (replacedIds.isNotEmpty()) {
+                    databaseManager.permissionNodeDao.deleteByIds(replacedIds, sqlClient)
+                    alreadyDeletedNodeIds.addAll(replacedIds)
+                    overwrittenNodeCount += replacedIds.size
+                }
+
+                nodes.forEach { perm ->
+                    try {
+                        databaseManager.permissionNodeDao.add(
+                            PermissionNode(
+                                holderType = HolderType.USER,
+                                holderId = userId,
+                                node = perm.permission,
+                                active = perm.value,
+                                context = buildContextJson(perm.server, perm.world, perm.contexts),
+                                expiresAt = if (perm.expiry > 0) perm.expiry * 1000 else null
+                            ),
+                            sqlClient
+                        )
+                        importedUserNodeCount++
+                    } catch (e: Exception) {
+                        errors.add(
+                            mapOf(
+                                "item" to "User perm: ${perm.permission} (#$userId)",
+                                "error" to (e.message ?: "Unknown error")
+                            )
+                        )
+                        skippedNodeCount++
+                    }
+                }
             }
 
             // Players worth touching: they either carry a permission node, or a primary group that
@@ -407,7 +482,7 @@ class PanelLuckPermsMigrationImportAPI(
 
                 importableNodesByUuid.containsKey(player.uuid) ||
                         (player.primaryGroup != permissionManager.defaultGroupName &&
-                                player.primaryGroup in selectedGroups)
+                                player.primaryGroup.lowercase() in selectedGroupsLowercase)
             }
 
             // Whatever the admin retargeted on the review screen wins over the LuckPerms spelling.
@@ -498,7 +573,7 @@ class PanelLuckPermsMigrationImportAPI(
 
                 val primaryGroupNode = "group.${player.primaryGroup}"
                 val needsPrimaryGroup = player.primaryGroup != permissionManager.defaultGroupName &&
-                        player.primaryGroup in selectedGroups &&
+                        player.primaryGroup.lowercase() in selectedGroupsLowercase &&
                         playerNodes.none { it.permission == primaryGroupNode }
 
                 if (needsPrimaryGroup) {

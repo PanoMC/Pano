@@ -34,6 +34,11 @@ class PanelLuckPermsMigrationUploadAPI(
 ) : PanelApi() {
     companion object {
         const val SOURCE_INFO_FILE_NAME = "luckperms_migration_source.json"
+
+        /** Marks a review-screen row that belongs to a Pano user rather than a LuckPerms player. */
+        const val PANO_HOLDER_PREFIX = "pano:"
+
+        private const val GROUP_NODE_PREFIX = "group."
     }
 
     override val paths = listOf(Path("/api/panel/migration/luckperms/upload", RouteType.POST))
@@ -147,12 +152,20 @@ class PanelLuckPermsMigrationUploadAPI(
         val existingTracks = databaseManager.permissionTrackDao.getAll(sqlClient)
         val existingNodes = databaseManager.permissionNodeDao.getPermissionNodes(sqlClient)
 
-        val existingGroupNames = existingGroups.map { it.name }.toSet()
-        val existingTrackNames = existingTracks.map { it.name }.toSet()
+        // permission_group.name is UNIQUE under a case-insensitive collation, so Pano's "Admin" and
+        // LuckPerms' "admin" are the same group as far as the database is concerned. Compare the
+        // same way here, otherwise an existing group looks new, its nodes all look new, and the
+        // import then fails on the unique constraint.
+        val existingGroupByLowercase = existingGroups.associateBy { it.name.lowercase() }
 
         // Look up which permission nodes Pano already holds, so the panel can tell the admin whether
         // each incoming LuckPerms node is brand new or will overwrite one that is already there.
-        val groupNameById = existingGroups.associate { it.id to it.name }
+        // Keyed by the LuckPerms spelling where one matches, so the panel's buckets line up.
+        val lpGroupNameByLowercase = luckPermsData.groups.associateBy { it.lowercase() }
+        val groupNameById = existingGroups.associate { group ->
+            group.id to (lpGroupNameByLowercase[group.name.lowercase()] ?: group.name)
+        }
+
         val existingGroupNodes = mutableMapOf<String, MutableList<PermissionNode>>()
         val existingUserNodes = mutableMapOf<Long, MutableList<PermissionNode>>()
 
@@ -192,14 +205,53 @@ class PanelLuckPermsMigrationUploadAPI(
             perm.toMap() + mapOf("status" to if (overwrites) "overwrite" else "new")
         }
 
-        val userPermissionsPreview = luckPermsData.userPermissions.map { perm ->
+        val defaultGroupNode = "group.${permissionManager.defaultGroupName}"
+
+        // Pano implies the default group for anyone without a group node, and both snapshot paths
+        // strip an active group.default from users. Such a node is still listed on the review screen
+        // so the admin can see the group, but flagged so it is not presented as something to write.
+        fun userNodeMap(perm: LPPermission, fromPrimaryGroup: Boolean): Map<String, Any?> {
             val userId = perm.uuid
                 ?.let { uuidToUsername[it] }
                 ?.let { userIdByUsername[it.lowercase()] }
             val overwrites = userId != null && existingUserNodeNames[userId]?.contains(perm.permission) == true
+            val implied = perm.permission == defaultGroupNode && perm.value
 
-            perm.toMap() + mapOf("status" to if (overwrites) "overwrite" else "new")
+            return perm.toMap() + mapOf(
+                "status" to if (overwrites) "overwrite" else "new",
+                "implied" to implied,
+                "fromPrimaryGroup" to fromPrimaryGroup
+            )
         }
+
+        // LuckPerms records a player's primary group in the players table as well as (usually) a
+        // matching group.<name> node. When only the table carries it the group was invisible here
+        // even though the import creates it, so surface it as a real row — default included.
+        val existingUserNodeKeys = luckPermsData.userPermissions
+            .mapNotNull { perm -> perm.uuid?.let { it to perm.permission } }
+            .toSet()
+
+        val primaryGroupNodes = luckPermsData.players.mapNotNull { player ->
+            val node = "group.${player.primaryGroup}"
+
+            if ((player.uuid to node) in existingUserNodeKeys) {
+                return@mapNotNull null
+            }
+
+            LPPermission(
+                groupName = null,
+                uuid = player.uuid,
+                permission = node,
+                value = true,
+                server = "global",
+                world = "global",
+                expiry = 0L,
+                contexts = "{}"
+            )
+        }
+
+        val userPermissionsPreview = luckPermsData.userPermissions.map { userNodeMap(it, false) } +
+                primaryGroupNodes.map { userNodeMap(it, true) }
 
         val groupNodeStatusCounts = groupPermissionsPreview
             .groupBy { it["groupName"] as? String }
@@ -212,30 +264,76 @@ class PanelLuckPermsMigrationUploadAPI(
 
             mapOf(
                 "name" to groupName,
-                "status" to if (groupName in existingGroupNames) "existing" else "new",
+                "status" to if (existingGroupByLowercase.containsKey(groupName.lowercase())) "existing" else "new",
+                "inLuckPerms" to true,
                 "nodeCount" to nodeCount,
                 "newNodeCount" to nodeCount - overwriteNodeCount,
                 "overwriteNodeCount" to overwriteNodeCount
             )
         }
 
+        // Groups Pano already has that the LuckPerms export does not mention. Same reasoning as for
+        // players and tracks: show what exists, and make replace mode's deletions visible.
+        val lpGroupNamesLowercase = luckPermsData.groups.map { it.lowercase() }.toSet()
+
+        val panoOnlyGroups = existingGroups
+            .filter { it.name.lowercase() !in lpGroupNamesLowercase }
+            .map { group ->
+                val nodeCount = existingGroupNodes[group.name]?.size ?: 0
+
+                mapOf(
+                    "name" to group.name,
+                    "status" to "existing",
+                    "inLuckPerms" to false,
+                    "nodeCount" to nodeCount,
+                    "newNodeCount" to 0,
+                    "overwriteNodeCount" to 0
+                )
+            }
+
+        val allGroupsPreview = groupsPreview + panoOnlyGroups
+
         // A track is an ordered chain of groups. Report the chain Pano already has alongside the
         // incoming one, and flag groups the import would drop because they are not being imported.
-        val existingTrackByName = existingTracks.associateBy { it.name }
-        val importableGroupNames = luckPermsData.groups.toSet() + existingGroupNames
+        val existingTrackByName = existingTracks.associateBy { it.name.lowercase() }
+        val importableGroupNames =
+            (luckPermsData.groups + existingGroups.map { it.name }).map { it.lowercase() }.toSet()
 
         val tracksPreview = luckPermsData.tracks.map { track ->
-            val existing = existingTrackByName[track.name]
+            val existing = existingTrackByName[track.name.lowercase()]
 
             mapOf(
                 "name" to track.name,
                 "groups" to track.groups,
                 "existingGroups" to (existing?.groupIds?.mapNotNull { groupNameById[it] } ?: emptyList()),
                 "existingDescription" to (existing?.description ?: ""),
-                "unknownGroups" to track.groups.filter { it !in importableGroupNames },
-                "status" to if (track.name in existingTrackNames) "existing" else "new"
+                "unknownGroups" to track.groups.filter { it.lowercase() !in importableGroupNames },
+                "inLuckPerms" to true,
+                "status" to if (existing != null) "existing" else "new"
             )
         }
+
+        // Tracks Pano already has that the LuckPerms export does not mention. Same reasoning as for
+        // players: the review screen should show what exists, and replace mode deletes these.
+        val lpTrackNames = luckPermsData.tracks.map { it.name.lowercase() }.toSet()
+
+        val panoOnlyTracks = existingTracks
+            .filter { it.name.lowercase() !in lpTrackNames }
+            .map { track ->
+                val groupNames = track.groupIds.mapNotNull { groupNameById[it] }
+
+                mapOf(
+                    "name" to track.name,
+                    "groups" to groupNames,
+                    "existingGroups" to groupNames,
+                    "existingDescription" to track.description,
+                    "unknownGroups" to emptyList<String>(),
+                    "inLuckPerms" to false,
+                    "status" to "existing"
+                )
+            }
+
+        val allTracksPreview = tracksPreview + panoOnlyTracks
 
         val playersPreview = luckPermsData.players.map { player ->
             val lowercaseUsername = player.username.lowercase()
@@ -250,6 +348,7 @@ class PanelLuckPermsMigrationUploadAPI(
                 "username" to player.username,
                 "primaryGroup" to player.primaryGroup,
                 "existsInPano" to (userId != null),
+                "inLuckPerms" to true,
                 "panoUsername" to panoUsernameByLowercase[lowercaseUsername],
                 "existingNodeCount" to (userId?.let { existingUserNodes[it]?.size } ?: 0),
                 "hasImportableData" to hasImportableData,
@@ -257,6 +356,44 @@ class PanelLuckPermsMigrationUploadAPI(
             )
         }
 
+        // Pano users that already hold permission nodes but are absent from the LuckPerms export.
+        // Without these the review screen only ever showed what was arriving, never what already
+        // existed — and in replace mode their nodes are about to be deleted without any warning.
+        val matchedUserIds = userIdByUsername.values.toSet()
+        val lpUsernamesLowercase = luckPermsData.players.map { it.username.lowercase() }.toSet()
+
+        val panoOnlyUserIds = existingUserNodes.keys.filter { it !in matchedUserIds }
+        val panoOnlyUsernames = if (panoOnlyUserIds.isEmpty()) {
+            emptyMap()
+        } else {
+            databaseManager.userDao.getUsernameByListOfId(panoOnlyUserIds, sqlClient)
+        }
+
+        val panoOnlyPlayers = panoOnlyUsernames
+            .filterValues { it.lowercase() !in lpUsernamesLowercase }
+            .map { (userId, username) ->
+                val nodes = existingUserNodes[userId].orEmpty()
+                val primaryGroup = nodes
+                    .firstOrNull { it.active && it.node.startsWith(GROUP_NODE_PREFIX) }
+                    ?.node?.removePrefix(GROUP_NODE_PREFIX)
+                    ?: permissionManager.defaultGroupName
+
+                mapOf(
+                    // Synthetic key: these rows have no LuckPerms uuid, but the panel needs a stable
+                    // identity for row keys, expansion state and node buckets.
+                    "uuid" to "$PANO_HOLDER_PREFIX$userId",
+                    "username" to username,
+                    "primaryGroup" to primaryGroup,
+                    "existsInPano" to true,
+                    "inLuckPerms" to false,
+                    "panoUsername" to username,
+                    "existingNodeCount" to nodes.size,
+                    "hasImportableData" to false,
+                    "permissionCount" to 0
+                )
+            }
+
+        val allPlayersPreview = playersPreview + panoOnlyPlayers
 
         val newGroupCount = groupsPreview.count { it["status"] == "new" }
         val existingGroupCount = groupsPreview.count { it["status"] == "existing" }
@@ -266,16 +403,19 @@ class PanelLuckPermsMigrationUploadAPI(
 
         return Successful(
             mapOf(
-                "groups" to groupsPreview,
-                "tracks" to tracksPreview,
-                "players" to playersPreview,
+                "groups" to allGroupsPreview,
+                "tracks" to allTracksPreview,
+                "players" to allPlayersPreview,
                 "groupPermissions" to groupPermissionsPreview,
                 "userPermissions" to userPermissionsPreview,
                 "totalGroupCount" to luckPermsData.groups.size,
+                "panoOnlyGroupCount" to panoOnlyGroups.size,
                 "newGroupCount" to newGroupCount,
                 "existingGroupCount" to existingGroupCount,
                 "totalTrackCount" to luckPermsData.tracks.size,
+                "panoOnlyTrackCount" to panoOnlyTracks.size,
                 "totalPlayerCount" to luckPermsData.players.size,
+                "panoOnlyPlayerCount" to panoOnlyPlayers.size,
                 "panoPlayerCount" to playersPreview.count { it["existsInPano"] == true },
                 "creatablePlayerCount" to creatablePlayerCount,
                 // The nodes Pano already holds for the groups and players in this import, in the same
@@ -284,9 +424,15 @@ class PanelLuckPermsMigrationUploadAPI(
                 "existingGroupNodes" to existingGroupNodes.mapValues { entry ->
                     entry.value.map { toNodeMap(it) }
                 },
-                "existingUserNodes" to userIdByUsername.entries.mapNotNull { (username, id) ->
-                    existingUserNodes[id]?.let { nodes -> username to nodes.map { toNodeMap(it) } }
-                }.toMap(),
+                "existingUserNodes" to (
+                        userIdByUsername.entries.mapNotNull { (username, id) ->
+                            existingUserNodes[id]?.let { nodes -> username to nodes.map { toNodeMap(it) } }
+                        } + panoOnlyUsernames.mapNotNull { (id, username) ->
+                            existingUserNodes[id]?.let { nodes ->
+                                username.lowercase() to nodes.map { toNodeMap(it) }
+                            }
+                        }
+                        ).toMap(),
                 "storageMethod" to storageMethod,
                 "tablePrefix" to tablePrefix,
                 "existingPanoGroupCount" to existingGroups.size,

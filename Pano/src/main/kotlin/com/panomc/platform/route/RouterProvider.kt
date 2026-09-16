@@ -112,6 +112,12 @@ class RouterProvider private constructor(
 
         uiManager.prepareUI(router)
 
+        // Order 6 sits right behind the theme proxy (5), so it only ever answers while no UI owns
+        // the wildcard route (boot, theme switch). See UIManager.uiUnavailableHandler for why 503/no-store.
+        router.route("/*")
+            .order(6)
+            .handler(UIManager.uiUnavailableHandler())
+
         router.route()
             .handler(SessionHandler.create(LocalSessionStore.create(vertx)))
 

@@ -19,6 +19,7 @@ import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.type.panel.PanoUpdateFoundNotification
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil
+import com.panomc.platform.util.NetworkFailureUtil
 import com.panomc.platform.util.ProgressWriteStream
 import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.util.VersionUtil
@@ -205,10 +206,10 @@ class UpdateManager(
         } catch (e: Exception) {
             if (background) {
                 if (!lastPlatformCheckFailed) {
-                    // First failure in a streak: log full ERROR with stacktrace so operators can
-                    // diagnose. Subsequent same-streak failures (every minute) drop to DEBUG so
-                    // GitHub being down for an hour does not produce 60 identical stacktraces.
-                    logger.error("Failed to check Pano updates!", e)
+                    // First failure in a streak gets the full report; subsequent same-streak
+                    // failures (every minute) drop to DEBUG so GitHub being down for an hour does
+                    // not produce 60 identical entries.
+                    logCheckFailure("Failed to check Pano updates", e)
                     lastPlatformCheckFailed = true
                 } else {
                     logger.debug("Pano update check still failing: {}", e.message)
@@ -216,9 +217,30 @@ class UpdateManager(
                 return
             }
 
-            e.printStackTrace()
+            logCheckFailure("Failed to check Pano updates", e)
+
             throw InternalServerError()
         }
+    }
+
+    /**
+     * Reports a failed update check as an operator-facing line rather than a stack dump.
+     *
+     * Being unable to reach api.github.com is an environment condition: the host is either offline
+     * or DNS-blocked, and the ~40 Vert.x/Netty frames behind that are identical every time and add
+     * nothing to "what failed and why". Those are reduced to one line, with the trace still
+     * available at DEBUG for anyone who wants it. Every other exception keeps its stack trace,
+     * because there the frames are the only thing that points at the bug.
+     */
+    private fun logCheckFailure(message: String, error: Throwable) {
+        if (!NetworkFailureUtil.isConnectivityFailure(error)) {
+            logger.error(message, error)
+
+            return
+        }
+
+        logger.error("{}: {}", message, NetworkFailureUtil.describe(error))
+        logger.debug(message, error)
     }
 
     private suspend fun deletePlatformUpdateInfo(background: Boolean) {
@@ -381,14 +403,16 @@ class UpdateManager(
                 return
             }
 
-            e.printStackTrace()
+            logCheckFailure("Failed to check resource updates", e)
+
             throw InternalServerError()
         } catch (e: Throwable) {
             if (background) {
                 return
             }
 
-            e.printStackTrace()
+            logCheckFailure("Failed to check resource updates", e)
+
             throw InternalServerError()
         }
     }

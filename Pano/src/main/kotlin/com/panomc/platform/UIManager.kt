@@ -16,11 +16,15 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
 import com.panomc.platform.util.annotation.StrictValidation
+import com.panomc.platform.util.ForwardedProtoInterceptor
+import com.panomc.platform.util.UpstreamRetryInterceptor
 import io.vertx.core.Future
+import io.vertx.core.Handler
 import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.http.RequestOptions
 import io.vertx.ext.web.Router
+import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
 import io.vertx.httpproxy.ProxyContext
@@ -99,7 +103,7 @@ class UIManager(
 
     private val githubUrl = "https://github.com"
 
-    private val bunVersion = "bun-v1.3.9"
+    private val bunVersion = "bun-v1.4.2"
     private val bunZipFileName by lazy {
         "bun-${Main.OPERATING_SYSTEM.name.lowercase()}-${Main.ARCHITECTURE.name.lowercase()}"
     }
@@ -412,6 +416,19 @@ class UIManager(
 
         environment["PORT"] = port.toString()
         environment["HOST"] = serverHost
+        // Built SvelteKit apps: production mode silences the theme's bot-noise error logging
+        // (405 form-action probes) and puts every library on its production path. Dev UIs are
+        // never spawned here (they run under vite from the theme repo), so this cannot leak
+        // into a dev server.
+        environment["NODE_ENV"] = "production"
+        // adapter-node derives event.url from these headers; without them it uses the Host
+        // header our proxy rewrote to the upstream port (and assumes https), so the app believed
+        // it lived at https://0.0.0.0:<port>. Both headers are set by any reverse proxy in front
+        // of Pano and, failing that, by our own proxy: vertx-http-proxy adds X-Forwarded-Host
+        // whenever it rewrites the authority, and ForwardedProtoInterceptor fills
+        // X-Forwarded-Proto from the inbound connection.
+        environment["PROTOCOL_HEADER"] = "x-forwarded-proto"
+        environment["HOST_HEADER"] = "x-forwarded-host"
         // The UI CONNECTS to this URL for SSR fetches. Wildcard LISTEN addresses
         // (0.0.0.0 / ::) are not connectable targets — Linux happens to route them to
         // loopback, but Windows/macOS refuse the connection outright, breaking every
@@ -1078,6 +1095,16 @@ class UIManager(
     }
 
     /**
+     * See [UpstreamRetryInterceptor]: re-sends GET/HEAD/OPTIONS when the Bun upstream drops the
+     * pooled connection before answering (the proxy's own 502 path is silent). One instance per
+     * proxy so the debug lines name the UI.
+     */
+    private fun upstreamRetryInterceptor(uiId: String) = UpstreamRetryInterceptor(logger, uiId)
+
+    /** See [ForwardedProtoInterceptor]: the UIs read `X-Forwarded-Proto` to learn their scheme. */
+    private val forwardedProtoInterceptor = ForwardedProtoInterceptor()
+
+    /**
      * Response-side cache policy stamped onto everything the UI reverse-proxies serve. The
      * Bun/SvelteKit upstreams only mark their own `/_app/immutable` assets; the rest ships
      * without Cache-Control, which lets intermediaries make bad guesses. Policy:
@@ -1090,6 +1117,10 @@ class UIManager(
      * - `/runtime/…` (and `/panel/runtime/…`) → immutable for a year, but ONLY when requested
      *   with the `?v=` cache-busting param the importmap appends; the bare stable URL must
      *   stay `no-cache` — its content changes across theme/panel releases.
+     * - Any NON-2xx answer on an asset path (`/_app/immutable`, `/lib`, `/runtime`, `/plugins`)
+     *   → `no-store`: an upstream 404/5xx for a script chunk must never be held by a CDN or
+     *   browser (Cloudflare keeps a bare 404 for 3 minutes), or every visitor of that edge gets
+     *   a dead page until it expires. 304s stay header-less, see below.
      *
      * Immutable is additionally gated on a 2xx status so an upstream error/404 on those
      * paths can never be pinned into caches for a year.
@@ -1102,32 +1133,13 @@ class UIManager(
         override fun handleProxyResponse(context: ProxyContext): Future<Void> {
             val response = context.response()
             val proxiedRequest = context.request().proxiedRequest()
-            val path = proxiedRequest.path() ?: ""
 
-            val contentType = response.headers().get("Content-Type")
-            val isSuccess = response.statusCode in 200..299
-
-            when {
-                contentType != null && contentType.contains("text/html", ignoreCase = true) ->
-                    response.putHeader("Cache-Control", "no-cache")
-
-                LIB_HASHED_PATH_REGEX.containsMatchIn(path) -> {
-                    if (isSuccess) {
-                        response.putHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL)
-                    }
-                }
-
-                RUNTIME_PATH_REGEX.containsMatchIn(path) -> {
-                    if (isSuccess && proxiedRequest.getParam("v") != null) {
-                        response.putHeader("Cache-Control", IMMUTABLE_CACHE_CONTROL)
-                    } else if (response.statusCode != 304) {
-                        // A bare 304 must stay header-less: per RFC 9111 clients freshen the
-                        // stored response with any headers on the 304, so stamping no-cache
-                        // here would permanently downgrade a correctly-immutable cache entry.
-                        response.putHeader("Cache-Control", "no-cache")
-                    }
-                }
-            }
+            uiCachePolicy(
+                path = proxiedRequest.path() ?: "",
+                statusCode = response.statusCode,
+                contentType = response.headers().get("Content-Type"),
+                hasVersionParam = proxiedRequest.getParam("v") != null
+            )?.let { response.putHeader("Cache-Control", it) }
 
             return context.sendResponse()
         }
@@ -1140,6 +1152,8 @@ class UIManager(
 
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         setupUI.addInterceptor(uiCacheControlInterceptor)
+        setupUI.addInterceptor(forwardedProtoInterceptor)
+        setupUI.addInterceptor(upstreamRetryInterceptor("setup-ui"))
 
         val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
@@ -1168,6 +1182,8 @@ class UIManager(
 
         val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         panelUI.addInterceptor(uiCacheControlInterceptor)
+        panelUI.addInterceptor(forwardedProtoInterceptor)
+        panelUI.addInterceptor(upstreamRetryInterceptor("panel-ui"))
 
         val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
 
@@ -1237,6 +1253,8 @@ class UIManager(
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         themeUI.addInterceptor(uiCacheControlInterceptor)
+        themeUI.addInterceptor(forwardedProtoInterceptor)
+        themeUI.addInterceptor(upstreamRetryInterceptor(id))
 
         val startedThemeUI = startedUIList.find { it.id == id }
         activeTheme = id
@@ -1329,6 +1347,60 @@ class UIManager(
         private const val UI_READINESS_POLL_INTERVAL_MS = 250L
 
         private const val IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+
+        /** Script/asset namespaces served by the UI upstreams (theme at `/`, panel at `/panel`). */
+        private val ASSET_PATH_REGEX = Regex("^(/panel)?/(_app/immutable/|lib/|runtime/|plugins/)")
+
+        /**
+         * The `Cache-Control` value to stamp on a UI upstream response, or null to leave it as the
+         * upstream sent it. Pure so the policy is unit-testable; see [uiCacheControlInterceptor].
+         */
+        internal fun uiCachePolicy(
+            path: String,
+            statusCode: Int,
+            contentType: String?,
+            hasVersionParam: Boolean
+        ): String? {
+            val isSuccess = statusCode in 200..299
+            val isHtml = contentType?.contains("text/html", ignoreCase = true) == true
+
+            return when {
+                // A 304 carries no body; any header on it would freshen the client's stored copy.
+                statusCode == 304 -> when {
+                    RUNTIME_PATH_REGEX.containsMatchIn(path) -> null
+                    isHtml -> "no-cache"
+                    else -> null
+                }
+
+                !isSuccess && ASSET_PATH_REGEX.containsMatchIn(path) -> "no-store"
+
+                isHtml -> "no-cache"
+
+                LIB_HASHED_PATH_REGEX.containsMatchIn(path) -> if (isSuccess) IMMUTABLE_CACHE_CONTROL else null
+
+                RUNTIME_PATH_REGEX.containsMatchIn(path) ->
+                    if (isSuccess && hasVersionParam) IMMUTABLE_CACHE_CONTROL else "no-cache"
+
+                else -> null
+            }
+        }
+
+        /**
+         * Catch-all behind the theme proxy route (order 5) for the moments no UI owns the wildcard
+         * route: boot until the theme is activated, and the window while an admin switches
+         * themes. Without it Vert.x answers its default 404 HTML with no cache headers, which
+         * CDNs cache (3 min on Cloudflare) and browsers show as a real "not found" — for a script
+         * chunk that kills hydration for everyone behind that edge. A 503 with `no-store` is
+         * retried, never cached.
+         */
+        fun uiUnavailableHandler(): Handler<RoutingContext> = Handler { context ->
+            context.response()
+                .setStatusCode(503)
+                .putHeader("Cache-Control", "no-store")
+                .putHeader("Retry-After", "2")
+                .putHeader("Content-Type", "text/plain; charset=utf-8")
+                .end("The site UI is starting; retry shortly.")
+        }
 
         /** Content-hashed bootstrap bundle dirs emitted by scripts/bundle-internal-libs.js. */
         private val LIB_HASHED_PATH_REGEX = Regex("^(/panel)?/lib/[0-9a-f]{16}/")

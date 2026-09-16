@@ -16,6 +16,7 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
 import com.panomc.platform.util.annotation.StrictValidation
+import com.panomc.platform.util.ForwardedProtoInterceptor
 import com.panomc.platform.util.UpstreamRetryInterceptor
 import io.vertx.core.Future
 import io.vertx.core.Handler
@@ -415,6 +416,19 @@ class UIManager(
 
         environment["PORT"] = port.toString()
         environment["HOST"] = serverHost
+        // Built SvelteKit apps: production mode silences the theme's bot-noise error logging
+        // (405 form-action probes) and puts every library on its production path. Dev UIs are
+        // never spawned here (they run under vite from the theme repo), so this cannot leak
+        // into a dev server.
+        environment["NODE_ENV"] = "production"
+        // adapter-node derives event.url from these headers; without them it uses the Host
+        // header our proxy rewrote to the upstream port (and assumes https), so the app believed
+        // it lived at https://0.0.0.0:<port>. Both headers are set by any reverse proxy in front
+        // of Pano and, failing that, by our own proxy: vertx-http-proxy adds X-Forwarded-Host
+        // whenever it rewrites the authority, and ForwardedProtoInterceptor fills
+        // X-Forwarded-Proto from the inbound connection.
+        environment["PROTOCOL_HEADER"] = "x-forwarded-proto"
+        environment["HOST_HEADER"] = "x-forwarded-host"
         // The UI CONNECTS to this URL for SSR fetches. Wildcard LISTEN addresses
         // (0.0.0.0 / ::) are not connectable targets — Linux happens to route them to
         // loopback, but Windows/macOS refuse the connection outright, breaking every
@@ -1087,6 +1101,9 @@ class UIManager(
      */
     private fun upstreamRetryInterceptor(uiId: String) = UpstreamRetryInterceptor(logger, uiId)
 
+    /** See [ForwardedProtoInterceptor]: the UIs read `X-Forwarded-Proto` to learn their scheme. */
+    private val forwardedProtoInterceptor = ForwardedProtoInterceptor()
+
     /**
      * Response-side cache policy stamped onto everything the UI reverse-proxies serve. The
      * Bun/SvelteKit upstreams only mark their own `/_app/immutable` assets; the rest ships
@@ -1135,6 +1152,7 @@ class UIManager(
 
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         setupUI.addInterceptor(uiCacheControlInterceptor)
+        setupUI.addInterceptor(forwardedProtoInterceptor)
         setupUI.addInterceptor(upstreamRetryInterceptor("setup-ui"))
 
         val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
@@ -1164,6 +1182,7 @@ class UIManager(
 
         val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         panelUI.addInterceptor(uiCacheControlInterceptor)
+        panelUI.addInterceptor(forwardedProtoInterceptor)
         panelUI.addInterceptor(upstreamRetryInterceptor("panel-ui"))
 
         val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
@@ -1234,6 +1253,7 @@ class UIManager(
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         themeUI.addInterceptor(uiCacheControlInterceptor)
+        themeUI.addInterceptor(forwardedProtoInterceptor)
         themeUI.addInterceptor(upstreamRetryInterceptor(id))
 
         val startedThemeUI = startedUIList.find { it.id == id }

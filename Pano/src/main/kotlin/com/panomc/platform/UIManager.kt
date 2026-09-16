@@ -16,6 +16,7 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
 import com.panomc.platform.util.annotation.StrictValidation
+import com.panomc.platform.util.UpstreamRetryInterceptor
 import io.vertx.core.Future
 import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpMethod
@@ -1078,6 +1079,13 @@ class UIManager(
     }
 
     /**
+     * See [UpstreamRetryInterceptor]: re-sends GET/HEAD/OPTIONS when the Bun upstream drops the
+     * pooled connection before answering (the proxy's own 502 path is silent). One instance per
+     * proxy so the debug lines name the UI.
+     */
+    private fun upstreamRetryInterceptor(uiId: String) = UpstreamRetryInterceptor(logger, uiId)
+
+    /**
      * Response-side cache policy stamped onto everything the UI reverse-proxies serve. The
      * Bun/SvelteKit upstreams only mark their own `/_app/immutable` assets; the rest ships
      * without Cache-Control, which lets intermediaries make bad guesses. Policy:
@@ -1140,6 +1148,7 @@ class UIManager(
 
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         setupUI.addInterceptor(uiCacheControlInterceptor)
+        setupUI.addInterceptor(upstreamRetryInterceptor("setup-ui"))
 
         val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
@@ -1168,6 +1177,7 @@ class UIManager(
 
         val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         panelUI.addInterceptor(uiCacheControlInterceptor)
+        panelUI.addInterceptor(upstreamRetryInterceptor("panel-ui"))
 
         val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
 
@@ -1237,6 +1247,7 @@ class UIManager(
 
         val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         themeUI.addInterceptor(uiCacheControlInterceptor)
+        themeUI.addInterceptor(upstreamRetryInterceptor(id))
 
         val startedThemeUI = startedUIList.find { it.id == id }
         activeTheme = id

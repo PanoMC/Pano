@@ -24,8 +24,10 @@ internal enum class RedirectDecision {
     SKIP_UNTRUSTED_PROXY
 }
 
-// Cookies are scoped to the website-url host (AuthProvider), so a browser arriving on a different
-// host has its auth cookie rejected. Bouncing it to the canonical host fixes that.
+// Canonical-host redirect: a browser arriving on an alias (www., a bare IP, an old domain) is bounced
+// to website-url so every visitor shares one origin — one session, one URL for search engines. Auth
+// cookies are host-only (AuthProvider) and work on any host, so this is about consistency, not about
+// making login work; `website-url-redirect: false` switches it off.
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -129,13 +131,19 @@ class WebsiteUrlRedirectHandler(
             // WebSocket upgrades and EventSource streams can't follow 307s usefully.
             if (upgradeHeader?.lowercase() == "websocket") return RedirectDecision.PASS
 
+            val configuredHost = WebsiteUrlUtil.host(websiteUrl) ?: return RedirectDecision.PASS
+
+            // A website-url naming the machine itself (localhost, a LAN or VPN address) is not a public
+            // canonical host: bouncing a tunnel (ngrok, cloudflared) or LAN visitor there would send
+            // them to their own computer. Serve whatever host they came in on.
+            if (WebsiteUrlUtil.isNonPublicHost(configuredHost)) return RedirectDecision.PASS
+
             if (clientIp != null && isLoopbackIp(clientIp)) return RedirectDecision.PASS
 
             if (socketPeerIp != null && isLoopbackIp(socketPeerIp) && forwardedHost.isNullOrBlank()) {
                 return RedirectDecision.SKIP_UNTRUSTED_PROXY
             }
 
-            val configuredHost = WebsiteUrlUtil.host(websiteUrl) ?: return RedirectDecision.PASS
             val requestHostRaw = forwardedHost?.takeIf { it.isNotBlank() }
                 ?: hostHeader
                 ?: return RedirectDecision.PASS

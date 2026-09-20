@@ -15,9 +15,11 @@ import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.Regexes
 import com.panomc.platform.util.TextUtil
+import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.core.http.Cookie
 import io.vertx.core.http.CookieSameSite
 import io.vertx.core.http.HttpServerRequest
+import io.vertx.core.http.HttpServerResponse
 import io.vertx.ext.web.RoutingContext
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -203,25 +205,33 @@ class AuthProvider(
         return token
     }
 
+    /**
+     * Auth cookies are host-only (no `Domain` attribute): the browser returns them to exactly the
+     * host that issued them, so a visitor can reach Pano through any hostname — the configured
+     * website-url, a LAN address, a tunnel such as ngrok — and log in there. A `Domain` attribute
+     * would only widen the cookie to every subdomain, which nothing in Pano needs.
+     */
     fun setCookies(
         routingContext: RoutingContext, authToken: String, csrfToken: String
     ): Boolean {
         val response = routingContext.response()
         val request = routingContext.request()
-        val domain = resolveCookieDomain(routingContext)
         val isSecure = effectiveConnectionIsSecure(request)
 
         val authTokenCookie = Cookie.cookie(getJwtCookieName(isSecure), authToken)
         val csrfTokenCookie = Cookie.cookie(getCsrfCookieName(isSecure), csrfToken)
 
         listOf(authTokenCookie, csrfTokenCookie).forEach { cookie ->
-            domain?.let { cookie.domain = it }
             cookie.maxAge = 7776000
             cookie.path = "/"
             cookie.isSecure = isSecure
             cookie.isHttpOnly = true
             cookie.sameSite = CookieSameSite.LAX
         }
+
+        // Before the fresh cookies, so a browser that (per a literal RFC 6265 reading) treats the
+        // legacy domain cookie and the host-only one as the same entry still ends up with the new one.
+        expireLegacyDomainCookies(response, authCookieNames)
 
         response.addCookie(authTokenCookie)
         response.addCookie(csrfTokenCookie)
@@ -231,22 +241,10 @@ class AuthProvider(
 
     fun clearCookies(routingContext: RoutingContext): Boolean {
         val response = routingContext.response()
-        val domain = resolveCookieDomain(routingContext)
+        val names = authCookieNames + maintenanceSkipCookieNames
 
-        listOf(
-            getJwtCookieName(true),
-            getCsrfCookieName(true),
-            getJwtCookieName(false),
-            getCsrfCookieName(false),
-            getMaintenanceSkipCookieName(true),
-            getMaintenanceSkipCookieName(false)
-        ).forEach { cookieName ->
-            val cookie = Cookie.cookie(cookieName, "deleted")
-            domain?.let { cookie.domain = it }
-            cookie.maxAge = 0
-            cookie.path = "/"
-            response.addCookie(cookie)
-        }
+        names.forEach { response.addCookie(expiredCookie(it)) }
+        expireLegacyDomainCookies(response, names)
 
         return true
     }
@@ -259,12 +257,10 @@ class AuthProvider(
     fun setMaintenanceSkipCookie(routingContext: RoutingContext): Boolean {
         val response = routingContext.response()
         val request = routingContext.request()
-        val domain = resolveCookieDomain(routingContext)
         val isSecure = effectiveConnectionIsSecure(request)
 
         val cookie = Cookie.cookie(getMaintenanceSkipCookieName(isSecure), "1")
 
-        domain?.let { cookie.domain = it }
         // No max-age: the gate spends the cookie on the navigation it was granted for, so this is
         // only the backstop for a request that never reaches the gate.
         cookie.path = "/"
@@ -279,18 +275,9 @@ class AuthProvider(
 
     fun clearMaintenanceSkipCookie(routingContext: RoutingContext): Boolean {
         val response = routingContext.response()
-        val domain = resolveCookieDomain(routingContext)
 
-        listOf(
-            getMaintenanceSkipCookieName(true),
-            getMaintenanceSkipCookieName(false)
-        ).forEach { cookieName ->
-            val cookie = Cookie.cookie(cookieName, "deleted")
-            domain?.let { cookie.domain = it }
-            cookie.maxAge = 0
-            cookie.path = "/"
-            response.addCookie(cookie)
-        }
+        maintenanceSkipCookieNames.forEach { response.addCookie(expiredCookie(it)) }
+        expireLegacyDomainCookies(response, maintenanceSkipCookieNames)
 
         return true
     }
@@ -365,35 +352,32 @@ class AuthProvider(
         }
     }
 
-    private fun resolveCookieDomain(routingContext: RoutingContext): String? {
-        val remoteIP = getRemoteIP(routingContext)
+    private fun expiredCookie(name: String, domain: String? = null): Cookie {
+        val cookie = Cookie.cookie(name, "deleted")
+        domain?.let { cookie.domain = it }
+        cookie.maxAge = 0
+        cookie.path = "/"
+        return cookie
+    }
 
-        if (remoteIP == null || remoteIP == "127.0.0.1" || remoteIP == "::1" || remoteIP == "localhost") {
-            return null
-        }
+    /**
+     * Earlier releases issued these cookies with `Domain=.<website-url host>`. Browsers keep such a
+     * domain cookie next to a host-only cookie of the same name and send both, so a stale copy could
+     * shadow the fresh token until it expired (90 days). Expire it explicitly whenever cookies are
+     * issued or cleared; a browser ignores the attribute when the request host is not under that
+     * domain. Safe to drop once every install has cycled through a login on a newer release.
+     */
+    private fun expireLegacyDomainCookies(response: HttpServerResponse, names: List<String>) {
+        val domain = legacyCookieDomain() ?: return
+        names.forEach { response.addCookie(expiredCookie(it, domain)) }
+    }
 
-        val websiteUrl = configManager.config.websiteUrl
-        if (websiteUrl.isEmpty()) {
-            return null
-        }
-
-        return try {
-            val websiteHost = websiteUrl
-                .replace("http://", "")
-                .replace("https://", "")
-                .split("/")
-                .first()
-                .split(":")
-                .first()
-
-            if (websiteHost.isNotEmpty() && websiteHost != "localhost" && websiteHost != "127.0.0.1") {
-                ".$websiteHost"
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            null
-        }
+    private fun legacyCookieDomain(): String? {
+        val host = WebsiteUrlUtil.host(configManager.config.websiteUrl) ?: return null
+        // The old code produced no usable Domain for these (browsers store an IP-literal Domain as
+        // host-only anyway), so there is nothing distinct to expire.
+        if (host == "localhost" || WebsiteUrlUtil.isIpLiteral(host)) return null
+        return ".$host"
     }
 
     fun getRemoteIP(routingContext: RoutingContext): String {
@@ -507,6 +491,20 @@ class AuthProvider(
             null
         }
     }
+
+    private val authCookieNames: List<String>
+        get() = listOf(
+            getJwtCookieName(true),
+            getCsrfCookieName(true),
+            getJwtCookieName(false),
+            getCsrfCookieName(false)
+        )
+
+    private val maintenanceSkipCookieNames: List<String>
+        get() = listOf(
+            getMaintenanceSkipCookieName(true),
+            getMaintenanceSkipCookieName(false)
+        )
 
     private fun getJwtCookieName(secureVariant: Boolean): String {
         val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX

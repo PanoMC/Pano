@@ -102,6 +102,40 @@ class WebsiteUrlRedirectHandlerTest {
     }
 
     @Test
+    fun `passes when website url is localhost and a tunnel forwards its public host`() {
+        // ngrok / cloudflared: socket peer is loopback, X-Forwarded-Host carries the tunnel hostname.
+        assertEquals(
+            RedirectDecision.PASS,
+            decide(
+                websiteUrl = "http://localhost:8090",
+                socketPeerIp = "127.0.0.1",
+                forwardedHost = "abcd-1-2-3-4.ngrok-free.app",
+                hostHeader = "abcd-1-2-3-4.ngrok-free.app"
+            )
+        )
+    }
+
+    @Test
+    fun `passes when website url is a private lan address`() {
+        assertEquals(
+            RedirectDecision.PASS,
+            decide(websiteUrl = "http://192.168.1.10:8090", hostHeader = "other.com")
+        )
+    }
+
+    @Test
+    fun `still redirects when website url is public`() {
+        assertEquals(
+            RedirectDecision.REDIRECT,
+            decide(
+                socketPeerIp = "127.0.0.1",
+                forwardedHost = "abcd-1-2-3-4.ngrok-free.app",
+                hostHeader = "abcd-1-2-3-4.ngrok-free.app"
+            )
+        )
+    }
+
+    @Test
     fun `redirects direct request with mismatching host`() {
         assertEquals(RedirectDecision.REDIRECT, decide(hostHeader = "www.tealmc.com"))
     }

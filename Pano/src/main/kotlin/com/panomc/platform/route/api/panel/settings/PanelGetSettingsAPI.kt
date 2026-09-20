@@ -89,6 +89,9 @@ class PanelGetSettingsAPI(
             result["allowUserLocaleSelection"] = configManager.config.allowUserLocaleSelection
             result["developmentMode"] = configManager.config.developmentMode
 
+            // Null when the block was hand-removed from config.conf; reporting is on by default.
+            result["telemetryEnabled"] = configManager.config.telemetry?.enabled ?: true
+
             val emailConfig = configManager.config.email
 
             val email = JsonObject.mapFrom(emailConfig)

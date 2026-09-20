@@ -101,6 +101,7 @@ class PanelUpdateSettingsAPI(
                         .optionalProperty("locale", stringSchema())
                         .optionalProperty("allowUserLocaleSelection", booleanSchema())
                         .optionalProperty("developmentMode", booleanSchema())
+                        .optionalProperty("telemetryEnabled", booleanSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("websiteUrl", stringSchema())
@@ -171,6 +172,7 @@ class PanelUpdateSettingsAPI(
         val locale = data.getString("locale")
         val allowUserLocaleSelection = data.getBoolean("allowUserLocaleSelection")
         val developmentMode = data.getBoolean("developmentMode")
+        val telemetryEnabled = data.getBoolean("telemetryEnabled")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
         val websiteUrl = data.getString("websiteUrl")
@@ -292,6 +294,15 @@ class PanelUpdateSettingsAPI(
             // If development mode is toggled, clear any previous dismissals so they reappear for all users
             val option = "dismissed_dev_mode_alert"
             databaseManager.panelConfigDao.deleteByOption(option, sqlClient)
+        }
+
+        if (telemetryEnabled != null) {
+            // A hand-deleted `telemetry { }` block deserialises to null through Gson's Unsafe path
+            // even though the config already sits on a version whose migration wrote it.
+            val telemetryConfig = configManager.config.telemetry
+                ?: PanoConfig.Companion.TelemetryConfig().also { configManager.config.telemetry = it }
+
+            telemetryConfig.enabled = telemetryEnabled
         }
 
         if (websiteName != null) {
@@ -481,7 +492,7 @@ class PanelUpdateSettingsAPI(
             }
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null || maintenance != null) {
+        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || telemetryEnabled != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null || maintenance != null) {
             configManager.saveConfig()
         }
 

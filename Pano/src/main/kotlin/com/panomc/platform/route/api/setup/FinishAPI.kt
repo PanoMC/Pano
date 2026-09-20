@@ -7,6 +7,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.InstalledPlatformLog
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.i18n.I18nManager
@@ -51,6 +52,9 @@ class FinishAPI(
                             "setupLocale",
                             enumSchema(*AVAILABLE_LOCALES.toTypedArray())
                         )
+                        // Absent means the wizard is an older setup-ui build that never asked:
+                        // usage data stays on, which is the documented default.
+                        .optionalProperty("telemetryEnabled", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -68,6 +72,7 @@ class FinishAPI(
         val email = data.getString("email")
         val password = data.getString("password")
         val setupLocale = data.getString("setupLocale")
+        val telemetryEnabled = data.getBoolean("telemetryEnabled") ?: true
 
         val remoteIP = authProvider.getRemoteIP(context)
 
@@ -102,6 +107,11 @@ class FinishAPI(
         val token = authProvider.login(username, context, sqlClient)
 
         configManager.config.locale = setupLocale
+
+        val telemetryConfig = configManager.config.telemetry
+            ?: PanoConfig.Companion.TelemetryConfig().also { configManager.config.telemetry = it }
+
+        telemetryConfig.enabled = telemetryEnabled
 
         configManager.saveConfig()
 

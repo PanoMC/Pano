@@ -423,6 +423,8 @@ class Main : CoroutineVerticle() {
 
             initUpdateManager()
 
+            initTelemetryManager()
+
             initOnlinePlayerTracker()
 
             initLicenseManager()
@@ -471,6 +473,14 @@ class Main : CoroutineVerticle() {
         val updateManager = applicationContext.getBean(UpdateManager::class.java)
 
         updateManager.init()
+    }
+
+    private fun initTelemetryManager() {
+        logger.info("Initializing telemetry manager")
+
+        val telemetryManager = applicationContext.getBean(TelemetryManager::class.java)
+
+        telemetryManager.init()
     }
 
     private fun initOnlinePlayerTracker() {

@@ -147,6 +147,25 @@ data class PanoConfig(
     // at runtime no matter what the Kotlin type says. Callers must read it with a safe call and
     // fall back to the default, same as ServerManager does.
     @SerializedName("mc-server-connection") var mcServerConnection: McServerConnectionConfig? = McServerConnectionConfig(),
+
+    @ConfigSection("Telemetry")
+    @ConfigComment(
+        "Pano sends usage data to panomc.com once a day so we can see which versions, themes and",
+        "plugins are actually in use and spend our time on what people really run.",
+        "Sent: an anonymous install id, the Pano version, stage and release channel, the runtime",
+        "(Java version, operating system, architecture, CPU cores, max memory), your website URL",
+        "and its domain, the active theme plus the installed plugin/theme inventory, and aggregate",
+        "counts (users, posts, open tickets, Minecraft servers, online players).",
+        "Never sent: usernames, e-mail addresses, IP addresses, passwords or any site content.",
+        "Set enabled = false to opt out. Panel -> Settings writes this same key.",
+        "Details: https://panomc.com/docs/platform/configuration/telemetry/"
+    )
+    // Nullable for the same reason as mc-server-connection above: a config.conf that already has
+    // config-version = 29 (so ConfigMigration28To29 never runs) but is missing this block --
+    // hand-edited, partially merged, or restored from a backup with the version bumped -- still
+    // deserialises this field to null. Callers must read it with a safe call and default to
+    // enabled, the same way TelemetryManager does.
+    @SerializedName("telemetry") var telemetry: TelemetryConfig? = TelemetryConfig(),
 ) {
     /**
      * JWT `iss` plugins expect when verifying license tokens. No extra config key: uses the
@@ -365,6 +384,11 @@ data class PanoConfig(
                 const val DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 75
             }
         }
+
+        data class TelemetryConfig(
+            @ConfigComment("Set to false to stop sending usage data. No other key is needed to opt out.")
+            @SerializedName("enabled") var enabled: Boolean = true
+        )
 
         enum class SslMode {
             DISABLED,

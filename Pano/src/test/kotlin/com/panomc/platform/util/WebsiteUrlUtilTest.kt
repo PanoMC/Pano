@@ -1,6 +1,8 @@
 package com.panomc.platform.util
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
@@ -96,5 +98,30 @@ class WebsiteUrlUtilTest {
         assertEquals("tealmc.com", WebsiteUrlUtil.stripPort("tealmc.com:8090"))
         assertEquals("[::1]", WebsiteUrlUtil.stripPort("[::1]:8080"))
         assertEquals("tealmc.com", WebsiteUrlUtil.stripPort("tealmc.com"))
+    }
+
+    @Test
+    fun `isNonPublicHost recognises local names and private ranges`() {
+        listOf(
+            "localhost", "LOCALHOST", "pano.localhost", "mypc.local", "0.0.0.0",
+            "127.0.0.1", "127.5.5.5", "10.0.0.1", "172.16.0.1", "172.31.255.255",
+            "192.168.1.1", "169.254.1.1", "100.64.0.1", "100.127.255.255",
+            "::1", "[::1]", "::", "fe80::1", "fd12::1", "fc00::1", "::ffff:192.168.1.1"
+        ).forEach { assertTrue(WebsiteUrlUtil.isNonPublicHost(it), it) }
+    }
+
+    @Test
+    fun `isNonPublicHost leaves public hosts alone`() {
+        listOf(
+            "tealmc.com", "abcd-1-2-3-4.ngrok-free.app", "localhost.example.com", "8.8.8.8",
+            "11.0.0.1", "172.32.0.1", "172.15.0.1", "192.169.0.1", "100.128.0.1", "100.63.255.255",
+            "2606:4700::1", "::ffff:8.8.8.8", ""
+        ).forEach { assertFalse(WebsiteUrlUtil.isNonPublicHost(it), it) }
+    }
+
+    @Test
+    fun `isIpLiteral distinguishes addresses from names`() {
+        listOf("1.2.3.4", "::1", "[::1]", "127.0.0.1").forEach { assertTrue(WebsiteUrlUtil.isIpLiteral(it), it) }
+        listOf("tealmc.com", "1.2.3", "999.1.1.1", "localhost").forEach { assertFalse(WebsiteUrlUtil.isIpLiteral(it), it) }
     }
 }

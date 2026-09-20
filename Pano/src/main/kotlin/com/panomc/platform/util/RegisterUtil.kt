@@ -13,6 +13,12 @@ import java.util.*
 
 object RegisterUtil {
 
+    /**
+     * `system_property` key holding the id of the admin the setup wizard created. Also read by
+     * TelemetryManager to date the installation.
+     */
+    const val WHO_INSTALLED_USER_ID = "who_installed_user_id"
+
     fun validateForm(
         username: String? = null,
         email: String,
@@ -138,7 +144,7 @@ object RegisterUtil {
             active = true
         ), sqlClient)
 
-        val property = SystemProperty(option = "who_installed_user_id", value = userId.toString())
+        val property = SystemProperty(option = WHO_INSTALLED_USER_ID, value = userId.toString())
 
         val isPropertyExists = databaseManager.systemPropertyDao.existsByOption(
             property.option,

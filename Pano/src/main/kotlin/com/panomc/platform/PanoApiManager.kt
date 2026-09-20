@@ -59,6 +59,9 @@ class PanoApiManager(
 
     companion object {
         private const val HEADER_PREFIX = "Bearer "
+
+        /** Usage data is fire-and-forget, so it never waits long on a slow or unreachable API. */
+        private const val TELEMETRY_TIMEOUT_MS = 10_000L
     }
 
     private val uiManager: UIManager by lazy {
@@ -90,13 +93,18 @@ class PanoApiManager(
         return panoAccountConfig.connect != null
     }
 
-    fun createRequest(httpMethod: HttpMethod, uri: String): HttpRequest<Buffer> {
+    /**
+     * Builds a request against the Pano API. [authenticated] defaults to true, which attaches the
+     * connected account's bearer token when there is one; pass false for endpoints that are
+     * deliberately install scoped rather than account scoped (see [sendTelemetry]).
+     */
+    fun createRequest(httpMethod: HttpMethod, uri: String, authenticated: Boolean = true): HttpRequest<Buffer> {
         val panoApiUrl = configManager.config.panoApiUrl
 
         val request = webClient
             .requestAbs(httpMethod, panoApiUrl + uri)
 
-        if (isConnected()) {
+        if (authenticated && isConnected()) {
             val panoAccountConfig = getPanoAccountConfig()
 
             request.putHeader("Authorization", HEADER_PREFIX + panoAccountConfig.accessToken)
@@ -428,6 +436,26 @@ class PanoApiManager(
             }
         } catch (_: Exception) {
             throw PanoConnectFailed()
+        }
+    }
+
+    /**
+     * Posts the daily usage-data heartbeat built by TelemetryManager. Deliberately sent without
+     * the bearer token even when an account is connected: the payload describes the installation,
+     * not the account, and must stay identical for connected and unconnected installs.
+     *
+     * Throws on a network failure or any non-2xx status; the caller logs and retries later.
+     */
+    suspend fun sendTelemetry(payload: JsonObject) {
+        val response = createRequest(HttpMethod.POST, "/telemetry/heartbeat", authenticated = false)
+            .timeout(TELEMETRY_TIMEOUT_MS)
+            .sendJson(payload)
+            .coAwait()
+
+        val statusCode = response.statusCode()
+
+        if (statusCode < 200 || statusCode > 299) {
+            throw IllegalStateException("Pano API answered the telemetry heartbeat with $statusCode")
         }
     }
 

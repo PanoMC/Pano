@@ -229,8 +229,10 @@ class AuthProvider(
             cookie.sameSite = CookieSameSite.LAX
         }
 
-        // Before the fresh cookies, so a browser that (per a literal RFC 6265 reading) treats the
-        // legacy domain cookie and the host-only one as the same entry still ends up with the new one.
+        // Vert.x emits Set-Cookie sorted by (name, domain, path), so the fresh host-only cookie always
+        // precedes this Domain-scoped expiry. That is fine: browsers key a domain cookie separately
+        // from a host-only one of the same name (leading dot), so the expiry never touches the new
+        // cookie — it only removes the legacy copy.
         expireLegacyDomainCookies(response, authCookieNames)
 
         response.addCookie(authTokenCookie)

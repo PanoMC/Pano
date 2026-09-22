@@ -8,6 +8,7 @@ import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
+import com.panomc.platform.server.feature.ServerFeatureResolver
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -19,7 +20,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 class PanelGetServerAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id", RouteType.GET))
 
@@ -45,7 +47,7 @@ class PanelGetServerAPI(
 
         return Successful(
             mapOf(
-                "server" to server,
+                "server" to serverFeatureResolver.toPublicJsonObject(server),
                 "requireEmailVerification" to requireEmailVerification
             )
         )

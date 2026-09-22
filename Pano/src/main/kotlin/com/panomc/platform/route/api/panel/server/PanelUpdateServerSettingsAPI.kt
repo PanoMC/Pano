@@ -5,6 +5,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NotFound
@@ -12,6 +13,7 @@ import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.response.GetServerSettingsEventResponse
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -37,13 +39,18 @@ class PanelUpdateServerSettingsAPI(
             .body(
                 json(
                     objectSchema()
+                        // Every field optional: the game-integration page sends its five switches,
+                        // the preferences page sends `autoUpdateCheck` alone (SM-69), and whatever
+                        // a request leaves out keeps its stored value -- so neither page can
+                        // overwrite the other's switches with a stale copy.
                         .optionalProperty(
                             "settings", objectSchema()
-                                .requiredProperty("authIntegration", booleanSchema())
-                                .requiredProperty("authRequireVerified", booleanSchema())
-                                .requiredProperty("authKickAfterRegister", booleanSchema())
-                                .requiredProperty("banIntegration", booleanSchema())
-                                .requiredProperty("permissionIntegration", booleanSchema())
+                                .optionalProperty("authIntegration", booleanSchema())
+                                .optionalProperty("authRequireVerified", booleanSchema())
+                                .optionalProperty("authKickAfterRegister", booleanSchema())
+                                .optionalProperty("banIntegration", booleanSchema())
+                                .optionalProperty("permissionIntegration", booleanSchema())
+                                .optionalProperty("autoUpdateCheck", booleanSchema())
                         )
                         .optionalProperty("customName", stringSchema())
                 )
@@ -86,19 +93,21 @@ class PanelUpdateServerSettingsAPI(
         if (settings != null) {
             val serverSettings = server.settings
 
-            serverSettings.authIntegration = settings.getBoolean("authIntegration")
-            serverSettings.authRequireVerified = settings.getBoolean("authRequireVerified")
-            serverSettings.authKickAfterRegister = settings.getBoolean("authKickAfterRegister")
-            serverSettings.banIntegration = settings.getBoolean("banIntegration")
-            serverSettings.permissionIntegration = settings.getBoolean("permissionIntegration")
+            applySettings(serverSettings, settings)
 
             databaseManager.serverDao.updateSettingsById(serverSettings, id, sqlClient)
 
             val foundServer = serverManager.connectedServers.keys.find { it.id == id }
 
             if (foundServer != null) {
+                // Kept in step even when nothing the plugin reads changed: the connected entity is
+                // what the next save starts from.
                 foundServer.settings = serverSettings
+            }
 
+            // The plugin is only told about the switches it acts on; a request that changed
+            // nothing but `autoUpdateCheck` is none of its business.
+            if (foundServer != null && PLUGIN_SETTINGS.any { settings.containsKey(it) }) {
                 val platformLocale = configManager.config.locale
                 val translationsByLocale = i18nManager.getTranslationsByLocale(TranslationType.MC_PLUGIN)
 
@@ -119,5 +128,31 @@ class PanelUpdateServerSettingsAPI(
         }
 
         return Successful()
+    }
+
+    companion object {
+        /** The fields the Minecraft plugin acts on, which it is re-sent whenever one of them is. */
+        val PLUGIN_SETTINGS = listOf(
+            "authIntegration",
+            "authRequireVerified",
+            "authKickAfterRegister",
+            "banIntegration",
+            "permissionIntegration"
+        )
+
+        /**
+         * Copies a `settings` body onto the stored settings.
+         *
+         * A field the body does not carry keeps its stored value: an older panel that never heard
+         * of `autoUpdateCheck` sends the five integration switches and must not reset the sixth.
+         */
+        fun applySettings(target: Server.Companion.ServerSettings, body: JsonObject) {
+            target.authIntegration = body.getBoolean("authIntegration", target.authIntegration)
+            target.authRequireVerified = body.getBoolean("authRequireVerified", target.authRequireVerified)
+            target.authKickAfterRegister = body.getBoolean("authKickAfterRegister", target.authKickAfterRegister)
+            target.banIntegration = body.getBoolean("banIntegration", target.banIntegration)
+            target.permissionIntegration = body.getBoolean("permissionIntegration", target.permissionIntegration)
+            target.autoUpdateCheck = body.getBoolean("autoUpdateCheck", target.autoUpdateCheck)
+        }
     }
 }

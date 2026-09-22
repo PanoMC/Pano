@@ -583,6 +583,51 @@ class AuthProvider(
         }
     }
 
+    /**
+     * Same as [hasPermission], but scoped to a single server.
+     *
+     * Admins keep their bypass. Otherwise the permission is granted when the user holds the node
+     * globally or holds it with a context scoped to [serverId]. See [PermissionServerScope].
+     */
+    suspend fun hasPermission(permission: Permission, context: RoutingContext, serverId: Long): Boolean {
+        val userId = getUserIdFromRoutingContext(context)
+
+        val isAdmin = context.get<Boolean>("isAdmin")
+
+        if (isAdmin != null && isAdmin) {
+            return true
+        }
+
+        return permissionManager.hasPermission(userId, permission, serverId)
+    }
+
+    /** Same as [requirePermission], but scoped to a single server. */
+    suspend fun requirePermission(permission: Permission, context: RoutingContext, serverId: Long) {
+        if (!hasPermission(permission, context, serverId)) {
+            throw NoPermission()
+        }
+    }
+
+    /**
+     * Requires at least one of [permissions] globally.
+     *
+     * For endpoints that serve more than one audience — task progress is read both by the person
+     * who started an install and by whoever looks after the nodes — so neither has to be given a
+     * permission that says more than it means.
+     */
+    suspend fun requireAnyPermission(context: RoutingContext, vararg permissions: Permission) {
+        if (permissions.none { hasPermission(it, context) }) {
+            throw NoPermission()
+        }
+    }
+
+    /** Requires at least one of [permissions] for [serverId]. */
+    suspend fun requireAnyPermission(context: RoutingContext, serverId: Long, vararg permissions: Permission) {
+        if (permissions.none { hasPermission(it, context, serverId) }) {
+            throw NoPermission()
+        }
+    }
+
     suspend fun requirePassword(password: String?, context: RoutingContext) {
         if (password == null) {
             throw NoPermission()

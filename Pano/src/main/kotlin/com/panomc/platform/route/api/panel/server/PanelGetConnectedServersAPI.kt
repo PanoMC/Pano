@@ -6,13 +6,15 @@ import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.model.*
+import com.panomc.platform.server.feature.ServerFeatureResolver
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class PanelGetConnectedServersAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers", RouteType.GET))
 
@@ -60,9 +62,9 @@ class PanelGetConnectedServersAPI(
 
         return Successful(
             mapOf(
-                "servers" to orderedAll,
-                "pinned" to pinned,
-                "otherServers" to otherServers
+                "servers" to orderedAll.map { serverFeatureResolver.toPublicJsonObject(it) },
+                "pinned" to pinned.map { serverFeatureResolver.toPublicJsonObject(it) },
+                "otherServers" to otherServers.map { serverFeatureResolver.toPublicJsonObject(it) }
             )
         )
     }

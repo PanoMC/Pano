@@ -2,7 +2,11 @@ package com.panomc.platform
 
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.auth.panel.log.SentServerCommandLog
+import com.panomc.platform.db.model.PanelActivityLog
 import com.panomc.platform.db.model.SystemProperty
+import com.panomc.platform.node.NodeStatus
+import com.panomc.platform.server.ServerKind
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.RegisterUtil
 import com.panomc.platform.util.WebsiteUrlUtil
@@ -55,8 +59,19 @@ class TelemetryManager(
         /** Epoch millis of the last successful heartbeat. Absent means "never sent". */
         const val TELEMETRY_LAST_SENT_AT = "telemetry_last_sent_at"
 
-        /** Payload shape version. Bump it whenever a field is added, renamed or removed. */
+        /**
+         * Payload shape version. Bump it whenever a field is **renamed or removed**.
+         *
+         * Not for a new optional object: the receiving API pins this number exactly (anything
+         * other than its `SUPPORTED_SCHEMA_VERSION` is rejected outright) while its body schema
+         * allows properties it does not declare. So an additive field reaches an API that has not
+         * been redeployed yet and is simply ignored there, whereas bumping the number would make
+         * every install in the world stop reporting until that deploy happened.
+         */
         private const val SCHEMA_VERSION = 1
+
+        /** How far back the "last 24 hours" counters look. */
+        private const val ACTIVITY_WINDOW_MS = 24L * 60L * 60L * 1000L
 
         private const val CHECK_INTERVAL_MS = 60_000L
 
@@ -75,6 +90,9 @@ class TelemetryManager(
         private const val LOCAL_BUILD_VERSION = "local-build"
 
         private const val DOCS_URL = "https://panomc.com/docs/platform/configuration/telemetry/"
+
+        /** Derived from the log class, so a rename cannot silently zero the counter. */
+        private val CONSOLE_COMMAND_LOG_TYPE = PanelActivityLog.typeOf(SentServerCommandLog::class.java)
     }
 
     private val uiManager: UIManager by lazy {
@@ -255,6 +273,7 @@ class TelemetryManager(
         .put("theme", buildTheme())
         .put("plugins", buildPlugins())
         .put("usage", buildUsage())
+        .put("serverManagement", buildServerManagement())
         .put("connected", safely("connected", false) { panoApiManager.isConnected() })
         .put("setupAt", resolveSetupAt())
 
@@ -346,6 +365,61 @@ class TelemetryManager(
         usage.put("onlinePlayers", count("onlinePlayers") { databaseManager.userDao.countOfOnline(sqlClient) })
 
         return usage
+    }
+
+    /**
+     * What this install actually does with server management (SM-18, §2.4.12).
+     *
+     * Counts only: how many servers of each kind, how many nodes, and how much the two features
+     * that cost real work — console commands and backups — were used in the last day. Nothing
+     * here identifies a server, a node or a person; a name, an address or a software version
+     * would say more about somebody's infrastructure than a usage counter needs to.
+     *
+     * The point of the two windowed counters is the difference between installed and used: a
+     * platform with four managed servers nobody has opened a console on in a month is a very
+     * different thing to plan around than one with four servers and a thousand commands a day.
+     */
+    private suspend fun buildServerManagement(): JsonObject {
+        val serverManagement = JsonObject()
+            .put(
+                "usageMode",
+                cut(safely("usageMode", "") { configManager.config.effectiveUsageMode.name }, MAX_FIELD_LENGTH)
+            )
+            .put("linkedServers", 0L)
+            .put("managedServers", 0L)
+            .put("nodes", 0L)
+            .put("nodesOnline", 0L)
+            .put("consoleCommandsLast24h", 0L)
+            .put("backupsLast24h", 0L)
+
+        val sqlClient = try {
+            databaseManager.getSqlClient()
+        } catch (t: Throwable) {
+            logger.debug("Failed to resolve server management counts for usage data: {}", t.message)
+
+            return serverManagement
+        }
+
+        val since = System.currentTimeMillis() - ACTIVITY_WINDOW_MS
+
+        serverManagement.put("linkedServers", count("linkedServers") {
+            databaseManager.serverDao.countByKind(ServerKind.LINKED, sqlClient)
+        })
+        serverManagement.put("managedServers", count("managedServers") {
+            databaseManager.serverDao.countByKind(ServerKind.MANAGED, sqlClient)
+        })
+        serverManagement.put("nodes", count("nodes") { databaseManager.nodeDao.count(sqlClient) })
+        serverManagement.put("nodesOnline", count("nodesOnline") {
+            databaseManager.nodeDao.countByStatus(NodeStatus.ONLINE, sqlClient)
+        })
+        serverManagement.put("consoleCommandsLast24h", count("consoleCommandsLast24h") {
+            databaseManager.panelActivityLogDao.countByTypeSince(CONSOLE_COMMAND_LOG_TYPE, since, sqlClient)
+        })
+        serverManagement.put("backupsLast24h", count("backupsLast24h") {
+            databaseManager.serverBackupDao.countCreatedSince(since, sqlClient)
+        })
+
+        return serverManagement
     }
 
     /**

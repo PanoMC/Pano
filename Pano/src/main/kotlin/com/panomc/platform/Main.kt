@@ -14,7 +14,11 @@ import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.route.RouterProvider
+import com.panomc.platform.node.LocalNodeManager
+import com.panomc.platform.node.NodeJarSync
+import com.panomc.platform.node.NodeManager
 import com.panomc.platform.server.ServerManager
+import com.panomc.platform.server.plugins.PluginUpdateSweeper
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.ssl.AcmeManager
 import com.panomc.platform.util.*
@@ -260,6 +264,7 @@ class Main : CoroutineVerticle() {
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
     private lateinit var acmeManager: AcmeManager
+    private lateinit var localNodeManager: LocalNodeManager
     private lateinit var databaseManager: DatabaseManager
     private val shutdownDeferred = CompletableDeferred<Unit>()
 
@@ -364,6 +369,16 @@ class Main : CoroutineVerticle() {
             uiManager.shutdown()
         }
 
+        // Only stops the daemon when the operator asked for that; by default the managed servers
+        // outlive a Pano restart.
+        if (::localNodeManager.isInitialized) {
+            try {
+                localNodeManager.shutdown()
+            } catch (e: Exception) {
+                logger.error("Failed to stop the local node", e)
+            }
+        }
+
         try {
             if (applicationContext.containsBean("mariaDBManager")) {
                 val mariaDBManager = applicationContext.getBean(MariaDBManager::class.java)
@@ -421,11 +436,21 @@ class Main : CoroutineVerticle() {
 
             initServerManager()
 
+            initNodeManager()
+
+            initLocalNodeManager()
+
+            initPluginUpdateSweeper()
+
             initUpdateManager()
 
             initTelemetryManager()
 
             initOnlinePlayerTracker()
+
+            initServerMetricsRecorder()
+
+            initScheduleRunner()
 
             initLicenseManager()
 
@@ -489,6 +514,24 @@ class Main : CoroutineVerticle() {
         val onlinePlayerTracker = applicationContext.getBean(OnlinePlayerTracker::class.java)
 
         onlinePlayerTracker.start()
+    }
+
+    private fun initServerMetricsRecorder() {
+        logger.info("Initializing server metrics recorder")
+
+        val serverMetricsRecorder =
+            applicationContext.getBean(com.panomc.platform.server.metrics.ServerMetricsRecorder::class.java)
+
+        serverMetricsRecorder.start()
+    }
+
+    private fun initScheduleRunner() {
+        logger.info("Initializing server schedule runner")
+
+        val scheduleRunner =
+            applicationContext.getBean(com.panomc.platform.server.schedule.ScheduleRunner::class.java)
+
+        scheduleRunner.start()
     }
 
     private fun initLicenseManager() {
@@ -616,6 +659,32 @@ class Main : CoroutineVerticle() {
         val serverManager = applicationContext.getBean(ServerManager::class.java)
 
         serverManager.init()
+    }
+
+    private suspend fun initNodeManager() {
+        logger.info("Initializing node manager")
+
+        val nodeManager = applicationContext.getBean(NodeManager::class.java)
+
+        nodeManager.init()
+    }
+
+    private fun initPluginUpdateSweeper() {
+        logger.info("Initializing plugin update sweeper")
+
+        applicationContext.getBean(PluginUpdateSweeper::class.java).init()
+    }
+
+    private suspend fun initLocalNodeManager() {
+        logger.info("Initializing local node manager")
+
+        localNodeManager = applicationContext.getBean(LocalNodeManager::class.java)
+
+        localNodeManager.init()
+
+        // The daemon jar Pano hands to every node and Pano Agent has to be this release's, also on
+        // an install that runs no local node and right after Pano updated itself.
+        applicationContext.getBean(NodeJarSync::class.java).syncInBackground()
     }
 
     private fun initRoutes() {

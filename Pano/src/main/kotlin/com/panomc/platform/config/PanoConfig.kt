@@ -9,7 +9,9 @@ import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.ReleaseStage
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
+import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.deserializer.UpdatePeriodDeserializer
+import com.panomc.platform.util.deserializer.UsageModeDeserializer
 import io.vertx.core.json.JsonObject
 import java.net.URI
 import java.util.*
@@ -38,6 +40,18 @@ data class PanoConfig(
 
     @ConfigComment("If true, requests to non-canonical hosts are redirected to website-url.")
     @SerializedName("website-url-redirect") var websiteUrlRedirect: Boolean = true,
+
+    @ConfigComment(
+        "How this installation is used:",
+        "  WEBSITE — website only (today's classic Pano).",
+        "  SERVERS — Minecraft server management only; public theme pages (except sign-in) redirect to /panel.",
+        "  BOTH    — website + server management (default).",
+        "Change it in Panel → Settings → Platform → Preferences."
+    )
+    // Nullable for the same reason as mc-server-connection / telemetry below: a hand-edited or
+    // partially merged config.conf missing this key deserialises to null through Gson's Unsafe
+    // path. Read it through effectiveUsageMode.
+    @SerializedName("usage-mode") var usageMode: UsageMode? = UsageMode.BOTH,
 
     @ConfigComment("Registration agreement shown to users (supports HTML).")
     @SerializedName("register-agreement") var registerAgreement: String = "",
@@ -166,7 +180,76 @@ data class PanoConfig(
     // deserialises this field to null. Callers must read it with a safe call and default to
     // enabled, the same way TelemetryManager does.
     @SerializedName("telemetry") var telemetry: TelemetryConfig? = TelemetryConfig(),
+
+    @ConfigSection("Local Node")
+    @ConfigComment(
+        "The pano-node daemon Pano runs on this same machine to install and supervise managed",
+        "Minecraft servers. It is set up from Panel -> Servers -> Nodes; nothing here starts one",
+        "on its own.",
+        "  enabled        - false stops Pano from ever spawning or supervising a local node.",
+        "  jar-path       - path to pano-node.jar. Empty means \"find it next to Pano, or download",
+        "                   the one matching this Pano version\".",
+        "  stop-with-pano - true stops the daemon when Pano shuts down. The default is false so",
+        "                   restarting Pano does not take every managed server down with it."
+    )
+    // Nullable for the same reason as the blocks above: a config.conf whose version is already 31
+    // but which is missing this block still deserialises the field to null. Read it through
+    // effectiveLocalNode.
+    @SerializedName("local-node") var localNode: LocalNodeConfig? = LocalNodeConfig(),
+
+    @ConfigSection("Managed Servers")
+    @ConfigComment(
+        "Settings for the Minecraft servers Pano installs and runs through a node.",
+        "  plugin-jar-dir   - directory to take the pano-mc-plugin jars from instead of downloading",
+        "                     them from GitHub. For plugin development: point it at a",
+        "                     pano-mc-plugin checkout and the newest",
+        "                     <module>/build/libs/pano-<platform>-*.jar is copied into every server",
+        "                     Pano installs. Empty means \"use the newest published release\".",
+        "  node-auto-update - true updates a node's pano-node daemon (and every Pano Agent) to the one",
+        "                     this Pano serves as soon as it connects with an older one, at most once",
+        "                     per node and version every 30 minutes, and never while it runs a task.",
+        "                     Panel -> Settings -> Updates writes this same key. Default true.",
+        "  accept-agent-links - false refuses every new Pano Agent link: the \"Link with the Pano",
+        "                       Agent\" dialog mints no code, the codes already shown stop working and",
+        "                       an agent that pairs with one is refused like a wrong code. Node",
+        "                       pairing is unaffected. The dialog's switch writes this same key.",
+        "                       Default true."
+    )
+    // Nullable for the same reason as the blocks above: a config.conf whose version is already 32
+    // but which is missing this block still deserialises the field to null. Read it through
+    // effectiveManagedServers.
+    @SerializedName("managed-servers") var managedServers: ManagedServersConfig? = ManagedServersConfig(),
+
+    @ConfigSection("Plugin Sources")
+    @ConfigComment(
+        "Where the panel searches for plugins and mods to install on a managed server.",
+        "Modrinth and Hangar need no key and are always on.",
+        "  curseforge-api-key - a CurseForge Eternal API key enables the CurseForge source.",
+        "                       CurseForge requires every application to use its own key, so",
+        "                       Pano cannot ship one: request one at",
+        "                       https://console.curseforge.com and paste it here. Empty means",
+        "                       the source is simply not offered."
+    )
+    // Nullable for the same reason as the blocks above: a config.conf whose version is already 33
+    // but which is missing this block still deserialises the field to null. Read it through
+    // effectivePluginSources.
+    @SerializedName("plugin-sources") var pluginSources: PluginSourcesConfig? = PluginSourcesConfig(),
 ) {
+    /** [localNode] with the missing-block case resolved to the defaults. Always read it through this. */
+    val effectiveLocalNode: LocalNodeConfig get() = localNode ?: LocalNodeConfig()
+
+    /** [managedServers] with the missing-block case resolved to the defaults. */
+    val effectiveManagedServers: ManagedServersConfig get() = managedServers ?: ManagedServersConfig()
+
+    /** [pluginSources] with the missing-block case resolved to the defaults. */
+    val effectivePluginSources: PluginSourcesConfig get() = pluginSources ?: PluginSourcesConfig()
+
+    /**
+     * [usageMode] with the null case (key missing from config.conf) resolved to the default.
+     * Always read the usage mode through this, never the raw field.
+     */
+    val effectiveUsageMode: UsageMode get() = usageMode ?: UsageMode.BOTH
+
     /**
      * JWT `iss` plugins expect when verifying license tokens. No extra config key: uses the
      * hostname of [panoWebsiteUrl] (scheme and port stripped, e.g. `https://dev.panomc.com` →
@@ -385,6 +468,34 @@ data class PanoConfig(
             }
         }
 
+        data class LocalNodeConfig(
+            @ConfigComment("Set to false to stop Pano from spawning or supervising a local node.")
+            @SerializedName("enabled") var enabled: Boolean = true,
+
+            @ConfigComment("Explicit path to pano-node.jar. Leave empty to let Pano find or download it.")
+            @SerializedName("jar-path") var jarPath: String? = null,
+
+            @ConfigComment("Java 17+ home (or java binary) the node runs on. Leave empty to detect one.")
+            @SerializedName("java-path") var javaPath: String? = null,
+
+            @ConfigComment("Stop the local node when Pano stops. False keeps managed servers running.")
+            @SerializedName("stop-with-pano") var stopWithPano: Boolean = false
+        )
+
+        data class ManagedServersConfig(
+            @ConfigComment("Directory holding locally built pano-mc-plugin jars. Empty downloads them instead.")
+            @SerializedName("plugin-jar-dir") var pluginJarDir: String? = null,
+            @ConfigComment("Update every node (and Pano Agent) to the daemon this Pano serves when it connects.")
+            @SerializedName("node-auto-update") var nodeAutoUpdate: Boolean = true,
+            @ConfigComment("Accept new Pano Agent links. False mints no agent code and refuses the ones in use.")
+            @SerializedName("accept-agent-links") var acceptAgentLinks: Boolean = true
+        )
+
+        data class PluginSourcesConfig(
+            @ConfigComment("CurseForge Eternal API key. Empty leaves the CurseForge source disabled.")
+            @SerializedName("curseforge-api-key") var curseForgeApiKey: String? = null
+        )
+
         data class TelemetryConfig(
             @ConfigComment("Set to false to stop sending usage data. No other key is needed to opt out.")
             @SerializedName("enabled") var enabled: Boolean = true
@@ -419,6 +530,7 @@ data class PanoConfig(
 
         private val gson = GsonBuilder()
             .registerTypeAdapter(UpdatePeriod::class.java, UpdatePeriodDeserializer())
+            .registerTypeAdapter(UsageMode::class.java, UsageModeDeserializer())
             .create()
 
         fun from(jsonObject: JsonObject) = gson.fromJson(jsonObject.encode(), PanoConfig::class.java)

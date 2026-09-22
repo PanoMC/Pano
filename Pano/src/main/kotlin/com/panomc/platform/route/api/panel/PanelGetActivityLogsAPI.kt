@@ -106,6 +106,8 @@ class PanelGetActivityLogsAPI(
                 databaseManager.panelActivityLogDao.byUserId(userId, page, sqlClient)
         }
 
+        withServerNames(platforms, sqlClient)
+
         val response = mutableMapOf(
             "data" to platforms,
             "meta" to mapOf(
@@ -118,6 +120,33 @@ class PanelGetActivityLogsAPI(
         return Successful(
             response,
         )
+    }
+
+    /**
+     * Gives each server entry on the page its server's name as `details.serverName`, for the
+     * sentence the panel shows ("… started Survival"). Most server logs only store `serverId`;
+     * looking the names up here also names entries written before a server was renamed by what it
+     * is called now. Not stored, at most one lookup per server on the page, and an entry that
+     * already names its server, or whose server is gone, is left as it is (the panel shows `#id`).
+     */
+    private suspend fun withServerNames(logs: List<PanelActivityLog>, sqlClient: SqlClient) {
+        val names = mutableMapOf<Long, String?>()
+
+        logs.forEach { log ->
+            if (log.details.getValue(SERVER_NAME_KEY) != null) {
+                return@forEach
+            }
+
+            val serverId = (log.details.getValue(SERVER_ID_KEY) as? Number)?.toLong() ?: return@forEach
+
+            val name = names.getOrPut(serverId) {
+                databaseManager.serverDao.getById(serverId, sqlClient)?.let { it.customName ?: it.name }
+            }
+
+            if (name != null) {
+                log.details.put(SERVER_NAME_KEY, name)
+            }
+        }
     }
 
     private suspend fun getPanelSearchTranslations(
@@ -265,6 +294,8 @@ class PanelGetActivityLogsAPI(
 
     companion object {
         private const val PAGE_SIZE = 10L
+        private const val SERVER_ID_KEY = "serverId"
+        private const val SERVER_NAME_KEY = "serverName"
         private val PLACEHOLDER_REGEX = Regex("\\{([^{}]+)}")
         private val HTML_REGEX = Regex("<[^>]*>?")
     }

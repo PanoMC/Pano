@@ -24,6 +24,22 @@
             "label": false
           },
           {
+            "path": "Node/build/libs/pano-node.jar",
+            "label": false
+          },
+          {
+            "path": "Node/build/libs/pano-node.jar.sha256",
+            "label": false
+          },
+          {
+            "path": "build/pano-git/pano-git-*.tar.gz",
+            "label": false
+          },
+          {
+            "path": "build/pano-git/pano-git-*.tar.gz.sha256",
+            "label": false
+          },
+          {
             "path": "LICENSE",
             "label": false
           }

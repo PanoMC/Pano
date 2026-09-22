@@ -1,0 +1,36 @@
+[
+  {
+    "binary": {
+      "architecture": "x64",
+      "download_count": 20286,
+      "heap_size": "normal",
+      "image_type": "jre",
+      "jvm_impl": "hotspot",
+      "os": "linux",
+      "package": {
+        "checksum": "52dcd578baca1d3e449ea86768a9129c0ee04d7b22565695498353cc66940c61",
+        "checksum_link": "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u504-b01/OpenJDK8U-jre_x64_linux_hotspot_8u504b01.tar.gz.sha256.txt",
+        "download_count": 20286,
+        "link": "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u504-b01/OpenJDK8U-jre_x64_linux_hotspot_8u504b01.tar.gz",
+        "metadata_link": "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u504-b01/OpenJDK8U-jre_x64_linux_hotspot_8u504b01.tar.gz.json",
+        "name": "OpenJDK8U-jre_x64_linux_hotspot_8u504b01.tar.gz",
+        "signature_link": "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u504-b01/OpenJDK8U-jre_x64_linux_hotspot_8u504b01.tar.gz.sig",
+        "size": 41844148
+      },
+      "project": "jdk",
+      "scm_ref": "jdk8u504-b01_adopt",
+      "updated_at": "2026-08-25T08:14:54Z"
+    },
+    "release_link": "https://github.com/adoptium/temurin8-binaries/releases/tag/jdk8u504-b01",
+    "release_name": "jdk8u504-b01",
+    "vendor": "eclipse",
+    "version": {
+      "build": 1,
+      "major": 8,
+      "minor": 0,
+      "openjdk_version": "1.8.0_504-b01",
+      "security": 504,
+      "semver": "8.0.504+1"
+    }
+  }
+]

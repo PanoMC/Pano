@@ -1,0 +1,55 @@
+[
+ {
+  "game_versions": [
+   "1.8.8",
+   "1.8.9",
+   "1.9.4",
+   "1.10.2",
+   "1.11.2",
+   "1.12.2",
+   "1.13.2",
+   "1.14.4",
+   "1.15.2",
+   "1.16.5",
+   "1.17.1",
+   "1.18.2",
+   "1.19.4",
+   "1.20.6",
+   "1.21.8"
+  ],
+  "loaders": [
+   "bukkit",
+   "paper",
+   "spigot"
+  ],
+  "environment": "unknown",
+  "id": "Oa9ZDzZq",
+  "project_id": "hXiIvTyT",
+  "author_id": "R5dS2mlb",
+  "featured": true,
+  "name": "2.21.2 - The Chase the Skies Update",
+  "version_number": "2.21.2",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2025-08-03T18:52:13.724098Z",
+  "downloads": 288015,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [
+   {
+    "id": "bQD0Synl",
+    "hashes": {
+     "sha1": "f678ee85da1a8adf309df163d8b4166d2dc65554",
+     "sha512": "0571b015dce84cf03e906c2d498e8bc3827d86debafafb89851517a76c3eec0391b9bb90f6ec4a5f0dbf4c18bee84ead5e354fc0a5be0cc567fdaa9fc8d96c15"
+    },
+    "url": "https://cdn.modrinth.com/data/hXiIvTyT/versions/Oa9ZDzZq/EssentialsX-2.21.2.jar",
+    "filename": "EssentialsX-2.21.2.jar",
+    "primary": true,
+    "size": 4734714,
+    "file_type": null
+   }
+  ],
+  "dependencies": []
+ }
+]

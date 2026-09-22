@@ -6,17 +6,23 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.error.ServerOffline
+import com.panomc.platform.server.console.ServerConsoleBuffer
+import com.panomc.platform.server.dto.ServerMetricSample
+import com.panomc.platform.server.dto.ServerPluginData
 import com.panomc.platform.util.Aes256GcmUtil
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.ServerWebSocket
 import io.vertx.core.json.JsonObject
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.Logger
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.crypto.SecretKey
@@ -51,6 +57,27 @@ class ServerManager(
     // timeout window before the first sweep can judge it) and torn down in onServerDisconnect so
     // nothing leaks when a server goes away or is closed for timing out.
     private val lastPongAtMap = ConcurrentHashMap<Server, Long>()
+
+    // Console history per server id, not per Server instance: the buffer has to survive the
+    // server reconnecting (and therefore a brand new Server row being loaded), because the lines
+    // leading up to a restart are exactly the ones an admin opens the console page to read. The
+    // ring cap inside ServerConsoleBuffer bounds what that costs; entries are only removed when
+    // the server itself is deleted from Pano.
+    private val consoleBuffers = ConcurrentHashMap<Long, ServerConsoleBuffer>()
+
+    // Newest performance sample per server id. Exactly one is kept: the minute-resolution history
+    // lives in the server_metric table, this is only what "right now" means for the panel and for
+    // the roster's ping column. Dropped on disconnect so an offline server never shows a TPS
+    // figure from before it went down.
+    private val latestMetrics = ConcurrentHashMap<Long, ServerMetricSample>()
+
+    // Installed plugin list per server id. In memory only and dropped on disconnect: it describes
+    // what is on that server's disk right now, which nothing on this side can vouch for once the
+    // server is gone.
+    private val installedPlugins = ConcurrentHashMap<Long, List<ServerPluginData>>()
+
+    // Requests waiting for a plugin to answer, keyed by the eventId they went out with.
+    private val requestRegistry = ServerRequestRegistry()
 
     // Guards startHeartbeatSweep so the periodic timer is armed exactly once no matter which of
     // its two call sites gets there first. init() calls it unconditionally on boot, but init() is
@@ -140,6 +167,12 @@ class ServerManager(
 
         serverSecretKeyMap.remove(server)
         lastPongAtMap.remove(server)
+        latestMetrics.remove(server.id)
+        installedPlugins.remove(server.id)
+
+        // Anything still waiting on this socket is never going to be answered on it, and a panel
+        // request left to sit out its full timeout after a server restart reads as Pano hanging.
+        requestRegistry.failAll(server.id, ServerOffline())
 
         logger.warn("\"${server.customName ?: server.name}\" Minecraft server is disconnected!")
     }
@@ -261,6 +294,13 @@ class ServerManager(
 
         val requestObj = Gson().fromJson(text, eventListener.requestClass) as ServerEventRequest
 
+        // An agent-lite reply answers nine different requests with nine different bodies, so the
+        // whole frame is kept rather than only the fields this Pano version happens to declare.
+        // See RawPayloadCarrier for why that is not a shortcut.
+        if (requestObj is RawPayloadCarrier) {
+            requestObj.raw = body
+        }
+
         @Suppress("UNCHECKED_CAST")
         val typedListener = eventListener as ServerEvent<ServerEventRequest, ServerEventResponse>
 
@@ -276,6 +316,133 @@ class ServerManager(
         val encryptedMessage = Aes256GcmUtil.encrypt(message, serverSecretKeyMap[server]!!)
 
         getConnectedServers()[server]!!.writeTextMessage(encryptedMessage)
+    }
+
+    /**
+     * Sends [platformMessage] to the server with [serverId] and reports whether it went out.
+     *
+     * The id-keyed overload for callers that only hold an id (panel endpoints, the realtime hub).
+     * It never throws when the server is gone: a socket can close between the caller's own
+     * connection check and this call, and a push is always best effort.
+     */
+    fun sendMessage(serverId: Long, platformMessage: PlatformMessage): Boolean {
+        val server = getConnectedServerById(serverId) ?: return false
+
+        return try {
+            sendMessage(platformMessage, server)
+
+            true
+        } catch (e: Exception) {
+            logger.warn(
+                "Failed to send ${platformMessage.getResponseName()} to Minecraft server $serverId: ${e.message}"
+            )
+
+            false
+        }
+    }
+
+    /**
+     * Sends [platformMessage] to the server with [serverId] and suspends until the plugin answers.
+     *
+     * The answer is the decoded result event, which the caller narrows to the reply it asked for.
+     * The timeout exists because the other end is a game server: it can be frozen on a chunk
+     * load, mid-restart, or simply running a plugin too old to know the message, and a panel
+     * request must not hold a connection open waiting for it.
+     *
+     * Throws [ServerOffline] when the server is not connected, when the frame could not be
+     * written, and when the answer did not arrive in time — all three are the same thing to the
+     * panel, which is "try again".
+     */
+    suspend fun request(
+        serverId: Long,
+        platformMessage: ServerRequestMessage,
+        timeoutMs: Long = DEFAULT_REQUEST_TIMEOUT_MS
+    ): ServerEventRequest {
+        val server = getConnectedServerById(serverId) ?: throw ServerOffline()
+
+        val (eventId, result) = requestRegistry.register(serverId)
+
+        platformMessage.eventId = eventId
+
+        try {
+            sendMessage(platformMessage, server)
+        } catch (e: Exception) {
+            requestRegistry.forget(eventId)
+
+            logger.warn(
+                "Failed to send ${platformMessage.getResponseName()} to Minecraft server $serverId: ${e.message}"
+            )
+
+            throw ServerOffline()
+        }
+
+        val reply = withTimeoutOrNull(timeoutMs) { result.await() }
+
+        if (reply == null) {
+            requestRegistry.forget(eventId)
+
+            logger.warn(
+                "Minecraft server $serverId did not answer " +
+                    "${platformMessage.getResponseName()} in ${timeoutMs}ms."
+            )
+
+            throw ServerOffline()
+        }
+
+        return reply
+    }
+
+    /**
+     * Hands a plugin's reply to whoever is waiting for it, and reports whether anyone was.
+     *
+     * Called by the result events; a reply that matches no outstanding request is dropped, which
+     * covers both a late answer and a server quoting an id that was never its own.
+     */
+    fun completeRequest(serverId: Long, eventId: UUID?, reply: ServerEventRequest): Boolean =
+        requestRegistry.complete(serverId, eventId?.toString(), reply)
+
+    /** The live [Server] instance for [id], or null when nothing is connected under that id. */
+    fun getConnectedServerById(id: Long): Server? = connectedServers.keys.find { it.id == id }
+
+    /** Stores the newest performance sample reported by [serverId]. */
+    fun setLatestMetrics(serverId: Long, sample: ServerMetricSample) {
+        latestMetrics[serverId] = sample
+    }
+
+    /** Newest performance sample of [serverId], or null when it never sent one since connecting. */
+    fun getLatestMetrics(serverId: Long): ServerMetricSample? = latestMetrics[serverId]
+
+    /**
+     * Every server Pano currently holds a sample for.
+     *
+     * Not the same set as [getConnectedServers] any more: a managed server with no plugin in it
+     * reports through its node and never appears there, and the per-minute rollup has to record
+     * it too or a node-only server's chart is empty forever (§2.4.17 A).
+     */
+    fun getServerIdsWithMetrics(): Set<Long> = latestMetrics.keys.toSet()
+
+    /** Replaces the known plugin list of [serverId] with what it just reported. */
+    fun setInstalledPlugins(serverId: Long, plugins: List<ServerPluginData>) {
+        installedPlugins[serverId] = plugins
+    }
+
+    /** Plugins [serverId] reported, or null when it never reported a list since connecting. */
+    fun getInstalledPlugins(serverId: Long): List<ServerPluginData>? = installedPlugins[serverId]
+
+    /** Console history of [serverId], created on first use. */
+    fun getConsoleBuffer(serverId: Long): ServerConsoleBuffer =
+        consoleBuffers.computeIfAbsent(serverId) { ServerConsoleBuffer() }
+
+    /**
+     * Drops every in-memory trace of a server that no longer exists.
+     *
+     * Called when a server is removed from the panel or unlinks itself, so the console history
+     * cannot outlive the row it belongs to.
+     */
+    fun onServerDeleted(serverId: Long) {
+        consoleBuffers.remove(serverId)
+        latestMetrics.remove(serverId)
+        installedPlugins.remove(serverId)
     }
 
     fun closeConnection(id: Long) {
@@ -299,5 +466,10 @@ class ServerManager(
         // interval anywhere near or past that defeats the feature just as surely as one that's
         // <= 0. Treated as a nonsense value the same as those, rather than accepted silently.
         private const val MAX_HEARTBEAT_INTERVAL_SECONDS = 55
+
+        // How long a request waits by default. Generous, because a game server answers on its
+        // main thread and that thread has a tick to finish first; callers a page load is waiting
+        // on pass something far shorter.
+        const val DEFAULT_REQUEST_TIMEOUT_MS = 10_000L
     }
 }

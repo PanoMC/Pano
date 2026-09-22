@@ -84,6 +84,15 @@ class RouterProvider private constructor(
             .order(2)
             .handler(maintenanceGateHandler.create())
 
+        // Usage-mode gate: same order (2) but registered after the maintenance gate, so Vert.x runs
+        // it second — after maintenance has had its say, still above the panel proxy (4) and the
+        // theme proxy (5). In SERVERS mode it bounces theme page requests to /panel. API traffic is
+        // untouched for the same reason as above: @Endpoint handlers at order 1 never call next().
+        val usageModeGateHandler = applicationContext.getBean(UsageModeGateHandler::class.java)
+        router.route("/*")
+            .order(2)
+            .handler(usageModeGateHandler.create())
+
         val routerEventHandlers = PluginEventManager.getPanoEventListeners<RouterEventListener>()
 
         routerEventHandlers.forEach { eventHandler ->
@@ -112,8 +121,16 @@ class RouterProvider private constructor(
 
         uiManager.prepareUI(router)
 
-        // Order 6 sits right behind the theme proxy (5), so it only ever answers while no UI owns
-        // the wildcard route (boot, theme switch). See UIManager.uiUnavailableHandler for why 503/no-store.
+        // Order 6 sits right behind the theme proxy (5), so these only ever answer while no UI owns
+        // the wildcard route (boot, theme switch, or a SERVERS-mode install that runs no theme at
+        // all). Two handlers at the same order run in registration order: the servers-mode
+        // redirect gets first refusal and passes anything it does not claim to the 503.
+        // See UIManager.uiUnavailableHandler for why 503/no-store.
+        val serversModeRootHandler = applicationContext.getBean(ServersModeRootHandler::class.java)
+        router.route("/*")
+            .order(6)
+            .handler(serversModeRootHandler.create())
+
         router.route("/*")
             .order(6)
             .handler(UIManager.uiUnavailableHandler())

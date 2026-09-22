@@ -33,6 +33,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
 
         data.put("step", step)
         data.put("locale", configManager.config.locale)
+        data.put("usageMode", configManager.config.effectiveUsageMode.name)
 
         if (step == 1 || step == 4) {
             data.put("websiteName", configManager.config.websiteName)

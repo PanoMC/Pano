@@ -62,6 +62,10 @@ class PanelGetBasicDataAPI(
             "notificationCount" to count,
             "connectedServerCount" to connectedServerCount,
             "acceptPluginAuth" to configManager.config.acceptPluginAuth,
+            // The "Link with the Pano Agent" dialog's switch (`managed-servers.accept-agent-links`,
+            // SM-77), flipped with `PUT /api/panel/servers/agent-link/toggle`.
+            "acceptAgentLinks" to configManager.config.effectiveManagedServers.acceptAgentLinks,
+            "usageMode" to configManager.config.effectiveUsageMode.name,
             "panelTheme" to panelTheme,
             "showDevModeAlert" to false,
             "currentVersion" to Main.VERSION
@@ -125,8 +129,8 @@ class PanelGetBasicDataAPI(
             result["platformServerMatchKeyTimeStarted"] = platformCodeManager.getTimeStarted()
             result["platformHostAddress"] = platformHostAddress
 
-            result["mainServer"] = mainServer
-            result["selectedServer"] = selectedServer
+            result["mainServer"] = mainServer?.toPublicJsonObject()
+            result["selectedServer"] = selectedServer?.toPublicJsonObject()
         }
 
         return Successful(result)

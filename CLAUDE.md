@@ -13,13 +13,14 @@ live in **separate repositories** — Pano downloads/reverse-proxies them at run
 ## Build / run / test
 
 Gradle (Kotlin DSL), multi-module: `:Pano` (the platform), `:Updater` (self-update helper jar),
-and `:plugins:*` (each plugin under `plugins/` is auto-included as a subproject by
-`settings.gradle.kts`). JDK notes that bite in practice:
+`:Node` (the `pano-node` daemon, see below) and `:plugins:*` (each plugin under `plugins/` is
+auto-included as a subproject by `settings.gradle.kts`). JDK notes that bite in practice:
 - **Run Gradle itself on JDK 17+** (CI uses 17). The system default here is JDK 11, which fails
   immediately with *"Gradle requires JVM 17 or later"* — set `JAVA_HOME` to a 17/21 JDK first.
 - Compile **toolchain targets Java 11**; the **test task forces JDK 21** (see `Pano/build.gradle.kts`).
   Gradle auto-detects installed JDKs for toolchains, so both 11 and 21 must be installed.
-- The produced jar runs on **JRE 11+**.
+- `:Node` targets **Java 17** (toolchain + jvmTarget), so a JDK 17 must be installed too.
+- The produced jar runs on **JRE 11+**; `pano-node.jar` needs **JRE 17+**.
 
 ```bash
 # Run for local development (root `run` cascades to :Pano:run; :Updater:run is disabled)
@@ -45,6 +46,34 @@ and `:plugins:*` (each plugin under `plugins/` is auto-included as a subproject 
 # Run the jar (Docker brings up MariaDB only; see docker-compose.yml)
 java -jar build/libs/Pano-<version>.jar [-nogui] [-bg]
 ```
+
+### `pano-node` (the `:Node` subproject)
+
+The daemon that installs and supervises **managed** Minecraft servers on a host and talks to Pano
+over the node WebSocket (`POST /api/node/connect`, `GET /api/node/connection`). It is a separate
+process, never part of the platform JVM, and `./gradlew run` deliberately does **not** start one.
+
+```bash
+./gradlew :Node:build          # also runs on the root `build`; output: Node/build/libs/pano-node.jar
+./gradlew :Node:test           # JUnit 5, no network, no processes spawned
+
+# Pair a node with a running Pano (code from Panel → Servers → Nodes, rotates every 30 s)
+java -jar Node/build/libs/pano-node.jar --pano http://127.0.0.1:8080 --code 123456 --data ./node-data
+
+# Everything after the first pairing; the token lives in <data>/config.conf
+java -jar Node/build/libs/pano-node.jar --data ./node-data
+
+# Write a systemd unit / launchd plist / `sc create` script into <data>/service (never runs it)
+java -jar Node/build/libs/pano-node.jar --data ./node-data --service install
+```
+
+Flags have env equivalents for containers: `PANO_URL`, `PANO_PAIR_CODE`, `PANO_BOOTSTRAP_TOKEN`,
+`PANO_NODE_DATA`, `PANO_NODE_NAME`, `PANO_NODE_RUNTIME`, `PANO_NODE_PORT_RANGE` (`--port-range
+start-end`; announced in the hello, Pano allocates inside it). State lives entirely under the data
+directory (`config.conf`, `servers/<uuid>/`, `java/`, `updates/`). Exit code **75** means "I staged
+an update of myself, start me again" — systemd's `SuccessExitStatus=75` and Pano's local-node
+supervisor both treat it as a restart, not a failure. Pano can provision a local node for itself
+from the panel (`POST /api/panel/nodes/local/setup`); see `com.panomc.platform.node.LocalNodeManager`.
 
 Releases are automated by **semantic-release** on push to `alpha`/`beta`/`main` (prerelease
 channels). Commit messages must be **conventional commits** (`feat:`, `fix:`, `chore:`, …) —

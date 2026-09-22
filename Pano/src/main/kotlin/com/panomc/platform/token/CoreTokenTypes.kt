@@ -49,6 +49,22 @@ object ServerAuthenticationTokenType : CoreTokenType {
     }
 }
 
+/**
+ * Node-to-platform authentication. Expires in 10 years.
+ *
+ * Same shape and lifetime as [ServerAuthenticationTokenType] but a separate type on purpose: a
+ * node token can start processes on someone's machine, so a stolen server token must never be
+ * accepted on the node socket and vice versa. The subject is the node id.
+ */
+@Component
+object NodeAuthenticationTokenType : CoreTokenType {
+    override fun getExpireDate(): Long {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.YEAR, 10)
+        return calendar.timeInMillis
+    }
+}
+
 /** Email change verification token. Expires in 15 minutes. */
 @Component
 object ChangeEmailTokenType : CoreTokenType {

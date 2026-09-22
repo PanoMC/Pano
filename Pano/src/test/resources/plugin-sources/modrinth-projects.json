@@ -1,0 +1,23 @@
+[
+  {
+    "id": "hXiIvTyT",
+    "slug": "essentialsx",
+    "project_type": "plugin",
+    "title": "EssentialsX",
+    "description": "The essential plugin suite for Minecraft servers.",
+    "categories": ["management", "utility"]
+  },
+  {
+    "id": "1u6JkXh5",
+    "slug": "worldedit",
+    "project_type": "mod",
+    "title": "WorldEdit",
+    "description": "In-game map editor.",
+    "categories": ["management"]
+  },
+  {
+    "id": "noSlugHere",
+    "project_type": "plugin",
+    "title": "Slugless"
+  }
+]

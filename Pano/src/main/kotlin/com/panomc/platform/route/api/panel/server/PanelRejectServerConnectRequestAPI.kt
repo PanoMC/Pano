@@ -36,9 +36,13 @@ class PanelRejectServerConnectRequestAPI(
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(id, sqlClient)
+        val server = databaseManager.serverDao.getById(id, sqlClient) ?: return NotExists()
 
-        if (!exists) {
+        // Only a pending connect request can be rejected. A managed server has no request to
+        // refuse, and deleting its row here would strand the directory and the process on the
+        // node with nothing left in Pano that could ever reach them -- that is what
+        // `DELETE /api/panel/servers/:id` and its node task are for.
+        if (!server.isPendingApproval) {
             return NotExists()
         }
 

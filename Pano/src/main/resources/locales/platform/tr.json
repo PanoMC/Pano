@@ -87,6 +87,54 @@
       "join-community": "Topluluğumuza katılın ve maceranıza bugün başlayın!",
       "register-support": "Başlangıç konusunda herhangi bir sorunuz varsa veya yardıma ihtiyacınız olursa, destek ekibimizle iletişime geçmekten çekinmeyin.",
       "see-you-ingame": "Sizi aramızda görmekten heyecan duyuyoruz. Oyun içinde görüşürüz!"
+    },
+    "server-alert": {
+      "subject": "{{websiteName}} — Sunucu uyarısı",
+      "preview": "Sunucu uyarısı",
+      "alert-label": "Sunucu uyarısı",
+      "alert-details": "Uyarı detayları:",
+      "server": "Sunucu:",
+      "node": "Düğüm:",
+      "occurred-at": "Gerçekleşme zamanı:",
+      "alert-kind": "Tür:",
+      "open-in-panel": "Panelde aç",
+      "server-alert-notice": "Bu e-postayı, hesabınız için uyarı bildirimleri açık olduğu için alıyorsunuz. Panel bildirim ayarlarından kapatabilirsiniz.",
+      "support-contact": "Herhangi bir sorunuz varsa lütfen destek ekibimizle iletişime geçin.",
+      "kinds": {
+        "server-crashed": {
+          "title": "Sunucu beklenmedik şekilde durdu",
+          "message": "\"{{serverName}}\" kendiliğinden durdu.",
+          "message-with-exit-code": "\"{{serverName}}\" kendiliğinden durdu (çıkış kodu {{exitCode}}).",
+          "reason": "Son konsol satırı: {{reason}}"
+        },
+        "node-offline": {
+          "title": "Düğüm çevrimdışı oldu",
+          "message": "\"{{nodeName}}\" düğümü yanıt vermeyi bıraktı.",
+          "message-with-servers": "\"{{nodeName}}\" düğümü yanıt vermeyi bıraktı; {{serverCount}} sunucuya ulaşılamıyor."
+        },
+        "backup-failed": {
+          "title": "Yedekleme başarısız oldu",
+          "message": "\"{{serverName}}\" sunucusunun yedeklemesi başarısız oldu.",
+          "error": "Hata: {{error}}"
+        },
+        "disk-low": {
+          "title": "Disk alanı tükeniyor",
+          "message": "\"{{nodeName}}\" düğümünün diski %{{percent}} dolu."
+        },
+        "tps-low": {
+          "title": "Sunucu yavaş çalışıyor",
+          "message": "\"{{serverName}}\" {{tps}} TPS ile çalışıyor."
+        },
+        "schedule-failed": {
+          "title": "Zamanlanmış görev başarısız oldu",
+          "message": "\"{{serverName}}\" sunucusundaki \"{{scheduleName}}\" zamanlanmış görevi başarısız oldu.",
+          "error": "Hata: {{error}}"
+        },
+        "plugin-updates": {
+          "title": "Eklenti güncellemeleri mevcut",
+          "message": "\"{{serverName}}\" sunucusundaki {{count}} eklentinin daha yeni bir sürümü var: {{names}}."
+        }
+      }
     }
   },
   "maintenance": {

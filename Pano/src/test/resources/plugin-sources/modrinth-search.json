@@ -1,0 +1,61 @@
+{
+ "hits": [
+  {
+   "project_id": "hXiIvTyT",
+   "project_type": "mod",
+   "slug": "essentialsx",
+   "title": "EssentialsX",
+   "description": "The essential plugin suite for Paper and Spigot servers.",
+   "categories": [
+    "bukkit",
+    "economy",
+    "game-mechanics",
+    "management",
+    "paper",
+    "social",
+    "spigot",
+    "transportation",
+    "utility"
+   ],
+   "display_categories": [
+    "bukkit",
+    "economy",
+    "paper",
+    "social",
+    "spigot",
+    "utility"
+   ],
+   "versions": [
+    "1.8.8",
+    "1.8.9",
+    "1.9.4",
+    "1.10.2",
+    "1.11.2",
+    "1.12.2",
+    "1.13.2",
+    "1.14.4",
+    "1.15.2",
+    "1.16.5",
+    "1.17.1",
+    "1.18.2",
+    "1.19.2",
+    "1.19.4",
+    "1.20.1",
+    "1.20.6",
+    "1.21.4",
+    "1.21.5",
+    "1.21.8",
+    "1.21.11",
+    "26.1.2"
+   ],
+   "downloads": 813973,
+   "follows": 796,
+   "icon_url": "https://cdn.modrinth.com/data/hXiIvTyT/e621675be1d0421b43b65ab8082507532d937009_96.webp",
+   "latest_version": "Oa9ZDzZq",
+   "author": "mdcfe"
+  }
+ ],
+ "offset": 0,
+ "limit": 2,
+ "total_hits": 108
+}

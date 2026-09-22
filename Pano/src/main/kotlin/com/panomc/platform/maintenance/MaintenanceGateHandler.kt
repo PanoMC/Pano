@@ -6,9 +6,9 @@ import com.panomc.platform.maintenance.MaintenanceModeManager.Access
 import com.panomc.platform.maintenance.MaintenanceModeManager.Notice
 import com.panomc.platform.maintenance.MaintenanceModeManager.PathClass
 import com.panomc.platform.model.Route
+import com.panomc.platform.util.RequestClassification
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
-import io.vertx.core.http.HttpServerRequest
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -137,7 +137,7 @@ class MaintenanceGateHandler(
         // just handed a theme page still has to be able to fetch its stylesheets, images and
         // client-side data, and their client-side navigation inside the theme never issues a
         // document request. The cookie only decides which UI a *navigation* gets.
-        if (!isDocumentRequest(context.request())) {
+        if (!RequestClassification.isDocumentRequest(context.request())) {
             if (uiManager.activatedUIList[Route.Type.THEME_UI] == null) {
                 endPlain503(context)
             } else {
@@ -168,25 +168,6 @@ class MaintenanceGateHandler(
         maintenanceModeManager.clearSkipCookie(context)
 
         context.next() // → order 5 → the real theme
-    }
-
-    /**
-     * A top-level navigation, i.e. the thing a reload repeats. `Sec-Fetch-Dest` is sent by every
-     * current browser; the `Accept` fallback covers the rest and command-line clients.
-     */
-    private fun isDocumentRequest(request: HttpServerRequest): Boolean {
-        val destination = request.getHeader("Sec-Fetch-Dest")
-
-        if (destination != null) {
-            return destination.equals("document", ignoreCase = true) ||
-                    destination.equals("iframe", ignoreCase = true)
-        }
-
-        if (!isSafeMethod(request.method())) {
-            return false
-        }
-
-        return request.getHeader("Accept")?.contains("text/html", ignoreCase = true) == true
     }
 
     private suspend fun serve(
@@ -311,7 +292,7 @@ class MaintenanceGateHandler(
             .end(MaintenanceModeManager.ROBOTS_TXT_BODY)
     }
 
-    private fun isSafeMethod(method: HttpMethod) = method == HttpMethod.GET || method == HttpMethod.HEAD
+    private fun isSafeMethod(method: HttpMethod) = RequestClassification.isSafeMethod(method)
 
     companion object {
         private const val ROBOTS_TXT_PATH = "/robots.txt"

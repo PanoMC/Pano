@@ -20,6 +20,9 @@ import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
+import com.panomc.platform.ui.ThemeUiController
+import org.slf4j.Logger
+import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
@@ -43,6 +46,8 @@ class PanelUpdateSettingsAPI(
     private val serverManager: ServerManager,
     private val i18nManager: I18nManager,
     private val maintenanceModeManager: MaintenanceModeManager,
+    private val themeUiController: ThemeUiController,
+    private val logger: Logger,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
@@ -99,9 +104,11 @@ class PanelUpdateSettingsAPI(
                             enumSchema(*ReleaseStage.entries.map { it.name }.toTypedArray())
                         )
                         .optionalProperty("locale", stringSchema())
+                        .optionalProperty("usageMode", enumSchema("WEBSITE", "SERVERS", "BOTH"))
                         .optionalProperty("allowUserLocaleSelection", booleanSchema())
                         .optionalProperty("developmentMode", booleanSchema())
                         .optionalProperty("telemetryEnabled", booleanSchema())
+                        .optionalProperty("nodeAutoUpdate", booleanSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("websiteUrl", stringSchema())
@@ -170,9 +177,12 @@ class PanelUpdateSettingsAPI(
         val releaseChannel =
             if (data.getString("releaseChannel") == null) null else ReleaseStage.valueOf(data.getString("releaseChannel"))
         val locale = data.getString("locale")
+        val usageMode =
+            if (data.getString("usageMode") == null) null else UsageMode.valueOf(data.getString("usageMode"))
         val allowUserLocaleSelection = data.getBoolean("allowUserLocaleSelection")
         val developmentMode = data.getBoolean("developmentMode")
         val telemetryEnabled = data.getBoolean("telemetryEnabled")
+        val nodeAutoUpdate = data.getBoolean("nodeAutoUpdate")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
         val websiteUrl = data.getString("websiteUrl")
@@ -288,6 +298,28 @@ class PanelUpdateSettingsAPI(
             configManager.config.allowUserLocaleSelection = allowUserLocaleSelection
         }
 
+        if (usageMode != null && usageMode != configManager.config.effectiveUsageMode) {
+            configManager.config.usageMode = usageMode
+
+            // The gate reads the mode per request, so the redirects apply immediately. The theme
+            // *process* does not follow by itself, and it is the expensive half: a servers-only
+            // install has no website, so leaving a second Bun process running would waste a couple
+            // of hundred megabytes serving pages the gate redirects away from. Switching back has
+            // to start it again, or the site would stay dark until someone restarted Pano.
+            if (usageMode == UsageMode.SERVERS) {
+                themeUiController.stop()
+            } else {
+                // Best effort: an unlicensed premium theme must not turn a settings save into an
+                // error. The controller has already fallen back to vanilla in that case, and the
+                // themes page is where an operator fixes it.
+                try {
+                    themeUiController.start()
+                } catch (e: Exception) {
+                    logger.warn("Could not start the theme after the usage mode changed: ${e.message}")
+                }
+            }
+        }
+
         if (developmentMode != null && developmentMode != configManager.config.developmentMode) {
             configManager.config.developmentMode = developmentMode
 
@@ -303,6 +335,15 @@ class PanelUpdateSettingsAPI(
                 ?: PanoConfig.Companion.TelemetryConfig().also { configManager.config.telemetry = it }
 
             telemetryConfig.enabled = telemetryEnabled
+        }
+
+        if (nodeAutoUpdate != null) {
+            // Same missing-block case as telemetry above: a hand-deleted `managed-servers { }`
+            // deserialises to null, and switching this on or off is what brings it back.
+            val managedServers = configManager.config.managedServers
+                ?: PanoConfig.Companion.ManagedServersConfig().also { configManager.config.managedServers = it }
+
+            managedServers.nodeAutoUpdate = nodeAutoUpdate
         }
 
         if (websiteName != null) {
@@ -492,7 +533,7 @@ class PanelUpdateSettingsAPI(
             }
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || telemetryEnabled != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null || maintenance != null) {
+        if (updatePeriod != null || releaseChannel != null || usageMode != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || telemetryEnabled != null || nodeAutoUpdate != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null || maintenance != null) {
             configManager.saveConfig()
         }
 

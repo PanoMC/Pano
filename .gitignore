@@ -41,3 +41,5 @@ Pano/maintenance
 .console_history
 .config_history
 Pano/logs
+Pano/node-data
+node-data

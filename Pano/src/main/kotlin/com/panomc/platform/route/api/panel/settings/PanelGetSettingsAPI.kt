@@ -88,6 +88,7 @@ class PanelGetSettingsAPI(
             result["locale"] = configManager.config.locale
             result["allowUserLocaleSelection"] = configManager.config.allowUserLocaleSelection
             result["developmentMode"] = configManager.config.developmentMode
+            result["usageMode"] = configManager.config.effectiveUsageMode.name
 
             // Null when the block was hand-removed from config.conf; reporting is on by default.
             result["telemetryEnabled"] = configManager.config.telemetry?.enabled ?: true
@@ -131,6 +132,10 @@ class PanelGetSettingsAPI(
             result["lastCheckedAt"] = lastCheck
             result["platformUpdate"] = platformUpdate
             result["resourceUpdates"] = resourceUpdatesInfo
+
+            // Whether nodes and Pano Agents are updated to the daemon this Pano serves on their own
+            // (`managed-servers.node-auto-update`); the Updates page's switch writes it back.
+            result["nodeAutoUpdate"] = configManager.config.effectiveManagedServers.nodeAutoUpdate
 
             if (platformUpdate != null) {
                 (result["platformUpdate"] as JsonObject).put("oldVersion", Main.VERSION)

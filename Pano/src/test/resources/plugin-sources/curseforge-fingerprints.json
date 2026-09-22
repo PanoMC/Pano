@@ -1,0 +1,44 @@
+{
+  "data": {
+    "isCacheBuilt": true,
+    "exactMatches": [
+      {
+        "id": 238222,
+        "file": {
+          "id": 4726098,
+          "gameId": 432,
+          "modId": 238222,
+          "isAvailable": true,
+          "displayName": "JEI 1.21-19.21.0.247",
+          "fileName": "jei-1.21-neoforge-19.21.0.247.jar",
+          "releaseType": 1,
+          "fileDate": "2024-07-21T13:14:15.16Z",
+          "fileLength": 1348108,
+          "fileFingerprint": 2788266382,
+          "hashes": [
+            { "value": "abcdef0123456789abcdef0123456789abcdef01", "algo": 1 }
+          ]
+        }
+      },
+      {
+        "id": 310111,
+        "file": {
+          "id": 5551212,
+          "modId": 310111,
+          "fileName": "SomeMod-3.2.1.jar",
+          "fileDate": "2025-02-02T02:02:02Z",
+          "fileFingerprint": 1540447798
+        }
+      },
+      {
+        "id": 400000,
+        "file": {
+          "fileName": "NoFingerprint.jar"
+        }
+      }
+    ],
+    "exactFingerprints": [2788266382, 1540447798],
+    "partialMatches": [],
+    "unmatchedFingerprints": [626045324]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "id": 238222,
+      "name": "Just Enough Items",
+      "slug": "jei",
+      "summary": "View Items and Recipes",
+      "downloadCount": 420000000,
+      "thumbsUpCount": 12,
+      "allowModDistribution": true,
+      "logo": { "url": "https://media.forgecdn.net/avatars/29/69/jei.png" },
+      "links": { "websiteUrl": "https://www.curseforge.com/minecraft/mc-mods/jei" },
+      "authors": [ { "id": 1, "name": "mezz" } ],
+      "categories": [ { "id": 421, "name": "Map and Information" } ]
+    },
+    {
+      "id": 999111,
+      "name": "Locked Mod",
+      "slug": "locked-mod",
+      "summary": "The author opted out of third party downloads",
+      "downloadCount": 10,
+      "allowModDistribution": false,
+      "authors": [ { "id": 2, "name": "someone" } ],
+      "categories": []
+    }
+  ],
+  "pagination": { "index": 0, "pageSize": 2, "resultCount": 2, "totalCount": 40 }
+}

@@ -4,6 +4,8 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionNode
 import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
@@ -367,28 +369,65 @@ class PermissionManager(
     }
 
     // Check a permission node for a user using cached graph.
+    // [serverId] narrows the check to a single server: null keeps the global behaviour and ignores
+    // every server scoped node, a value also accepts nodes scoped to that server. See
+    // [PermissionServerScope].
     suspend fun hasPermission(
         userId: Long,
-        permission: Permission
+        permission: Permission,
+        serverId: Long? = null
     ): Boolean {
         val source = permissionRegistry.getSource(permission)
         permission.source = source
-        return hasPermissionNode(userId, permission.toString())
+        return hasPermissionNode(userId, permission.toString(), serverId)
     }
 
     suspend fun hasPermissionNode(
         userId: Long,
-        node: String
+        node: String,
+        serverId: Long? = null
     ): Boolean {
         val cache = getCache()
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
-        val nodes = validNodes(cache).filter { it.isPanoContextAllowed() } // active=true/false + pano context
+        val nodes = validNodes(cache)
+            .filter { it.isPanoContextAllowed() } // active=true/false + pano context
+            .filter { PermissionServerScope.appliesTo(it.context, serverId) } // global + server scope
         val userGroups = resolveUserGroups(userId, cache, activeNodes)
 
         val userNodes = nodes.filter { it.holderType == HolderType.USER && it.holderId == userId }
         val groupNodes = nodes.filter { it.holderType == HolderType.GROUP && it.holderId in userGroups }
 
         return selectDecision(node, userNodes, groupNodes, cache, activeNodes)
+    }
+
+    /**
+     * The permission node rows that grant [permissionNode] to [userId], scope included.
+     *
+     * [hasPermissionNode] answers yes or no; this answers *which grant said yes*, which is what a
+     * policy carried on the grant itself needs — see [com.panomc.platform.server.console.CommandPolicy].
+     * Only active nodes are returned, because an inactive node is a negation and a negation that
+     * also carried a deny list would be refusing commands it is not granting in the first place.
+     *
+     * [serverId] behaves like everywhere else: null returns global grants only, a value returns
+     * the global ones plus those scoped to that server.
+     */
+    suspend fun getApplicableNodes(
+        userId: Long,
+        permissionNode: String,
+        serverId: Long? = null
+    ): List<PermissionNode> {
+        val cache = getCache()
+        val activeNodes = activeNodes(cache)
+        val userGroups = resolveUserGroups(userId, cache, activeNodes)
+
+        return activeNodes
+            .filter { it.isPanoContextAllowed() }
+            .filter { PermissionServerScope.appliesTo(it.context, serverId) }
+            .filter {
+                (it.holderType == HolderType.USER && it.holderId == userId) ||
+                        (it.holderType == HolderType.GROUP && it.holderId in userGroups)
+            }
+            .filter { matchesNode(permissionNode, it.node) }
     }
 
     // Check if user is member of a group name (resolved via nodes + inheritance).
@@ -404,12 +443,16 @@ class PermissionManager(
     }
 
     // List all nodes granted to user after resolving overrides/inheritance/weights.
+    // [serverId] behaves like in [hasPermissionNode].
     suspend fun getGrantedNodes(
         userId: Long,
+        serverId: Long? = null
     ): Set<String> {
         val cache = getCache()
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
-        val nodes = validNodes(cache).filter { it.isPanoContextAllowed() } // active=true/false + pano context
+        val nodes = validNodes(cache)
+            .filter { it.isPanoContextAllowed() } // active=true/false + pano context
+            .filter { PermissionServerScope.appliesTo(it.context, serverId) } // global + server scope
         val userGroups = resolveUserGroups(userId, cache, activeNodes)
 
         val userNodes = nodes.filter { it.holderType == HolderType.USER && it.holderId == userId }
@@ -489,10 +532,13 @@ class PermissionManager(
         return getUserIdsWithNode(permission.toString()).toSet()
     }
 
+    // Intentionally global: callers are notification/broadcast flows, so server scoped nodes never count.
     suspend fun getUserIdsWithNode(targetNode: String): List<Long> {
         val cache = getCache()
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
-        val nodes = validNodes(cache).filter { it.isPanoContextAllowed() } // active=true/false + pano context
+        val nodes = validNodes(cache)
+            .filter { it.isPanoContextAllowed() } // active=true/false + pano context
+            .filter { PermissionServerScope.appliesTo(it.context, null) } // global nodes only
 
         // evaluate all users so default group permissions also apply
         val sqlClient = databaseManager.getSqlClient()
@@ -557,3 +603,60 @@ class PermissionManager(
     }
 }
 
+/**
+ * Decides whether a permission node applies to a given server scope.
+ *
+ * A node is server scoped when its context carries a "server" key holding a number, a numeric
+ * string or an array of those, and then it only applies to the listed server ids. A node without
+ * the key is global and applies everywhere. A "server" value that cannot be parsed is treated as
+ * matching nothing, so a malformed context can never widen access.
+ */
+object PermissionServerScope {
+    private const val SERVER_KEY = "server"
+
+    /**
+     * Returns true when a node carrying [context] counts for [serverId].
+     *
+     * A null [serverId] means a global check, which only global nodes pass.
+     */
+    fun appliesTo(context: JsonObject, serverId: Long?): Boolean {
+        if (!context.containsKey(SERVER_KEY)) {
+            return true
+        }
+
+        val scopedServerIds = parseServerIds(context.getValue(SERVER_KEY)) ?: return false
+
+        if (serverId == null) {
+            return false
+        }
+
+        return scopedServerIds.contains(serverId)
+    }
+
+    // Returns the scoped ids, or null when the value is malformed.
+    private fun parseServerIds(value: Any?): Set<Long>? {
+        if (value is JsonArray) {
+            val serverIds = mutableSetOf<Long>()
+
+            for (element in value) {
+                serverIds.add(parseServerId(element) ?: return null)
+            }
+
+            return serverIds
+        }
+
+        return parseServerId(value)?.let { setOf(it) }
+    }
+
+    // Accepts whole numbers and numeric strings only.
+    private fun parseServerId(value: Any?): Long? = when (value) {
+        is Number -> {
+            val serverId = value.toLong()
+
+            if (value.toDouble() == serverId.toDouble()) serverId else null
+        }
+
+        is String -> value.trim().toLongOrNull()
+        else -> null
+    }
+}

@@ -12,3 +12,4 @@ File("plugins").listFiles()?.filter {
 }
 
 include("Updater")
+include("Node")

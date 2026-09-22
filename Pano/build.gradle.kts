@@ -93,8 +93,17 @@ dependencies {
 
     implementation("com.typesafe:config:1.4.3")
 
+    // Cron parsing, validation and next-run calculation for server schedules. The node ships the
+    // same library so both sides agree on what an expression means, down to the DST edge cases.
+    implementation("com.cronutils:cron-utils:9.2.1")
+
     // https://mvnrepository.com/artifact/org.imgscalr/imgscalr-lib
     implementation("org.imgscalr:imgscalr-lib:4.2")
+
+    // WebP decoding for the server icon upload (ImageIO has no WebP reader of its own). Read-only,
+    // pure Java; registered explicitly in ServerIconImage because the fat jar does not merge
+    // META-INF/services files.
+    implementation("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
 
     // Let's Encrypt / ACME
     implementation("org.shredzone.acme4j:acme4j-client:3.5.0")
@@ -111,6 +120,10 @@ dependencies {
 
     // LuckPerms Migration support (H2 database — must use 2.1.x to read LP's format-2 files)
     implementation("com.h2database:h2:2.1.214")
+
+    // SSH client for bootstrapping a node on a remote host from the panel. Pure Java, so there
+    // is no dependency on an ssh binary being present on the machine Pano runs on.
+    implementation("com.hierynomus:sshj:0.39.0")
 
     // Password hashing
     implementation("de.mkammerer:argon2-jvm:2.11")

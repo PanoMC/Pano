@@ -14,6 +14,7 @@ import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil.computeStableFileFingerprint
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
+import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
 import com.panomc.platform.util.annotation.StrictValidation
 import com.panomc.platform.util.ForwardedProtoInterceptor
@@ -1052,7 +1053,15 @@ class UIManager(
                     }
                 }
                 try {
-                    startUIBlocking(theme)
+                    // A servers-only install has no website, and the theme is a second Bun
+                    // process (~200 MB) serving pages nobody can reach: every theme page is
+                    // redirected to the panel and the panel now has its own login. Not starting
+                    // it is the whole point of U-06 — the memory saving is the feature.
+                    if (!isThemeWanted()) {
+                        logger.info("Usage mode is SERVERS: not starting the theme process.")
+                    } else {
+                        startUIBlocking(theme)
+                    }
                 } catch (e: LicenseRequiredException) {
                     // Premium theme cannot be licensed right now (no account connected, no
                     // purchase, expired, network down, etc.). Persist a fallback to the bundled
@@ -1211,33 +1220,20 @@ class UIManager(
                         return@launch
                     }
 
+                    // Permissions are attached for a signed-in visitor because the panel's own
+                    // endpoints read them; the page itself is served either way.
                     if (isLoggedIn) {
                         authProvider.applyPermissionsTo(context)
-
-                        val hasAccessPanel = authProvider.hasAccessPanel(context)
-
-                        if (hasAccessPanel) {
-                            request.resume()
-                            panelUIHandler.handle(context)
-
-                            return@launch
-                        }
                     }
 
                     request.resume()
-                    // Theme UI may be transiently unbound while an admin is switching themes
-                    // (route gets disabled, new theme bun process starts, route gets re-bound).
-                    // A panel request landing in that window used to NPE on `!!`; serve a 503
-                    // briefly instead so the client can retry.
-                    val themeUi = _activatedUIList[Route.Type.THEME_UI]
-                    if (themeUi == null) {
-                        context.response()
-                            .setStatusCode(503)
-                            .putHeader("retry-after", "1")
-                            .end("Theme UI is being switched; retry shortly.")
-                    } else {
-                        themeUi.proxyHandler.handle(context)
-                    }
+
+                    // Everything under /panel is panel-ui's, signed in or not. It used to hand an
+                    // unauthenticated visitor to the theme, because the login page lived there —
+                    // which made the theme process mandatory even on an install with no website,
+                    // and produced a 503 whenever the theme happened to be switching. panel-ui has
+                    // its own /panel/login now, so this is one proxy with one owner.
+                    panelUIHandler.handle(context)
                 }
             }
             .failureHandler { it.failure().printStackTrace() }
@@ -1305,7 +1301,12 @@ class UIManager(
 
             disableUIOnRoute(router, Route.Type.SETUP_UI)
 
-            activateThemeUI(router, activeTheme)
+            // No theme process in SERVERS mode, so no proxy route to it either: binding one would
+            // send every page request to a port nothing is listening on.
+            if (isThemeWanted()) {
+                activateThemeUI(router, activeTheme)
+            }
+
             activatePanelUI(router)
 
             return
@@ -1316,6 +1317,15 @@ class UIManager(
 
         activateSetupUI(router)
     }
+
+    /**
+     * Whether this install should be running a theme at all.
+     *
+     * SERVERS mode is a game-server panel with no public website: the gate redirects every theme
+     * page to `/panel`, the panel signs people in by itself, and what is left is a Bun process
+     * serving pages nobody will ever be routed to.
+     */
+    internal fun isThemeWanted(): Boolean = configManager.config.effectiveUsageMode != UsageMode.SERVERS
 
     internal fun shutdown() {
         startedUIList.forEach {

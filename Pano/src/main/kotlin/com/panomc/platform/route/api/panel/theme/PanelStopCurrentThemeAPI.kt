@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.panel.theme
 
-import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.StoppedCurrentThemeLog
@@ -8,7 +7,7 @@ import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
-import io.vertx.ext.web.Router
+import com.panomc.platform.ui.ThemeUiController
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -17,14 +16,12 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import org.springframework.context.annotation.Lazy
 
 @Endpoint
 class PanelStopCurrentThemeAPI(
-    private val uiManager: UIManager,
     private val authProvider: AuthProvider,
-    @param:Lazy private val router: Router,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val themeUiController: ThemeUiController
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/themes", RouteType.DELETE))
 
@@ -57,12 +54,7 @@ class PanelStopCurrentThemeAPI(
             throw NoPermission()
         }
 
-        if (!uiManager.activatedUIList.containsKey(Type.THEME_UI)) {
-            return Successful()
-        }
-
-        uiManager.stopUI(uiManager.activeTheme)
-        uiManager.disableUIOnRoute(router, Type.THEME_UI)
+        val stopped = themeUiController.stop() ?: return Successful()
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
@@ -70,7 +62,7 @@ class PanelStopCurrentThemeAPI(
             StoppedCurrentThemeLog(
                 userId,
                 username,
-                uiManager.activeTheme
+                stopped
             ), sqlClient
         )
 

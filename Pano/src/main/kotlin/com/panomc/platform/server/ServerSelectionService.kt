@@ -2,6 +2,7 @@ package com.panomc.platform.server
 
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelConfig
+import com.panomc.platform.db.model.SystemProperty
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
@@ -58,8 +59,57 @@ class ServerSelectionService(
         return selected != serverId
     }
 
+    /**
+     * Makes [serverId] the main server (the one the website shows) when there is none, or the one
+     * on record no longer exists. Accepting a connection request always did this; creating a
+     * server or linking one through the Pano Agent did not, which left a first server that was
+     * nobody's main and an empty spot wherever the main server is shown.
+     *
+     * @return whether the main server changed.
+     */
+    suspend fun makeMainIfNone(serverId: Long, sqlClient: SqlClient): Boolean {
+        val current = mainServerId(sqlClient)
+
+        if (current == serverId) {
+            return false
+        }
+
+        if (current != NO_MAIN && databaseManager.serverDao.existsById(current, sqlClient)) {
+            return false
+        }
+
+        setMain(serverId, sqlClient)
+
+        return true
+    }
+
+    /**
+     * After the main server was removed: the oldest approved server left takes its place, so a
+     * install with servers always has a main one. Nothing left leaves it unset.
+     */
+    suspend fun promoteMainServer(sqlClient: SqlClient) {
+        val next = databaseManager.serverDao.getAllByPermissionGranted(sqlClient).minByOrNull { it.id }
+
+        setMain(next?.id ?: NO_MAIN, sqlClient)
+    }
+
+    private suspend fun mainServerId(sqlClient: SqlClient): Long =
+        databaseManager.systemPropertyDao.getByOption(MAIN_OPTION, sqlClient)?.value?.toLongOrNull() ?: NO_MAIN
+
+    private suspend fun setMain(serverId: Long, sqlClient: SqlClient) {
+        if (databaseManager.systemPropertyDao.existsByOption(MAIN_OPTION, sqlClient)) {
+            databaseManager.systemPropertyDao.update(MAIN_OPTION, serverId.toString(), sqlClient)
+        } else {
+            databaseManager.systemPropertyDao.add(SystemProperty(option = MAIN_OPTION, value = serverId.toString()), sqlClient)
+        }
+    }
+
     companion object {
         /** The `panel_config` option the selection is stored under. */
         const val OPTION = "selected_server"
+
+        /** The `system_property` the main server is stored under, and its "none" value. */
+        const val MAIN_OPTION = "main_server"
+        const val NO_MAIN = -1L
     }
 }

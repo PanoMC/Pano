@@ -194,6 +194,7 @@ class AgentServerLinkService(
 
         // The admin who issued the agent code lands on the server it linked, if they had none.
         linker?.let { serverSelectionService.selectIfNone(it, serverId, sqlClient) }
+        serverSelectionService.makeMainIfNone(serverId, sqlClient)
 
         val username = linker?.let { databaseManager.userDao.getUsernameFromUserId(it, sqlClient) }
 

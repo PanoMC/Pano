@@ -303,8 +303,10 @@ class PanelCreateServerAPI(
             startImport(source, data, stored, node, userId, folderPath, port, sqlClient)
         }
 
-        // Somebody with nothing selected lands on the server they just created.
+        // Somebody with nothing selected lands on the server they just created, and a first server
+        // is the main one.
         serverSelectionService.selectIfNone(userId, serverId, sqlClient)
+        serverSelectionService.makeMainIfNone(serverId, sqlClient)
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient) ?: throw NotExists()
 

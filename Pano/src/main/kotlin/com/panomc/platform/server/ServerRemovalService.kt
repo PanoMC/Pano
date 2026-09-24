@@ -29,6 +29,7 @@ class ServerRemovalService(
     private val alertManager: AlertManager,
     private val pluginIdentificationService: PluginIdentificationService,
     private val serverStopReasonStore: ServerStopReasonStore,
+    private val serverSelectionService: ServerSelectionService,
     private val activeTaskStore: ServerActiveTaskStore
 ) {
     /**
@@ -81,6 +82,11 @@ class ServerRemovalService(
         databaseManager.serverTaskDao.clearServerIdByServerId(serverId, sqlClient)
 
         databaseManager.serverDao.deleteById(serverId, sqlClient)
+
+        // The main server is gone: the next one takes over rather than leaving the spot empty.
+        if (mainServerId == serverId) {
+            serverSelectionService.promoteMainServer(sqlClient)
+        }
 
         serverManager.onServerDeleted(serverId)
 

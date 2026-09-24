@@ -528,8 +528,12 @@ class PluginSourceCatalog(
     ): PluginSearchPage {
         val facets = JsonArray().add(JsonArray().add("project_type:${projectType.modrinthProjectType}"))
 
+        // Nothing typed is the browse tab's "popular" list: most downloaded first. Relevance with an
+        // empty query is close to arbitrary.
+        val index = if (query.isEmpty()) "downloads" else "relevance"
+
         val url = "$MODRINTH_API/search?query=${encode(query)}&offset=$offset&limit=$pageSize" +
-            "&index=relevance&facets=${encode(facets.encode())}"
+            "&index=$index&facets=${encode(facets.encode())}"
 
         val body = getJsonObject(url)
 
@@ -546,6 +550,10 @@ class PluginSourceCatalog(
 
             if (query.isNotEmpty()) {
                 append("&q=${encode(query)}")
+            } else {
+                // Hangar's default order with no query is close to random (newest projects with a
+                // handful of downloads); an empty query is the browse tab's "popular" list.
+                append("&sort=-downloads")
             }
         }
 
@@ -634,8 +642,12 @@ class PluginSourceCatalog(
             facets.add(JsonArray(gameVersions.map { "versions:$it" }))
         }
 
+        // Nothing typed is the browse tab's "popular" list: most downloaded first. Relevance with an
+        // empty query is close to arbitrary.
+        val index = if (query.isEmpty()) "downloads" else "relevance"
+
         val url = "$MODRINTH_API/search?query=${encode(query)}&offset=$offset&limit=$pageSize" +
-            "&index=relevance&facets=${encode(facets.encode())}"
+            "&index=$index&facets=${encode(facets.encode())}"
 
         val body = getJsonObject(url)
 
@@ -681,6 +693,10 @@ class PluginSourceCatalog(
 
             if (query.isNotEmpty()) {
                 append("&q=${encode(query)}")
+            } else {
+                // Hangar's default order with no query is close to random (newest projects with a
+                // handful of downloads); an empty query is the browse tab's "popular" list.
+                append("&sort=-downloads")
             }
         }
 

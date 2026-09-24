@@ -9,6 +9,7 @@ import com.panomc.platform.node.ManagedPluginJarResolver
 import com.panomc.platform.node.NodeInstallScriptProvider
 import com.panomc.platform.node.NodeJarProvider
 import com.panomc.platform.node.NodeManager
+import com.panomc.platform.node.NodeProtocol
 import com.panomc.platform.node.NodeUpdateAvailability
 import com.panomc.platform.node.NodeUpdateProgressStore
 import com.panomc.platform.server.ServerActiveTaskStore
@@ -96,6 +97,7 @@ class ServerFeatureResolver(
                 put("agent", agentInfo != null)
                 put("agentInfo", agentInfo)
                 put("panoPluginUpdate", panoPluginUpdateOf(server))
+                put("nodeOutdated", nodeOutdatedOf(server))
                 put("daemonUpdate", nodeUpdateProgressStore.get(server.nodeId)?.toServerJsonObject())
             }
 
@@ -137,6 +139,17 @@ class ServerFeatureResolver(
             .put("latestVersion", latest)
             .put("mode", mode?.wire)
             .put("manual", refusal != null && PanoPluginUpdatePlan.canUpdateByHand(refusal, server.isManaged))
+    }
+
+    /**
+     * Whether the node (or Pano Agent) running [server] is connected and speaks an older protocol
+     * than this Pano, so some of what the panel offers for the server does not work until it is
+     * updated. False when there is no node, or it is offline: an offline node says nothing new.
+     */
+    private fun nodeOutdatedOf(server: Server): Boolean {
+        val node = server.nodeId?.let { nodeManager.getConnectedNodeById(it) } ?: return false
+
+        return node.protocolVersion < NodeProtocol.VERSION
     }
 
     /** What the panel shows about the Pano Agent behind [server], or null when there is none. */

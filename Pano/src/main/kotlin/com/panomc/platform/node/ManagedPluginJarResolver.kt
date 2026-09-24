@@ -297,6 +297,52 @@ class ManagedPluginJarResolver(
             else -> null
         }
 
+        /**
+         * The oldest Minecraft the Fabric build of the Pano mod loads on: its `fabric.mod.json`
+         * declares `"minecraft": ">=26.1"` (and Java 25). Minecraft 26.1 is the first release without
+         * obfuscation, and the mod is compiled against its real names; an older Fabric server
+         * refuses to load it ("Incompatible mods found!") and so never starts at all.
+         */
+        const val FABRIC_MIN_MINECRAFT = "26.1"
+
+        /**
+         * Whether the Pano plugin for [type] can run on Minecraft [version]. Only the Fabric build
+         * has a floor; an unknown version is given the benefit of the doubt, as it always was.
+         */
+        fun supportsMinecraft(type: ServerType, version: String?): Boolean {
+            if (platformOf(type) != "fabric") {
+                return true
+            }
+
+            val known = version?.trim()?.takeIf { it.isNotEmpty() } ?: return true
+
+            return compareMinecraft(known, FABRIC_MIN_MINECRAFT) >= 0
+        }
+
+        /**
+         * Orders Minecraft versions by their numbers: `1.21.8` < `26.1` < `26.1.2` < `26.3`. A part's
+         * leading digits count and the rest is ignored, so `26.4-snapshot-1` sorts as 26.4 and a
+         * weekly snapshot like `25w45a` as 25 -- before the 26.1 it led up to.
+         */
+        fun compareMinecraft(a: String, b: String): Int {
+            fun parts(version: String) = version.substringBefore('-').split('.').map { part ->
+                part.takeWhile { it.isDigit() }.toIntOrNull() ?: 0
+            }
+
+            val left = parts(a)
+            val right = parts(b)
+
+            for (index in 0 until maxOf(left.size, right.size)) {
+                val difference = left.getOrElse(index) { 0 } - right.getOrElse(index) { 0 }
+
+                if (difference != 0) {
+                    return difference
+                }
+            }
+
+            return 0
+        }
+
         /** Where the jar goes inside the server directory. Mod loaders read `mods`, the rest `plugins`. */
         fun targetDirOf(type: ServerType): String =
             if (type == ServerType.FABRIC || type == ServerType.QUILT) "mods" else "plugins"

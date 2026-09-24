@@ -120,4 +120,26 @@ class ManagedPluginJarResolverTest {
 
         assertNull(ManagedPluginJarResolver.findLocalJar(root, "spigot"))
     }
+
+    @Test
+    fun `the Fabric mod is only offered to a Minecraft it can load`() {
+        assertTrue(ManagedPluginJarResolver.supportsMinecraft(ServerType.FABRIC, "26.1"))
+        assertTrue(ManagedPluginJarResolver.supportsMinecraft(ServerType.FABRIC, "26.1.2"))
+        assertTrue(ManagedPluginJarResolver.supportsMinecraft(ServerType.QUILT, "26.3"))
+        assertTrue(ManagedPluginJarResolver.supportsMinecraft(ServerType.FABRIC, "26.4-snapshot-1"))
+        assertFalse(ManagedPluginJarResolver.supportsMinecraft(ServerType.FABRIC, "1.21.8"))
+        assertFalse(ManagedPluginJarResolver.supportsMinecraft(ServerType.QUILT, "1.20.1"))
+        assertFalse(ManagedPluginJarResolver.supportsMinecraft(ServerType.FABRIC, "25w45a"))
+        // Unknown, and every other platform: no floor.
+        assertTrue(ManagedPluginJarResolver.supportsMinecraft(ServerType.FABRIC, null))
+        assertTrue(ManagedPluginJarResolver.supportsMinecraft(ServerType.PAPER, "1.8.8"))
+    }
+
+    @Test
+    fun `Minecraft versions order by their numbers`() {
+        assertTrue(ManagedPluginJarResolver.compareMinecraft("1.21.8", "26.1") < 0)
+        assertTrue(ManagedPluginJarResolver.compareMinecraft("26.1.2", "26.1") > 0)
+        assertEquals(0, ManagedPluginJarResolver.compareMinecraft("26.1.0", "26.1"))
+        assertTrue(ManagedPluginJarResolver.compareMinecraft("1.9", "1.10") < 0)
+    }
 }

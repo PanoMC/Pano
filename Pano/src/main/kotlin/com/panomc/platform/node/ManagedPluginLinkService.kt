@@ -52,6 +52,12 @@ class ManagedPluginLinkService(
      * in a directory that is about to be wiped.
      */
     suspend fun buildSpec(server: Server, node: Node, sqlClient: SqlClient): ManagedPluginSpec? {
+        // A mod the server's Minecraft cannot load would stop it from starting at all; an unlinked
+        // server that runs is the better outcome, and [describe] says why.
+        if (!ManagedPluginJarResolver.supportsMinecraft(server.type, server.softwareVersion)) {
+            return null
+        }
+
         val jarUrl = managedPluginJarResolver.resolve(server.type) ?: return null
         val targetDir = ManagedPluginJarResolver.targetDirOf(server.type)
         val configPath = ManagedPluginJarResolver.configPathOf(server.type) ?: return null
@@ -90,6 +96,10 @@ class ManagedPluginLinkService(
         spec != null -> "Installing the Pano plugin"
         ManagedPluginJarResolver.platformOf(server.type) == null ->
             "${server.type.name.lowercase()} has no Pano plugin; this server will not be linked"
+
+        !ManagedPluginJarResolver.supportsMinecraft(server.type, server.softwareVersion) ->
+            "The Pano mod needs Minecraft ${ManagedPluginJarResolver.FABRIC_MIN_MINECRAFT} or newer on Fabric; " +
+                "this server runs ${server.softwareVersion} and is left unlinked so it can start"
 
         else -> "The Pano plugin could not be downloaded; link this server with /pano connect"
     }

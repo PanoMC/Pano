@@ -47,6 +47,9 @@ class PanelDeleteNotificationAPI(
 
         databaseManager.panelNotificationDao.deleteById(notification.id, sqlClient)
 
-        return Successful()
+        // An unread one going away changes the navbar's badge too.
+        return Successful(
+            mapOf("notReadCount" to databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlClient))
+        )
     }
 }

@@ -49,7 +49,9 @@ class PanelGetNotificationsAPI(
         return Successful(
             mutableMapOf(
                 "notifications" to notificationsDataList,
-                "notificationCount" to count
+                "notificationCount" to count,
+                // Read after the page was marked read above: what the navbar's badge should say now.
+                "notReadCount" to databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlClient)
             )
         )
     }

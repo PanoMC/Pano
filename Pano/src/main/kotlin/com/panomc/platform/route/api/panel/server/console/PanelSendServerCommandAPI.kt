@@ -106,6 +106,13 @@ class PanelSendServerCommandAPI(
         // neither their budget nor an activity-log line.
         val source = serverFeatureResolver.pick(server, ServerFeature.CONSOLE_INPUT)
 
+        // A managed server whose process is not up has nothing to read a command: refuse it here,
+        // before the policy, the limiter and the activity log, so the log does not fill up with
+        // commands that never ran. A linked server is refused the same way in sendToPlugin.
+        if (server.isManaged && server.processState?.isAlive != true) {
+            throw ServerOffline()
+        }
+
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         // Before the limiter, so a refused command does not also spend the caller's budget: the

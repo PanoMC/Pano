@@ -45,6 +45,13 @@ enum class ServerAlertKind(val cooldownMs: Long, val id: String) {
      */
     PLUGIN_UPDATES(24 * HOUR, "plugin-updates");
 
+    /**
+     * Whether this kind is about one server, and so can be switched on or off for that server alone
+     * (its `settings.alerts`, which overrides the platform-wide switch). The node kinds are about a
+     * machine that may run many servers, and stay platform-wide.
+     */
+    val serverScoped: Boolean get() = this != NODE_OFFLINE && this != DISK_LOW
+
     companion object {
         /** The kind a stored row or a panel request names, which is the enum's own name and not [id]. */
         fun fromId(name: String?): ServerAlertKind? = entries.firstOrNull { it.name.equals(name, ignoreCase = true) }

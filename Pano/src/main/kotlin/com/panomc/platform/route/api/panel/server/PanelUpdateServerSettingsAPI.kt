@@ -23,6 +23,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import com.panomc.platform.util.UsageMode
+import com.panomc.platform.server.alert.ServerAlertKind
 
 @Endpoint
 class PanelUpdateServerSettingsAPI(
@@ -54,6 +55,8 @@ class PanelUpdateServerSettingsAPI(
                                 .optionalProperty("banIntegration", booleanSchema())
                                 .optionalProperty("permissionIntegration", booleanSchema())
                                 .optionalProperty("autoUpdateCheck", booleanSchema())
+                                // `{ "<KIND>": true | false | null }`; null drops the override.
+                                .optionalProperty("alerts", objectSchema())
                         )
                         .optionalProperty("customName", stringSchema())
                 )
@@ -156,6 +159,32 @@ class PanelUpdateServerSettingsAPI(
             target.banIntegration = body.getBoolean("banIntegration", target.banIntegration)
             target.permissionIntegration = body.getBoolean("permissionIntegration", target.permissionIntegration)
             target.autoUpdateCheck = body.getBoolean("autoUpdateCheck", target.autoUpdateCheck)
+
+            if (body.containsKey("alerts")) {
+                target.alerts = mergeAlerts(target.alerts, body.getJsonObject("alerts"))
+            }
+        }
+
+        /**
+         * Applies a `settings.alerts` body onto the stored overrides: `true`/`false` sets one,
+         * `null` removes it (back to the platform setting). Anything that is not a server-scoped
+         * alert kind, or not a boolean, is ignored rather than stored.
+         */
+        fun mergeAlerts(current: Map<String, Boolean>, body: JsonObject?): Map<String, Boolean> {
+            val next = current.filterKeys { key -> ServerAlertKind.entries.any { it.name == key && it.serverScoped } }
+                .toMutableMap()
+
+            body ?: return next
+
+            ServerAlertKind.entries.filter { it.serverScoped && body.containsKey(it.name) }.forEach { kind ->
+                when (val value = body.getValue(kind.name)) {
+                    is Boolean -> next[kind.name] = value
+                    null -> next.remove(kind.name)
+                    else -> Unit
+                }
+            }
+
+            return next
         }
     }
 }

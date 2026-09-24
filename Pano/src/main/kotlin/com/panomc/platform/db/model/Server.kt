@@ -184,6 +184,13 @@ data class Server(
 
     companion object {
         data class ServerSettings(
+            /**
+             * Per-server alert switches, keyed by [com.panomc.platform.server.alert.ServerAlertKind]
+             * name: `true` raises that kind for this server even when it is off platform-wide,
+             * `false` silences it here only. A kind that is not in the map follows the platform
+             * setting, which is what every server starts with. Only server-scoped kinds are stored.
+             */
+            var alerts: Map<String, Boolean> = emptyMap(),
             var authIntegration: Boolean = true,
             var authRequireVerified: Boolean = true,
             var authKickAfterRegister: Boolean = true,

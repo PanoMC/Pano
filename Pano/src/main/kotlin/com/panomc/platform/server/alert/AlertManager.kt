@@ -98,6 +98,7 @@ class AlertManager(
         raise(
             subject = "server:${server.id}",
             serverId = server.id,
+            server = server,
             nodeId = server.nodeId,
             serverName = name,
             message = ServerAlertMessage.serverCrashed(name, exitCode, cleaned),
@@ -154,6 +155,7 @@ class AlertManager(
         raise(
             subject = "server:${server.id}",
             serverId = server.id,
+            server = server,
             nodeId = server.nodeId,
             serverName = name,
             message = ServerAlertMessage.backupFailed(name, error),
@@ -212,6 +214,7 @@ class AlertManager(
         raise(
             subject = "server:${server.id}",
             serverId = server.id,
+            server = server,
             nodeId = server.nodeId,
             serverName = name,
             message = ServerAlertMessage.tpsLow(name, reading),
@@ -234,6 +237,7 @@ class AlertManager(
         raise(
             subject = "server:${server.id}:$scheduleName",
             serverId = server.id,
+            server = server,
             nodeId = server.nodeId,
             serverName = name,
             message = ServerAlertMessage.scheduleFailed(name, scheduleName, error),
@@ -270,6 +274,7 @@ class AlertManager(
         raise(
             subject = "server:${server.id}",
             serverId = server.id,
+            server = server,
             nodeId = server.nodeId,
             serverName = name,
             message = ServerAlertMessage.pluginUpdates(name, names.size, shown),
@@ -308,6 +313,8 @@ class AlertManager(
     private suspend fun raise(
         subject: String,
         serverId: Long?,
+        /** The server the alert is about, whose `settings.alerts` can override the platform switch. */
+        server: Server? = null,
         nodeId: Long?,
         serverName: String? = null,
         message: ServerAlertMessage,
@@ -320,7 +327,7 @@ class AlertManager(
         try {
             val setting = settings(sqlClient)[kind] ?: AlertSetting(enabled = true, email = false)
 
-            if (!setting.enabled) {
+            if (!isEnabledFor(kind, setting, server)) {
                 return
             }
 
@@ -366,6 +373,13 @@ class AlertManager(
      * notification is already written by the time this runs, so a broken SMTP server costs the
      * e-mail and nothing else.
      */
+    /**
+     * Whether [kind] is raised for [server]: that server's own switch when it has one (a
+     * server-scoped kind only), the platform-wide [setting] otherwise. E-mail stays platform-wide.
+     */
+    private fun isEnabledFor(kind: ServerAlertKind, setting: AlertSetting, server: Server?): Boolean =
+        resolveEnabled(kind, setting.enabled, server?.settings?.alerts)
+
     private suspend fun sendEmails(
         message: ServerAlertMessage,
         link: String,
@@ -457,6 +471,18 @@ class AlertManager(
             .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
 
     companion object {
+        /**
+         * The per-server override rule, pure so it can be asserted: a server-scoped [kind] with an
+         * entry in [overrides] uses it, anything else uses [platformEnabled].
+         */
+        fun resolveEnabled(kind: ServerAlertKind, platformEnabled: Boolean, overrides: Map<String, Boolean>?): Boolean {
+            if (!kind.serverScoped) {
+                return platformEnabled
+            }
+
+            return overrides?.get(kind.name) ?: platformEnabled
+        }
+
         private const val MAX_MESSAGE_LENGTH = 1000
         private const val MAX_ERROR_LENGTH = 500
 

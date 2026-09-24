@@ -84,7 +84,24 @@ data class PanoPluginSpec(
     val targetDir: String? = null,
     /** Where that platform's plugin reads config.conf, relative to the server directory. */
     val configPath: String? = null,
-    val config: PanoPluginConfig? = null
+    val config: PanoPluginConfig? = null,
+    /**
+     * Mods the plugin cannot start without (Fabric API for the Fabric build), put next to it
+     * first. One that is already installed is skipped; one that is missing and has no
+     * [PanoPluginDependency.downloadUrl] keeps the plugin out, so the server still starts.
+     */
+    val dependencies: List<PanoPluginDependency>? = null
+)
+
+/** One entry of [PanoPluginSpec.dependencies]. */
+data class PanoPluginDependency(
+    /** The mod id it provides (`fabric-api`), matched against `fabric.mod.json` / `quilt.mod.json`. */
+    val modId: String? = null,
+    val name: String? = null,
+    val downloadUrl: String? = null,
+    val filename: String? = null,
+    val sha512: String? = null,
+    val sha1: String? = null
 )
 
 data class PanoPluginConfig(

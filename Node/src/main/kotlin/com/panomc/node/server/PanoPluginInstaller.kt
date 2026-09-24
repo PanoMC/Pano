@@ -1,9 +1,11 @@
 package com.panomc.node.server
 
 import com.panomc.node.crypto.NodeKeys
+import com.panomc.node.net.PanoPluginDependency
 import com.panomc.node.net.PanoPluginSpec
 import com.panomc.node.net.PlatformUrls
 import com.panomc.node.util.Downloader
+import com.panomc.node.util.FileHash
 import com.panomc.node.util.NodeLogger
 import com.panomc.node.util.PathSafety
 import com.typesafe.config.ConfigFactory
@@ -71,6 +73,11 @@ class PanoPluginInstaller(
             // node knows which address it reaches Pano on.
             val resolved = platformUrls.resolve(jarUrl) ?: jarUrl
 
+            // Before the plugin itself: a Fabric server that gets the Pano mod without Fabric API
+            // crashes on every start, so when a dependency cannot be put in place the mod is not
+            // either, and this throws the sentence the task reports.
+            installDependencies(serverDirectory, targetDir, spec.dependencies.orEmpty())
+
             val jarFile = copyJar(serverDirectory, targetDir, resolved)
 
             writeConfig(serverDirectory, configPath, spec)
@@ -114,15 +121,7 @@ class PanoPluginInstaller(
         part.delete()
 
         try {
-            if (uri.scheme.equals("file", ignoreCase = true)) {
-                val source = File(uri)
-
-                require(source.isFile) { "${source.absolutePath} is not a file." }
-
-                source.copyTo(part, overwrite = true)
-            } else {
-                Downloader.download(jarUrl, part) { }
-            }
+            fetch(uri, part)
 
             if (!Downloader.isZip(part)) {
                 throw IllegalStateException("What Pano pointed at is not a jar.")
@@ -136,6 +135,96 @@ class PanoPluginInstaller(
         }
 
         return target
+    }
+
+    /** Downloads [uri] onto [part], or copies it for a `file:` url (see [copyJar]). */
+    private fun fetch(uri: URI, part: File) {
+        if (uri.scheme.equals("file", ignoreCase = true)) {
+            val source = File(uri)
+
+            require(source.isFile) { "${source.absolutePath} is not a file." }
+
+            source.copyTo(part, overwrite = true)
+        } else {
+            Downloader.download(uri.toString(), part) { }
+        }
+    }
+
+    /**
+     * Puts every one of [dependencies] into `<serverDir>/<targetDir>/` that is not there yet.
+     *
+     * "There" is decided by the mod id the jars declare ([ModPresence]), not by file name, so a
+     * modpack's own Fabric API -- or Quilted Fabric API, which provides it -- is left alone. A
+     * download is checked against the hashes Pano sent and lands through the same `.part` file and
+     * rename as the plugin. Anything that cannot be satisfied throws, and nothing of the plugin has
+     * been written by then.
+     */
+    private fun installDependencies(serverDirectory: File, targetDir: String, dependencies: List<PanoPluginDependency>) {
+        if (dependencies.isEmpty()) {
+            return
+        }
+
+        val directory = PathSafety.resolveRelative(serverDirectory, targetDir)
+
+        directory.mkdirs()
+
+        dependencies.forEach { dependency ->
+            val modId = dependency.modId?.takeIf { it.isNotBlank() } ?: return@forEach
+            val label = dependency.name?.takeIf { it.isNotBlank() } ?: modId
+
+            if (ModPresence.isInstalled(directory, modId)) {
+                return@forEach
+            }
+
+            val url = dependency.downloadUrl?.takeIf { it.isNotBlank() }
+                ?: throw IllegalStateException(
+                    "The Pano plugin needs $label, which is not in $targetDir and has no build for this " +
+                        "Minecraft version; it was left out so the server can still start. Install $label, " +
+                        "then install the Pano plugin again."
+                )
+
+            val uri = URI.create(platformUrls.resolve(url) ?: url)
+            val name = dependency.filename?.takeIf { SAFE_JAR_NAME.matches(it) } ?: fileNameOf(uri)
+            val target = PathSafety.resolveRelative(directory, name)
+            val part = File(directory, partNameOf(name))
+
+            part.delete()
+
+            try {
+                fetch(uri, part)
+
+                verify(part, dependency)
+
+                if (!Downloader.isZip(part)) {
+                    throw IllegalStateException("the download is not a jar")
+                }
+
+                moveIntoPlace(part, target)
+            } catch (exception: Exception) {
+                part.delete()
+
+                throw IllegalStateException(
+                    "Could not install $label, which the Pano plugin needs (${exception.message}); the " +
+                        "plugin was left out so the server can still start.",
+                    exception
+                )
+            }
+
+            logger.info("Installed ${target.name}, which the Pano plugin needs, into ${directory.absolutePath}.")
+        }
+    }
+
+    /** Checks a dependency download against whichever hashes Pano sent; absent ones are skipped. */
+    private fun verify(file: File, dependency: PanoPluginDependency) {
+        listOf("SHA-512" to dependency.sha512, "SHA-1" to dependency.sha1).forEach { (algorithm, expected) ->
+            if (expected.isNullOrBlank()) {
+                return@forEach
+            }
+
+            if (!FileHash.matches(file, algorithm, expected)) {
+                throw IllegalStateException("it did not match its $algorithm checksum")
+            }
+        }
     }
 
     /** Moves the finished download onto its real name, atomically where the filesystem allows it. */
@@ -197,6 +286,9 @@ class PanoPluginInstaller(
         const val DEFAULT_CONFIG_PATH = "plugins/Pano/config.conf"
 
         private const val DEFAULT_JAR_NAME = "pano.jar"
+
+        /** A dependency's own file name is kept when it is one plain jar name and nothing more. */
+        private val SAFE_JAR_NAME = Regex("^[A-Za-z0-9][A-Za-z0-9._+-]*\\.jar$")
 
         const val PART_SUFFIX = ".part"
 

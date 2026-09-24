@@ -36,6 +36,7 @@ class ManagedPluginLinkService(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
     private val managedPluginJarResolver: ManagedPluginJarResolver,
+    private val managedPluginDependencyResolver: ManagedPluginDependencyResolver,
     private val configManager: ConfigManager,
     private val logger: Logger
 ) {
@@ -75,12 +76,17 @@ class ManagedPluginLinkService(
                 ssl = address.ssl,
                 token = token,
                 encryptionKey = server.aesKey
-            )
+            ),
+            // Fabric API for the Fabric build: without it the server crashes on every start.
+            dependencies = managedPluginDependencyResolver.resolve(server)
         )
     }
 
     /** One line about what was decided, for the install task's message. */
     fun describe(server: Server, spec: ManagedPluginSpec?): String = when {
+        spec != null && spec.dependencies.isNotEmpty() ->
+            "Installing the Pano plugin with ${spec.dependencies.joinToString(", ") { it.name }}"
+
         spec != null -> "Installing the Pano plugin"
         ManagedPluginJarResolver.platformOf(server.type) == null ->
             "${server.type.name.lowercase()} has no Pano plugin; this server will not be linked"

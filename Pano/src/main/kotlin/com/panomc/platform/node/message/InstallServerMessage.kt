@@ -91,7 +91,27 @@ data class ManagedPluginSpec(
      * that already maps a [com.panomc.platform.server.ServerType] onto a plugin module.
      */
     val configPath: String,
-    val config: ManagedPluginConfig
+    val config: ManagedPluginConfig,
+    /**
+     * Mods the plugin cannot start without, put next to it first: the Fabric build needs Fabric
+     * API, and a Fabric server with the Pano mod and no Fabric API crashes on every start. The
+     * node skips one that is already there, and leaves the plugin out when one is missing and
+     * cannot be downloaded, so the server still starts. A node that predates the field ignores it.
+     */
+    val dependencies: List<ManagedPluginDependency> = emptyList()
+)
+
+/** One mod the Pano plugin depends on, as [ManagedPluginSpec.dependencies] lists it. */
+data class ManagedPluginDependency(
+    /** The mod id it provides (`fabric-api`), which is how the node recognises one already installed. */
+    val modId: String,
+    /** Human name for the task message. */
+    val name: String,
+    /** Where to download it; null when no build for this server's Minecraft version was found. */
+    val downloadUrl: String? = null,
+    val filename: String? = null,
+    val sha512: String? = null,
+    val sha1: String? = null
 )
 
 /** The `platform` block written into the plugin's `config.conf`. */

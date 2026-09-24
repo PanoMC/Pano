@@ -182,6 +182,46 @@ class PluginSourceCatalog(
         return result
     }
 
+    /**
+     * The Modrinth versions of [projectId] published for exactly [gameVersion] on one of [loaders],
+     * newest first, filtered by Modrinth itself.
+     *
+     * [versions] asks for everything on purpose (the panel lists every build with a compatibility
+     * flag), which for a project like Fabric API is twelve hundred versions and over a megabyte;
+     * a caller that only wants the build for one server -- the Fabric API a managed Fabric server
+     * gets next to the Pano mod -- asks this instead. Cached like the rest.
+     */
+    suspend fun modrinthVersionsFor(
+        projectId: String,
+        loaders: List<String>,
+        gameVersion: String
+    ): List<PluginVersionData> {
+        val key = "modrinth-exact:$projectId:${loaders.joinToString(",")}:$gameVersion"
+
+        cached<List<PluginVersionData>>(key)?.let { return it }
+
+        val loadersParam = encode(JsonArray(loaders).encode())
+        val gameVersionsParam = encode(JsonArray(listOf(gameVersion)).encode())
+
+        val result = try {
+            val body = getJsonArray(
+                "$MODRINTH_API/project/${encode(projectId)}/version?loaders=$loadersParam&game_versions=$gameVersionsParam"
+            )
+
+            ModrinthResponses.versions(body, loaders, listOf(gameVersion))
+        } catch (e: Exception) {
+            logger.warn("Listing Modrinth versions of $projectId for $gameVersion failed: ${e.message}")
+
+            emptyList()
+        }
+
+        if (result.isNotEmpty()) {
+            store(key, result)
+        }
+
+        return result
+    }
+
     /** One version by id, or null when the source no longer has it. */
     suspend fun version(
         source: PluginSourceId,

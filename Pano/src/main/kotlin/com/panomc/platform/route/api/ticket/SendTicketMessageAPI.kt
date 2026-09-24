@@ -22,6 +22,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class SendTicketMessageAPI(
@@ -29,6 +30,8 @@ class SendTicketMessageAPI(
     private val databaseManager: DatabaseManager,
     private val notificationManager: NotificationManager
 ) : LoggedInApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/tickets/:id/messages", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

@@ -28,6 +28,7 @@ import org.imgscalr.Scalr
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelCreateOrUpdatePostAPI(
@@ -35,6 +36,8 @@ class PanelCreateOrUpdatePostAPI(
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(
         Path("/api/panel/posts/:id", RouteType.PUT),
         Path("/api/panel/post", RouteType.POST)

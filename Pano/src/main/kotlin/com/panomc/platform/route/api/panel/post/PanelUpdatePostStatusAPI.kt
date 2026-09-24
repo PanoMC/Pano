@@ -17,12 +17,15 @@ import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelUpdatePostStatusAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/posts/:id/status", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

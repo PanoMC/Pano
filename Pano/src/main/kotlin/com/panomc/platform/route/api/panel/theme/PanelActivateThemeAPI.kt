@@ -19,6 +19,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import org.springframework.context.annotation.Lazy
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelActivateThemeAPI(
@@ -28,6 +29,8 @@ class PanelActivateThemeAPI(
     private val authProvider: AuthProvider,
     @param:Lazy private val router: Router
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/themes/:themeId", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

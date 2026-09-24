@@ -25,6 +25,7 @@ import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 import java.util.*
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelUpdateThemeSettingsAPI(
@@ -34,6 +35,8 @@ class PanelUpdateThemeSettingsAPI(
     private val databaseManager: DatabaseManager,
     private val uiManager: UIManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/theme/settings", RouteType.PUT))
 
     companion object {

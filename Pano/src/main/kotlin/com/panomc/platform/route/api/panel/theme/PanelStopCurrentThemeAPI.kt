@@ -16,6 +16,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelStopCurrentThemeAPI(
@@ -23,6 +24,8 @@ class PanelStopCurrentThemeAPI(
     private val databaseManager: DatabaseManager,
     private val themeUiController: ThemeUiController
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/themes", RouteType.DELETE))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

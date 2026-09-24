@@ -12,6 +12,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.security.MessageDigest
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class TrackPostViewAPI(
@@ -29,6 +30,9 @@ class TrackPostViewAPI(
             RegexOption.IGNORE_CASE
         )
     }
+
+    override val usageModes = UsageMode.WITH_WEBSITE
+
 
     override val paths = listOf(Path("/api/posts/:url/view", RouteType.POST))
 

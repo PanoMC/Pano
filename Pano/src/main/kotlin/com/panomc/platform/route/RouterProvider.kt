@@ -8,7 +8,10 @@ import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.api.event.RouterEventListener
 import com.panomc.platform.maintenance.MaintenanceGateHandler
+import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.Route
+import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.RateLimitManager
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
@@ -207,6 +210,11 @@ class RouterProvider private constructor(
                     routedRoute.handler(corsHandler)
                 }
 
+                // Ahead of validation, so a disabled endpoint answers 404 whatever the body says.
+                if (route.usageModes != UsageMode.ALL) {
+                    routedRoute.handler(usageModeGate(route.usageModes))
+                }
+
                 val validationHandler = route.getValidationHandler(schemaRepository)
 
                 if (validationHandler != null) {
@@ -223,6 +231,35 @@ class RouterProvider private constructor(
         }
 
         return vertxRoutes
+    }
+
+    /**
+     * 404 for a route that does not exist in the current usage mode ([Route.usageModes]), in the
+     * JSON shape every API error has. The mode is read per request.
+     */
+    private fun usageModeGate(modes: Set<UsageMode>): io.vertx.core.Handler<io.vertx.ext.web.RoutingContext> {
+        val configManager = applicationContext.getBean(ConfigManager::class.java)
+
+        return io.vertx.core.Handler { context ->
+            if (configManager.config.effectiveUsageMode in modes) {
+                context.next()
+
+                return@Handler
+            }
+
+            val response = context.response()
+
+            if (response.ended() || response.headWritten()) {
+                return@Handler
+            }
+
+            val notExists = NotExists()
+
+            response
+                .setStatusCode(notExists.getStatusCode())
+                .putHeader("content-type", "application/json; charset=utf-8")
+                .end(notExists.encode())
+        }
     }
 
     fun provide(): Router = router

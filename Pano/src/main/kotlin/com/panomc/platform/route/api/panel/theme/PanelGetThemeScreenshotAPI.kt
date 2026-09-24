@@ -19,12 +19,15 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelGetThemeScreenshotAPI(
     private val uiManager: UIManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/themes/:themeId/screenshots/*", RouteType.GET))
 
     companion object {

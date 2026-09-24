@@ -10,6 +10,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.ui.ThemeUiController
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * Starts the configured theme and binds its proxy route.
@@ -25,6 +26,8 @@ class PanelStartCurrentThemeAPI(
     private val databaseManager: DatabaseManager,
     private val themeUiController: ThemeUiController
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/themes", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

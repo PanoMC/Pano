@@ -148,7 +148,13 @@ data class ImportServerSpec(
      * Whether the adopted server starts with its node, for `IN_PLACE` (SM-74): Pano's row decides.
      * Null from an older Pano, and for every copy mode, which keeps what they always did.
      */
-    val autoStart: Boolean? = null
+    val autoStart: Boolean? = null,
+    /**
+     * `server.properties` entries Pano wants written, for a server it builds from a modpack (the
+     * whitelist switch). Null for an imported server, whose own file is kept. `server-port` is
+     * never taken from here; the port is [port].
+     */
+    val properties: Map<String, String>? = null
 )
 
 /**

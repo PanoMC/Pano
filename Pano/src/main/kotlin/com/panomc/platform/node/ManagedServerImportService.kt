@@ -110,7 +110,9 @@ class ManagedServerImportService(
                     javaMajor = server.javaVersion,
                     jvmArgs = server.jvmArgs,
                     acceptEula = acceptEula,
-                    autoStart = if (mode == ImportMode.IN_PLACE) server.autoStart else null
+                    autoStart = if (mode == ImportMode.IN_PLACE) server.autoStart else null,
+                    // Only a server Pano builds has any (see PanelCreateServerAPI.initialProperties).
+                    properties = server.properties.takeIf { it.isNotEmpty() }
                 )
             )
         )

@@ -24,6 +24,7 @@ import com.panomc.platform.node.message.ImportMode
 import com.panomc.platform.node.transfer.TransferTicketStore
 import com.panomc.platform.server.plugins.PluginSourceCatalog
 import com.panomc.platform.server.ServerCreateSource
+import com.panomc.platform.server.ServerPropertyKeys
 import com.panomc.platform.server.ServerKind
 import com.panomc.platform.server.ServerProcessState
 import com.panomc.platform.server.ServerStatus
@@ -115,6 +116,9 @@ class PanelCreateServerAPI(
                         .optionalProperty("crashRestart", booleanSchema())
                         // SM-69: the daily update check, on unless the wizard says otherwise.
                         .optionalProperty("autoUpdateCheck", booleanSchema())
+                        // Off unless asked for; only a server built from scratch or from a pack
+                        // gets it, an imported server keeps its own server.properties.
+                        .optionalProperty("whitelist", booleanSchema())
                         .optionalProperty("source", stringSchema())
                         .optionalProperty("folderPath", stringSchema().nullable())
                         .optionalProperty("uploadTicket", stringSchema().nullable())
@@ -146,6 +150,7 @@ class PanelCreateServerAPI(
         val jvmArgs = readJvmArgs(data.getJsonArray("jvmArgs"))
         val autoStart = data.getBoolean("autoStart", false)
         val crashRestart = data.getBoolean("crashRestart", true)
+        val whitelist = data.getBoolean("whitelist", false)
         val settings = initialSettings(data)
 
         val source = ServerCreateSource.fromId(data.getString("source"))
@@ -271,6 +276,7 @@ class PanelCreateServerAPI(
             crashRestart = crashRestart,
             processState = ServerProcessState.INSTALLING,
             settings = settings,
+            properties = initialProperties(source, serverType, whitelist),
             inPlace = inPlace,
             // What the admin typed, until the node answers with the path it actually resolved.
             directory = if (inPlace) folderPath else null
@@ -422,6 +428,19 @@ class PanelCreateServerAPI(
     private fun readJvmArgs(array: JsonArray?): List<String> = ServerStartupLimits.jvmArgs((array ?: JsonArray()).list)
 
     companion object {
+        /**
+         * The `server.properties` entries a new server starts with: the whitelist switch, for a
+         * server Pano builds (from scratch or from a modpack) and never for one it imports, whose
+         * own file is the admin's. A proxy has no `server.properties` to write it into.
+         */
+        fun initialProperties(source: ServerCreateSource, type: ServerType, whitelist: Boolean): Map<String, String> {
+            if (type.isProxy || (source != ServerCreateSource.FRESH && source != ServerCreateSource.MODPACK)) {
+                return emptyMap()
+            }
+
+            return mapOf(ServerPropertyKeys.WHITE_LIST to whitelist.toString())
+        }
+
         /**
          * The settings blob a new server starts with: the defaults, plus the one preference the
          * wizard asks about (SM-69, §2.4.34). Every source goes through here -- a fresh install and

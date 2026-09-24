@@ -49,7 +49,13 @@ data class ImportServerSpec(
      * Whether the node starts the server by itself, sent for `IN_PLACE` only (SM-74) so the node's
      * copy agrees with the row from the first moment. Null for the copy modes, which keep theirs off.
      */
-    val autoStart: Boolean? = null
+    val autoStart: Boolean? = null,
+    /**
+     * `server.properties` entries to write, for a server Pano builds from a modpack (the create
+     * wizard's whitelist switch). Null for an imported server, whose own file is kept; an older
+     * node ignores it.
+     */
+    val properties: Map<String, String>? = null
 )
 
 /** Where an imported server is coming from. */

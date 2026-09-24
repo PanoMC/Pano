@@ -180,6 +180,12 @@ class ImportService(
 
         val properties = LinkedHashMap<String, String>()
 
+        spec.properties?.forEach { (key, value) ->
+            if (key != "server-port") {
+                properties[key] = value
+            }
+        }
+
         properties["server-port"] = port.toString()
 
         ServerProperties.merge(File(directory, "server.properties"), properties)

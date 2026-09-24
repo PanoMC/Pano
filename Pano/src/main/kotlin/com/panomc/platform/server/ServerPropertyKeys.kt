@@ -20,6 +20,13 @@ object ServerPropertyKeys {
     /** Keys Pano manages through another setting; a request that names one is ignored for it. */
     val RESERVED = setOf("server-port")
 
+    /**
+     * The whitelist switch. Minecraft 26 writes `white-list=true` into a fresh `server.properties`
+     * (1.21 wrote false), so a server Pano creates gets it written explicitly -- off unless the
+     * create wizard's switch says otherwise.
+     */
+    const val WHITE_LIST = "white-list"
+
     /** One plain lower-case token, the way every vanilla key is spelled. */
     private val SAFE_KEY = Regex("^[a-z0-9][a-z0-9._-]{0,63}$")
 

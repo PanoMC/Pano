@@ -721,8 +721,8 @@ class LocalNodeManager(
     }
 
     /**
-     * The daemon jar to run: the one [NodeJarSync] keeps matching this Pano, downloaded from the
-     * release this Pano was built from when an install has none or has one from another version.
+     * The daemon jar to run: the one [NodeJarSync] keeps matching this Pano, unpacked from the copy
+     * bundled in the Pano jar when an install has none or has one from another version.
      */
     private suspend fun resolveJar(): File = nodeJarSync.ensureCurrent()
 
@@ -746,8 +746,6 @@ class LocalNodeManager(
 
         /** Whether an exit with [exitCode] means "leave me down" rather than "restart me". */
         fun shouldStayDown(exitCode: Int) = exitCode == RETIRED_EXIT_CODE
-
-        const val DOWNLOAD_TIMEOUT_MILLIS = 60_000L
 
         /** Fast exits in a row before the supervisor stops trying and reports FAILED. */
         const val MAX_CONSECUTIVE_FAILURES = 3

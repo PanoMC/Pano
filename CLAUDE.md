@@ -75,6 +75,13 @@ an update of myself, start me again" — systemd's `SuccessExitStatus=75` and Pa
 supervisor both treat it as a restart, not a failure. Pano can provision a local node for itself
 from the panel (`POST /api/panel/nodes/local/setup`); see `com.panomc.platform.node.LocalNodeManager`.
 
+The daemon is also **bundled inside the Pano jar**, the way `pano-updater.jar` is: `:Node:zipNode` +
+`:Node:copyNodeZip` drop `pano-node.zip` into `Pano/src/main/resources` (gitignored) and
+`NodeJarSync` unpacks it next to Pano at boot and before each local-node start, replacing a copy
+from another version (a `local-build` Pano unpacks every time). `:Pano:processResources` therefore
+builds `:Node`; pass `-x :Node:shadowJar` when a local daemon is running from
+`Node/build/libs/pano-node.jar` and must not have its jar rewritten under it.
+
 Releases are automated by **semantic-release** on push to `alpha`/`beta`/`main` (prerelease
 channels). Commit messages must be **conventional commits** (`feat:`, `fix:`, `chore:`, …) —
 they drive both versioning and the generated changelog.

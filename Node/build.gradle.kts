@@ -113,8 +113,39 @@ tasks {
         dependsOn("build")
     }
 
+    /**
+     * The daemon, packaged the way pano-updater.jar is: zipped and dropped into Pano's resources,
+     * so the Pano jar carries its own pano-node.jar and unpacks it next to itself at boot
+     * (NodeJarSync). A zip rather than the bare jar because Shadow would otherwise merge the
+     * daemon's classes into Pano's instead of keeping it as one file.
+     */
+    val zipNode = register<Zip>("zipNode") {
+        description = "Packages pano-node.jar into the ZIP archive Pano bundles."
+        group = "distribution"
+
+        mustRunAfter(shadowJar)
+
+        from(shadowJar.flatMap { it.archiveFile })
+        archiveFileName.set("pano-node.zip")
+        destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    }
+
+    val copyNodeZip = register<Copy>("copyNodeZip") {
+        description = "Copies pano-node.zip into Pano's resources."
+        group = "distribution"
+
+        mustRunAfter(zipNode)
+
+        from(zipNode.flatMap { it.archiveFile })
+        into(rootProject.layout.projectDirectory.dir("Pano/src/main/resources"))
+
+        outputs.upToDateWhen { false }
+    }
+
     jar {
         dependsOn(shadowJar)
+        dependsOn(zipNode)
+        dependsOn(copyNodeZip)
 
         // We only ever ship the fat jar.
         enabled = false

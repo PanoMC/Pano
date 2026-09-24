@@ -9,9 +9,11 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.node.LocalNodeJarLocator
 import com.panomc.platform.node.NodeJarProvider
+import com.panomc.platform.node.NodeJarSync
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
+import java.io.File
 
 /**
  * The node daemon itself (`GET /api/node/pano-node.jar`), and the same bytes as the Pano Agent
@@ -29,12 +31,15 @@ import io.vertx.kotlin.coroutines.coAwait
  * with a code or a bootstrap token before Pano will talk to it. Whoever downloads it can verify
  * what they got against [NodeJarChecksumAPI].
  *
- * 404 when this install has no jar; the installer then falls back to the release URL that
- * [com.panomc.platform.node.NodeInstallScriptProvider] renders in that case.
+ * The jar is unpacked from the Pano jar at boot ([NodeJarSync]); a request that arrives before
+ * that has finished waits for it rather than answering 404 to a panel that just started. 404 only
+ * when this Pano bundles no daemon and has none on disk; the installer then falls back to the
+ * release URL that [com.panomc.platform.node.NodeInstallScriptProvider] renders in that case.
  */
 @Endpoint
 class NodeJarAPI(
-    private val nodeJarProvider: NodeJarProvider
+    private val nodeJarProvider: NodeJarProvider,
+    private val nodeJarSync: NodeJarSync
 ) : Api() {
     override val paths = listOf(
         Path("/api/node/${LocalNodeJarLocator.JAR_NAME}", RouteType.GET),
@@ -47,7 +52,7 @@ class NodeJarAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result? {
-        val jar = nodeJarProvider.locate() ?: return NotExists()
+        val jar = nodeJarProvider.locate() ?: unpacked(nodeJarSync) ?: return NotExists()
 
         context.response()
             .putHeader("Content-Type", "application/java-archive")
@@ -66,6 +71,13 @@ class NodeJarAPI(
     }
 
     companion object {
+        /** The bundled jar, unpacked now when boot has not got to it yet; null when there is none. */
+        suspend fun unpacked(nodeJarSync: NodeJarSync): File? = try {
+            nodeJarSync.ensureCurrent()
+        } catch (_: Exception) {
+            null
+        }
+
         /** The name the jar is served under at [path]: the agent's name on the agent's route. */
         fun servedName(path: String): String =
             if (path.trimEnd('/').endsWith("/${LocalNodeJarLocator.AGENT_JAR_NAME}")) {

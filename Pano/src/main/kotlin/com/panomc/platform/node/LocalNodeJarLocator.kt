@@ -10,7 +10,8 @@ import java.io.File
  * development run points at a jar it just built. `Node/build/libs/pano-node.jar` is where the
  * Gradle build puts it, which makes a checkout work with no configuration at all. The working
  * directory and the running jar's directory are where a release install has it: [NodeJarSync]
- * downloads it there from this Pano's release and replaces it when Pano has updated itself.
+ * unpacks it there from the copy bundled in the Pano jar and replaces it when Pano has updated
+ * itself.
  *
  * Pure and side-effect free so the precedence can be tested without a filesystem layout that only
  * exists on a release install.

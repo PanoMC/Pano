@@ -433,9 +433,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     }
 }
 
-// Ensure Pano's processResources waits for the Updater zip to be produced and copied
+// Ensure Pano's processResources waits for the Updater and pano-node zips to be produced and copied
 tasks.named<ProcessResources>("processResources") {
     dependsOn(":Updater:copyUpdaterZip")
+    dependsOn(":Node:copyNodeZip")
 
     // Only depend on generateLicenses for build and buildDev tasks, not for run task
     if (!project.gradle.startParameter.taskNames.contains("run")) {

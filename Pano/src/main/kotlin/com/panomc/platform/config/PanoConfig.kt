@@ -187,8 +187,8 @@ data class PanoConfig(
         "Minecraft servers. It is set up from Panel -> Servers -> Nodes; nothing here starts one",
         "on its own.",
         "  enabled        - false stops Pano from ever spawning or supervising a local node.",
-        "  jar-path       - path to pano-node.jar. Empty means \"find it next to Pano, or download",
-        "                   the one matching this Pano version\".",
+        "  jar-path       - path to pano-node.jar. Empty means \"find it next to Pano, or unpack",
+        "                   the one bundled in this Pano\".",
         "  stop-with-pano - true stops the daemon when Pano shuts down. The default is false so",
         "                   restarting Pano does not take every managed server down with it."
     )

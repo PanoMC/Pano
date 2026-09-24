@@ -53,8 +53,11 @@ class NodeJarProvider(
         runningJarDir = runningJarDirectory()
     )
 
-    /** Whether an installer can be pointed at this Pano instead of at a GitHub release. */
-    fun isAvailable(): Boolean = locate() != null
+    /**
+     * Whether an installer can be pointed at this Pano instead of at a GitHub release: it has the
+     * jar on disk, or bundled and about to be unpacked -- the routes that serve it wait for that.
+     */
+    fun isAvailable(): Boolean = locate() != null || NodeJarBundle.isBundled
 
     /**
      * The jar's SHA-256, hashed once per version of the file.

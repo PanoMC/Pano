@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import com.panomc.platform.server.ServerSelectionService
 
 /**
  * Turns a Pano Agent's hello into its server (A2 of the "link an existing server" flow).
@@ -50,6 +51,7 @@ class AgentServerLinkService(
     private val databaseManager: DatabaseManager,
     private val managedServerImportService: ManagedServerImportService,
     private val agentNodeDirectory: AgentNodeDirectory,
+    private val serverSelectionService: ServerSelectionService,
     private val logger: Logger
 ) {
     /** Agents whose server row is being written right now, so two quick hellos cannot both write one. */
@@ -189,6 +191,9 @@ class AgentServerLinkService(
             port = ManagedServerInstallService.NODE_ALLOCATES_PORT,
             sqlClient = sqlClient
         )
+
+        // The admin who issued the agent code lands on the server it linked, if they had none.
+        linker?.let { serverSelectionService.selectIfNone(it, serverId, sqlClient) }
 
         val username = linker?.let { databaseManager.userDao.getUsernameFromUserId(it, sqlClient) }
 

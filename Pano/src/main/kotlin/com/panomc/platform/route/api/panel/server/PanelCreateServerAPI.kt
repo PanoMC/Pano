@@ -25,6 +25,7 @@ import com.panomc.platform.node.transfer.TransferTicketStore
 import com.panomc.platform.server.plugins.PluginSourceCatalog
 import com.panomc.platform.server.ServerCreateSource
 import com.panomc.platform.server.ServerPropertyKeys
+import com.panomc.platform.server.ServerSelectionService
 import com.panomc.platform.server.ServerKind
 import com.panomc.platform.server.ServerProcessState
 import com.panomc.platform.server.ServerStatus
@@ -88,7 +89,8 @@ class PanelCreateServerAPI(
     private val managedServerInstallService: ManagedServerInstallService,
     private val managedServerImportService: ManagedServerImportService,
     private val transferTicketStore: TransferTicketStore,
-    private val pluginSourceCatalog: PluginSourceCatalog
+    private val pluginSourceCatalog: PluginSourceCatalog,
+    private val serverSelectionService: ServerSelectionService
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
@@ -300,6 +302,9 @@ class PanelCreateServerAPI(
         } else {
             startImport(source, data, stored, node, userId, folderPath, port, sqlClient)
         }
+
+        // Somebody with nothing selected lands on the server they just created.
+        serverSelectionService.selectIfNone(userId, serverId, sqlClient)
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient) ?: throw NotExists()
 

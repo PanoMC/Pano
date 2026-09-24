@@ -406,6 +406,19 @@ class AuthProvider(
         return hasPermission(AccessPanelPermission(), routingContext)
     }
 
+    /**
+     * Whether [userId] may use the panel, answered without a session -- for the login API, which
+     * has to decide before it creates one. The same answer [hasAccessPanel] gives a signed-in
+     * request: an admin (`*`) always, anyone else by the ACCESS_PANEL node.
+     */
+    suspend fun hasAccessPanel(userId: Long): Boolean {
+        if (isUserAdmin(userId)) {
+            return true
+        }
+
+        return permissionManager.hasPermission(userId, AccessPanelPermission())
+    }
+
     fun validateInput(
         usernameOrEmail: String,
         password: String

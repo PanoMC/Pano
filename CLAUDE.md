@@ -78,7 +78,9 @@ from the panel (`POST /api/panel/nodes/local/setup`); see `com.panomc.platform.n
 The daemon is also **bundled inside the Pano jar**, the way `pano-updater.jar` is: `:Node:zipNode` +
 `:Node:copyNodeZip` drop `pano-node.zip` into `Pano/src/main/resources` (gitignored) and
 `NodeJarSync` unpacks it next to Pano at boot and before each local-node start, replacing a copy
-from another version (a `local-build` Pano unpacks every time). `:Pano:processResources` therefore
+from another version (a `local-build` Pano unpacks every time). That disk copy exists only for
+`java -jar`; `GET /api/node/pano-node.jar`, its `.sha256` and every "update available" are served
+by `NodeJarProvider` straight from the bundled zip. `:Pano:processResources` therefore
 builds `:Node`; pass `-x :Node:shadowJar` when a local daemon is running from
 `Node/build/libs/pano-node.jar` and must not have its jar rewritten under it.
 

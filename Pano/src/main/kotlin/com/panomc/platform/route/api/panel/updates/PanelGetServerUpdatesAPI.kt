@@ -75,7 +75,7 @@ class PanelGetServerUpdatesAPI(
 
         if (canManageNodes || canManageServers) {
             // Hashed once for the whole list: the daemon Pano serves is the same for every node.
-            val servedSha256 = nodeJarProvider.locate()?.let { nodeJarProvider.sha256(it) }
+            val servedSha256 = nodeJarProvider.sha256()
 
             databaseManager.nodeDao.getAll(sqlClient)
                 .filter { it.approved }

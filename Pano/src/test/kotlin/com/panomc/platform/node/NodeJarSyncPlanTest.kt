@@ -3,6 +3,7 @@ package com.panomc.platform.node
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -62,6 +63,17 @@ class NodeJarSyncPlanTest {
         assertEquals(target.absoluteFile, unpacked.absoluteFile)
         assertArrayEquals(bytes, target.readBytes())
         assertFalse(File(dir, "pano-node.jar.part").exists())
+    }
+
+    @Test
+    fun `the jar stream yields the entry's bytes and nothing after them`() {
+        val bytes = ByteArray(70_000) { (it % 13).toByte() }
+
+        val jar = NodeJarBundle.openJar(zip("README.txt" to "x".toByteArray(), "pano-node.jar" to bytes, "after.txt" to "y".toByteArray()))
+
+        assertArrayEquals(bytes, jar!!.use { it.readBytes() })
+        assertNull(NodeJarBundle.openJar(zip("other.jar" to byteArrayOf(1))))
+        assertNull(NodeJarBundle.openJar(null))
     }
 
     @Test

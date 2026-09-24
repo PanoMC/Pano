@@ -97,9 +97,7 @@ class NodeDaemonUpdateService(
      * the node verifies the bytes before swapping anything, then exits 75 to be restarted.
      */
     suspend fun update(nodeId: Long): Outcome {
-        val jar = nodeJarProvider.locate() ?: return Outcome.NoJar
-
-        val sha256 = nodeJarProvider.sha256(jar)
+        val sha256 = nodeJarProvider.sha256() ?: return Outcome.NoJar
 
         // Already running these exact bytes: sending SELF_UPDATE anyway would download the jar the
         // daemon is executing from, stage it over itself and restart the node for nothing.
@@ -132,7 +130,7 @@ class NodeDaemonUpdateService(
      * shows its "update available" with. False when Pano has no jar to serve.
      */
     suspend fun isUpdateAvailable(node: Node): Boolean {
-        val served = nodeJarProvider.locate()?.let { nodeJarProvider.sha256(it) }
+        val served = nodeJarProvider.sha256()
 
         return NodeUpdateAvailability.isAvailable(node.version, Main.VERSION, nodeManager.getJarSha256(node.id), served)
     }
@@ -168,8 +166,7 @@ class NodeDaemonUpdateService(
         // The connected object carries what this hello just reported (version, protocol).
         val node = nodeManager.getConnectedNodeById(nodeId) ?: return
 
-        val jar = nodeJarProvider.locate() ?: return
-        val served = nodeJarProvider.sha256(jar)
+        val served = nodeJarProvider.sha256() ?: return
 
         val available = NodeUpdateAvailability.isAvailable(node.version, Main.VERSION, nodeManager.getJarSha256(nodeId), served)
 

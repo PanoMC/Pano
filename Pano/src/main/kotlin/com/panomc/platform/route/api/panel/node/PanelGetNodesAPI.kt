@@ -48,7 +48,7 @@ class PanelGetNodesAPI(
         val nodes = databaseManager.nodeDao.getAll(sqlClient).filterNot { it.agent }
 
         // Hashed once for the whole list: the jar Pano serves is the same for every node.
-        val servedSha256 = nodeJarProvider.locate()?.let { nodeJarProvider.sha256(it) }
+        val servedSha256 = nodeJarProvider.sha256()
 
         val payload = nodes.map { node ->
             val jarSha256 = nodeManager.getJarSha256(node.id)

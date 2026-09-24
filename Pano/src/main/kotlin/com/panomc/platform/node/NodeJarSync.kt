@@ -27,14 +27,17 @@ import java.util.zip.ZipInputStream
 /**
  * Keeps the `pano-node.jar` next to Pano the one this Pano was built with.
  *
+ * That file exists for exactly one reason: `java -jar` cannot start a classpath entry, so the local
+ * node needs the daemon as a file. Everything else -- what nodes and Pano Agents download, the
+ * checksum, the "update available" -- is served from the bundled copy directly ([NodeJarProvider])
+ * and never looks at this file.
+ *
  * The daemon ships inside the Pano jar, as the `pano-node.zip` resource the build drops in the same
- * way it does `pano-updater.zip`. Pano runs that daemon as its local node and hands it to every node
- * and Pano Agent (`GET /api/node/pano-node.jar`, the self-update of both), and both of those need a
- * file on disk: `java -jar` cannot start a classpath entry. So once at boot, and again whenever the
- * local node is started, the bundled daemon is unpacked next to Pano when there is none there or the
- * one there carries another version in its manifest (the `VERSION` attribute the build writes, the
- * same one [Main.VERSION] comes from). Never over a jar an operator chose (`local-node.jar-path`,
- * `-Dpano.node.jar`) or one a checkout just built.
+ * way it does `pano-updater.zip`. So once at boot, and again whenever the local node is started, the
+ * bundled daemon is unpacked next to Pano when there is none there or the one there carries another
+ * version in its manifest (the `VERSION` attribute the build writes, the same one [Main.VERSION]
+ * comes from). Never over a jar an operator chose (`local-node.jar-path`, `-Dpano.node.jar`) or one
+ * a checkout just built.
  *
  * A development build has no version to compare, so it unpacks every time: what is inside the jar
  * that is running is what runs as the node, with no stale copy from a previous build in the way.
@@ -55,9 +58,18 @@ class NodeJarSync(
 ) {
     private val mutex = Mutex()
 
-    /** Starts [ensureCurrent] without waiting for it; boot must not wait on a file write. */
+    /**
+     * Starts [ensureCurrent] without waiting for it, and warms the served checksum while at it;
+     * boot must not wait on a file write or a hash.
+     */
     fun syncInBackground() {
         CoroutineScope(vertx.dispatcher()).launch {
+            try {
+                nodeJarProvider.describe()
+            } catch (exception: Exception) {
+                logger.warn("Could not read the bundled ${LocalNodeJarLocator.JAR_NAME}: ${exception.message}")
+            }
+
             try {
                 ensureCurrent()
             } catch (exception: Exception) {
@@ -66,14 +78,22 @@ class NodeJarSync(
         }
     }
 
+    /** The daemon jar on disk, where [LocalNodeJarLocator] says to look, or null when there is none yet. */
+    fun locate(): File? = LocalNodeJarLocator.locate(
+        configuredPath = configManager.config.effectiveLocalNode.jarPath,
+        systemProperty = System.getProperty(LocalNodeJarLocator.JAR_PROPERTY),
+        workingDir = File("").absoluteFile,
+        runningJarDir = runningJarDirectory()
+    )
+
     /**
-     * The daemon jar this Pano should serve and run, unpacked from the bundled copy first when the
+     * The daemon jar the local node should run, unpacked from the bundled copy first when the
      * install has none or one from another version.
      *
      * @throws IllegalStateException when the Pano jar carries no daemon to unpack.
      */
     suspend fun ensureCurrent(): File = mutex.withLock {
-        val found = nodeJarProvider.locate()
+        val found = locate()
         val config = configManager.config.effectiveLocalNode
         val workingDir = File("").absoluteFile
 
@@ -103,6 +123,17 @@ class NodeJarSync(
         target
     }
 
+    /** Where the running Pano jar lives, which is where a release install keeps the daemon. */
+    private fun runningJarDirectory(): File? = try {
+        val location = Main::class.java.protectionDomain?.codeSource?.location
+
+        val file = location?.let { File(it.toURI()) }
+
+        if (file != null && file.isFile) file.parentFile else null
+    } catch (_: Exception) {
+        null
+    }
+
     /** The `VERSION` a daemon jar's manifest carries, or null when it cannot be read. */
     private fun versionOf(jar: File): String? = try {
         JarFile(jar).use { it.manifest?.mainAttributes?.getValue("VERSION") }
@@ -111,7 +142,7 @@ class NodeJarSync(
     }
 }
 
-/** The `pano-node.zip` resource the build bundles into the Pano jar, and how it is unpacked. */
+/** The `pano-node.zip` resource the build bundles into the Pano jar, and how it is read. */
 object NodeJarBundle {
     /** The resource's name on the classpath; `:Node:copyNodeZip` puts it there. */
     const val RESOURCE = "pano-node.zip"
@@ -128,7 +159,31 @@ object NodeJarBundle {
             ?: NodeJarBundle::class.java.classLoader.getResourceAsStream(RESOURCE)
 
     /**
-     * Writes the jar inside [zip] to [target].
+     * The jar inside [zip], as a stream that yields exactly its bytes and ends where it ends, so
+     * it can be hashed, unpacked or written to a response without ever landing in memory whole.
+     * Null when there is no zip or no `pano-node.jar` in it. Closing it closes the zip.
+     */
+    fun openJar(zip: InputStream? = open()): InputStream? {
+        val entries = ZipInputStream(BufferedInputStream(zip ?: return null))
+
+        var entry = entries.nextEntry
+
+        while (entry != null) {
+            if (!entry.isDirectory && entry.name == LocalNodeJarLocator.JAR_NAME) {
+                return entries
+            }
+
+            entries.closeEntry()
+            entry = entries.nextEntry
+        }
+
+        entries.close()
+
+        return null
+    }
+
+    /**
+     * Writes the bundled jar to [target].
      *
      * Written next to it first and moved over it only once it is complete, so a crash halfway never
      * leaves a truncated jar where a working one was. The move is a rename, so a daemon running from
@@ -138,36 +193,25 @@ object NodeJarBundle {
      * @throws IllegalStateException when there is no zip or it has no `pano-node.jar` in it.
      */
     fun unpack(target: File, zip: InputStream? = open()): File {
-        val stream = zip ?: throw IllegalStateException(
-            "This Pano jar bundles no $RESOURCE, so ${LocalNodeJarLocator.JAR_NAME} could not be unpacked. " +
-                "Build it with \"./gradlew :Node:build\" or set local-node.jar-path in config.conf."
-        )
+        if (zip == null) {
+            throw IllegalStateException(
+                "This Pano jar bundles no $RESOURCE, so ${LocalNodeJarLocator.JAR_NAME} could not be unpacked. " +
+                    "Build it with \"./gradlew :Node:build\" or set local-node.jar-path in config.conf."
+            )
+        }
+
+        val jar = openJar(zip) ?: throw IllegalStateException("${LocalNodeJarLocator.JAR_NAME} not found inside $RESOURCE")
 
         val part = File(target.absoluteFile.parentFile, "${target.name}.part")
 
         target.absoluteFile.parentFile?.mkdirs()
 
-        var written = false
-
-        ZipInputStream(BufferedInputStream(stream)).use { entries ->
-            var entry = entries.nextEntry
-
-            while (entry != null) {
-                if (!entry.isDirectory && entry.name == LocalNodeJarLocator.JAR_NAME) {
-                    part.outputStream().buffered().use { entries.copyTo(it) }
-                    written = true
-                    break
-                }
-
-                entries.closeEntry()
-                entry = entries.nextEntry
-            }
-        }
-
-        if (!written) {
+        try {
+            jar.use { stream -> part.outputStream().buffered().use { stream.copyTo(it) } }
+        } catch (exception: Exception) {
             part.delete()
 
-            throw IllegalStateException("${LocalNodeJarLocator.JAR_NAME} not found inside $RESOURCE")
+            throw exception
         }
 
         try {

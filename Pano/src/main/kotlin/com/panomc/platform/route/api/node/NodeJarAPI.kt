@@ -8,12 +8,14 @@ import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.node.LocalNodeJarLocator
+import com.panomc.platform.node.NodeJarBundle
 import com.panomc.platform.node.NodeJarProvider
-import com.panomc.platform.node.NodeJarSync
+import io.vertx.core.buffer.Buffer
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
-import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * The node daemon itself (`GET /api/node/pano-node.jar`), and the same bytes as the Pano Agent
@@ -21,25 +23,26 @@ import java.io.File
  * server's folder, and it is served under that name so a browser download or `curl -O` lands it
  * with the name that makes it an agent.
  *
- * Pano serves the jar it already has so that installing a node never depends on a GitHub release
- * existing — a development build, an air-gapped network or a host that can reach Pano and nothing
- * else all work, and the daemon a node ends up running is by construction the one this Pano
+ * The bytes come straight out of the `pano-node.zip` bundled in the Pano jar, never from a file on
+ * disk, so that installing a node never depends on a GitHub release existing or on what happens to
+ * sit next to Pano — a development build, an air-gapped network or a host that can reach Pano and
+ * nothing else all work, and the daemon a node ends up running is by construction the one this Pano
  * speaks its protocol with.
+ *
+ * Streamed in chunks off the event loop, each one written before the next is read, so a burst of
+ * nodes updating at once costs a buffer each rather than a copy of the jar each.
  *
  * Public and unauthenticated, at the same trust level as `GET /api/node/install.sh`: the jar is a
  * published artifact, not a secret, and it grants nothing on its own — a node still has to pair
  * with a code or a bootstrap token before Pano will talk to it. Whoever downloads it can verify
  * what they got against [NodeJarChecksumAPI].
  *
- * The jar is unpacked from the Pano jar at boot ([NodeJarSync]); a request that arrives before
- * that has finished waits for it rather than answering 404 to a panel that just started. 404 only
- * when this Pano bundles no daemon and has none on disk; the installer then falls back to the
- * release URL that [com.panomc.platform.node.NodeInstallScriptProvider] renders in that case.
+ * 404 only for a Pano jar somebody assembled without the daemon; the installer then falls back to
+ * the release URL that [com.panomc.platform.node.NodeInstallScriptProvider] renders in that case.
  */
 @Endpoint
 class NodeJarAPI(
-    private val nodeJarProvider: NodeJarProvider,
-    private val nodeJarSync: NodeJarSync
+    private val nodeJarProvider: NodeJarProvider
 ) : Api() {
     override val paths = listOf(
         Path("/api/node/${LocalNodeJarLocator.JAR_NAME}", RouteType.GET),
@@ -52,32 +55,47 @@ class NodeJarAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result? {
-        val jar = nodeJarProvider.locate() ?: unpacked(nodeJarSync) ?: return NotExists()
+        val daemon = nodeJarProvider.describe() ?: return NotExists()
 
-        context.response()
+        val response = context.response()
             .putHeader("Content-Type", "application/java-archive")
-            .putHeader("Content-Length", jar.length().toString())
+            .putHeader("Content-Length", daemon.size.toString())
             .putHeader("Content-Disposition", "attachment; filename=\"${servedName(context.normalizedPath())}\"")
             // Nothing here is ever a document; a browser must not be talked into treating it as
             // one by whatever it thinks the bytes look like.
             .putHeader("X-Content-Type-Options", "nosniff")
-            // The file changes whenever Pano is updated or rebuilt and the URL does not, so a
+            // The bytes change whenever Pano is updated or rebuilt and the URL does not, so a
             // cached copy would install yesterday's daemon.
             .putHeader("Cache-Control", "no-store")
-            .sendFile(jar.absolutePath)
-            .coAwait()
+
+        withContext(Dispatchers.IO) {
+            val jar = NodeJarBundle.openJar() ?: throw IllegalStateException("${LocalNodeJarLocator.JAR_NAME} vanished from the bundle")
+
+            jar.use { stream ->
+                val buffer = ByteArray(NodeJarProvider.BUFFER_SIZE)
+
+                while (!response.closed()) {
+                    val read = stream.read(buffer)
+
+                    if (read < 0) {
+                        break
+                    }
+
+                    // Awaiting each write is the back-pressure: the next chunk is read only once
+                    // this one has left for the wire, so a slow client never queues up the jar.
+                    response.write(Buffer.buffer(read).appendBytes(buffer, 0, read)).coAwait()
+                }
+            }
+        }
+
+        if (!response.closed()) {
+            response.end().coAwait()
+        }
 
         return null
     }
 
     companion object {
-        /** The bundled jar, unpacked now when boot has not got to it yet; null when there is none. */
-        suspend fun unpacked(nodeJarSync: NodeJarSync): File? = try {
-            nodeJarSync.ensureCurrent()
-        } catch (_: Exception) {
-            null
-        }
-
         /** The name the jar is served under at [path]: the agent's name on the agent's route. */
         fun servedName(path: String): String =
             if (path.trimEnd('/').endsWith("/${LocalNodeJarLocator.AGENT_JAR_NAME}")) {

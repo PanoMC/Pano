@@ -9,7 +9,6 @@ import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.node.LocalNodeJarLocator
 import com.panomc.platform.node.NodeJarProvider
-import com.panomc.platform.node.NodeJarSync
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
@@ -29,8 +28,7 @@ import io.vertx.kotlin.coroutines.coAwait
  */
 @Endpoint
 class NodeJarChecksumAPI(
-    private val nodeJarProvider: NodeJarProvider,
-    private val nodeJarSync: NodeJarSync
+    private val nodeJarProvider: NodeJarProvider
 ) : Api() {
     override val paths = listOf(
         Path("/api/node/${LocalNodeJarLocator.JAR_NAME}.sha256", RouteType.GET),
@@ -42,13 +40,14 @@ class NodeJarChecksumAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result? {
-        val jar = nodeJarProvider.locate() ?: NodeJarAPI.unpacked(nodeJarSync) ?: return NotExists()
+        val body = nodeJarProvider.checksumBody(NodeJarAPI.servedName(context.normalizedPath().removeSuffix(".sha256")))
+            ?: return NotExists()
 
         context.response()
             .putHeader("Content-Type", "text/plain; charset=utf-8")
             .putHeader("X-Content-Type-Options", "nosniff")
             .putHeader("Cache-Control", "no-store")
-            .end(nodeJarProvider.checksumBody(jar, NodeJarAPI.servedName(context.normalizedPath().removeSuffix(".sha256"))))
+            .end(body)
             .coAwait()
 
         return null

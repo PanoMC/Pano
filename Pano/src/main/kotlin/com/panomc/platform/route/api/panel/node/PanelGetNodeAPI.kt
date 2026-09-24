@@ -57,11 +57,9 @@ class PanelGetNodeAPI(
 
         val servers = databaseManager.serverDao.getAllByNodeId(id, sqlClient)
 
-        val jar = nodeJarProvider.locate()
-
         // Null when this install has no daemon jar to hand out; nothing is then offered, because
         // an update Pano cannot deliver is not an update.
-        val servedSha256 = jar?.let { nodeJarProvider.sha256(it) }
+        val servedSha256 = nodeJarProvider.sha256()
 
         return Successful(
             mapOf(

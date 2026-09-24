@@ -124,13 +124,16 @@ data class ServerPluginFileData(
     val size: Long,
     val modified: Long,
     /** The name of the loaded plugin this file most likely is, when one matches. */
-    val matchedPlugin: String? = null
+    val matchedPlugin: String? = null,
+    /** False for a jar switched off by renaming it to `<name>.jar.disabled`. */
+    val enabled: Boolean = true
 ) {
     fun toJsonObject(): JsonObject = JsonObject()
         .put("filename", filename)
         .put("size", size)
         .put("modified", modified)
         .put("matchedPlugin", matchedPlugin)
+        .put("enabled", enabled)
 }
 
 /**

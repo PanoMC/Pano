@@ -30,6 +30,23 @@ object PluginFileNaming {
         return value.lowercase().endsWith(".jar") && value.length > JAR_SUFFIX.length
     }
 
+    /** What the node appends to switch a jar off: `x.jar` → `x.jar.disabled`, which no loader reads. */
+    const val DISABLED_SUFFIX = ".disabled"
+
+    /** Whether [name] is a jar the node switched off (`<jar name>.disabled`). */
+    fun isDisabledJarName(name: String?): Boolean {
+        val value = name?.trim().orEmpty()
+
+        return value.lowercase().endsWith(DISABLED_SUFFIX) && isJarName(value.dropLast(DISABLED_SUFFIX.length))
+    }
+
+    /** A file the plugins page lists: a jar, switched on or off. */
+    fun isPluginFileName(name: String?): Boolean = isJarName(name) || isDisabledJarName(name)
+
+    /** The jar's own name, with the switched-off suffix removed. */
+    fun enabledNameOf(name: String): String =
+        if (isDisabledJarName(name)) name.trim().dropLast(DISABLED_SUFFIX.length) else name
+
     /**
      * Turns whatever a source calls a file into a name that can be written.
      *
@@ -60,7 +77,8 @@ object PluginFileNaming {
      * of its words.
      */
     fun baseNameOf(filename: String): String {
-        var stem = filename.trim()
+        // A switched-off copy is the same plugin as the switched-on one.
+        var stem = enabledNameOf(filename.trim())
 
         if (stem.lowercase().endsWith(JAR_SUFFIX)) {
             stem = stem.dropLast(JAR_SUFFIX.length)

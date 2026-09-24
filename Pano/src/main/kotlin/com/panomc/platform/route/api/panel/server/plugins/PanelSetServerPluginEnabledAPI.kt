@@ -7,17 +7,21 @@ import com.panomc.platform.auth.panel.permission.ManageServerPluginsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.PathDenied
 import com.panomc.platform.error.ServerOffline
 import com.panomc.platform.model.*
 import com.panomc.platform.node.ManagedServerFileClient
 import com.panomc.platform.node.dto.ScannedPluginData
 import com.panomc.platform.node.message.PluginScanMessage
 import com.panomc.platform.node.message.PluginToggleMessage
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.feature.ServerFeature
 import com.panomc.platform.server.feature.ServerFeatureResolver
 import com.panomc.platform.server.feature.ServerFeatureSource
 import com.panomc.platform.server.message.SetPluginEnabledMessage
+import com.panomc.platform.server.plugins.PluginFileNaming
+import com.panomc.platform.server.plugins.PluginLoaderMapping
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -50,7 +54,8 @@ class PanelSetServerPluginEnabledAPI(
     private val authProvider: AuthProvider,
     private val serverManager: ServerManager,
     private val fileClient: ManagedServerFileClient,
-    private val serverFeatureResolver: ServerFeatureResolver
+    private val serverFeatureResolver: ServerFeatureResolver,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
@@ -145,7 +150,17 @@ class PanelSetServerPluginEnabledAPI(
             throw BadRequest()
         }
 
+        // Switched off, the jar the server is linked through would take the panel's connection
+        // with it on the next start, and nothing here could switch it back on.
+        if (PluginFileNaming.isPanoPluginJar(PluginFileNaming.enabledNameOf(plugin.file))) {
+            throw PathDenied()
+        }
+
         val payload = fileClient.request(target, PluginToggleMessage(target.serverUuid, plugin.file, enabled))
+
+        // The jar has a new name: every open plugins page and file manager re-reads the directory.
+        panelRealtimeHub.pushServerPluginsChanged(serverId)
+        panelRealtimeHub.pushServerFilesChanged(serverId, PluginLoaderMapping.targetDir(target.server.type))
 
         return plugin.name to payload.getBoolean("restartRequired", true)
     }

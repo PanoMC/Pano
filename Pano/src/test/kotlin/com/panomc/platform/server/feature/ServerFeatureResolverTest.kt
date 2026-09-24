@@ -160,7 +160,7 @@ class ServerFeatureResolverTest {
         assertEquals(PLUGIN, features.players.list)
         assertEquals(ServerFeatures.Players.QUALITY_FULL, features.players.listQuality)
         assertEquals(PLUGIN, features.plugins.list)
-        assertEquals(PLUGIN, features.plugins.toggle)
+        assertEquals(NODE, features.plugins.toggle)
     }
 
     @Test

@@ -59,7 +59,8 @@ class PanelRemoveServerPluginAPI(
 
         val filename = parameters.body().jsonObject.getString("filename").orEmpty().trim()
 
-        if (!PluginFileNaming.isJarName(filename)) {
+        // A switched-off jar (`x.jar.disabled`) can be removed as well.
+        if (!PluginFileNaming.isPluginFileName(filename)) {
             throw InvalidData()
         }
 

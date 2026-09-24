@@ -209,7 +209,7 @@ class ServerFeatureResolver(
          * | players.list         | plugin(players, `full`) > node (SLP sample, `sample`)              |
          * | players.actions      | plugin(commands/players) > node (stdin, commands composed by Pano) |
          * | plugins.list         | plugin(plugins, loaded state) > node (jar scan)                    |
-         * | plugins.toggle       | plugin(plugins, Bukkit only) > node (rename, restart required)     |
+         * | plugins.toggle       | node (rename, lasts, restart required) > plugin(plugins, Bukkit)   |
          * | plugins.install      | node > plugin(plugin-install)                                      |
          * | plugins.identify     | node > plugin(plugin-install)                                      |
          * | files.*              | node > plugin(files)                                               |
@@ -286,9 +286,11 @@ class ServerFeatureResolver(
                 // Vanilla has nowhere to put a plugin, so the whole group is off whoever is asking.
                 plugins = ServerFeatures.Plugins(
                     list = first(PLUGIN to (plugins && inputs.supportsPlugins), NODE to (node && inputs.supportsPlugins)),
+                    // The rename first: it lasts, where the plugin manager's switch is undone by the
+                    // next restart. The plugin only toggles where no node can rename the jar.
                     toggle = first(
-                        PLUGIN to (plugins && inputs.bukkitFamily),
-                        NODE to (node && inputs.supportsPlugins)
+                        NODE to (node && inputs.supportsPlugins),
+                        PLUGIN to (plugins && inputs.bukkitFamily)
                     ),
                     install = first(NODE to (node && inputs.supportsPlugins), PLUGIN to pluginInstall),
                     identify = first(NODE to (node && inputs.supportsPlugins), PLUGIN to pluginInstall)

@@ -256,15 +256,26 @@ class ManagedServerPluginService(
         return entries
             .mapNotNull { it as? JsonObject }
             .filter { it.getString("type") == "file" }
-            .filter { it.getString("name").orEmpty().lowercase().endsWith(".jar") }
+            // Switched-off jars too: a plugin disabled here has to stay on the page to be enabled again.
+            .filter { PluginFileNaming.isPluginFileName(it.getString("name")) }
             .map { entry ->
                 val name = entry.getString("name")
+                val disabled = PluginFileNaming.isDisabledJarName(name)
+                val jarName = PluginFileNaming.enabledNameOf(name)
 
                 ServerPluginFileData(
                     filename = name,
                     size = entry.getLong("size", 0L) ?: 0L,
                     modified = entry.getLong("modified", 0L) ?: 0L,
-                    matchedPlugin = matchPlugin(name, loadedPlugins)
+                    // A switched-off jar only counts as a loaded plugin's file on an exact match
+                    // when the server says which file each plugin came from: by prefix, the old
+                    // version someone disabled would claim the plugin its replacement loaded.
+                    matchedPlugin = if (disabled && loadedPlugins.any { it.file != null }) {
+                        loadedPlugins.firstOrNull { it.file.equals(jarName, ignoreCase = true) }?.name
+                    } else {
+                        matchPlugin(jarName, loadedPlugins)
+                    },
+                    enabled = !disabled
                 )
             }
     }
@@ -298,11 +309,15 @@ class ManagedServerPluginService(
     /**
      * Whether the server has to be restarted for its plugin directory to match what is running.
      *
-     * True when a jar exists that no loaded plugin accounts for. An offline server is never
-     * "restart required": it is going to read the whole directory the moment it starts.
+     * True when a switched-on jar exists that no loaded plugin accounts for (installed or enabled
+     * since the start), or a switched-off one still belongs to a plugin that is loaded (disabled
+     * since the start) with no switched-on jar of its own left. A jar that is off and not loaded
+     * is exactly as it should be, and so is an old copy switched off beside the one that loaded.
+     * An offline server is never "restart required": it reads the whole directory the moment it
+     * starts.
      */
     fun restartRequired(files: List<ServerPluginFileData>, online: Boolean): Boolean =
-        online && files.any { it.matchedPlugin == null }
+        restartRequiredFor(files, online)
 
     /** Hands [message] to whichever side owns this server, reporting whether it went out. */
     private fun trySend(target: ManagedServerFileClient.Target, message: NodeMessage): Boolean = try {
@@ -313,5 +328,29 @@ class ManagedServerPluginService(
         logger.warn("Could not reach server ${target.server.id} to ${message.getResponseName()}: ${e.message}")
 
         false
+    }
+
+    companion object {
+        /** [restartRequired] itself, pure so it can be tested without a node. */
+        fun restartRequiredFor(files: List<ServerPluginFileData>, online: Boolean): Boolean {
+            if (!online) {
+                return false
+            }
+
+            val loadedFromEnabledJar = files
+                .filter { it.enabled && it.matchedPlugin != null }
+                .mapNotNull { it.matchedPlugin?.lowercase() }
+                .toSet()
+
+            return files.any { file ->
+                val plugin = file.matchedPlugin
+
+                if (file.enabled) {
+                    plugin == null
+                } else {
+                    plugin != null && plugin.lowercase() !in loadedFromEnabledJar
+                }
+            }
+        }
     }
 }

@@ -137,12 +137,18 @@ class PanelGetServerPluginsAPI(
 
         // Rows exist for whichever side installed the jar -- a node or a plugin with
         // `plugin-install` -- so a linked server that installs through its plugin is tracked too.
+        // A switched-off jar is still that plugin: where it came from is kept for when it is
+        // switched back on, and only left out of what the page shows while it is off.
+        val presentOrDisabled = filenames?.let { names -> names + names.map { PluginFileNaming.enabledNameOf(it) } }
+
         val rows = pluginUpdateService.forgetMissing(
             id,
             databaseManager.serverPluginInstallDao.getByServerId(id, sqlClient),
-            filenames,
+            presentOrDisabled,
             sqlClient
-        )
+        ).filterNot { row ->
+            filenames != null && row.filename !in filenames && (row.filename + PluginFileNaming.DISABLED_SUFFIX) in filenames
+        }
 
         val tracked = pluginUpdateService.tracked(
             server,
@@ -173,6 +179,8 @@ class PanelGetServerPluginsAPI(
                 "installSource" to features.plugins.install?.id,
                 "unknownFiles" to JsonArray(
                     files.map { it.filename }
+                        // Identification only ever hashes jars that are switched on.
+                        .filter { PluginFileNaming.isJarName(it) }
                         .filterNot { it in trackedNames }
                         .filterNot { PluginFileNaming.isPanoPluginJar(it) }
                 )

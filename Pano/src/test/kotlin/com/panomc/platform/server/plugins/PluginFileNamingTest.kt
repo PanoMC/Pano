@@ -51,4 +51,37 @@ class PluginFileNamingTest {
         assertFalse(PluginFileNaming.isPanoPluginJar("panorama.jar"))
         assertFalse(PluginFileNaming.isPanoPluginJar("EssentialsX-2.21.2.jar"))
     }
+
+    @Test
+    fun `tells a switched-off jar from a jar and from anything else`() {
+        assertTrue(PluginFileNaming.isDisabledJarName("EssentialsX-2.21.2.jar.disabled"))
+        assertTrue(PluginFileNaming.isDisabledJarName("Vault.JAR.DISABLED"))
+        assertFalse(PluginFileNaming.isDisabledJarName("EssentialsX-2.21.2.jar"))
+        assertFalse(PluginFileNaming.isDisabledJarName("notes.txt.disabled"))
+        assertFalse(PluginFileNaming.isDisabledJarName(".jar.disabled"))
+        assertFalse(PluginFileNaming.isDisabledJarName("../evil.jar.disabled"))
+        assertFalse(PluginFileNaming.isDisabledJarName(null))
+
+        assertTrue(PluginFileNaming.isPluginFileName("Vault.jar"))
+        assertTrue(PluginFileNaming.isPluginFileName("Vault.jar.disabled"))
+        assertFalse(PluginFileNaming.isPluginFileName("Vault.zip.disabled"))
+    }
+
+    @Test
+    fun `names the jar behind a switched-off one`() {
+        assertEquals("Vault.jar", PluginFileNaming.enabledNameOf("Vault.jar.disabled"))
+        assertEquals("Vault.jar", PluginFileNaming.enabledNameOf("Vault.jar"))
+        assertEquals("notes.txt.disabled", PluginFileNaming.enabledNameOf("notes.txt.disabled"))
+        assertTrue(PluginFileNaming.isPanoPluginJar(PluginFileNaming.enabledNameOf("pano-spigot-1.2.3.jar.disabled")))
+    }
+
+    @Test
+    fun `sees a switched-off copy as the same plugin`() {
+        assertEquals("essentialsx", PluginFileNaming.baseNameOf("EssentialsX-2.21.2.jar.disabled"))
+        assertEquals("worldedit", PluginFileNaming.baseNameOf("worldedit.jar.disabled"))
+        assertEquals(
+            "worldedit.jar.disabled",
+            PluginFileNaming.replacementFor("worldedit-7.3.0.jar", listOf("worldedit.jar.disabled"))
+        )
+    }
 }

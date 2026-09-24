@@ -174,4 +174,13 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
+
+    // A failure on CI has to be readable from the log alone: the whole exception, its causes and
+    // the suppressed ones (a @TempDir that cannot be cleaned up names each path only there).
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showCauses = true
+        showStackTraces = true
+    }
 }

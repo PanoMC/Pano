@@ -14,6 +14,7 @@ import com.panomc.platform.node.NodeUpdateProgressStore
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * Lists every node this Pano knows, approved or not.
@@ -34,6 +35,8 @@ class PanelGetNodesAPI(
     private val nodeJarProvider: NodeJarProvider,
     private val nodeUpdateProgressStore: NodeUpdateProgressStore
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

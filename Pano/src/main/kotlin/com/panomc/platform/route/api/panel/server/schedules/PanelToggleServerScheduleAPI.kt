@@ -18,6 +18,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import com.panomc.platform.util.UsageMode
 
 /** Turns one schedule on or off without touching what it does. */
 @Endpoint
@@ -26,6 +27,8 @@ class PanelToggleServerScheduleAPI(
     private val authProvider: AuthProvider,
     private val scheduleService: ServerScheduleService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/schedules/:sid/toggle", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

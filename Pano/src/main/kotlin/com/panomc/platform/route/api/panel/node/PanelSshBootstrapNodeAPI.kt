@@ -16,6 +16,7 @@ import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import com.panomc.platform.util.UsageMode
 
 /**
  * Starts installing the node daemon on a host over SSH (`POST /api/panel/nodes/ssh-bootstrap`).
@@ -39,6 +40,8 @@ class PanelSshBootstrapNodeAPI(
     private val databaseManager: DatabaseManager,
     private val nodeSshBootstrapService: NodeSshBootstrapService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/ssh-bootstrap", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

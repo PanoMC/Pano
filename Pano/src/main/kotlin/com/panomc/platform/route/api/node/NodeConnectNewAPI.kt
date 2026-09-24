@@ -37,6 +37,7 @@ import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import java.util.UUID
+import com.panomc.platform.util.UsageMode
 
 /**
  * Pairs a node daemon with this Pano (`POST /api/node/connect`).
@@ -75,6 +76,8 @@ class NodeConnectNewAPI(
     private val agentNodeDirectory: AgentNodeDirectory,
     private val configManager: ConfigManager
 ) : Api() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/node/connect", RouteType.POST))
 
     // Daemon surface, authenticated with a pairing secret and never with a user session, so a

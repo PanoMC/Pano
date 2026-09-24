@@ -11,6 +11,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * The on/off switch of the "Link with the Pano Agent" dialog (`PUT
@@ -32,6 +33,9 @@ class PanelToggleServerAgentLinkAPI(
     private val nodePairingCodeManager: NodePairingCodeManager
 ) : PanelApi() {
     override val order = 0
+
+    override val usageModes = UsageMode.WITH_SERVERS
+
 
     override val paths = listOf(Path("/api/panel/servers/agent-link/toggle", RouteType.PUT))
 

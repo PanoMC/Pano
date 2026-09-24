@@ -16,6 +16,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * A node's Java runtimes and what it could download (`GET /api/panel/nodes/:id/java`, SM-63).
@@ -32,6 +33,8 @@ class PanelGetNodeJavaAPI(
     private val authProvider: AuthProvider,
     private val nodeManager: NodeManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/:id/java", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

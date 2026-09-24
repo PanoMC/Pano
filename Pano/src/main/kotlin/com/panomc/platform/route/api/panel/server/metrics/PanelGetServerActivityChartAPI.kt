@@ -17,6 +17,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.util.TimeZone
+import com.panomc.platform.util.UsageMode
 
 /**
  * The Server Activity chart of a server's overview: peak and average players per day (§2.4.19).
@@ -33,6 +34,8 @@ class PanelGetServerActivityChartAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/activity-chart", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

@@ -22,6 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /** Creates one schedule on a server. */
 @Endpoint
@@ -30,6 +31,8 @@ class PanelCreateServerScheduleAPI(
     private val authProvider: AuthProvider,
     private val scheduleService: ServerScheduleService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/schedules", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

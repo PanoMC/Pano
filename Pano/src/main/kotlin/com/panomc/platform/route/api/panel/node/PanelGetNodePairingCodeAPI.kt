@@ -9,6 +9,7 @@ import com.panomc.platform.node.NodePairingCodeManager
 import com.panomc.platform.node.PanoUrlOverride
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * The rotating pairing code for the Add-node modal, with how long it is still good for and the
@@ -29,6 +30,9 @@ class PanelGetNodePairingCodeAPI(
     private val nodeInstallScriptProvider: NodeInstallScriptProvider
 ) : PanelApi() {
     override val order = 0
+
+    override val usageModes = UsageMode.WITH_SERVERS
+
 
     override val paths = listOf(Path("/api/panel/nodes/pairing-code", RouteType.GET))
 

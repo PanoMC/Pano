@@ -12,6 +12,7 @@ import com.panomc.platform.model.Successful
 import com.panomc.platform.node.LocalNodeManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * Sets up the node daemon on Pano's own machine (`POST /api/panel/nodes/local/setup`).
@@ -30,6 +31,8 @@ class PanelSetupLocalNodeAPI(
     private val authProvider: AuthProvider,
     private val localNodeManager: LocalNodeManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/local/setup", RouteType.POST))
 
     override val order = 0

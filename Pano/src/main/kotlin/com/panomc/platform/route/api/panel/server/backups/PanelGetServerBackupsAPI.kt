@@ -14,6 +14,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * The backups Pano has for one managed server, plus its retention settings.
@@ -31,6 +32,8 @@ class PanelGetServerBackupsAPI(
     private val authProvider: AuthProvider,
     private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/backups", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

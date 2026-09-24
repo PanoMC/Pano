@@ -41,6 +41,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.sqlclient.SqlClient
 import java.util.UUID
+import com.panomc.platform.util.UsageMode
 
 /**
  * Creates a managed server on a node and starts its install or import.
@@ -88,6 +89,8 @@ class PanelCreateServerAPI(
     private val transferTicketStore: TransferTicketStore,
     private val pluginSourceCatalog: PluginSourceCatalog
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/create", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

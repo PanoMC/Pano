@@ -12,6 +12,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Accepts a host key and lets the install run
@@ -29,6 +30,8 @@ class PanelConfirmSshBootstrapNodeAPI(
     private val authProvider: AuthProvider,
     private val nodeSshBootstrapService: NodeSshBootstrapService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/ssh-bootstrap/:taskId/confirm", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

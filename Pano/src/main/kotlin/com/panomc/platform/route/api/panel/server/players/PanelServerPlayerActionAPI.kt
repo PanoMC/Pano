@@ -39,6 +39,7 @@ import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.sqlclient.SqlClient
 import java.util.UUID
+import com.panomc.platform.util.UsageMode
 
 /**
  * Acts on one online player, through whichever source can reach them (SM-52, §2.4.17).
@@ -64,6 +65,9 @@ class PanelServerPlayerActionAPI(
 ) : PanelApi() {
     /** The player an action names, however Pano happens to know about them. */
     private data class Target(val uuid: String?, val username: String)
+
+    override val usageModes = UsageMode.WITH_SERVERS
+
 
     override val paths = listOf(Path("/api/panel/servers/:id/players/:uuid/action", RouteType.POST))
 

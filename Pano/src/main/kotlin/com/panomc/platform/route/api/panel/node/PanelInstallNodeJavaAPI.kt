@@ -22,6 +22,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Downloads (or updates) one Java major on a node (`POST /api/panel/nodes/:id/java`, SM-63).
@@ -38,6 +39,8 @@ class PanelInstallNodeJavaAPI(
     private val nodeJavaTaskService: NodeJavaTaskService,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/:id/java", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

@@ -19,6 +19,7 @@ import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Deletes a node and everything on it (`POST /api/panel/nodes/:id/delete`, SM-64, §2.4.29 B).
@@ -38,6 +39,8 @@ class PanelDeleteNodeAPI(
     private val authProvider: AuthProvider,
     private val nodeRemovalService: NodeRemovalService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/:id/delete", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

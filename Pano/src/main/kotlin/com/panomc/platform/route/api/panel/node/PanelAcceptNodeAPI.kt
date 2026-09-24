@@ -14,6 +14,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Lets a node that paired with the rotating code into this Pano.
@@ -27,6 +28,8 @@ class PanelAcceptNodeAPI(
     private val authProvider: AuthProvider,
     private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/:id/accept", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

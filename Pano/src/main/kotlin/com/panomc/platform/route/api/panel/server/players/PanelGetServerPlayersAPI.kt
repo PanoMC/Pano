@@ -17,6 +17,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * The live roster of a server, from whichever source can see it (SM-52, §2.4.17).
@@ -37,6 +38,8 @@ class PanelGetServerPlayersAPI(
     private val serverManager: ServerManager,
     private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/players", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

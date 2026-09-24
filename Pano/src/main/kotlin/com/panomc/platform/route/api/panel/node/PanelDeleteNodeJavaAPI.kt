@@ -22,6 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Removes a managed Java runtime from a node (`POST /api/panel/nodes/:id/java/:major/delete`,
@@ -44,6 +45,8 @@ class PanelDeleteNodeJavaAPI(
     private val nodeJavaTaskService: NodeJavaTaskService,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/:id/java/:major/delete", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

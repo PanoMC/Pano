@@ -22,6 +22,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import kotlinx.coroutines.withTimeoutOrNull
+import com.panomc.platform.util.UsageMode
 
 /**
  * Streams a backup archive to the browser.
@@ -37,6 +38,8 @@ class PanelDownloadServerBackupAPI(
     private val fileClient: ManagedServerFileClient,
     private val transferTicketStore: TransferTicketStore
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/backups/:backupId/download", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

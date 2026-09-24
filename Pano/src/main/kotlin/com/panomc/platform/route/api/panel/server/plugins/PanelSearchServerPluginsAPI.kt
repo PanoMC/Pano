@@ -18,6 +18,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Searches one plugin directory for things this server could run.
@@ -31,6 +32,8 @@ class PanelSearchServerPluginsAPI(
     private val authProvider: AuthProvider,
     private val pluginSourceCatalog: PluginSourceCatalog
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/plugins/search", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

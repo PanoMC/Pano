@@ -8,6 +8,7 @@ import com.panomc.platform.server.alert.AlertManager
 import com.panomc.platform.server.alert.AlertSettings
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * The alert switch grid, and whether the e-mail column means anything in this build.
@@ -21,6 +22,8 @@ class PanelGetAlertSettingsAPI(
     private val authProvider: AuthProvider,
     private val alertManager: AlertManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/settings/alerts", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

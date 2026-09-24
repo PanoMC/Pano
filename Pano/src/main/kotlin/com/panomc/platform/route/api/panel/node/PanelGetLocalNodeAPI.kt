@@ -11,6 +11,7 @@ import com.panomc.platform.model.Successful
 import com.panomc.platform.node.LocalNodeManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * Status of the local node's process (`GET /api/panel/nodes/local`).
@@ -27,6 +28,8 @@ class PanelGetLocalNodeAPI(
     private val authProvider: AuthProvider,
     private val localNodeManager: LocalNodeManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/local", RouteType.GET))
 
     override val order = 0

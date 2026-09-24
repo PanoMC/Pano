@@ -14,6 +14,7 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * Updates the Pano plugin on every server that has a newer one waiting
@@ -37,6 +38,8 @@ class PanelUpdateAllPanoPluginsAPI(
     private val panoPluginJarProvider: PanoPluginJarProvider,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/pano-plugin/update-all", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

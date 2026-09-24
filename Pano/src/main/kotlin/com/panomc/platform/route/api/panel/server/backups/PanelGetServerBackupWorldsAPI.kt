@@ -20,6 +20,7 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import com.panomc.platform.util.UsageMode
 
 /**
  * What a `WORLDS` backup would take right now: `{worlds: [names], levelName}`.
@@ -35,6 +36,8 @@ class PanelGetServerBackupWorldsAPI(
     private val authProvider: AuthProvider,
     private val fileClient: ManagedServerFileClient
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/backups/worlds", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

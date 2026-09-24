@@ -30,6 +30,7 @@ import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Installs one plugin or mod version onto a managed server.
@@ -52,6 +53,8 @@ class PanelInstallServerPluginAPI(
     private val pluginService: ManagedServerPluginService,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/plugins/install", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

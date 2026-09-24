@@ -37,6 +37,7 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.util.UUID
+import com.panomc.platform.util.UsageMode
 
 /**
  * Runs one console command on a server.
@@ -65,6 +66,8 @@ class PanelSendServerCommandAPI(
     private val serverActionRateLimiter: ServerActionRateLimiter,
     private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/console/command", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

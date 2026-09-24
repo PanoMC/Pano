@@ -26,6 +26,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import com.panomc.platform.util.UsageMode
 
 /**
  * Reinstalls a managed server, on the same software or on another one (SM-66, §2.4.31).
@@ -49,6 +50,8 @@ class PanelReinstallServerAPI(
     private val softwareChangeService: ManagedServerSoftwareChangeService,
     private val nodeManager: NodeManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/reinstall", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

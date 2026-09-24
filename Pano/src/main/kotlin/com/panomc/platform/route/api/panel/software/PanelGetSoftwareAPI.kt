@@ -8,6 +8,7 @@ import com.panomc.platform.server.software.ServerSoftwareCatalog
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * The software options and versions the create-server wizard offers.
@@ -20,6 +21,8 @@ class PanelGetSoftwareAPI(
     private val authProvider: AuthProvider,
     private val serverSoftwareCatalog: ServerSoftwareCatalog
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/software", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

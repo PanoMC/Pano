@@ -24,6 +24,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import com.panomc.platform.util.UsageMode
 
 /**
  * Changes how a managed server is launched: Java version, heap, flags, port and the two
@@ -43,6 +44,8 @@ class PanelUpdateServerStartupAPI(
     private val nodeManager: NodeManager,
     private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/startup", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

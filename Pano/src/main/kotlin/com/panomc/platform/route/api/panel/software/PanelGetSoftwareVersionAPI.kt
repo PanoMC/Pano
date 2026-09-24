@@ -14,6 +14,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Resolves one software version to the artifact a node would download.
@@ -26,6 +27,8 @@ class PanelGetSoftwareVersionAPI(
     private val authProvider: AuthProvider,
     private val serverSoftwareCatalog: ServerSoftwareCatalog
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/software/:id/versions/:version", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

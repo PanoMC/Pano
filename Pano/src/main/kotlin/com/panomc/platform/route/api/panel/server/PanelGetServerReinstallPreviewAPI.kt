@@ -20,6 +20,7 @@ import com.panomc.platform.server.InPlaceServerRules
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * What a reinstall or software change of a managed server would do, for the danger-zone modal
@@ -41,6 +42,8 @@ class PanelGetServerReinstallPreviewAPI(
     private val authProvider: AuthProvider,
     private val softwareChangeService: ManagedServerSoftwareChangeService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/reinstall-preview", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

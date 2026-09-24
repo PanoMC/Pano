@@ -11,6 +11,7 @@ import com.panomc.platform.node.PanoUrlOverride
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
+import com.panomc.platform.util.UsageMode
 
 /**
  * The Windows half of [NodeInstallScriptAPI] (`GET /api/node/install.ps1`).
@@ -21,6 +22,8 @@ import io.vertx.kotlin.coroutines.coAwait
 class NodeInstallScriptWindowsAPI(
     private val nodeInstallScriptProvider: NodeInstallScriptProvider
 ) : Api() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/node/install.ps1", RouteType.GET))
 
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

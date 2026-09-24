@@ -10,6 +10,7 @@ import com.panomc.platform.node.NodePairingCodeManager
 import com.panomc.platform.node.PanoUrlOverride
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * What the "Link an existing server with the Pano Agent" dialog shows (`GET
@@ -46,6 +47,9 @@ class PanelGetServerAgentLinkAPI(
     private val configManager: ConfigManager
 ) : PanelApi() {
     override val order = 0
+
+    override val usageModes = UsageMode.WITH_SERVERS
+
 
     override val paths = listOf(Path("/api/panel/servers/agent-link", RouteType.GET))
 

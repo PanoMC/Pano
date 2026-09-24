@@ -15,6 +15,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Updates the Pano Agent behind a server (`POST /api/panel/servers/:id/agent/update`).
@@ -34,6 +35,8 @@ class PanelUpdateServerAgentAPI(
     private val authProvider: AuthProvider,
     private val nodeDaemonUpdateService: NodeDaemonUpdateService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/agent/update", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

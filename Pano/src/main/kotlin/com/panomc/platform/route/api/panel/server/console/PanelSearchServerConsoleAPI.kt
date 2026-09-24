@@ -27,6 +27,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * One page of the console's deep search: every log file a server has, newest file first.
@@ -56,6 +57,8 @@ class PanelSearchServerConsoleAPI(
     private val nodeManager: NodeManager,
     private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/console/search", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

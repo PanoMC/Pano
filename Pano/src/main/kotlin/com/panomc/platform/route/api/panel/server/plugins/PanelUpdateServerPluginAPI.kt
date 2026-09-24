@@ -27,6 +27,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Updates one tracked jar to the newest build its source offers.
@@ -45,6 +46,8 @@ class PanelUpdateServerPluginAPI(
     private val pluginUpdateService: PluginUpdateService,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/plugins/update", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

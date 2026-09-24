@@ -22,6 +22,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Sets how many backups of one server Pano keeps.
@@ -41,6 +42,8 @@ class PanelUpdateServerBackupSettingsAPI(
     private val backupService: ManagedServerBackupService,
     private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/backups/settings", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

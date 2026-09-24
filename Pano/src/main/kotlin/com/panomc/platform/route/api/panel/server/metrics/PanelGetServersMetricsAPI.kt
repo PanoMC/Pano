@@ -21,6 +21,7 @@ import io.vertx.ext.web.validation.builder.Parameters.optionalParam
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Every visible server's vitals in one response, for the cards in the servers modal (§2.4.18 B).
@@ -40,6 +41,8 @@ class PanelGetServersMetricsAPI(
     private val serverManager: ServerManager,
     private val nodeManager: NodeManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers-metrics", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

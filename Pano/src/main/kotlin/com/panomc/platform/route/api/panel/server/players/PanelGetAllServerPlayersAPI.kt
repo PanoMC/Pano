@@ -12,6 +12,7 @@ import com.panomc.platform.server.players.ServerRosterBuilder
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 /**
  * Everyone who is in-game right now, across every server the caller may look after.
@@ -33,6 +34,9 @@ class PanelGetAllServerPlayersAPI(
     // Registered ahead of `/api/panel/servers/:id`, which would otherwise answer this with a
     // server called "players".
     override val order = 0
+
+    override val usageModes = UsageMode.WITH_SERVERS
+
 
     override val paths = listOf(Path("/api/panel/servers/players", RouteType.GET))
 

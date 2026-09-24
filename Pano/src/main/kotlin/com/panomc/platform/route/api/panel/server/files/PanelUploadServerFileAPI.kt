@@ -31,6 +31,7 @@ import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import com.panomc.platform.util.UsageMode
 
 /**
  * Takes a file from the browser and hands it to the node that owns the server.
@@ -50,6 +51,8 @@ class PanelUploadServerFileAPI(
     private val panelRealtimeHub: PanelRealtimeHub,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/files/upload", RouteType.POST))
 
     override fun bodyHandler(): Handler<RoutingContext> =

@@ -26,6 +26,7 @@ import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import kotlinx.coroutines.withTimeoutOrNull
+import com.panomc.platform.util.UsageMode
 
 /**
  * Streams files out of a managed server to the browser: one file as it is, several files or whole
@@ -51,6 +52,8 @@ class PanelDownloadServerFileAPI(
     private val fileClient: ManagedServerFileClient,
     private val transferTicketStore: TransferTicketStore
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/files/download", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

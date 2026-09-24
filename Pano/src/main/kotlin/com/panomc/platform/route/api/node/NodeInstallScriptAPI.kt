@@ -11,6 +11,7 @@ import com.panomc.platform.node.PanoUrlOverride
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
+import com.panomc.platform.util.UsageMode
 
 /**
  * The installer a new node is set up with (`GET /api/node/install.sh`).
@@ -30,6 +31,8 @@ import io.vertx.kotlin.coroutines.coAwait
 class NodeInstallScriptAPI(
     private val nodeInstallScriptProvider: NodeInstallScriptProvider
 ) : Api() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/node/install.sh", RouteType.GET))
 
     // Setting a node up is exactly the kind of work an operator does *during* maintenance.

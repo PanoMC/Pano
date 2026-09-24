@@ -15,6 +15,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * The Updates page's "update nodes automatically" switch (`PUT /api/panel/updates/node-auto-update`,
@@ -31,6 +32,8 @@ class PanelUpdateNodeAutoUpdateAPI(
     private val authProvider: AuthProvider,
     private val nodeDaemonUpdateService: NodeDaemonUpdateService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/updates/node-auto-update", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

@@ -19,6 +19,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /** Extracts a zip already inside a managed server into a directory of that same server. */
 @Endpoint
@@ -27,6 +28,8 @@ class PanelUnarchiveServerFileAPI(
     private val fileClient: ManagedServerFileClient,
     private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/files/unarchive", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

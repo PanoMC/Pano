@@ -23,6 +23,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import kotlinx.coroutines.withTimeoutOrNull
+import com.panomc.platform.util.UsageMode
 
 /**
  * Everything on the Updates page that is not Pano itself (`GET /api/panel/updates/servers`).
@@ -59,6 +60,8 @@ class PanelGetServerUpdatesAPI(
     private val panoPluginUpdateService: PanoPluginUpdateService,
     private val configManager: ConfigManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/updates/servers", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null

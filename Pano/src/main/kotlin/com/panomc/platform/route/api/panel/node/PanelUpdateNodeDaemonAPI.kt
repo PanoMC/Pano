@@ -14,6 +14,7 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Updates the daemon on one node (`POST /api/panel/nodes/:id/update`).
@@ -42,6 +43,8 @@ class PanelUpdateNodeDaemonAPI(
     private val authProvider: AuthProvider,
     private val nodeDaemonUpdateService: NodeDaemonUpdateService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/:id/update", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

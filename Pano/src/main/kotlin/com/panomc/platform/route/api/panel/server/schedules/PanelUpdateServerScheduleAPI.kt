@@ -22,6 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /** Replaces one schedule's definition, steps included. */
 @Endpoint
@@ -30,6 +31,8 @@ class PanelUpdateServerScheduleAPI(
     private val authProvider: AuthProvider,
     private val scheduleService: ServerScheduleService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/schedules/:sid", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

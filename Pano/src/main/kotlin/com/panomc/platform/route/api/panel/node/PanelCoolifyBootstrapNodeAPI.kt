@@ -18,6 +18,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Deploys a node to a Coolify instance (`POST /api/panel/nodes/coolify-bootstrap`).
@@ -49,6 +50,8 @@ class PanelCoolifyBootstrapNodeAPI(
     private val databaseManager: DatabaseManager,
     private val nodeCoolifyBootstrapService: NodeCoolifyBootstrapService
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/nodes/coolify-bootstrap", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

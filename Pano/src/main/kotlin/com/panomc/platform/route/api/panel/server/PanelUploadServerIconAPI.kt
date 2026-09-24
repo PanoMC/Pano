@@ -31,6 +31,7 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 import java.util.Base64
+import com.panomc.platform.util.UsageMode
 
 /**
  * Sets a server's icon from a picture uploaded in the panel header.
@@ -51,6 +52,8 @@ class PanelUploadServerIconAPI(
     private val panelRealtimeHub: PanelRealtimeHub,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/servers/:id/icon", RouteType.POST))
 
     override fun bodyHandler(): Handler<RoutingContext> =

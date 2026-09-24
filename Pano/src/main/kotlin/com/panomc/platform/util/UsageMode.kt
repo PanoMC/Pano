@@ -14,5 +14,12 @@ enum class UsageMode {
          * exist only in these; a SERVERS install answers 404 for them.
          */
         val WITH_WEBSITE: Set<UsageMode> = setOf(WEBSITE, BOTH)
+
+        /**
+         * The modes with server management. Its features -- the servers workspace, nodes, tasks,
+         * alerts -- exist only in these; a WEBSITE install answers 404 for them. Linking a server
+         * through pano-mc-plugin is not one of them: that is part of the website too.
+         */
+        val WITH_SERVERS: Set<UsageMode> = setOf(SERVERS, BOTH)
     }
 }

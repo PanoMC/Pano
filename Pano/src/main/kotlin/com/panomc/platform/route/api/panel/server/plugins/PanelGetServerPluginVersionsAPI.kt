@@ -17,6 +17,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 /**
  * Every published version of one project, each flagged with whether this server can run it.
@@ -31,6 +32,8 @@ class PanelGetServerPluginVersionsAPI(
     private val authProvider: AuthProvider,
     private val pluginSourceCatalog: PluginSourceCatalog
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths =
         listOf(Path("/api/panel/servers/:id/plugins/search/:source/:projectId/versions", RouteType.GET))
 

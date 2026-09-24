@@ -18,6 +18,7 @@ import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import com.panomc.platform.util.UsageMode
 
 /**
  * Parks an uploaded archive until the wizard knows what to do with it.
@@ -41,6 +42,8 @@ class PanelUploadTransferAPI(
     private val authProvider: AuthProvider,
     private val transferTicketStore: TransferTicketStore
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_SERVERS
+
     override val paths = listOf(Path("/api/panel/transfers/upload", RouteType.POST))
 
     // Nothing to validate: the body is a multipart file and every other decision is made from the

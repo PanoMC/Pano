@@ -93,7 +93,9 @@ class ServerMetricsRecorder(
                         memUsed = sample.memUsed,
                         memMax = sample.memMax,
                         memRss = sample.memRss,
-                        cpu = peaks?.cpu ?: sample.cpu,
+                        // The plugin's reading where there is one, the node's view of the process
+                        // otherwise: a server with no plugin in it had no CPU history at all before.
+                        cpu = peaks?.cpu ?: sample.cpu ?: sample.processCpu,
                         players = sample.playerCount,
                         source = sample.source,
                         // Null until somebody has walked the directory, which is most of the

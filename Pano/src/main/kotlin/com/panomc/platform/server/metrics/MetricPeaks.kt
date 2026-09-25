@@ -17,7 +17,8 @@ data class MetricPeaks(
 ) {
     /** These peaks with [sample] folded in; a value the sample does not carry leaves the peak alone. */
     fun with(sample: ServerMetricSample): MetricPeaks = MetricPeaks(
-        cpu = higher(cpu, sample.cpu),
+        // The plugin's reading, or the node's of the process for a server with no plugin.
+        cpu = higher(cpu, sample.cpu ?: sample.processCpu),
         netRx = higher(netRx, sample.netRx),
         netTx = higher(netTx, sample.netTx)
     )

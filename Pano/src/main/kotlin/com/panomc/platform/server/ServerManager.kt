@@ -417,6 +417,19 @@ class ServerManager(
     }
 
     /**
+     * Forgets the sample of a server whose process just exited.
+     *
+     * A plugin's disconnect already does this for the server it was in; a server measured only
+     * by its node has no socket to close, and its last sample would otherwise stay "the latest"
+     * for as long as it is off -- stale players and traffic on the metrics endpoint, and a
+     * server that looks measured to whoever asks which servers have a sample.
+     */
+    fun clearLatestMetrics(serverId: Long) {
+        latestMetrics.remove(serverId)
+        metricPeaks.remove(serverId)
+    }
+
+    /**
      * The CPU and traffic peaks of [serverId] since this was last asked, and forgets them: the
      * recorder takes them once a minute for the row it writes.
      */

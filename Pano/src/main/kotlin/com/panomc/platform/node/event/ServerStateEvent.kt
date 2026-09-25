@@ -51,6 +51,11 @@ class ServerStateEvent(
 
         databaseManager.serverDao.updateProcessStateById(server.id, state, exitCode, sqlClient)
 
+        // Nothing measures a process that is gone: the last sample must not outlive it.
+        if (!state.isAlive) {
+            serverManager.clearLatestMetrics(server.id)
+        }
+
         // The uptime of a managed server with no plugin (SM-57): set from the node's own start time
         // when the process is RUNNING, and cleared by the update above when it stops or crashes.
         if (state == ServerProcessState.RUNNING) {

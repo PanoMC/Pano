@@ -1554,9 +1554,14 @@ class ServerProcess(
             "CLASSPATH"
         )
 
-        /** Strips [LEAKED_JVM_ENVIRONMENT] out of a child's environment, returning the same map. */
+        /**
+         * Strips [LEAKED_JVM_ENVIRONMENT] out of a child's environment and adds the allocator
+         * settings a server runs with ([JvmHeap.allocatorEnvironment]), returning the same map. An
+         * admin who exported their own value keeps it.
+         */
         fun sanitizeChildEnvironment(environment: MutableMap<String, String>): MutableMap<String, String> {
             LEAKED_JVM_ENVIRONMENT.forEach { environment.remove(it) }
+            JvmHeap.allocatorEnvironment().forEach { (name, value) -> environment.putIfAbsent(name, value) }
 
             return environment
         }

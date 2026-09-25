@@ -7,16 +7,32 @@ import org.junit.jupiter.api.Test
 class JvmHeapTest {
     @Test
     fun `the heap leaves the JVM its own share of the setting`() {
-        assertEquals(1152, JvmHeap.heapMb(1536))
-        assertEquals(1536, JvmHeap.heapMb(2048))
-        assertEquals(3072, JvmHeap.heapMb(4096))
+        assertEquals(794, JvmHeap.heapMb(1536))
+        assertEquals(1229, JvmHeap.heapMb(2048))
+        assertEquals(1664, JvmHeap.heapMb(2560))
+        assertEquals(2970, JvmHeap.heapMb(4096))
     }
 
     @Test
-    fun `the share is at least 384 MB and at most 1 GB`() {
-        assertEquals(640, JvmHeap.heapMb(1024))
-        assertEquals(7168, JvmHeap.heapMb(8192))
-        assertEquals(15360, JvmHeap.heapMb(16384))
+    fun `the share is 512 MB plus 15 percent, at most 2 GB, and the heap at least half`() {
+        assertEquals(512, JvmHeap.heapMb(1024))
+        assertEquals(6451, JvmHeap.heapMb(8192))
+        assertEquals(14336, JvmHeap.heapMb(16384))
+    }
+
+    @Test
+    fun `a server process gets the allocator setting unless it brought its own`() {
+        val environment = mutableMapOf("_JAVA_OPTIONS" to "-Xmx1G", "PATH" to "/usr/bin")
+
+        com.panomc.node.server.ServerProcess.sanitizeChildEnvironment(environment)
+
+        assertEquals(mapOf("PATH" to "/usr/bin", "MALLOC_ARENA_MAX" to "2"), environment)
+
+        val own = mutableMapOf("MALLOC_ARENA_MAX" to "8")
+
+        com.panomc.node.server.ServerProcess.sanitizeChildEnvironment(own)
+
+        assertEquals("8", own["MALLOC_ARENA_MAX"])
     }
 
     @Test
@@ -32,7 +48,7 @@ class JvmHeapTest {
     @Test
     fun `the heap starts at a quarter of its maximum, at least 256 MB`() {
         assertEquals(288, JvmHeap.initialHeapMb(1152))
-        assertEquals(768, JvmHeap.initialHeapMb(3072))
+        assertEquals(742, JvmHeap.initialHeapMb(2970))
         assertEquals(256, JvmHeap.initialHeapMb(512))
         assertEquals(200, JvmHeap.initialHeapMb(200))
     }
@@ -59,7 +75,7 @@ class JvmHeapTest {
 
         assertEquals(
             listOf(
-                "java", "-Xms288M", "-Xmx1152M",
+                "java", "-Xms256M", "-Xmx794M",
                 "-XX:G1PeriodicGCInterval=30000", "-XX:MinHeapFreeRatio=20", "-XX:MaxHeapFreeRatio=40",
                 "-Xms1G", "-jar", "server.jar", "nogui"
             ),

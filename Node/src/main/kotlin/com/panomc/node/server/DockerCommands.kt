@@ -94,6 +94,8 @@ object DockerCommands {
             "--workdir", WORK_DIR,
             "--volume", "$hostDirectory:$WORK_DIR",
             "-e", "JAVA_TOOL_OPTIONS=",
+            // The same allocator setting a plain process gets (JvmHeap.MALLOC_ARENA_MAX).
+            "-e", "MALLOC_ARENA_MAX=${JvmHeap.MALLOC_ARENA_MAX}",
             // stdin stays open: it is the only way a console command reaches the server.
             "--interactive",
             // Pano supervises restarts itself, with its own backoff; Docker also doing it would

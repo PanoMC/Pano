@@ -24,7 +24,7 @@ class ServerLaunchTest {
         val command = ServerProcess.buildCommand("/usr/bin/java", "server.jar", spec)
 
         assertEquals(
-            listOf("/usr/bin/java", "-Xms768M", "-Xmx3072M", "-XX:+UseG1GC", "-jar", "server.jar", "nogui"),
+            listOf("/usr/bin/java", "-Xms742M", "-Xmx2970M", "-XX:+UseG1GC", "-jar", "server.jar", "nogui"),
             command
         )
     }
@@ -51,14 +51,15 @@ class ServerLaunchTest {
         ServerProcess.sanitizeChildEnvironment(environment)
 
         // Locale survives: it is what the server's own log lines are rendered with.
-        assertEquals(mapOf("PATH" to "/usr/bin", "LANG" to "tr_TR.UTF-8", "LC_ALL" to "tr_TR.UTF-8"), environment)
+        assertEquals(mapOf("PATH" to "/usr/bin", "LANG" to "tr_TR.UTF-8", "LC_ALL" to "tr_TR.UTF-8", "MALLOC_ARENA_MAX" to "2"), environment)
     }
 
     @Test
     fun `leaves an environment that never had them alone`() {
         val environment = mutableMapOf("PATH" to "/usr/bin")
 
-        assertEquals(mapOf("PATH" to "/usr/bin"), ServerProcess.sanitizeChildEnvironment(environment))
+        // The allocator setting is the one thing every server process gets (JvmHeap).
+        assertEquals(mapOf("PATH" to "/usr/bin", "MALLOC_ARENA_MAX" to "2"), ServerProcess.sanitizeChildEnvironment(environment))
     }
 
     @Test

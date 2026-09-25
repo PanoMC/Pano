@@ -638,12 +638,12 @@ class PanelRealtimeHub(
      * frames a second per task. Every task write passes through here, so this is also what keeps
      * the server JSON's `activeTask` current.
      */
-    fun pushTaskProgress(task: ServerTask) {
+    fun pushTaskProgress(task: ServerTask, transfer: com.panomc.platform.server.TaskTransfer? = null) {
         // Read before the store sees the frame: an end state forgets the mark, and the last frame
         // of a Pano plugin update must still say what it was (SM-77).
         val panoPluginUpdate = activeTaskStore.isPanoPluginUpdate(task.uuid)
 
-        activeTaskStore.onTask(task)
+        activeTaskStore.onTask(task, transfer = transfer)
 
         // Flat, keyed by `taskId`, which is the shape the panel's feed was written against (§2.4.3);
         // the whole row rides along under `task` for anything that wants the timestamps.
@@ -660,6 +660,8 @@ class PanelRealtimeHub(
             .put("error", task.error)
             // Same flag as the server JSON's `activeTask.panoPluginUpdate`, on the frame and its row.
             .put("panoPluginUpdate", panoPluginUpdate)
+            // A download's bytes, size and rate for this frame; absent on every other one.
+            .apply { transfer?.let { put("transfer", it.toJsonObject()) } }
             .put("task", task.toPublicJsonObject().put("panoPluginUpdate", panoPluginUpdate))
             .encode()
 

@@ -42,7 +42,9 @@ class ServerActiveTaskStore {
         val message: String?,
         val startedAt: Long,
         /** Whether this is an update of the Pano plugin itself; see [markPanoPluginUpdate]. */
-        val panoPluginUpdate: Boolean = false
+        val panoPluginUpdate: Boolean = false,
+        /** What the latest frame said it is downloading, if it was downloading. */
+        val transfer: TaskTransfer? = null
     ) {
         fun toJsonObject(): JsonObject = JsonObject()
             .put("id", id)
@@ -53,6 +55,7 @@ class ServerActiveTaskStore {
             .put("message", message)
             .put("startedAt", startedAt)
             .put("panoPluginUpdate", panoPluginUpdate)
+            .apply { transfer?.let { put("transfer", it.toJsonObject()) } }
     }
 
     /** serverId -> (task uuid -> task); more than one only while tasks overlap. */
@@ -79,7 +82,7 @@ class ServerActiveTaskStore {
     fun isPanoPluginUpdate(uuid: String): Boolean = panoPluginUpdates.containsKey(uuid)
 
     /** Records the state [task] was just written in: kept while it runs, forgotten once it ends. */
-    fun onTask(task: ServerTask, now: Long = System.currentTimeMillis()) {
+    fun onTask(task: ServerTask, now: Long = System.currentTimeMillis(), transfer: TaskTransfer? = null) {
         val serverId = task.serverId ?: return
 
         prune(now)
@@ -98,7 +101,7 @@ class ServerActiveTaskStore {
             return
         }
 
-        tasks.computeIfAbsent(serverId) { ConcurrentHashMap() }[task.uuid] = of(task)
+        tasks.computeIfAbsent(serverId) { ConcurrentHashMap() }[task.uuid] = of(task).copy(transfer = transfer)
     }
 
     /**

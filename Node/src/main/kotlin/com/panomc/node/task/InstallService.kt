@@ -191,12 +191,13 @@ class InstallService(
             reporter.running(taskId, uuid, kind, DOWNLOAD_START_PERCENT, "Downloading ${spec.software} ${spec.version}")
 
             // Not null: an install with neither a URL nor a build failed a dozen lines above.
-            Downloader.download(downloadUrl!!, jarFile, md5 = spec.md5) { fraction ->
-                val percent =
-                    DOWNLOAD_START_PERCENT + (fraction * (JAR_DOWNLOAD_END_PERCENT - DOWNLOAD_START_PERCENT)).toInt()
+            // Bytes, size and rate ride on the frames, so the panel can say "120 MB / 1 GB at 12 MB/s".
+            Downloader.download(downloadUrl!!, jarFile, md5 = spec.md5, onBytes = { progress ->
+                val percent = DOWNLOAD_START_PERCENT +
+                    ((progress.fraction ?: 0.0) * (JAR_DOWNLOAD_END_PERCENT - DOWNLOAD_START_PERCENT)).toInt()
 
-                reporter.running(taskId, uuid, kind, percent, "Downloading ${spec.software} ${spec.version}")
-            }
+                reporter.transfer(taskId, uuid, kind, percent, "Downloading ${spec.software} ${spec.version}", progress)
+            }) { }
         }
 
         if (!Downloader.isZip(jarFile)) {

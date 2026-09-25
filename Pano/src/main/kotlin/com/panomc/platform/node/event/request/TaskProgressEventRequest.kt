@@ -26,5 +26,13 @@ data class TaskProgressEventRequest(
      * What the operator still has to run on the host after a `NODE_UNINSTALL` (SM-64): service
      * removal the node was not allowed to do, the data directory holding the retired marker.
      */
-    val manualSteps: List<String?>? = null
+    val manualSteps: List<String?>? = null,
+    /**
+     * A download's bytes so far, its size (null when the upstream sent none) and its recent rate,
+     * on the RUNNING frames of a step that is downloading. Null everywhere else and from a node
+     * too old to send them.
+     */
+    val bytesDone: Long? = null,
+    val bytesTotal: Long? = null,
+    val bytesPerSecond: Long? = null
 ) : NodeEventRequest()

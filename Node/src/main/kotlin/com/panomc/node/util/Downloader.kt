@@ -27,7 +27,23 @@ object Downloader {
     }
 
     /**
-     * Downloads [url] to [target], calling [onProgress] with a 0..1 fraction as it goes.
+     * One moment of a download, for a progress line that says more than a percentage.
+     *
+     * [total] is -1 when the upstream sent no length; [bytesPerSecond] is null until two readings
+     * are far enough apart to divide, and smoothed after that so it does not jump on every read.
+     */
+    data class Progress(val done: Long, val total: Long, val bytesPerSecond: Long?) {
+        /** 0..1, or null when the size is unknown. */
+        val fraction: Double? get() = if (total > 0) (done.toDouble() / total).coerceIn(0.0, 1.0) else null
+    }
+
+    /** How often [download] hands [Progress] to its caller; a task frame is throttled further. */
+    const val BYTES_INTERVAL_MS = 250L
+
+    /**
+     * Downloads [url] to [target], calling [onProgress] with a 0..1 fraction as it goes, and
+     * [onBytes] -- when given -- with the bytes so far, the size and the rate, every
+     * [BYTES_INTERVAL_MS] and once more at the end.
      *
      * The fraction is only meaningful when the upstream sent a content length; without one the
      * callback is never invoked and the caller keeps whatever percent it had.
@@ -44,6 +60,7 @@ object Downloader {
         md5: String? = null,
         sha1: String? = null,
         sha256: String? = null,
+        onBytes: ((Progress) -> Unit)? = null,
         onProgress: (Double) -> Unit
     ) {
         val uri = URI.create(url)
@@ -71,6 +88,28 @@ object Downloader {
         var copied = 0L
         var lastReported = -1
 
+        val startedAt = System.currentTimeMillis()
+        var bytesAt = startedAt
+        var bytesDone = 0L
+        var rate: Double? = null
+
+        fun reportBytes(now: Long) {
+            val callback = onBytes ?: return
+            val elapsed = now - bytesAt
+
+            if (elapsed > 0) {
+                val instant = (copied - bytesDone) * 1000.0 / elapsed
+
+                // Smoothed, so a burst after a stall does not read as a sudden 90 MB/s.
+                rate = rate?.let { it * RATE_SMOOTHING + instant * (1 - RATE_SMOOTHING) } ?: instant
+            }
+
+            bytesAt = now
+            bytesDone = copied
+
+            callback(Progress(copied, total, rate?.toLong()))
+        }
+
         response.body().use { input ->
             target.outputStream().buffered().use { output ->
                 val buffer = ByteArray(64 * 1024)
@@ -86,6 +125,12 @@ object Downloader {
 
                     copied += read
 
+                    val now = System.currentTimeMillis()
+
+                    if (onBytes != null && now - bytesAt >= BYTES_INTERVAL_MS) {
+                        reportBytes(now)
+                    }
+
                     if (total > 0) {
                         val percent = ((copied * 100) / total).toInt()
 
@@ -99,8 +144,17 @@ object Downloader {
             }
         }
 
+        // The last reading, so the line ends on the whole size rather than the one a quarter
+        // second before it.
+        if (onBytes != null && copied != bytesDone) {
+            reportBytes(System.currentTimeMillis())
+        }
+
         verify(target, md5, sha1, sha256)
     }
+
+    /** How much of the previous rate a new reading keeps. */
+    private const val RATE_SMOOTHING = 0.6
 
     /**
      * Checks [file] against whichever checksums were published for it.

@@ -12,6 +12,19 @@ import java.util.concurrent.ConcurrentHashMap
 interface TaskSink {
     fun running(taskId: String, serverUuid: String?, kind: String, percent: Int, message: String?)
 
+    /**
+     * A RUNNING frame of a download, with its bytes, size and rate for the panel's progress line.
+     * A sink that has nowhere to put them reports a plain [running].
+     */
+    fun transfer(
+        taskId: String,
+        serverUuid: String?,
+        kind: String,
+        percent: Int,
+        message: String?,
+        progress: com.panomc.node.util.Downloader.Progress
+    ) = running(taskId, serverUuid, kind, percent, message)
+
     fun done(taskId: String, serverUuid: String?, kind: String, message: String?, extra: JsonObject? = null)
 
     fun failed(taskId: String, serverUuid: String?, kind: String, error: String, extra: JsonObject? = null)
@@ -55,7 +68,34 @@ class TaskReporter(
 
         val frame = throttle.offer(taskId, percent.coerceIn(0, 99), message) ?: return
 
-        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null)
+        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, transferOf(frame))
+    }
+
+    override fun transfer(
+        taskId: String,
+        serverUuid: String?,
+        kind: String,
+        percent: Int,
+        message: String?,
+        progress: com.panomc.node.util.Downloader.Progress
+    ) {
+        if (taskId in finished) {
+            return
+        }
+
+        val frame = throttle.offer(taskId, percent.coerceIn(0, 99), message, progress) ?: return
+
+        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, transferOf(frame))
+    }
+
+    /** The bytes of a download frame, flat on it; nothing for every other frame. */
+    private fun transferOf(frame: TaskProgressThrottle.Frame): JsonObject? {
+        val progress = frame.transfer ?: return null
+
+        return JsonObject()
+            .put("bytesDone", progress.done)
+            .put("bytesTotal", progress.total.takeIf { it > 0 })
+            .put("bytesPerSecond", progress.bytesPerSecond)
     }
 
     /**
@@ -111,7 +151,7 @@ class TaskReporter(
         throttle.forget(taskId)
 
         if (held != null) {
-            send(taskId, serverUuid, kind, "RUNNING", held.percent, held.message, null)
+            send(taskId, serverUuid, kind, "RUNNING", held.percent, held.message, null, transferOf(held))
         }
     }
 

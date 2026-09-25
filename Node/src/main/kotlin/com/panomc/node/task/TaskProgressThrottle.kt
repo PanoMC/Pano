@@ -24,17 +24,26 @@ import java.util.concurrent.ConcurrentHashMap
  * [clock] is injected only so the rules can be tested without sleeping.
  */
 class TaskProgressThrottle(private val clock: () -> Long = System::currentTimeMillis) {
-    /** A RUNNING frame's payload, as far as the throttle cares about it. */
-    data class Frame(val percent: Int, val message: String?)
+    /** A RUNNING frame's payload, as far as the throttle cares about it; [transfer] rides along. */
+    data class Frame(
+        val percent: Int,
+        val message: String?,
+        val transfer: com.panomc.node.util.Downloader.Progress? = null
+    )
 
     private data class State(val sentAt: Long, val sentPercent: Int, val sentMessage: String?, val held: Frame?)
 
     private val states = ConcurrentHashMap<String, State>()
 
     /** The frame to send for [taskId], or `null` when this one is held back. */
-    fun offer(taskId: String, percent: Int, message: String?): Frame? {
+    fun offer(
+        taskId: String,
+        percent: Int,
+        message: String?,
+        transfer: com.panomc.node.util.Downloader.Progress? = null
+    ): Frame? {
         val now = clock()
-        val frame = Frame(percent, message)
+        val frame = Frame(percent, message, transfer)
 
         var send: Frame? = null
 

@@ -1,5 +1,6 @@
 package com.panomc.platform.node.event
 
+import com.panomc.platform.server.TaskTransfer
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.annotation.Event
 import com.panomc.platform.db.model.Node
@@ -142,7 +143,15 @@ class TaskProgressEvent(
         // After the write and still inside the lock, carrying the row that was just stored: a push
         // that raced the write is how the panel ends up showing a percentage the database never
         // held.
-        panelRealtimeHub.pushTaskProgress(task)
+        // A download's bytes and rate ride on the push only: they are about this second, so they
+        // go to the panel and the in-memory active task, never into the row.
+        val transfer = if (task.status == ServerTaskStatus.RUNNING) {
+            TaskTransfer.of(request.bytesDone, request.bytesTotal, request.bytesPerSecond)
+        } else {
+            null
+        }
+
+        panelRealtimeHub.pushTaskProgress(task, transfer)
 
         if (task.status.isTerminal) {
             serverTaskService.completeTerminal(

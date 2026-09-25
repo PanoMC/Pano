@@ -202,11 +202,11 @@ class PluginInstallService(
         reporter.running(taskId, uuid, KIND, START_PERCENT, "Downloading $filename")
 
         try {
-            Downloader.download(downloadUrl, part) { fraction ->
-                val percent = START_PERCENT + (fraction * (VERIFY_PERCENT - START_PERCENT)).toInt()
+            Downloader.download(downloadUrl, part, onBytes = { progress ->
+                val percent = START_PERCENT + ((progress.fraction ?: 0.0) * (VERIFY_PERCENT - START_PERCENT)).toInt()
 
-                reporter.running(taskId, uuid, KIND, percent, "Downloading $filename")
-            }
+                reporter.transfer(taskId, uuid, KIND, percent, "Downloading $filename", progress)
+            }) { }
 
             reporter.running(taskId, uuid, KIND, VERIFY_PERCENT, "Verifying $filename")
 

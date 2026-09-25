@@ -40,13 +40,20 @@ class ServerTaskTransitionTest {
     }
 
     @Test
-    fun `ignores a repeat of what is already stored`() {
-        assertNull(
+    fun `keeps a frame at the same percentage, which carries the step's newer line`() {
+        // A BuildTools output line, a heartbeat or a download's bytes: the percentage does not
+        // move, the frame is still news.
+        assertEquals(
+            Progress(ServerTaskStatus.RUNNING, 55),
             ServerTaskTransition.apply(
                 Progress(ServerTaskStatus.RUNNING, 55),
                 ServerTaskStatus.RUNNING,
                 55
             )
+        )
+        assertEquals(
+            Progress(ServerTaskStatus.RUNNING, 55),
+            ServerTaskTransition.apply(Progress(ServerTaskStatus.RUNNING, 55), ServerTaskStatus.RUNNING, null)
         )
     }
 

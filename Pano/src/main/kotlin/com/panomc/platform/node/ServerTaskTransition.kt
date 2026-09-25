@@ -39,16 +39,21 @@ object ServerTaskTransition {
 
         val clamped = (reportedPercent ?: current.percent).coerceIn(0, 100)
 
+        // A frame from before one that was already applied: same state, a lower percentage.
+        if (reportedStatus == current.status && clamped < current.percent) {
+            return null
+        }
+
         val percent = when (reportedStatus) {
             ServerTaskStatus.DONE -> 100
             ServerTaskStatus.FAILED -> current.percent
             else -> maxOf(clamped, current.percent)
         }
 
-        if (reportedStatus == current.status && percent == current.percent) {
-            return null
-        }
-
+        // One at the same percentage is kept, not ignored as a repeat: it is the step's newer
+        // line, a heartbeat or a download's bytes. Dropping those left BuildTools' output with only
+        // its phase lines, a 3.6 MB download with no size or speed, and a Maven phase that stayed
+        // quiet at one percentage for ten minutes timed out while it was working.
         return Progress(reportedStatus, percent)
     }
 }

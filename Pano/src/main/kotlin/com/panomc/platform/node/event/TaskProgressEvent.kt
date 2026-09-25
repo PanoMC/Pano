@@ -152,7 +152,11 @@ class TaskProgressEvent(
             null
         }
 
-        panelRealtimeHub.pushTaskProgress(task, transfer)
+        panelRealtimeHub.pushTaskProgress(
+            task,
+            transfer,
+            output = task.status == ServerTaskStatus.RUNNING && request.output == true
+        )
 
         if (task.status.isTerminal) {
             serverTaskService.completeTerminal(

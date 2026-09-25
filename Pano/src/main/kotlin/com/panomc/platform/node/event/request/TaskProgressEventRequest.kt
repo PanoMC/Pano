@@ -34,5 +34,11 @@ data class TaskProgressEventRequest(
      */
     val bytesDone: Long? = null,
     val bytesTotal: Long? = null,
-    val bytesPerSecond: Long? = null
+    val bytesPerSecond: Long? = null,
+    /**
+     * True when [message] is a line of a tool's own output (BuildTools' Maven log) rather than a
+     * step of the task, so the panel can keep it in the task's output log instead of listing it as
+     * a step. Null from a node too old to tell the two apart.
+     */
+    val output: Boolean? = null
 ) : NodeEventRequest()

@@ -55,6 +55,20 @@ class InstallService(
     private val agentServer: () -> String? = { null }
 ) {
     fun install(message: InstallServerMessage, reinstall: Boolean) {
+        val taskId = message.taskId
+
+        // Every download of the install -- the jar, a JDK, BuildTools, a loader -- reports its
+        // bytes and rate on the task's frames, whichever step makes it.
+        if (taskId.isNullOrBlank()) {
+            return installWatched(message, reinstall)
+        }
+
+        reporter.watchingDownloads(taskId, message.serverUuid, if (reinstall) "REINSTALL" else "INSTALL") {
+            installWatched(message, reinstall)
+        }
+    }
+
+    private fun installWatched(message: InstallServerMessage, reinstall: Boolean) {
         val uuid = message.serverUuid
         val taskId = message.taskId
         val spec = message.spec

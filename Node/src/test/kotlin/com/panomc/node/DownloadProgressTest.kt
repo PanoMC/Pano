@@ -85,4 +85,34 @@ class DownloadProgressTest {
         assertNull(throttle.offer("t", 11, "Downloading", later))
         assertEquals(later, throttle.flush("t")?.transfer)
     }
+
+    @Test
+    fun `a download deep inside a task reports to whoever is watching that thread`() {
+        val seen = CopyOnWriteArrayList<Downloader.Progress>()
+
+        Downloader.observing({ seen.add(it) }) {
+            // No onBytes: the step downloading knows nothing about the task it is part of.
+            Downloader.download(url, File(directory, "c.jar")) { }
+        }
+
+        assertEquals(body.size.toLong(), seen.last().done)
+
+        // Outside the block nothing is watching any more.
+        seen.clear()
+        Downloader.download(url, File(directory, "d.jar")) { }
+        assertTrue(seen.isEmpty())
+    }
+
+    @Test
+    fun `a download that reports its own bytes is not reported twice`() {
+        val watched = CopyOnWriteArrayList<Downloader.Progress>()
+        val own = CopyOnWriteArrayList<Downloader.Progress>()
+
+        Downloader.observing({ watched.add(it) }) {
+            Downloader.download(url, File(directory, "e.jar"), onBytes = { own.add(it) }) { }
+        }
+
+        assertTrue(own.isNotEmpty())
+        assertTrue(watched.isEmpty())
+    }
 }

@@ -98,7 +98,11 @@ class JavaRuntimeService(
 
         tasks.running(taskId, serverUuid, KIND_INSTALL, 0, "Looking up Java $major")
 
-        return when (val outcome = ensure(major) { percent, message -> tasks.running(taskId, serverUuid, KIND_INSTALL, percent, message) }) {
+        val outcome = tasks.watchingDownloads(taskId, serverUuid, KIND_INSTALL) {
+            ensure(major) { percent, message -> tasks.running(taskId, serverUuid, KIND_INSTALL, percent, message) }
+        }
+
+        return when (outcome) {
             is Outcome.Present -> {
                 tasks.done(taskId, serverUuid, KIND_INSTALL, "Java $major is already installed", runtimeExtra(outcome.runtime))
 

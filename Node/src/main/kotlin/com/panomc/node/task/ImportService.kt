@@ -68,6 +68,17 @@ class ImportService(
     private val onAdopted: (ServerProcess) -> Unit = {}
 ) {
     fun import(message: ImportServerMessage) {
+        val taskId = message.taskId
+
+        // A modpack's archive and its mods are downloads too; their bytes ride on the task.
+        if (taskId.isNullOrBlank()) {
+            return importWatched(message)
+        }
+
+        reporter.watchingDownloads(taskId, message.serverUuid, KIND) { importWatched(message) }
+    }
+
+    private fun importWatched(message: ImportServerMessage) {
         val uuid = message.serverUuid
         val taskId = message.taskId
         val spec = message.spec

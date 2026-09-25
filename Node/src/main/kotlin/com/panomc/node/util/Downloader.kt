@@ -40,6 +40,29 @@ object Downloader {
     /** How often [download] hands [Progress] to its caller; a task frame is throttled further. */
     const val BYTES_INTERVAL_MS = 250L
 
+    /** Who hears about the downloads this thread makes without asking for [download]'s `onBytes`. */
+    private val observer = ThreadLocal<((Progress) -> Unit)?>()
+
+    /**
+     * Runs [block] with every download it makes on this thread reported to [listener].
+     *
+     * A task is many steps deep by the time something downloads -- a JDK three calls into a
+     * BuildTools install, a modpack's archive inside an import -- and threading a byte callback
+     * through each of them is how the Java download ended up saying nothing but "Downloading".
+     * A download that passes its own `onBytes` is its caller's to report and does not come here.
+     */
+    fun <T> observing(listener: (Progress) -> Unit, block: () -> T): T {
+        val previous = observer.get()
+
+        observer.set(listener)
+
+        try {
+            return block()
+        } finally {
+            observer.set(previous)
+        }
+    }
+
     /**
      * Downloads [url] to [target], calling [onProgress] with a 0..1 fraction as it goes, and
      * [onBytes] -- when given -- with the bytes so far, the size and the rate, every
@@ -63,6 +86,8 @@ object Downloader {
         onBytes: ((Progress) -> Unit)? = null,
         onProgress: (Double) -> Unit
     ) {
+        val bytesListener = onBytes ?: observer.get()
+
         val uri = URI.create(url)
 
         require(uri.scheme == "http" || uri.scheme == "https") { "Refused to download from \"${uri.scheme}\"." }
@@ -94,7 +119,7 @@ object Downloader {
         var rate: Double? = null
 
         fun reportBytes(now: Long) {
-            val callback = onBytes ?: return
+            val callback = bytesListener ?: return
             val elapsed = now - bytesAt
 
             if (elapsed > 0) {
@@ -127,7 +152,7 @@ object Downloader {
 
                     val now = System.currentTimeMillis()
 
-                    if (onBytes != null && now - bytesAt >= BYTES_INTERVAL_MS) {
+                    if (bytesListener != null && now - bytesAt >= BYTES_INTERVAL_MS) {
                         reportBytes(now)
                     }
 
@@ -146,7 +171,7 @@ object Downloader {
 
         // The last reading, so the line ends on the whole size rather than the one a quarter
         // second before it.
-        if (onBytes != null && copied != bytesDone) {
+        if (bytesListener != null && copied != bytesDone) {
             reportBytes(System.currentTimeMillis())
         }
 

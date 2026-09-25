@@ -25,6 +25,12 @@ interface TaskSink {
         progress: com.panomc.node.util.Downloader.Progress
     ) = running(taskId, serverUuid, kind, percent, message)
 
+    /**
+     * Runs [block] -- one task's work -- with every download it makes on this thread reported as
+     * [transfer] frames at the step it is on. A sink that has nowhere to put bytes just runs it.
+     */
+    fun <T> watchingDownloads(taskId: String, serverUuid: String?, kind: String, block: () -> T): T = block()
+
     fun done(taskId: String, serverUuid: String?, kind: String, message: String?, extra: JsonObject? = null)
 
     fun failed(taskId: String, serverUuid: String?, kind: String, error: String, extra: JsonObject? = null)
@@ -61,10 +67,15 @@ class TaskReporter(
 ) : TaskSink {
     private val finished = ConcurrentHashMap.newKeySet<String>()
 
+    /** The step each running task last reported, for the downloads [watchingDownloads] sees. */
+    private val steps = ConcurrentHashMap<String, Pair<Int, String?>>()
+
     override fun running(taskId: String, serverUuid: String?, kind: String, percent: Int, message: String?) {
         if (taskId in finished) {
             return
         }
+
+        steps[taskId] = percent to message
 
         val frame = throttle.offer(taskId, percent.coerceIn(0, 99), message) ?: return
 
@@ -87,6 +98,13 @@ class TaskReporter(
 
         send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, transferOf(frame))
     }
+
+    override fun <T> watchingDownloads(taskId: String, serverUuid: String?, kind: String, block: () -> T): T =
+        com.panomc.node.util.Downloader.observing({ progress ->
+            val (percent, message) = steps[taskId] ?: (0 to null)
+
+            transfer(taskId, serverUuid, kind, percent, message, progress)
+        }, block)
 
     /** The bytes of a download frame, flat on it; nothing for every other frame. */
     private fun transferOf(frame: TaskProgressThrottle.Frame): JsonObject? {
@@ -118,6 +136,8 @@ class TaskReporter(
 
         flushRunning(taskId, serverUuid, kind)
 
+        steps.remove(taskId)
+
         send(taskId, serverUuid, kind, "DONE", 100, message, null, extra)
 
         serverUuid?.let(onServerTaskFinished)
@@ -133,6 +153,8 @@ class TaskReporter(
         }
 
         flushRunning(taskId, serverUuid, kind)
+
+        steps.remove(taskId)
 
         send(taskId, serverUuid, kind, "FAILED", 100, null, error, extra)
 

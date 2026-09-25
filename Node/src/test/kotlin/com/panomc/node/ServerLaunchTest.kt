@@ -24,7 +24,7 @@ class ServerLaunchTest {
         val command = ServerProcess.buildCommand("/usr/bin/java", "server.jar", spec)
 
         assertEquals(
-            listOf("/usr/bin/java", "-Xms4096M", "-Xmx4096M", "-XX:+UseG1GC", "-jar", "server.jar", "nogui"),
+            listOf("/usr/bin/java", "-Xms3072M", "-Xmx3072M", "-XX:+UseG1GC", "-jar", "server.jar", "nogui"),
             command
         )
     }

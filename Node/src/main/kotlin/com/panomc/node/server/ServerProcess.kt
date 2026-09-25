@@ -1564,8 +1564,11 @@ class ServerProcess(
         fun buildCommand(javaPath: String, jarName: String, spec: ServerSpec): List<String> {
             val command = mutableListOf(javaPath)
 
-            command.add("-Xms${spec.memoryMb}M")
-            command.add("-Xmx${spec.memoryMb}M")
+            // The setting is the whole process; the heap gets it minus the JVM's own share (JvmHeap).
+            val heapMb = JvmHeap.heapMb(spec.memoryMb)
+
+            command.add("-Xms${heapMb}M")
+            command.add("-Xmx${heapMb}M")
             command.addAll(spec.jvmArgs.filter { it.isNotBlank() })
             command.add("-jar")
             command.add(jarName)

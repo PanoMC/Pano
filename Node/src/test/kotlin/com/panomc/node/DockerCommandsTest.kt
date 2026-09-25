@@ -79,7 +79,7 @@ class DockerCommandsTest {
         val command = args.subList(args.indexOf("img") + 1, args.size)
 
         assertEquals(
-            listOf("java", "-Xms2048M", "-Xmx2048M", "-XX:+UseG1GC", "-jar", "server.jar", "nogui"),
+            listOf("java", "-Xms1536M", "-Xmx1536M", "-XX:+UseG1GC", "-jar", "server.jar", "nogui"),
             command
         )
     }

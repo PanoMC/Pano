@@ -59,9 +59,10 @@ object DockerCommands {
      * `docker create` for one server.
      *
      * The choices worth naming:
-     * - `--memory` is the container's ceiling, and the JVM's `-Xmx` is set to the same number by
-     *   [ServerProcess.buildCommand]; a container whose JVM may exceed its cgroup is a container
-     *   the kernel kills instead of a server that garbage collects.
+     * - `--memory` is the container's ceiling, the server's whole memory setting, and the JVM's
+     *   `-Xmx` is that setting minus the JVM's own share ([JvmHeap], via
+     *   [ServerProcess.buildCommand]): a heap as large as the cgroup always takes the process over
+     *   it once the heap fills, and the kernel kills the container instead of the JVM collecting.
      * - `-e JAVA_TOOL_OPTIONS=` blanks the variable inside the container for the same reason the
      *   process runtime strips it: whatever started this daemon must not reach the server.
      * - `--user` keeps files in the bind mount owned by the node's own user, so the file manager

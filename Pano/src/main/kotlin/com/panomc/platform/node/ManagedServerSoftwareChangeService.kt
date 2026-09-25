@@ -319,7 +319,15 @@ class ManagedServerSoftwareChangeService(
                     lastPercent = current.percent
                     lastTouch = now
 
-                    updateTask(task.uuid, "Backing up the server ($name, ${current.percent}%)")
+                    // On the bar too, not only in the sentence: a bar stuck at 0 % for the whole
+                    // backup read as a backup that was not moving. Only its first slice of it,
+                    // because a task's percentage never walks back (ServerTaskTransition) and the
+                    // node's reinstall frames start again from 1.
+                    updateTask(
+                        task.uuid,
+                        "Backing up the server ($name, ${current.percent}%)",
+                        current.percent * BACKUP_BAR_SHARE / 100
+                    )
                 }
             }
         }
@@ -374,7 +382,7 @@ class ManagedServerSoftwareChangeService(
         }
     }
 
-    private suspend fun updateTask(uuid: String, message: String) {
+    private suspend fun updateTask(uuid: String, message: String, percent: Int? = null) {
         serverTaskService.withTaskLock(uuid) {
             val sqlClient = databaseManager.getSqlClient()
             val task = databaseManager.serverTaskDao.getByUuid(uuid, sqlClient) ?: return@withTaskLock true
@@ -384,6 +392,7 @@ class ManagedServerSoftwareChangeService(
             }
 
             task.message = message
+            percent?.let { task.percent = it.coerceIn(0, 100) }
             task.updatedAt = System.currentTimeMillis()
 
             databaseManager.serverTaskDao.updateProgressByUuid(
@@ -464,6 +473,9 @@ class ManagedServerSoftwareChangeService(
 
         private const val POLL_INTERVAL_MS = 1000L
         private const val TOUCH_INTERVAL_MS = 30_000L
+
+        /** How much of the change's bar its backup-first step fills, 0 to this percent. */
+        private const val BACKUP_BAR_SHARE = 10
         private const val MAX_ERROR_LENGTH = 2000
 
         /** Shown in the server's console as whoever sent the stop and the start. */

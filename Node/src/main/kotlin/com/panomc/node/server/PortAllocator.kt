@@ -1,5 +1,6 @@
 package com.panomc.node.server
 
+import com.panomc.node.host.HostPlatform
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 
@@ -28,10 +29,19 @@ object PortAllocator {
         isFree: (Int) -> Boolean = ::isPortFree
     ): Int? = range.firstOrNull { it !in taken && it !in reserved && isFree(it) }
 
-    /** Whether [port] can be bound on this host right now. */
+    /**
+     * Whether a server could bind [port] on this host right now.
+     *
+     * Probed the way the server itself binds: with `SO_REUSEADDR` on, as the JDK sets it for a
+     * listening socket on Unix. Without it Linux refuses a port that still has connections in
+     * TIME_WAIT, which is every port a server kicked its players off when it stopped, so a
+     * reinstall right after the stop found its own port "in use" and moved the server to the next
+     * one. A port something is listening on is refused either way. On Windows `SO_REUSEADDR` lets
+     * a bind take a port another socket is listening on, so it stays off there.
+     */
     fun isPortFree(port: Int): Boolean = try {
         ServerSocket().use { socket ->
-            socket.reuseAddress = false
+            socket.reuseAddress = !HostPlatform.isWindows
             socket.bind(InetSocketAddress(port), 1)
         }
 

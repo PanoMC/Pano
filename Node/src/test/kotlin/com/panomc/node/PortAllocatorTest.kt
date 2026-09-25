@@ -1,11 +1,16 @@
 package com.panomc.node
 
+import com.panomc.node.host.HostPlatform
 import com.panomc.node.server.PortAllocator
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeFalse
 import org.junit.jupiter.api.Test
+import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
 
 class PortAllocatorTest {
     @Test
@@ -131,5 +136,35 @@ class PortAllocatorTest {
 
         assertEquals(25565, moved?.port)
         assertTrue(moved!!.changed)
+    }
+
+    @Test
+    fun `a port a stopped server left in TIME_WAIT is free`() {
+        assumeFalse(HostPlatform.isWindows)
+
+        val port = ServerSocket().use { listener ->
+            listener.reuseAddress = true
+            listener.bind(InetSocketAddress(0))
+
+            Socket("127.0.0.1", listener.localPort).use { client ->
+                // The server hangs up first, as it does to its players when it stops, which
+                // leaves the connection in TIME_WAIT on the server's own port.
+                listener.accept().close()
+                Thread.sleep(100)
+            }
+
+            listener.localPort
+        }
+
+        Thread.sleep(100)
+
+        assertTrue(PortAllocator.isPortFree(port))
+    }
+
+    @Test
+    fun `a port something is listening on is not free`() {
+        ServerSocket(0).use { listener ->
+            assertFalse(PortAllocator.isPortFree(listener.localPort))
+        }
     }
 }

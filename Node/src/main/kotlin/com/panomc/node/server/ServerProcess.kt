@@ -1566,6 +1566,9 @@ class ServerProcess(
             return environment
         }
 
+        /** Keeps jansi's colour escapes in a piped stdout; see [buildCommand]. */
+        const val ANSI_PASSTHROUGH = "-Djansi.passthrough=true"
+
         fun buildCommand(javaPath: String, jarName: String, spec: ServerSpec, javaMajor: Int? = null): List<String> {
             val command = mutableListOf(javaPath)
 
@@ -1577,6 +1580,11 @@ class ServerProcess(
             command.add("-Xms${JvmHeap.initialHeapMb(heapMb)}M")
             command.add("-Xmx${heapMb}M")
             command.addAll(JvmHeap.returnMemoryFlags(javaMajor))
+            // CraftBukkit, Spigot up to 1.21.1 and BungeeCord print their colours through jansi,
+            // which strips them whenever stdout is not a terminal -- and here it is always a pipe,
+            // so their console came out plain. Passthrough leaves the escapes in for
+            // ConsoleLineParser; a server that does not use jansi never reads the property.
+            command.add(ANSI_PASSTHROUGH)
             command.addAll(spec.jvmArgs.filter { it.isNotBlank() })
             command.add("-jar")
             command.add(jarName)

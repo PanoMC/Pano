@@ -77,6 +77,7 @@ class JvmHeapTest {
             listOf(
                 "java", "-Xms256M", "-Xmx794M",
                 "-XX:G1PeriodicGCInterval=30000", "-XX:MinHeapFreeRatio=20", "-XX:MaxHeapFreeRatio=40",
+                "-Djansi.passthrough=true",
                 "-Xms1G", "-jar", "server.jar", "nogui"
             ),
             command

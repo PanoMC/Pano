@@ -273,8 +273,17 @@ class ServerTaskService(
         }
 
         // An install that failed leaves a row that can never start. It is marked STOPPED rather
-        // than left INSTALLING forever, so the panel can offer a retry instead of a spinner.
+        // than left INSTALLING forever, and keeps the reason, so the panel can show it and offer a
+        // reinstall instead of a spinner or a Start button that does nothing.
         if (kind == ServerTaskKind.INSTALL || kind == ServerTaskKind.REINSTALL || kind == ServerTaskKind.IMPORT) {
+            databaseManager.serverDao.getById(id, sqlClient)?.let { server ->
+                val installError = ServerInstallFailure.afterFailure(kind, server.installError, error)
+
+                if (installError != server.installError) {
+                    databaseManager.serverDao.updateInstallErrorById(id, installError, sqlClient)
+                }
+            }
+
             databaseManager.serverDao.updateProcessStateById(id, ServerProcessState.STOPPED, null, sqlClient)
 
             panelRealtimeHub.pushServerState(id, ServerProcessState.STOPPED.name, null, null, null)

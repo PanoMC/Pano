@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.util.UUID
+import com.panomc.platform.node.ServerInstallFailure
 import com.panomc.platform.node.message.PowerMessage as NodePowerMessage
 import com.panomc.platform.server.message.PowerMessage as PluginPowerMessage
 
@@ -124,6 +125,8 @@ class ScheduleExecutor(
 
                 if (action != ServerPowerAction.STOP && action != ServerPowerAction.RESTART) {
                     "\"${payload.getString("action")}\" is not something a schedule may do."
+                } else if (server.isManaged && ServerInstallFailure.blocks(action, server.installError)) {
+                    INSTALL_FAILED
                 } else if (!sendPower(server, action, issuer)) {
                     OFFLINE
                 } else {
@@ -218,6 +221,9 @@ class ScheduleExecutor(
     companion object {
         /** Not a failure of the schedule: the server was simply not there to act on. */
         const val OFFLINE = "The server was not reachable."
+
+        /** A restart of a server whose install failed: its node has nothing to start. */
+        const val INSTALL_FAILED = "The server's install failed; reinstall it first."
 
         private const val WARNING_ISSUER = "warning"
         private const val MAX_ISSUER_LENGTH = 32

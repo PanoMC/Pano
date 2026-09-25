@@ -10,10 +10,12 @@ import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NodeOffline
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.ServerCapabilityMissing
+import com.panomc.platform.error.ServerInstallFailed
 import com.panomc.platform.error.ServerOffline
 import com.panomc.platform.error.RateLimited
 import com.panomc.platform.model.*
 import com.panomc.platform.node.NodeManager
+import com.panomc.platform.node.ServerInstallFailure
 import com.panomc.platform.node.message.PowerMessage as NodePowerMessage
 import com.panomc.platform.server.ServerCapability
 import com.panomc.platform.server.ServerManager
@@ -111,6 +113,12 @@ class PanelServerPowerActionAPI(
     private fun sendToNode(server: Server, action: ServerPowerAction, username: String) {
         val nodeId = server.nodeId ?: throw ServerCapabilityMissing()
         val uuid = server.uuid ?: throw ServerCapabilityMissing()
+
+        // Its node never registered a server whose install failed and drops a start for it
+        // without a word, so the reason is given here instead (ServerInstallFailure).
+        if (ServerInstallFailure.blocks(action, server.installError)) {
+            throw ServerInstallFailed(extras = mapOf("installError" to server.installError))
+        }
 
         if (!nodeManager.isConnected(nodeId)) {
             throw NodeOffline()

@@ -146,7 +146,13 @@ data class Server(
      * null for a linked server and until a node that reports it (protocol 5) has said. For an
      * in-place server it starts as the path the admin typed and becomes the node's resolved one.
      */
-    var directory: String? = null
+    var directory: String? = null,
+    /**
+     * Why this managed server's install or import failed, or null once one has succeeded
+     * ([com.panomc.platform.node.ServerInstallFailure]). A row with a reason is one its node never
+     * registered: the panel shows the reason with a way to reinstall, and a start is refused.
+     */
+    var installError: String? = null
 ) : DBEntity() {
     fun hasCapability(capability: ServerCapability) = capabilities.contains(capability.id)
 

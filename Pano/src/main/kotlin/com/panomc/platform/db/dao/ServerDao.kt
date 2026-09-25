@@ -96,6 +96,16 @@ abstract class ServerDao : Dao<Server>(Server::class.java) {
         sqlClient: SqlClient
     )
 
+    /**
+     * Stores why the server's install failed, or clears it with null
+     * ([com.panomc.platform.node.ServerInstallFailure]).
+     */
+    abstract suspend fun updateInstallErrorById(
+        id: Long,
+        installError: String?,
+        sqlClient: SqlClient
+    )
+
     /** Stores the server's IANA time zone id, already validated (SM-60, §2.4.25). */
     abstract suspend fun updateTimeZoneById(
         id: Long,

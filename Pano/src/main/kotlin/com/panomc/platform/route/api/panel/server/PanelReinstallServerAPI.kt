@@ -149,7 +149,9 @@ class PanelReinstallServerAPI(
                 version = target.version,
                 serverType = target.serverType,
                 keep = keep,
-                backupFirst = SoftwareChangeSteps.backupFirst(data.getBoolean("backupFirst")),
+                // A server whose install failed has nothing worth keeping and nothing its node could
+                // back up, and the backup failing would take the reinstall down with it.
+                backupFirst = server.installError == null && SoftwareChangeSteps.backupFirst(data.getBoolean("backupFirst")),
                 startAfter = SoftwareChangeSteps.startAfter(data.getBoolean("startAfter"), running),
                 running = running
             ),

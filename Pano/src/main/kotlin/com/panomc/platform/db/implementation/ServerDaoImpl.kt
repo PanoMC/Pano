@@ -70,6 +70,7 @@ class ServerDaoImpl : ServerDao() {
                               `timeZone` varchar(64) NULL,
                               `inPlace` TINYINT(1) NOT NULL DEFAULT 0,
                               `directory` text NULL,
+                              `installError` text NULL,
                               PRIMARY KEY (`id`),
                               UNIQUE KEY `idx_server_uuid` (`uuid`),
                               KEY `idx_server_node` (`nodeId`)
@@ -542,6 +543,15 @@ class ServerDaoImpl : ServerDao() {
         sqlClient
             .preparedQuery(query)
             .execute(Tuple.of(favicon, id))
+            .coAwait()
+    }
+
+    override suspend fun updateInstallErrorById(id: Long, installError: String?, sqlClient: SqlClient) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `installError` = ? WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(installError, id))
             .coAwait()
     }
 

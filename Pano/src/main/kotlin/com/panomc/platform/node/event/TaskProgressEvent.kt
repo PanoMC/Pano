@@ -10,6 +10,7 @@ import com.panomc.platform.node.NodeEvent
 import com.panomc.platform.node.NodeEventResponse
 import com.panomc.platform.node.NodeManager
 import com.panomc.platform.node.NodeUpdateProgressService
+import com.panomc.platform.node.ServerInstallFailure
 import com.panomc.platform.node.ServerTaskKind
 import com.panomc.platform.node.ServerTaskStatus
 import com.panomc.platform.node.ServerTaskService
@@ -206,6 +207,11 @@ class TaskProgressEvent(
         when (kind) {
             ServerTaskKind.INSTALL, ServerTaskKind.REINSTALL, ServerTaskKind.IMPORT, ServerTaskKind.RESTORE -> {
                 val server = databaseManager.serverDao.getById(id, sqlClient) ?: return
+
+                // Installed now, whatever failed before (ServerInstallFailure).
+                if (server.installError != null && ServerInstallFailure.clearsOnDone(kind)) {
+                    databaseManager.serverDao.updateInstallErrorById(id, null, sqlClient)
+                }
 
                 databaseManager.serverDao.updateProcessStateById(id, ServerProcessState.STOPPED, null, sqlClient)
 

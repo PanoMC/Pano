@@ -951,7 +951,7 @@ class NodeDaemon(
     private fun onConnected() {
         // Streaming always restarts off: Pano decides who is watching, and a reconnect is exactly
         // the moment its idea of that and the node's can have drifted apart.
-        registry.all().forEach { it.console.onDisconnect() }
+        registry.stopConsoleStreams()
 
         // For the same reason, and with the same bias: what this node was told about the plugins
         // belongs to the connection that told it. Pano re-states it after the hello, and until it
@@ -1210,9 +1210,11 @@ class NodeDaemon(
             .put("hasMore", hasMore)
 
     private fun onConsoleStream(message: ConsoleStreamMessage) {
-        val server = registry.get(message.serverUuid) ?: return
+        val uuid = message.serverUuid?.takeIf { it.isNotBlank() } ?: return
 
-        server.console.setStreaming(message.enabled == true)
+        // Remembered by uuid even when there is no server yet (an install still under way, or one
+        // that failed), so the one registered later streams from its first line.
+        val server = registry.setConsoleStreaming(uuid, message.enabled == true) ?: return
 
         if (message.enabled == true) {
             flush(server)

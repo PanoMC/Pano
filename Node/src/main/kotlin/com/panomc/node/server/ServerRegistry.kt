@@ -69,6 +69,35 @@ class ServerRegistry(
             servers.values.forEach { it.consoleTap = value }
         }
 
+    /**
+     * The servers whose console Pano is watching (`CONSOLE_STREAM`), by uuid.
+     *
+     * Kept here rather than only on each [ServerProcess.console], because the process object is
+     * not the server: an install, reinstall or import registers a new one under the same uuid, and
+     * a failed install has none at all when Pano asks. Either way the console Pano was told to
+     * stream stayed silent until the page was reloaded. [register] hands the setting to the new
+     * object.
+     */
+    private val streamedConsoles: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Streams [uuid]'s console to Pano, or stops; returns its server when this node has one. */
+    fun setConsoleStreaming(uuid: String, enabled: Boolean): ServerProcess? {
+        if (enabled) {
+            streamedConsoles.add(uuid)
+        } else {
+            streamedConsoles.remove(uuid)
+        }
+
+        return servers[uuid]?.also { it.console.setStreaming(enabled) }
+    }
+
+    /** Stops every console stream: the connection they went to is gone, and Pano re-asks on the next. */
+    fun stopConsoleStreams() {
+        streamedConsoles.clear()
+
+        servers.values.forEach { it.console.onDisconnect() }
+    }
+
     fun all(): List<ServerProcess> = servers.values.toList()
 
     fun get(uuid: String?): ServerProcess? = uuid?.let { servers[it] }
@@ -333,6 +362,12 @@ class ServerRegistry(
         val server = ServerProcess(uuid, directory, spec, javaLocator, runtime, scheduler, logger, listener, javaDownloads)
 
         server.consoleTap = consoleTap
+
+        // Before it is published, so no line of the new process is written while it is not yet
+        // streaming; the replay of the scrollback this starts is what the panel opens on anyway.
+        if (uuid in streamedConsoles) {
+            server.console.setStreaming(true)
+        }
 
         servers[uuid] = server
 

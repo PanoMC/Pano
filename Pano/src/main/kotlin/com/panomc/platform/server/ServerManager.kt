@@ -71,6 +71,9 @@ class ServerManager(
     // figure from before it went down.
     private val latestMetrics = ConcurrentHashMap<Long, ServerMetricSample>()
 
+    /** CPU and traffic peaks since each server's last stored minute (ServerMetricsRecorder). */
+    private val metricPeaks = ConcurrentHashMap<Long, com.panomc.platform.server.metrics.MetricPeaks>()
+
     // Installed plugin list per server id. In memory only and dropped on disconnect: it describes
     // what is on that server's disk right now, which nothing on this side can vouch for once the
     // server is gone.
@@ -168,6 +171,7 @@ class ServerManager(
         serverSecretKeyMap.remove(server)
         lastPongAtMap.remove(server)
         latestMetrics.remove(server.id)
+        metricPeaks.remove(server.id)
         installedPlugins.remove(server.id)
 
         // Anything still waiting on this socket is never going to be answered on it, and a panel
@@ -407,7 +411,16 @@ class ServerManager(
     /** Stores the newest performance sample reported by [serverId]. */
     fun setLatestMetrics(serverId: Long, sample: ServerMetricSample) {
         latestMetrics[serverId] = sample
+        metricPeaks.compute(serverId) { _, peaks ->
+            (peaks ?: com.panomc.platform.server.metrics.MetricPeaks()).with(sample)
+        }
     }
+
+    /**
+     * The CPU and traffic peaks of [serverId] since this was last asked, and forgets them: the
+     * recorder takes them once a minute for the row it writes.
+     */
+    fun takeMetricPeaks(serverId: Long): com.panomc.platform.server.metrics.MetricPeaks? = metricPeaks.remove(serverId)
 
     /** Newest performance sample of [serverId], or null when it never sent one since connecting. */
     fun getLatestMetrics(serverId: Long): ServerMetricSample? = latestMetrics[serverId]
@@ -442,6 +455,7 @@ class ServerManager(
     fun onServerDeleted(serverId: Long) {
         consoleBuffers.remove(serverId)
         latestMetrics.remove(serverId)
+        metricPeaks.remove(serverId)
         installedPlugins.remove(serverId)
     }
 

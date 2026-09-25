@@ -20,7 +20,9 @@ import org.springframework.stereotype.Component
  * Rolls the live metrics samples of every connected server into one database row per minute.
  *
  * Servers report every 10 seconds, which is the resolution the live view wants but six times more
- * history than any chart needs, so only the newest sample of each minute is persisted. Rows older
+ * history than any chart needs, so one row a minute is persisted: the newest sample, except for
+ * CPU and traffic, which are the minute's peaks ([MetricPeaks]) so a short spike between two
+ * samples is still in the history. Rows older
  * than the retention window are pruned once a day, which keeps the table at a few tens of
  * thousands of rows per server instead of growing forever.
  *
@@ -71,6 +73,9 @@ class ServerMetricsRecorder(
 
             serverIds.forEach { serverId ->
                 val sample = serverManager.getLatestMetrics(serverId) ?: return@forEach
+                // Taken before the staleness check, so peaks of a server that went quiet are
+                // dropped with it rather than written into a much later minute.
+                val peaks = serverManager.takeMetricPeaks(serverId)
 
                 // A sample that is older than the whole interval means the server stopped
                 // reporting (old plugin, metrics turned off), and writing it again every minute
@@ -87,7 +92,7 @@ class ServerMetricsRecorder(
                         mspt = sample.mspt,
                         memUsed = sample.memUsed,
                         memMax = sample.memMax,
-                        cpu = sample.cpu,
+                        cpu = peaks?.cpu ?: sample.cpu,
                         players = sample.playerCount,
                         source = sample.source,
                         // Null until somebody has walked the directory, which is most of the
@@ -95,8 +100,8 @@ class ServerMetricsRecorder(
                         diskUsed = sample.diskUsed,
                         // Whatever the sample carries: the server's own traffic or, standing in for
                         // it, its node's (§2.4.22 A).
-                        netRx = sample.netRx,
-                        netTx = sample.netTx
+                        netRx = peaks?.netRx ?: sample.netRx,
+                        netTx = peaks?.netTx ?: sample.netTx
                     ),
                     sqlClient
                 )

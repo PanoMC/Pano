@@ -1,5 +1,6 @@
 package com.panomc.platform.node
 
+import com.panomc.platform.db.model.ServerTask
 import com.panomc.platform.server.ServerPowerAction
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -57,6 +58,39 @@ class ServerInstallFailureTest {
         assertTrue(ServerInstallFailure.clearsOnDone(ServerTaskKind.IMPORT))
         assertTrue(ServerInstallFailure.clearsOnDone(ServerTaskKind.RESTORE))
         assertFalse(ServerInstallFailure.clearsOnDone(ServerTaskKind.BACKUP))
+    }
+
+    private fun task(id: Long, kind: ServerTaskKind, createdAt: Long, serverId: Long = 79, status: ServerTaskStatus = ServerTaskStatus.RUNNING) =
+        ServerTask(id = id, uuid = "task-$id", serverId = serverId, nodeId = 1, kind = kind, status = status, createdBy = 1, createdAt = createdAt)
+
+    @Test
+    fun `a reinstall that is done ends the older installs of its server nobody is running`() {
+        // A node that died at 90 % left 128 RUNNING; the retry, 130, is done.
+        val dead = task(128, ServerTaskKind.REINSTALL, createdAt = 1_000)
+        val done = task(130, ServerTaskKind.REINSTALL, createdAt = 2_000, status = ServerTaskStatus.DONE)
+        val backup = task(131, ServerTaskKind.BACKUP, createdAt = 1_500)
+        val otherServer = task(132, ServerTaskKind.INSTALL, createdAt = 1_200, serverId = 80)
+        val newer = task(133, ServerTaskKind.INSTALL, createdAt = 3_000)
+
+        assertEquals(listOf(dead), ServerInstallFailure.staleBefore(done, listOf(dead, backup, otherServer, newer)))
+    }
+
+    @Test
+    fun `only an install that is done replaces anything`() {
+        val dead = task(128, ServerTaskKind.REINSTALL, createdAt = 1_000)
+
+        assertTrue(ServerInstallFailure.staleBefore(task(130, ServerTaskKind.BACKUP, 2_000), listOf(dead)).isEmpty())
+        assertTrue(ServerInstallFailure.staleBefore(task(130, ServerTaskKind.RESTORE, 2_000), listOf(dead)).isEmpty())
+    }
+
+    @Test
+    fun `a late failure of a replaced install says nothing about the server`() {
+        val dead = task(128, ServerTaskKind.REINSTALL, createdAt = 1_000)
+        val done = task(130, ServerTaskKind.REINSTALL, createdAt = 2_000, status = ServerTaskStatus.DONE)
+
+        assertTrue(ServerInstallFailure.isSuperseded(dead, listOf(done, dead)))
+        assertFalse(ServerInstallFailure.isSuperseded(done, listOf(done, dead)))
+        assertFalse(ServerInstallFailure.isSuperseded(task(134, ServerTaskKind.BACKUP, 500), listOf(done)))
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.panomc.platform.node
 
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.ServerTask
 import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerActiveTaskStore
 import com.panomc.platform.server.ServerProcessState
@@ -242,9 +243,53 @@ class ServerTaskService(
         takeStartAfter(task.uuid)
         takeStartCarriedByLink(task.uuid)
 
-        onTaskFailed(task.kind, task.serverId, task.error, sqlClient)
+        onTaskFailed(task.kind, task.serverId, task.error, sqlClient, task.uuid)
 
         return true
+    }
+
+    /**
+     * Fails the unfinished installs of [done]'s server that [done] replaced
+     * ([ServerInstallFailure.staleBefore]), each under its own lock, and without touching the
+     * server: [done] is what the server is now.
+     */
+    suspend fun failSupersededInstalls(done: ServerTask, sqlClient: SqlClient) {
+        val stale = ServerInstallFailure.staleBefore(done, databaseManager.serverTaskDao.getAllUnfinished(sqlClient))
+
+        stale.forEach { candidate ->
+            withTaskLock(candidate.uuid) {
+                val task = databaseManager.serverTaskDao.getByUuid(candidate.uuid, sqlClient) ?: return@withTaskLock true
+
+                if (task.status.isTerminal) {
+                    return@withTaskLock true
+                }
+
+                logger.info("Task ${task.uuid} (${task.kind}) of server ${task.serverId} was replaced by ${done.uuid}, failing it.")
+
+                task.status = ServerTaskStatus.FAILED
+                task.error = ServerInstallFailure.SUPERSEDED_ERROR
+                task.updatedAt = System.currentTimeMillis()
+
+                databaseManager.serverTaskDao.updateProgressByUuid(
+                    uuid = task.uuid,
+                    status = task.status,
+                    percent = task.percent,
+                    message = task.message,
+                    error = task.error,
+                    updatedAt = task.updatedAt,
+                    sqlClient = sqlClient
+                )
+
+                panelRealtimeHub.pushTaskProgress(task)
+
+                completeTerminal(task.uuid, TaskOutcome(task.status, task.error))
+
+                takeStartAfter(task.uuid)
+                takeStartCarriedByLink(task.uuid)
+
+                true
+            }
+        }
     }
 
     /**
@@ -254,7 +299,13 @@ class ServerTaskService(
      * or simply stopped saying anything, the row it was working on has to end in a state somebody
      * can act on.
      */
-    suspend fun onTaskFailed(kind: ServerTaskKind, serverId: Long?, error: String?, sqlClient: SqlClient) {
+    suspend fun onTaskFailed(
+        kind: ServerTaskKind,
+        serverId: Long?,
+        error: String?,
+        sqlClient: SqlClient,
+        taskUuid: String? = null
+    ) {
         val id = serverId ?: return
 
         // A backup that never finished leaves a CREATING row nothing would ever close. There is
@@ -276,6 +327,13 @@ class ServerTaskService(
         // than left INSTALLING forever, and keeps the reason, so the panel can show it and offer a
         // reinstall instead of a spinner or a Start button that does nothing.
         if (kind == ServerTaskKind.INSTALL || kind == ServerTaskKind.REINSTALL || kind == ServerTaskKind.IMPORT) {
+            // An install a newer one replaced failing late (the sweep, a dead node) says nothing
+            // about the server: the newer one's outcome is on the row, and STOPPED written over it
+            // would be a lie about a server that may well be running.
+            if (taskUuid != null && isSupersededInstall(taskUuid, id, sqlClient)) {
+                return
+            }
+
             databaseManager.serverDao.getById(id, sqlClient)?.let { server ->
                 val installError = ServerInstallFailure.afterFailure(kind, server.installError, error)
 
@@ -289,6 +347,13 @@ class ServerTaskService(
             panelRealtimeHub.pushServerState(id, ServerProcessState.STOPPED.name, null, null, null)
             panelRealtimeHub.notifyServerUpdated(id)
         }
+    }
+
+    private suspend fun isSupersededInstall(taskUuid: String, serverId: Long, sqlClient: SqlClient): Boolean {
+        val tasks = databaseManager.serverTaskDao.getAllByServerId(serverId, sqlClient)
+        val task = tasks.firstOrNull { it.uuid == taskUuid } ?: return false
+
+        return ServerInstallFailure.isSuperseded(task, tasks)
     }
 
     companion object {

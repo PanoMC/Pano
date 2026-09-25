@@ -191,7 +191,7 @@ class TaskProgressEvent(
             serverTaskService.takeStartAfter(task.uuid)
             serverTaskService.takeStartCarriedByLink(task.uuid)
 
-            serverTaskService.onTaskFailed(task.kind, task.serverId, task.error, sqlClient)
+            serverTaskService.onTaskFailed(task.kind, task.serverId, task.error, sqlClient, task.uuid)
         }
 
         // Both ends of a plugin install settle the provenance row it created, which is why this
@@ -215,6 +215,12 @@ class TaskProgressEvent(
                 // Installed now, whatever failed before (ServerInstallFailure).
                 if (server.installError != null && ServerInstallFailure.clearsOnDone(kind)) {
                     databaseManager.serverDao.updateInstallErrorById(id, null, sqlClient)
+                }
+
+                // An older install nobody is running any more (a node that died in the middle of
+                // it) ends now, rather than staying the server's active task until the sweep.
+                databaseManager.serverTaskDao.getByUuid(taskUuid, sqlClient)?.let { done ->
+                    serverTaskService.failSupersededInstalls(done, sqlClient)
                 }
 
                 databaseManager.serverDao.updateProcessStateById(id, ServerProcessState.STOPPED, null, sqlClient)

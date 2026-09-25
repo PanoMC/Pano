@@ -1,5 +1,6 @@
 package com.panomc.platform.node
 
+import com.panomc.platform.db.model.ServerTask
 import com.panomc.platform.server.ServerPowerAction
 
 /**
@@ -44,6 +45,42 @@ object ServerInstallFailure {
             kind == ServerTaskKind.REINSTALL ||
             kind == ServerTaskKind.IMPORT ||
             kind == ServerTaskKind.RESTORE
+
+    /** What a task that a newer install of its server replaced ends with ([staleBefore]). */
+    const val SUPERSEDED_ERROR = "SUPERSEDED"
+
+    /** The kinds that lay a server's files down; one of them replaces what an older one was doing. */
+    private val INSTALL_KINDS = setOf(ServerTaskKind.INSTALL, ServerTaskKind.REINSTALL, ServerTaskKind.IMPORT)
+
+    /** Whether [other] is an install of [task]'s server that was started after [task]. */
+    private fun isNewerInstall(other: ServerTask, task: ServerTask): Boolean =
+        other.uuid != task.uuid &&
+            other.serverId != null &&
+            other.serverId == task.serverId &&
+            other.kind in INSTALL_KINDS &&
+            (other.createdAt > task.createdAt || (other.createdAt == task.createdAt && other.id > task.id))
+
+    /**
+     * The unfinished installs of [done]'s server that were started before it, which [done] being
+     * DONE makes dead: the node has the server [done] laid down, whatever they were doing.
+     *
+     * One of those is what a node that died mid-install leaves behind. Left alone, it stayed the
+     * server's active task -- a bar at 90 % over a server that had since been reinstalled -- until
+     * the sweep failed it ten minutes later, and that failure then wrote STOPPED over the new one.
+     */
+    fun staleBefore(done: ServerTask, unfinished: List<ServerTask>): List<ServerTask> =
+        if (done.kind in INSTALL_KINDS) {
+            unfinished.filter { it.kind in INSTALL_KINDS && isNewerInstall(done, it) }
+        } else {
+            emptyList()
+        }
+
+    /**
+     * Whether a newer install of [task]'s server exists among [tasks], so [task] failing says
+     * nothing about the server any more: the newer one's outcome is what the row reflects.
+     */
+    fun isSuperseded(task: ServerTask, tasks: List<ServerTask>): Boolean =
+        task.kind in INSTALL_KINDS && tasks.any { isNewerInstall(it, task) }
 
     /** Whether [action] needs an installed server: STOP and KILL of nothing are harmless. */
     fun blocks(action: ServerPowerAction, installError: String?): Boolean =

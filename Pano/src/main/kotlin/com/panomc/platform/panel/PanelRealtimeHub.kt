@@ -1065,6 +1065,23 @@ class PanelRealtimeHub(
         }
     }
 
+    /**
+     * Asks again for the console of [serverId] when someone is watching it, after its node set the
+     * server up anew (an install, reinstall, import or restore that ended DONE).
+     *
+     * A node before 2026-09-25 kept the switch on the process object the install replaced -- or had
+     * no object at all when the install had failed -- so the console stayed blank after the next
+     * start until the page was reloaded. A current node remembers it by uuid; asking twice is
+     * harmless, because turning on a stream that is already on does nothing.
+     */
+    fun onServerReinstalled(serverId: Long) {
+        if (streamingServers.contains(serverId)) {
+            requestConsoleStream(serverId, true)
+
+            broadcastConsoleState(serverId)
+        }
+    }
+
     private fun requestConsoleStream(serverId: Long, enabled: Boolean) {
         CoroutineScope(vertx.dispatcher()).launch {
             applyConsoleStreamRequest(serverId, enabled)

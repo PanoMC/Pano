@@ -218,6 +218,10 @@ class TaskProgressEvent(
                 panelRealtimeHub.pushServerState(id, ServerProcessState.STOPPED.name, null, null, null)
                 panelRealtimeHub.notifyServerUpdated(id)
 
+                // The node has a new process for this server, which an older node does not stream
+                // to a console that was already open.
+                panelRealtimeHub.onServerReinstalled(id)
+
                 val uuid = server.uuid
 
                 // A software change said up front whether it wants the server back (SM-66); every

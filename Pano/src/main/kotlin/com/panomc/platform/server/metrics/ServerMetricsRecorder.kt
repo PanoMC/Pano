@@ -92,6 +92,7 @@ class ServerMetricsRecorder(
                         mspt = sample.mspt,
                         memUsed = sample.memUsed,
                         memMax = sample.memMax,
+                        memRss = sample.memRss,
                         cpu = peaks?.cpu ?: sample.cpu,
                         players = sample.playerCount,
                         source = sample.source,

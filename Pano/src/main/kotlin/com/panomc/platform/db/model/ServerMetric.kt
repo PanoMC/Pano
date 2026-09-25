@@ -48,7 +48,14 @@ data class ServerMetric(
      * sample says which, the history keeps the figure.
      */
     val netRx: Long? = null,
-    val netTx: Long? = null
+    val netTx: Long? = null,
+    /**
+     * The whole server process' resident memory at this minute, as its node measured it, or null
+     * where no node measures the process (a linked server). Kept beside [memUsed] because a
+     * plugin row's [memUsed] is the JVM heap: the panel draws the process against the server's
+     * memory setting whenever a node reports it, and the heap only when nothing else is known.
+     */
+    val memRss: Long? = null
 ) : DBEntity() {
     companion object {
         const val SOURCE_PLUGIN = "plugin"

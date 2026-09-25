@@ -32,6 +32,7 @@ class ServerMetricDaoImpl : ServerMetricDao() {
                               `diskUsed` bigint DEFAULT NULL,
                               `netRx` bigint DEFAULT NULL,
                               `netTx` bigint DEFAULT NULL,
+                              `memRss` bigint DEFAULT NULL,
                               PRIMARY KEY (`id`),
                               KEY `idx_server_metric_server_ts` (`serverId`, `ts`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Per minute server performance history.';
@@ -48,8 +49,8 @@ class ServerMetricDaoImpl : ServerMetricDao() {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` " +
                     "(`serverId`, `ts`, `tps`, `mspt`, `memUsed`, `memMax`, `cpu`, `players`, `source`, " +
-                    "`diskUsed`, `netRx`, `netTx`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "`diskUsed`, `netRx`, `netTx`, `memRss`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -66,7 +67,8 @@ class ServerMetricDaoImpl : ServerMetricDao() {
                     serverMetric.source,
                     serverMetric.diskUsed,
                     serverMetric.netRx,
-                    serverMetric.netTx
+                    serverMetric.netTx,
+                    serverMetric.memRss
                 )
             )
             .coAwait()
@@ -212,7 +214,8 @@ class ServerMetricDaoImpl : ServerMetricDao() {
         // in the disk line rather than a server that shrank to nothing.
         diskUsed = row.getLong("diskUsed"),
         netRx = row.getLong("netRx"),
-        netTx = row.getLong("netTx")
+        netTx = row.getLong("netTx"),
+        memRss = row.getLong("memRss")
     )
 
     companion object {
@@ -245,6 +248,9 @@ class ServerMetricDaoImpl : ServerMetricDao() {
                     // is an integer whatever range was asked for.
                     "CAST(AVG(`netRx`) AS SIGNED) AS `netRx`, " +
                     "CAST(AVG(`netTx`) AS SIGNED) AS `netTx`, " +
+                    // The process as a whole, averaged like the heap beside it; null in a bucket no
+                    // node measured, which the panel draws as a gap rather than an empty server.
+                    "CAST(AVG(`memRss`) AS SIGNED) AS `memRss`, " +
                     // One name when every row in the bucket agrees, and `mixed` when they do not,
                     // which is how a chart can say where a week of figures actually came from.
                     "IF(MIN(`source`) = MAX(`source`), MIN(`source`), 'mixed') AS `source`"

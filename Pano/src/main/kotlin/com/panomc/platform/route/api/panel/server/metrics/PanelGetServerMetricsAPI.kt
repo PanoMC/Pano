@@ -97,6 +97,7 @@ class PanelGetServerMetricsAPI(
                     .put("diskUsed", metric.diskUsed)
                     .put("netRx", metric.netRx)
                     .put("netTx", metric.netTx)
+                    .put("memRss", metric.memRss)
             }
 
         return Successful(

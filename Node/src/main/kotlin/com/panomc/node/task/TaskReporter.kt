@@ -26,6 +26,14 @@ interface TaskSink {
     ) = running(taskId, serverUuid, kind, percent, message)
 
     /**
+     * A line of a tool's own output -- BuildTools' Maven log -- rather than a step of the task:
+     * the panel lists the steps and keeps these in the task's output log. A sink that does not
+     * tell the two apart reports a plain [running].
+     */
+    fun output(taskId: String, serverUuid: String?, kind: String, percent: Int, line: String?) =
+        running(taskId, serverUuid, kind, percent, line)
+
+    /**
      * Runs [block] -- one task's work -- with every download it makes on this thread reported as
      * [transfer] frames at the step it is on. A sink that has nowhere to put bytes just runs it.
      */
@@ -79,7 +87,20 @@ class TaskReporter(
 
         val frame = throttle.offer(taskId, percent.coerceIn(0, 99), message) ?: return
 
-        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, transferOf(frame))
+        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, extraOf(frame))
+    }
+
+    override fun output(taskId: String, serverUuid: String?, kind: String, percent: Int, line: String?) {
+        if (taskId in finished) {
+            return
+        }
+
+        // The percentage moves on, the step a download would be reported at stays the step.
+        steps[taskId] = percent to steps[taskId]?.second
+
+        val frame = throttle.offer(taskId, percent.coerceIn(0, 99), line, output = true) ?: return
+
+        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, extraOf(frame))
     }
 
     override fun transfer(
@@ -96,7 +117,7 @@ class TaskReporter(
 
         val frame = throttle.offer(taskId, percent.coerceIn(0, 99), message, progress) ?: return
 
-        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, transferOf(frame))
+        send(taskId, serverUuid, kind, "RUNNING", frame.percent, frame.message, null, extraOf(frame))
     }
 
     override fun <T> watchingDownloads(taskId: String, serverUuid: String?, kind: String, block: () -> T): T =
@@ -106,14 +127,31 @@ class TaskReporter(
             transfer(taskId, serverUuid, kind, percent, message, progress)
         }, block)
 
-    /** The bytes of a download frame, flat on it; nothing for every other frame. */
-    private fun transferOf(frame: TaskProgressThrottle.Frame): JsonObject? {
-        val progress = frame.transfer ?: return null
+    /**
+     * What a frame carries beyond the usual fields, flat on it: a download's bytes, and `output`
+     * on a tool's output line. Nothing for every other frame.
+     */
+    private fun extraOf(frame: TaskProgressThrottle.Frame): JsonObject? {
+        val progress = frame.transfer
 
-        return JsonObject()
-            .put("bytesDone", progress.done)
-            .put("bytesTotal", progress.total.takeIf { it > 0 })
-            .put("bytesPerSecond", progress.bytesPerSecond)
+        if (progress == null && !frame.output) {
+            return null
+        }
+
+        val extra = JsonObject()
+
+        if (progress != null) {
+            extra
+                .put("bytesDone", progress.done)
+                .put("bytesTotal", progress.total.takeIf { it > 0 })
+                .put("bytesPerSecond", progress.bytesPerSecond)
+        }
+
+        if (frame.output) {
+            extra.put("output", true)
+        }
+
+        return extra
     }
 
     /**
@@ -173,7 +211,7 @@ class TaskReporter(
         throttle.forget(taskId)
 
         if (held != null) {
-            send(taskId, serverUuid, kind, "RUNNING", held.percent, held.message, null, transferOf(held))
+            send(taskId, serverUuid, kind, "RUNNING", held.percent, held.message, null, extraOf(held))
         }
     }
 

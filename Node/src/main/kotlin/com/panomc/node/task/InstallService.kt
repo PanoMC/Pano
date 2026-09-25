@@ -199,7 +199,8 @@ class InstallService(
                 rev = revision,
                 toolUrl = buildSpec.toolUrl,
                 javaMajor = buildSpec.javaMajor,
-                onProgress = { percent, message -> reporter.running(taskId, uuid, kind, percent, message) }
+                onProgress = { percent, message -> reporter.running(taskId, uuid, kind, percent, message) },
+                onOutput = { percent, line -> reporter.output(taskId, uuid, kind, percent, line) }
             )
         } else {
             reporter.running(taskId, uuid, kind, DOWNLOAD_START_PERCENT, "Downloading ${spec.software} ${spec.version}")

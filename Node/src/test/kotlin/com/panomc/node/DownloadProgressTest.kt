@@ -87,6 +87,35 @@ class DownloadProgressTest {
     }
 
     @Test
+    fun `the first bytes of a step go out at once, however recent the step itself was`() {
+        var now = 0L
+        val throttle = TaskProgressThrottle { now }
+
+        // BuildTools: 3.6 MB, done in under the interval, and then replaced by the next step.
+        throttle.offer("t", 10, "Downloading BuildTools")
+
+        now += 10
+
+        assertEquals(
+            Downloader.Progress(100, 3_600_000, 5_000_000),
+            throttle.offer("t", 10, "Downloading BuildTools", Downloader.Progress(100, 3_600_000, 5_000_000))?.transfer
+        )
+
+        now += 10
+
+        // Only the first: the rest of the download follows the usual interval.
+        assertNull(throttle.offer("t", 10, "Downloading BuildTools", Downloader.Progress(200, 3_600_000, 5_000_000)))
+    }
+
+    @Test
+    fun `a tool's output line keeps its mark through the throttle`() {
+        val throttle = TaskProgressThrottle { 0L }
+
+        assertEquals(true, throttle.offer("t", 30, "[INFO] Building Spigot-API", output = true)?.output)
+        assertEquals(false, throttle.offer("t", 90, "Installing the Pano plugin")?.output)
+    }
+
+    @Test
     fun `a download deep inside a task reports to whoever is watching that thread`() {
         val seen = CopyOnWriteArrayList<Downloader.Progress>()
 

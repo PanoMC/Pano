@@ -92,13 +92,17 @@ class BuildToolsInstaller(
      * Throws with a sentence a person can act on, which the install task reports as its failure:
      * a `git` that is missing and could not be downloaded, a JDK BuildTools refuses, or the last
      * error line the build printed.
+     *
+     * [onProgress] hears the installer's own steps; [onOutput] the lines BuildTools and Maven
+     * print, which the panel keeps in the task's output log rather than listing as steps.
      */
     fun install(
         serverDirectory: File,
         rev: String,
         toolUrl: String?,
         javaMajor: Int?,
-        onProgress: (Int, String) -> Unit
+        onProgress: (Int, String) -> Unit,
+        onOutput: (Int, String) -> Unit = onProgress
     ) {
         if (!PathSafety.isSafeSegment(rev) || !REVISION.matches(rev)) {
             throw IllegalStateException("\"$rev\" is not a revision BuildTools can build.")
@@ -133,7 +137,7 @@ class BuildToolsInstaller(
 
             val startedAt = System.currentTimeMillis()
 
-            build(cache, rev, toolUrl, javaMajor, onProgress)
+            build(cache, rev, toolUrl, javaMajor, onProgress, onOutput)
 
             val built = findBuiltJar(cache, rev, startedAt)
                 ?: throw IllegalStateException("BuildTools finished without producing a Spigot $rev jar.")
@@ -180,7 +184,8 @@ class BuildToolsInstaller(
         rev: String,
         toolUrl: String?,
         javaMajor: Int?,
-        onProgress: (Int, String) -> Unit
+        onProgress: (Int, String) -> Unit,
+        onOutput: (Int, String) -> Unit
     ) {
         // Sorted out before the BuildTools download and before the JDK lookup: finding out ten
         // minutes in that there is no git is not a diagnosis.
@@ -284,13 +289,13 @@ class BuildToolsInstaller(
                     if (phaseChanged || now - lastForwarded >= PROGRESS_INTERVAL_MS) {
                         lastForwarded = now
 
-                        onProgress(percent, clean(line) ?: phaseMessage)
+                        onOutput(percent, clean(line) ?: phaseMessage)
                     }
                 },
                 onHeartbeat = {
                     // A task that keeps reporting is never timed out by Pano; a ten-minute silent
                     // Maven download would otherwise kill a build that is working perfectly well.
-                    onProgress(percent, phaseMessage)
+                    onOutput(percent, phaseMessage)
                 }
             )
         }

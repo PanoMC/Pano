@@ -23,7 +23,7 @@ class ProcessRuntime : ServerRuntime {
 
     override fun launch(request: ServerRuntime.LaunchRequest): Process {
         val builder = ProcessBuilder(
-            ServerProcess.buildCommand(request.javaPath, request.jarName, request.spec)
+            ServerProcess.buildCommand(request.javaPath, request.jarName, request.spec, request.javaMajor)
         )
 
         builder.directory(request.directory)
@@ -69,7 +69,7 @@ class ProcessRuntime : ServerRuntime {
 
         val builder = ProcessBuilder(
             listOf(SHELL.path, files.launcher.absolutePath) +
-                ServerProcess.buildCommand(request.javaPath, request.jarName, request.spec)
+                ServerProcess.buildCommand(request.javaPath, request.jarName, request.spec, request.javaMajor)
         )
 
         builder.directory(request.directory)

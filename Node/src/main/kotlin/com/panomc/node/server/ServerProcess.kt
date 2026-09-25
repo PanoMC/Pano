@@ -1561,14 +1561,17 @@ class ServerProcess(
             return environment
         }
 
-        fun buildCommand(javaPath: String, jarName: String, spec: ServerSpec): List<String> {
+        fun buildCommand(javaPath: String, jarName: String, spec: ServerSpec, javaMajor: Int? = null): List<String> {
             val command = mutableListOf(javaPath)
 
-            // The setting is the whole process; the heap gets it minus the JVM's own share (JvmHeap).
+            // The setting is the whole process; the heap gets it minus the JVM's own share, starts
+            // small and gives memory back when idle (JvmHeap). The admin's own flags come after
+            // these, so one they set on purpose still wins.
             val heapMb = JvmHeap.heapMb(spec.memoryMb)
 
-            command.add("-Xms${heapMb}M")
+            command.add("-Xms${JvmHeap.initialHeapMb(heapMb)}M")
             command.add("-Xmx${heapMb}M")
+            command.addAll(JvmHeap.returnMemoryFlags(javaMajor))
             command.addAll(spec.jvmArgs.filter { it.isNotBlank() })
             command.add("-jar")
             command.add(jarName)

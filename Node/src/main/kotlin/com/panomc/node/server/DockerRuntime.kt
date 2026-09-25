@@ -68,7 +68,8 @@ class DockerRuntime(
                 hostDirectory = request.directory.absolutePath,
                 jarName = request.jarName,
                 port = request.spec.port,
-                user = posixUser()
+                user = posixUser(),
+                javaMajor = request.javaMajor
             )
         )
 

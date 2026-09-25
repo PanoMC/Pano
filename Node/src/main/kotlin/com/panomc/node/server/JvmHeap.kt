@@ -1,6 +1,7 @@
 package com.panomc.node.server
 
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -32,4 +33,33 @@ object JvmHeap {
 
         return max(memoryMb - overhead, memoryMb / 2)
     }
+
+    /** Where the heap starts: a quarter of [maxHeapMb], at least [MIN_INITIAL_HEAP_MB]. */
+    const val MIN_INITIAL_HEAP_MB = 256
+
+    /**
+     * The `-Xms` for a heap that may grow to [maxHeapMb].
+     *
+     * Small on purpose. With `-Xms` equal to `-Xmx` the JVM took its whole heap from the host at
+     * start and never gave any of it back, so a server that used 500 MB held 1.8 GB for its whole
+     * life and its memory chart was a flat line. Starting at a quarter, the heap grows as the
+     * server needs it and -- with [returnMemoryFlags] -- shrinks again when it idles.
+     */
+    fun initialHeapMb(maxHeapMb: Int): Int =
+        if (maxHeapMb <= 0) maxHeapMb else min(maxHeapMb, max(MIN_INITIAL_HEAP_MB, maxHeapMb / 4))
+
+    /**
+     * The flags that make an idle JVM hand memory back to the host (G1, JEP 346): a periodic
+     * collection when nothing else has collected for 30 s, and free-ratio bounds that let the heap
+     * shrink after it. Java 12 introduced the first one and an older JVM refuses to start on an
+     * option it does not know, so they are only added for a runtime known to be new enough.
+     */
+    fun returnMemoryFlags(javaMajor: Int?): List<String> =
+        if (javaMajor != null && javaMajor >= RETURN_MEMORY_MIN_JAVA) {
+            listOf("-XX:G1PeriodicGCInterval=30000", "-XX:MinHeapFreeRatio=20", "-XX:MaxHeapFreeRatio=40")
+        } else {
+            emptyList()
+        }
+
+    const val RETURN_MEMORY_MIN_JAVA = 12
 }

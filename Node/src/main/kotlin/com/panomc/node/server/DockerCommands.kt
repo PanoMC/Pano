@@ -83,7 +83,9 @@ object DockerCommands {
         jarName: String,
         port: Int,
         /** `uid:gid` on POSIX hosts, null on Windows where it means nothing. */
-        user: String?
+        user: String?,
+        /** The image's Java major, for the flags only a new enough JVM accepts. */
+        javaMajor: Int? = null
     ): List<String> {
         val args = mutableListOf(
             "docker", "create",
@@ -114,7 +116,7 @@ object DockerCommands {
 
         args.add(image)
         // `java` from the image's PATH, never this host's: the container brings its own.
-        args.addAll(ServerProcess.buildCommand("java", jarName, spec))
+        args.addAll(ServerProcess.buildCommand("java", jarName, spec, javaMajor))
 
         return args
     }

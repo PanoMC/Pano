@@ -71,15 +71,15 @@ class JavaRuntimeService(
      *
      * [onProgress] gets 0..100 of the Java install alone; the caller scales it into its own task.
      */
-    fun ensure(major: Int, onProgress: (Int, String) -> Unit = { _, _ -> }): Outcome {
-        locator.exact(major)?.let { return Outcome.Present(it) }
+    fun ensure(major: Int, jdk: Boolean = false, onProgress: (Int, String) -> Unit = { _, _ -> }): Outcome {
+        (if (jdk) locator.exactJdk(major) else locator.exact(major))?.let { return Outcome.Present(it) }
 
         if (!enabled) {
             return Outcome.Disabled
         }
 
         return try {
-            val result = installer.install(major, onProgress)
+            val result = installer.install(major, jdk, onProgress)
 
             announceRuntimes()
 

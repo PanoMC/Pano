@@ -31,6 +31,9 @@ object HostPlatform {
     /** The name of the java launcher on this host. */
     val javaExecutable: String get() = if (isWindows) "java.exe" else "java"
 
+    /** The compiler a JDK has and a JRE does not; BuildTools cannot build without it. */
+    val javacExecutable: String get() = if (isWindows) "javac.exe" else "javac"
+
     val hostname: String by lazy {
         try {
             java.net.InetAddress.getLocalHost().hostName

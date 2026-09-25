@@ -74,7 +74,8 @@ class JavaPackageResolver(
 
     private data class CacheEntry(val found: JavaPackage?, val error: String?, val expiresAt: Long)
 
-    private val cache = ConcurrentHashMap<Int, CacheEntry>()
+    /** Keyed by major and whether a JDK was asked for: the two are different archives. */
+    private val cache = ConcurrentHashMap<Pair<Int, Boolean>, CacheEntry>()
 
     /** The host this resolver answers for, which the catalog reports back to Pano. */
     val host: JavaTarget get() = target
@@ -82,24 +83,28 @@ class JavaPackageResolver(
     /**
      * The package to install for Java [major], or null when neither source builds one for this
      * host. Throws [LookupFailedException] when that cannot be known right now.
+     *
+     * A JRE unless [jdk]: every server runs on one, and it is a quarter of the download. Only a
+     * build (BuildTools) needs the compiler a JDK adds.
      */
-    fun resolve(major: Int): JavaPackage? {
+    fun resolve(major: Int, jdk: Boolean = false): JavaPackage? {
         val now = clock()
+        val key = major to jdk
 
-        cache[major]?.takeIf { it.expiresAt > now }?.let { entry ->
+        cache[key]?.takeIf { it.expiresAt > now }?.let { entry ->
             entry.error?.let { throw LookupFailedException(it) }
 
             return entry.found
         }
 
         return try {
-            val found = lookup(major)
+            val found = lookup(major, jdk)
 
-            cache[major] = CacheEntry(found, null, now + CACHE_MILLIS)
+            cache[key] = CacheEntry(found, null, now + CACHE_MILLIS)
 
             found
         } catch (exception: LookupFailedException) {
-            cache[major] = CacheEntry(null, exception.message, now + FAILURE_CACHE_MILLIS)
+            cache[key] = CacheEntry(null, exception.message, now + FAILURE_CACHE_MILLIS)
 
             throw exception
         }
@@ -110,7 +115,7 @@ class JavaPackageResolver(
         cache.clear()
     }
 
-    private fun lookup(major: Int): JavaPackage? {
+    private fun lookup(major: Int, jdk: Boolean): JavaPackage? {
         if (major !in 1..MAX_MAJOR) {
             return null
         }
@@ -118,7 +123,7 @@ class JavaPackageResolver(
         // Temurin's silence is only trusted when it actually answered: a failed request falls
         // through to Zulu as well, and the error is only raised if Zulu cannot answer either.
         val temurinFailure: Exception? = try {
-            temurin(major)?.let { return it }
+            temurin(major, jdk)?.let { return it }
 
             null
         } catch (exception: Exception) {
@@ -126,7 +131,7 @@ class JavaPackageResolver(
         }
 
         val zulu = try {
-            zulu(major)
+            zulu(major, jdk)
         } catch (exception: Exception) {
             val reason = temurinFailure?.message?.let { "Temurin: $it; Zulu: ${exception.message}" }
                 ?: exception.message
@@ -146,12 +151,12 @@ class JavaPackageResolver(
         return zulu
     }
 
-    private fun temurin(major: Int): JavaPackage? {
+    private fun temurin(major: Int, jdk: Boolean): JavaPackage? {
         val os = target.temurinOs ?: return null
         val arch = target.temurinArch ?: return null
 
         val url = "$TEMURIN_API/v3/assets/latest/$major/hotspot?os=${encode(os)}" +
-            "&architecture=${encode(arch)}&image_type=jre&vendor=eclipse"
+            "&architecture=${encode(arch)}&image_type=${if (jdk) "jdk" else "jre"}&vendor=eclipse"
 
         val response = http.get(url)
 
@@ -166,12 +171,12 @@ class JavaPackageResolver(
         return parseTemurin(response.body, major)
     }
 
-    private fun zulu(major: Int): JavaPackage? {
+    private fun zulu(major: Int, jdk: Boolean): JavaPackage? {
         val os = target.zuluOs ?: return null
         val arch = target.zuluArch ?: return null
 
         val url = "$ZULU_API/metadata/v1/zulu/packages/?java_version=$major&os=${encode(os)}" +
-            "&arch=${encode(arch)}&java_package_type=jre&archive_type=${encode(target.archive)}" +
+            "&arch=${encode(arch)}&java_package_type=${if (jdk) "jdk" else "jre"}&archive_type=${encode(target.archive)}" +
             "&javafx_bundled=false&latest=true&release_status=ga&availability_types=CA&page_size=1"
 
         val response = http.get(url)

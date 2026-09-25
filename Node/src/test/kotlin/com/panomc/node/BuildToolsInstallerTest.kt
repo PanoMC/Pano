@@ -269,7 +269,7 @@ class BuildToolsInstallerTest {
     }
 
     @Test
-    fun `a failed build fails with the last error line and keeps the log`() {
+    fun `a failed build fails with Maven's own reason and keeps the log`() {
         val runner = StubRunner(
             exitCode = 1,
             lines = listOf(
@@ -285,8 +285,12 @@ class BuildToolsInstallerTest {
 
         val log = File(dataDir, "cache/spigot/buildtools/work-1.21.8/buildtools.log")
 
-        // The last failure line, not the first and not the exit code on its own.
-        assertTrue(failure.message!!.startsWith("[INFO] BUILD FAILURE"), failure.message)
+        // Maven's reason, not its "BUILD FAILURE" banner (the last failure line) and not the exit
+        // code on its own.
+        assertTrue(
+            failure.message!!.startsWith("Failed to execute goal on project spigot: Could not resolve dependencies"),
+            failure.message
+        )
         assertTrue(failure.message!!.contains(log.absolutePath))
         assertTrue(log.readText().contains("Could not resolve dependencies"))
         assertFalse(File(serverDir, "server.jar").exists())

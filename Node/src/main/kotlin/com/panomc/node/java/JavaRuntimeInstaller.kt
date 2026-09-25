@@ -89,7 +89,8 @@ class JavaRuntimeInstaller(
         var last: Pair<Int, String>? = null
     }
 
-    private val inFlight = ConcurrentHashMap<Int, InFlight>()
+    /** Keyed by major and whether it is a JDK, so a JDK install never joins a JRE one. */
+    private val inFlight = ConcurrentHashMap<Pair<Int, Boolean>, InFlight>()
 
     /** `<data>/java`, where every managed runtime lives and where the locator looks too. */
     val javaRoot: File = File(dataDir, "java")
@@ -98,7 +99,7 @@ class JavaRuntimeInstaller(
     val cacheDir: File = File(File(dataDir, "cache"), "java")
 
     /** Whether an install of [major] is running right now. */
-    fun isInstalling(major: Int): Boolean = inFlight.containsKey(major)
+    fun isInstalling(major: Int): Boolean = inFlight.keys.any { it.first == major }
 
     /**
      * Makes sure the newest Java [major] the sources offer is installed, and returns it.
@@ -108,9 +109,10 @@ class JavaRuntimeInstaller(
      * source builds this major for this host, and any other exception when the lookup, download,
      * checksum, extraction or sanity check failed.
      */
-    fun install(major: Int, onProgress: (Int, String) -> Unit = { _, _ -> }): Installed {
+    fun install(major: Int, jdk: Boolean = false, onProgress: (Int, String) -> Unit = { _, _ -> }): Installed {
+        val key = major to jdk
         val mine = InFlight()
-        val running = inFlight.putIfAbsent(major, mine)
+        val running = inFlight.putIfAbsent(key, mine)
         val flight = running ?: mine
 
         flight.listeners.add(onProgress)
@@ -128,7 +130,7 @@ class JavaRuntimeInstaller(
         }
 
         try {
-            val result = doInstall(major) { percent, message ->
+            val result = doInstall(major, jdk) { percent, message ->
                 mine.last = percent to message
 
                 mine.listeners.forEach { listener ->
@@ -147,14 +149,17 @@ class JavaRuntimeInstaller(
 
             throw exception
         } finally {
-            inFlight.remove(major, mine)
+            inFlight.remove(key, mine)
         }
     }
 
-    private fun doInstall(major: Int, progress: (Int, String) -> Unit): Installed {
-        progress(0, "Looking up Java $major")
+    private fun doInstall(major: Int, jdk: Boolean, progress: (Int, String) -> Unit): Installed {
+        // "Java 25 JDK" in every line of a JDK install, so a slower download reads as what it is.
+        val title = if (jdk) "Java $major JDK" else "Java $major"
 
-        val pkg = resolver.resolve(major)
+        progress(0, "Looking up $title")
+
+        val pkg = resolver.resolve(major, jdk)
             ?: throw JavaUnavailableException(
                 major,
                 "Java $major is not available for ${resolver.host} from Temurin or Zulu"
@@ -164,8 +169,10 @@ class JavaRuntimeInstaller(
 
         // Already here, or something newer is: an update request for a runtime that is current is
         // answered without touching the network again.
+        // A JRE of the same version is not current for a JDK request: it is replaced by the JDK,
+        // which runs everything the JRE did and can build as well.
         newestManaged(major)?.let { current ->
-            if (!JavaVersionOrder.isNewer(pkg.version, current.version)) {
+            if ((!jdk || current.hasCompiler) && !JavaVersionOrder.isNewer(pkg.version, current.version)) {
                 return Installed(current, pkg, alreadyCurrent = true)
             }
         }
@@ -184,7 +191,7 @@ class JavaRuntimeInstaller(
         val temporary = PathSafety.resolveUnder(javaRoot, TMP_PREFIX + UUID.randomUUID().toString().take(8))
 
         try {
-            val downloading = "Downloading Java $major ($label)"
+            val downloading = "Downloading $title ($label)"
 
             progress(DOWNLOAD_START, downloading)
 
@@ -200,7 +207,7 @@ class JavaRuntimeInstaller(
             // (and the one a test of a tampered archive exercises).
             Downloader.verify(archive, sha256 = pkg.sha256)
 
-            progress(EXTRACT_PERCENT, "Extracting Java $major ($label)")
+            progress(EXTRACT_PERCENT, "Extracting $title ($label)")
 
             temporary.mkdirs()
 
@@ -219,9 +226,13 @@ class JavaRuntimeInstaller(
 
             makeExecutables(home)
 
+            if (jdk && !File(File(home, "bin"), HostPlatform.javacExecutable).isFile) {
+                throw IllegalStateException("The $title archive has no bin/${HostPlatform.javacExecutable}.")
+            }
+
             writeMarker(root, pkg)
 
-            progress(CHECK_PERCENT, "Checking Java $major ($label)")
+            progress(CHECK_PERCENT, "Checking $title ($label)")
 
             sanityCheck(home)
 
@@ -231,7 +242,7 @@ class JavaRuntimeInstaller(
 
             moveIntoPlace(root, destination)
 
-            logger.info("Installed Java $major ($label) into ${destination.absolutePath}.")
+            logger.info("Installed $title ($label) into ${destination.absolutePath}.")
 
             val runtime = locator.inspectHome(homeOf(destination))
                 ?: throw IllegalStateException("Java $major was installed but could not be read back.")

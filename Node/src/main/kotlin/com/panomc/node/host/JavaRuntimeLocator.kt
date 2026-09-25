@@ -20,7 +20,13 @@ data class JavaRuntime(
     val version: String? = null,
     /** Whether the node installed this runtime itself (SM-63), and may therefore update or remove it. */
     val managed: Boolean = false
-)
+) {
+    /**
+     * Whether this is a JDK: it has `javac`. A JRE runs every server but cannot build one, and
+     * BuildTools handed a JRE fails ten minutes in with Maven's "No compiler is provided".
+     */
+    val hasCompiler: Boolean get() = File(File(path, "bin"), HostPlatform.javacExecutable).isFile
+}
 
 /** A runtime picked for a Minecraft version, and the sentence explaining the pick. */
 data class RuntimeChoice(
@@ -89,6 +95,9 @@ class JavaRuntimeLocator(private val dataDir: File) {
 
     /** The newest installed runtime of exactly [major], or null. */
     fun exact(major: Int): JavaRuntime? = newestOf(discover(), major)
+
+    /** The newest installed JDK ([JavaRuntime.hasCompiler]) of exactly [major], or null. */
+    fun exactJdk(major: Int): JavaRuntime? = newestOf(discover().filter { it.hasCompiler }, major)
 
     /**
      * The runtime for a server whose Java version Pano left to this host.

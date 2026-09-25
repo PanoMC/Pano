@@ -240,6 +240,10 @@ class BuildToolsInstaller(
         var phaseMessage = "Compiling Spigot $rev with BuildTools"
         var lastForwarded = 0L
         var lastError: String? = null
+        // Maven's own explanation, which comes before BuildTools' "Error running command" summary
+        // and says what actually went wrong; see [mavenCause].
+        var mavenCause: String? = null
+        var mavenGoalFailure: String? = null
 
         val exit = log.bufferedWriter().use { writer ->
             runner.run(
@@ -255,6 +259,14 @@ class BuildToolsInstaller(
                     writer.flush()
 
                     failureLine(line)?.let { lastError = it }
+
+                    if (mavenCause == null) {
+                        mavenCause(line)?.let { mavenCause = it }
+                    }
+
+                    if (mavenGoalFailure == null) {
+                        mavenGoalFailure(line)?.let { mavenGoalFailure = it }
+                    }
 
                     val next = percentFor(line, percent)
                     val phaseChanged = next != percent
@@ -284,7 +296,7 @@ class BuildToolsInstaller(
         }
 
         if (exit != 0) {
-            throw IllegalStateException(failureMessage(lastError, exit, log))
+            throw IllegalStateException(failureMessage(mavenCause ?: mavenGoalFailure ?: lastError, exit, log))
         }
     }
 
@@ -360,18 +372,26 @@ class BuildToolsInstaller(
     private fun resolveJava(javaMajor: Int?, onProgress: (Int, String) -> Unit): com.panomc.node.host.JavaRuntime {
         // The exact major is downloaded first when it is missing and downloads are on (SM-63):
         // BuildTools names the range it accepts and "the nearest one above" is often outside it.
+        // A JDK, not the JRE a server gets: BuildTools compiles, and on a JRE Maven fails at the
+        // very end with "No compiler is provided in this environment".
         if (javaMajor != null && javaService?.enabled == true) {
-            val outcome = javaService.ensure(javaMajor) { _, message -> onProgress(START_PERCENT, message) }
+            val outcome = javaService.ensure(javaMajor, jdk = true) { _, message -> onProgress(START_PERCENT, message) }
 
             if (outcome is JavaRuntimeService.Outcome.Failed) {
-                logger.warn("Could not download Java $javaMajor for BuildTools: ${outcome.message}")
+                logger.warn("Could not download a Java $javaMajor JDK for BuildTools: ${outcome.message}")
             }
         }
 
+        val jdks = javaLocator.discover().filter { it.hasCompiler }
+
         return javaMajor
-            ?.let { javaLocator.resolve(it) }
-            ?: javaLocator.discover().maxByOrNull { it.major }
-            ?: throw IllegalStateException("No Java runtime on this host can run BuildTools.")
+            ?.let { major -> javaLocator.exactJdk(major) ?: jdks.filter { it.major > major }.minByOrNull { it.major } }
+            ?: jdks.takeIf { javaMajor == null }?.maxByOrNull { it.major }
+            ?: throw IllegalStateException(
+                "BuildTools needs a JDK (Java ${javaMajor ?: "8 or newer"} with javac) and this node has none" +
+                    (if (javaService?.enabled == true) " and could not download one" else "; install one or turn Java downloads on") +
+                    "."
+            )
     }
 
     private fun clean(line: String): String? = line
@@ -585,6 +605,53 @@ class BuildToolsInstaller(
 
             return line.replace('\n', ' ').trim().takeIf { it.isNotEmpty() }?.take(MAX_MESSAGE)
         }
+
+        /**
+         * The first `[ERROR]` line of Maven's that says something: "No compiler is provided in this
+         * environment…", "Foo.java:[12,5] cannot find symbol". Maven prints its cause first and
+         * a page of boilerplate after it, and BuildTools then adds `Error running command …` with
+         * the whole Maven command line -- the line [failureLine] ends up on, which tells an admin
+         * only that something failed.
+         */
+        fun mavenCause(line: String): String? {
+            val body = mavenErrorBody(line) ?: return null
+
+            if (body.startsWith(GOAL_FAILURE) || MAVEN_BOILERPLATE.any { body.startsWith(it) }) {
+                return null
+            }
+
+            return body.take(MAX_MESSAGE)
+        }
+
+        /** `Failed to execute goal …`, the cause when Maven gives no line of its own under it. */
+        fun mavenGoalFailure(line: String): String? =
+            mavenErrorBody(line)?.takeIf { it.startsWith(GOAL_FAILURE) }?.take(MAX_MESSAGE)
+
+        private fun mavenErrorBody(line: String): String? {
+            val text = line.replace('\n', ' ').trim()
+
+            if (!text.startsWith(MAVEN_ERROR)) {
+                return null
+            }
+
+            return text.removePrefix(MAVEN_ERROR).trim().takeIf { it.isNotEmpty() }
+        }
+
+        private const val MAVEN_ERROR = "[ERROR]"
+        private const val GOAL_FAILURE = "Failed to execute goal"
+
+        /** Maven's `[ERROR]` lines that are about how to read the failure, not what it was. */
+        private val MAVEN_BOILERPLATE = listOf(
+            "COMPILATION ERROR",
+            "BUILD FAILURE",
+            "-> [Help",
+            "[Help",
+            "To see the full stack trace",
+            "Re-run Maven",
+            "For more information",
+            "After correcting the problems",
+            "mvn <args>"
+        )
 
         private const val JAR_PREFIX = "spigot-"
         private const val JAR_SUFFIX = ".jar"

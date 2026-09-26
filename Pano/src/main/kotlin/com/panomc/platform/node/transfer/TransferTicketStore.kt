@@ -81,7 +81,12 @@ data class TransferTicket(
      * Used by the file manager's preview, and only for the image, video and audio types that
      * cannot run anything on the panel's origin.
      */
-    val inline: Boolean = false
+    val inline: Boolean = false,
+    /**
+     * A download Pano keeps for itself instead of pumping it into a browser (e.g. an MC backup
+     * going on to Pano Backup): the node's bytes are written into this file.
+     */
+    val downloadFile: File? = null
 ) {
     val isExpired get() = System.currentTimeMillis() > expiresAt
 }
@@ -114,7 +119,8 @@ class TransferTicketRegistry(
         browserResponse: HttpServerResponse? = null,
         ttlMs: Long = TTL_MS,
         contentType: String? = null,
-        inline: Boolean = false
+        inline: Boolean = false,
+        downloadFile: File? = null
     ): TransferTicket {
         val ticket = TransferTicket(
             id = UUID.randomUUID().toString(),
@@ -128,7 +134,8 @@ class TransferTicketRegistry(
             expiresAt = System.currentTimeMillis() + ttlMs,
             browserResponse = browserResponse,
             contentType = contentType,
-            inline = inline
+            inline = inline,
+            downloadFile = downloadFile
         )
 
         tickets[ticket.id] = ticket
@@ -295,7 +302,8 @@ class TransferTicketStore(
         browserResponse: HttpServerResponse? = null,
         ttlMs: Long = TransferTicketRegistry.TTL_MS,
         contentType: String? = null,
-        inline: Boolean = false
+        inline: Boolean = false,
+        downloadFile: File? = null
     ): TransferTicket {
         init()
 
@@ -310,7 +318,8 @@ class TransferTicketStore(
             browserResponse,
             ttlMs,
             contentType,
-            inline
+            inline,
+            downloadFile
         )
     }
 

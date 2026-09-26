@@ -1,6 +1,7 @@
 package com.panomc.platform.backup
 
 import com.panomc.platform.archive.ArchiveLimits
+import com.panomc.platform.archive.ArchiveManifest
 import com.panomc.platform.archive.ArchiveSource
 import com.panomc.platform.archive.PanoArcEncryption
 import com.panomc.platform.archive.PanoArcException
@@ -8,6 +9,7 @@ import com.panomc.platform.archive.PanoArcKeys
 import com.panomc.platform.archive.instance.InstanceArchiver
 import com.panomc.platform.archive.instance.InstanceLayout
 import com.panomc.platform.archive.instance.InstanceRestorer
+import com.panomc.platform.backup.remote.PanoHostException
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.SqlConnection
@@ -49,6 +51,22 @@ interface PanoBackupHost {
     suspend fun restoreApplied()
 }
 
+/**
+ * The one-at-a-time job runner Pano Backup builds on: [startTask] runs a background job while
+ * holding the lock; inside it [archiveTo] / [restoreFrom] do the work.
+ */
+interface PanoBackupRunner {
+    val job: PanoBackupJob?
+
+    fun isBusy(): Boolean
+
+    fun startTask(type: PanoBackupJob.Type, cleanup: suspend () -> Unit = {}, block: suspend (PanoBackupJob) -> Unit): PanoBackupJob
+
+    suspend fun archiveTo(file: File, passphrase: CharArray?): ArchiveManifest
+
+    suspend fun restoreFrom(source: File, passphrase: CharArray?, safetyArchive: Boolean, maintenance: Boolean): PanoBackupInfo?
+}
+
 class PanoBackupException(
     val code: String,
     message: String? = null,
@@ -65,9 +83,17 @@ data class PanoBackupJob(
     @Volatile var backupId: String? = null,
     @Volatile var error: String? = null,
     @Volatile var message: String? = null,
-    @Volatile var rolledBack: Boolean = false
+    @Volatile var rolledBack: Boolean = false,
+    /** What the job is doing right now (`ARCHIVING`, `UPLOADING`, `DOWNLOADING`, `RESTORING`, …); UI hint only. */
+    @Volatile var phase: String? = null,
+    @Volatile var bytesDone: Long = 0,
+    @Volatile var bytesTotal: Long = 0,
+    /** Id on the remote side (Pano Backup backup id, transfer id) once known. */
+    @Volatile var remoteId: String? = null,
+    /** Extra fields of a Pano Host error (`reason`, `nextAllowedAt`, `quotaBytes`, …). */
+    @Volatile var details: JsonObject? = null
 ) {
-    enum class Type { CREATE, RESTORE }
+    enum class Type { CREATE, RESTORE, UPLOAD, TRANSFER, MC_UPLOAD }
     enum class Status { RUNNING, DONE, FAILED }
 
     fun toJson(): JsonObject = JsonObject()
@@ -80,6 +106,11 @@ data class PanoBackupJob(
         .put("error", error)
         .put("message", message)
         .put("rolledBack", rolledBack)
+        .put("phase", phase)
+        .put("bytesDone", bytesDone)
+        .put("bytesTotal", bytesTotal)
+        .put("remoteId", remoteId)
+        .put("details", details)
 }
 
 /**
@@ -96,31 +127,19 @@ class PanoBackupService(
     private val scope: CoroutineScope,
     private val limits: ArchiveLimits = ArchiveLimits(),
     private val logger: Logger = LoggerFactory.getLogger(PanoBackupService::class.java)
-) {
+) : PanoBackupRunner {
     private val mutex = Mutex()
 
     @Volatile
-    var job: PanoBackupJob? = null
+    override var job: PanoBackupJob? = null
         private set
 
     /** Starts a backup in the background; throws [BUSY] when another operation runs. */
-    fun startCreate(passphrase: CharArray?, tag: PanoBackupTag = PanoBackupTag.MANUAL, createdBy: String? = null): PanoBackupJob {
-        val job = begin(PanoBackupJob.Type.CREATE)
-
-        scope.launch {
-            try {
-                job.backupId = createLocked(passphrase, tag, createdBy).id
-                finish(job, null)
-            } catch (e: Throwable) {
-                finish(job, e)
-            } finally {
-                passphrase?.fill('\u0000')
-                mutex.unlock()
-            }
+    fun startCreate(passphrase: CharArray?, tag: PanoBackupTag = PanoBackupTag.MANUAL, createdBy: String? = null): PanoBackupJob =
+        startTask(PanoBackupJob.Type.CREATE, cleanup = { passphrase?.fill('\u0000') }) { job ->
+            job.phase = PHASE_ARCHIVING
+            job.backupId = createLocked(passphrase, tag, createdBy).id
         }
-
-        return job
-    }
 
     /**
      * Starts a restore of [source] in the background. [deleteSource] removes an uploaded file once
@@ -132,27 +151,67 @@ class PanoBackupService(
         deleteSource: Boolean,
         safetyArchive: Boolean = true,
         maintenance: Boolean = true
+    ): PanoBackupJob = startTask(
+        PanoBackupJob.Type.RESTORE,
+        cleanup = {
+            passphrase?.fill('\u0000')
+
+            if (deleteSource) {
+                withContext(Dispatchers.IO) { source.delete() }
+            }
+        }
+    ) { job ->
+        job.phase = PHASE_RESTORING
+        job.backupId = restoreFrom(source, passphrase, safetyArchive, maintenance)?.id
+    }
+
+    /**
+     * Runs [block] as the one background operation (throws [BUSY] when another runs); the job ends
+     * DONE when it returns, FAILED with a stable code when it throws. [cleanup] always runs last.
+     * Inside [block], [archiveTo] and [restoreFrom] may be called (the lock is held).
+     */
+    override fun startTask(
+        type: PanoBackupJob.Type,
+        cleanup: suspend () -> Unit,
+        block: suspend (PanoBackupJob) -> Unit
     ): PanoBackupJob {
-        val job = begin(PanoBackupJob.Type.RESTORE)
+        val job = begin(type)
 
         scope.launch {
-            try {
-                job.backupId = restoreLocked(source, passphrase, safetyArchive, maintenance)?.id
-                finish(job, null)
-            } catch (e: Throwable) {
-                finish(job, e)
-            } finally {
-                passphrase?.fill('\u0000')
+            var error: Throwable? = null
 
-                if (deleteSource) {
-                    withContext(Dispatchers.IO) { source.delete() }
+            try {
+                block(job)
+            } catch (e: Throwable) {
+                error = e
+            } finally {
+                try {
+                    cleanup()
+                } catch (e: Throwable) {
+                    logger.warn("Cleaning up after a Pano backup job failed: ${e.message}")
                 }
 
                 mutex.unlock()
             }
+
+            // After the unlock, so a client that sees the job finished can start the next one.
+            finish(job, error)
         }
 
         return job
+    }
+
+    /** Synchronous [startTask] (scheduler); null when another operation is running. */
+    suspend fun <T> tryTask(block: suspend () -> T): T? {
+        if (!mutex.tryLock()) {
+            return null
+        }
+
+        try {
+            return block()
+        } finally {
+            mutex.unlock()
+        }
     }
 
     /** Synchronous create (scheduler, tests); null when another operation is running. */
@@ -180,13 +239,13 @@ class PanoBackupService(
         }
 
         try {
-            return restoreLocked(source, passphrase, safetyArchive, maintenance)
+            return restoreFrom(source, passphrase, safetyArchive, maintenance)
         } finally {
             mutex.unlock()
         }
     }
 
-    fun isBusy() = mutex.isLocked
+    override fun isBusy() = mutex.isLocked
 
     private fun begin(type: PanoBackupJob.Type): PanoBackupJob {
         if (!mutex.tryLock()) {
@@ -210,6 +269,7 @@ class PanoBackupService(
         job.error = code
         job.message = error.message?.take(500)
         job.rolledBack = rolledBack
+        job.details = (error as? PanoHostException)?.extras?.takeIf { !it.isEmpty }
         job.status = PanoBackupJob.Status.FAILED
 
         if (code == INTERNAL) {
@@ -222,21 +282,15 @@ class PanoBackupService(
     private suspend fun createLocked(passphrase: CharArray?, tag: PanoBackupTag, createdBy: String?): PanoBackupInfo {
         val id = store.newId()
         val part = withContext(Dispatchers.IO) { store.partFile(id) }
-        val encryption = passphrase?.takeIf { it.isNotEmpty() }?.let { PanoArcEncryption.Passphrase(it.copyOf()) }
 
         try {
-            val manifest = withConnection { connection ->
-                val output = withContext(Dispatchers.IO) { part.outputStream().buffered(256 * 1024) }
-
-                InstanceArchiver(host.layout, host.dbPrefix(), host.panoVersion, ArchiveSource(hosted = false))
-                    .archive(output, encryption, connection, limits)
-            }
+            val manifest = archiveTo(part, passphrase)
 
             val info = PanoBackupInfo(
                 id = id,
                 createdAt = manifest.createdAt,
                 sizeBytes = part.length(),
-                encrypted = encryption != null,
+                encrypted = passphrase != null && passphrase.isNotEmpty(),
                 tag = tag,
                 panoVersion = host.panoVersion,
                 fileCount = manifest.files.count,
@@ -251,12 +305,33 @@ class PanoBackupService(
             withContext(Dispatchers.IO) { part.delete() }
 
             throw e
+        }
+    }
+
+    /**
+     * Writes an archive of this Pano to [file] (passphrase E2E when [passphrase] is non-empty, else
+     * plain). Only call with the lock held (inside [startTask] / [tryTask]).
+     */
+    override suspend fun archiveTo(file: File, passphrase: CharArray?): ArchiveManifest {
+        val encryption = passphrase?.takeIf { it.isNotEmpty() }?.let { PanoArcEncryption.Passphrase(it.copyOf()) }
+
+        try {
+            return withConnection { connection ->
+                val output = withContext(Dispatchers.IO) { file.outputStream().buffered(256 * 1024) }
+
+                InstanceArchiver(host.layout, host.dbPrefix(), host.panoVersion, ArchiveSource(hosted = false))
+                    .archive(output, encryption, connection, limits)
+            }
         } finally {
             (encryption as? PanoArcEncryption.Passphrase)?.passphrase?.fill('\u0000')
         }
     }
 
-    private suspend fun restoreLocked(
+    /**
+     * Restores [source] over this Pano (see the class doc for the order). Only call with the lock
+     * held (inside [startTask] / [tryTask]); returns the safety backup when one was taken.
+     */
+    override suspend fun restoreFrom(
         source: File,
         passphrase: CharArray?,
         safetyArchive: Boolean,
@@ -373,9 +448,16 @@ class PanoBackupService(
         const val DATABASE_CONNECTION_FAILED = "DATABASE_CONNECTION_FAILED"
         const val INTERNAL = "INTERNAL_ERROR"
 
+        const val PHASE_ARCHIVING = "ARCHIVING"
+        const val PHASE_UPLOADING = "UPLOADING"
+        const val PHASE_DOWNLOADING = "DOWNLOADING"
+        const val PHASE_RESTORING = "RESTORING"
+        const val PHASE_FETCHING = "FETCHING"
+
         /** Stable error code for the UI + whether the rollback put the previous state back. */
         fun describe(error: Throwable): Pair<String, Boolean> = when (error) {
             is PanoArcException -> error.code.name to false
+            is PanoHostException -> error.code to false
             is PanoBackupException -> {
                 val cause = error.cause
 

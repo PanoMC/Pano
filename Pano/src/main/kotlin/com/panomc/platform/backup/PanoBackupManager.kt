@@ -5,6 +5,13 @@ import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.PluginManager
 import com.panomc.platform.api.PluginDatabaseManager
 import com.panomc.platform.archive.instance.InstanceLayout
+import com.panomc.platform.backup.remote.LinkPurpose
+import com.panomc.platform.backup.remote.MemoryRemoteStateStore
+import com.panomc.platform.backup.remote.PanoHostClient
+import com.panomc.platform.backup.remote.PanoRemoteBackupService
+import com.panomc.platform.backup.remote.PassphraseFile
+import com.panomc.platform.backup.remote.RemoteBackupState
+import com.panomc.platform.backup.remote.RemoteStateStore
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
@@ -58,6 +65,85 @@ class PanoBackupManager(
     /** The panel's service: maintenance mode, safety archive and a restart after a restore. */
     val service by lazy { PanoBackupService(store, PlatformHost(databaseOverride = null, panel = true), scope) }
 
+    /** The Pano Host API base: `-Dpano.hostApiUrl`, env `PANO_HOST_API_URL`, else the config's `pano-api-url`. */
+    fun hostApiUrl(): String =
+        System.getProperty("pano.hostApiUrl")?.takeIf { it.isNotBlank() }
+            ?: System.getenv("PANO_HOST_API_URL")?.takeIf { it.isNotBlank() }
+            ?: configManager.config.panoApiUrl
+
+    private val hostClient by lazy { PanoHostClient({ hostApiUrl() }) }
+
+    private fun instanceName(): String = configManager.config.websiteName.ifBlank { "Pano" }
+
+    /** Pano Backup + transfer of the running Pano; link tokens + settings in the database. */
+    val remote by lazy {
+        PanoRemoteBackupService(
+            client = hostClient,
+            stateStore = DatabaseRemoteStateStore(),
+            passphraseFile = PassphraseFile(File(store.directory, PassphraseFile.FILE_NAME)),
+            backups = service,
+            tempDir = { InstanceLayout.current(configManager.config).tempDir },
+            instanceName = ::instanceName,
+            panoVersion = Main.VERSION
+        )
+    }
+
+    /** setup-ui "import from Pano Backup": the link lives in memory until the restored site brings its own. */
+    val setupRemote by lazy {
+        PanoRemoteBackupService(
+            client = hostClient,
+            stateStore = MemoryRemoteStateStore(),
+            passphraseFile = null,
+            backups = service,
+            tempDir = { InstanceLayout.current(configManager.config).tempDir },
+            instanceName = ::instanceName,
+            panoVersion = Main.VERSION
+        )
+    }
+
+    /** A managed MC server backup is READY: uploaded to Pano Backup when that server is selected. */
+    fun onMcBackupReady(serverId: Long, backupId: String) {
+        if (!setupManager.isSetupDone()) {
+            return
+        }
+
+        scope.launch {
+            try {
+                val state = remote.state()
+
+                if (serverId !in state.settings.mcServerIds || state.links[LinkPurpose.BACKUP] == null) {
+                    return@launch
+                }
+
+                val sources = applicationContext.getBean(McServerBackupSources::class.java)
+
+                remote.onMcBackupReady(sources.source(serverId, backupId, databaseManager.getSqlClient()))
+            } catch (e: Exception) {
+                logger.warn("Could not queue MC server backup $backupId for Pano Backup: ${e.message}")
+            }
+        }
+    }
+
+    private inner class DatabaseRemoteStateStore : RemoteStateStore {
+        override suspend fun load(): RemoteBackupState {
+            val property = databaseManager.systemPropertyDao.getByOption(RemoteBackupState.OPTION, databaseManager.getSqlClient())
+
+            return RemoteBackupState.parse(property?.value)
+        }
+
+        override suspend fun save(state: RemoteBackupState) {
+            val sqlClient = databaseManager.getSqlClient()
+            val dao = databaseManager.systemPropertyDao
+            val value = state.toJson().encode()
+
+            if (dao.existsByOption(RemoteBackupState.OPTION, sqlClient)) {
+                dao.update(RemoteBackupState.OPTION, value, sqlClient)
+            } else {
+                dao.add(SystemProperty(option = RemoteBackupState.OPTION, value = value), sqlClient)
+            }
+        }
+    }
+
     /** Setup mode has its own service (and job) because its target database comes from the request. */
     @Volatile
     var setupService: PanoBackupService? = null
@@ -97,6 +183,12 @@ class PanoBackupManager(
         }
 
         store.prune(settings.keep, now)
+
+        try {
+            remote.tick(now)
+        } catch (e: Exception) {
+            logger.error("Failed to run the Pano Backup upload schedule", e)
+        }
     }
 
     suspend fun getSettings(): PanoBackupSettings {

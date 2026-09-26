@@ -41,10 +41,12 @@ if [ "$step" = 2 ]; then
   put_step "$(jq -c '. + {clientStep: 2, dbType: "mariadb"}' <<<"$body")" >/dev/null
   step=$(current_step)
 fi
-[ "$step" = 3 ] || die "expected step 3 after the database step, got $step"
-
-put_step '{"clientStep":3,"hostname":"smtp.invalid","port":587,"ssl":false,"starttls":"REQUIRED","username":"smoke","password":"smoke","sender":"smoke@example.com","authMethods":""}' >/dev/null
-[ "$(current_step)" = 4 ] || die "step 3 did not advance"
+if [ "$step" = 3 ]; then
+  [ "$(step_json | jq -r '.email.password')" = "" ] || die "step 3 leaked the SMTP password"
+  put_step '{"clientStep":3,"hostname":"smtp.invalid","port":587,"ssl":false,"starttls":"REQUIRED","username":"smoke","password":"smoke","sender":"smoke@example.com","authMethods":""}' >/dev/null
+  [ "$(current_step)" = 4 ] || die "step 3 did not advance"
+fi
+[ "$(current_step)" = 4 ] || die "expected step 4 after the mail step, got $(current_step)"
 
 say "finishing the install"
 finish=$(curl -sS -X POST -H 'Content-Type: application/json' \

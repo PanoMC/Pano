@@ -3,13 +3,16 @@ package com.panomc.platform.route.api.auth
 import com.panomc.platform.Main
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.hosted.HostSsoGuard
 import com.panomc.platform.hosted.HostSsoUserMapper
 import com.panomc.platform.hosted.PanoHostClient
 import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.model.*
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.CSRFTokenGenerator
+import com.panomc.platform.util.TrustedProxyIpResolver
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
@@ -24,6 +27,10 @@ import org.slf4j.Logger
  * server-to-server; the identity becomes a local panel session (auth cookies) and the browser
  * goes to `/panel`. Any failure goes to `/panel/login` without detail — the ticket is single-use
  * and burnt by the control plane either way.
+ *
+ * [RateLimitManager][com.panomc.platform.util.RateLimitManager] only covers `/api/`, so this route
+ * throttles itself ([HostSsoGuard]) before any control-plane call, keyed on the client IP resolved
+ * through `server.trusted-proxies` (Traefik's private range on Pano Host), and throttles its logs.
  */
 @Endpoint
 class HostSsoAPI(
@@ -31,11 +38,16 @@ class HostSsoAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val setupManager: SetupManager,
+    private val configManager: ConfigManager,
     private val logger: Logger
 ) : Api() {
     companion object {
         private val TICKET = Regex("^[A-Za-z0-9._~-]{16,256}$")
     }
+
+    internal var guard = HostSsoGuard()
+
+    private class Throttled : Exception()
 
     override val paths = listOf(Path("/panel/host-sso", RouteType.GET))
 
@@ -55,14 +67,17 @@ class HostSsoAPI(
         val target = try {
             signIn(context)
             "/panel"
+        } catch (_: Throttled) {
+            warn("Pano Host SSO throttled")
+            "/panel/login"
         } catch (e: PanoHostClient.HostApiException) {
-            logger.warn("Pano Host SSO rejected: {}", e.message)
+            warn("Pano Host SSO rejected: ${e.message}")
             "/panel/login"
         } catch (e: HostSsoUserMapper.Denied) {
-            logger.warn("Pano Host SSO denied: {}", e.message)
+            warn("Pano Host SSO denied: ${e.message}")
             "/panel/login"
         } catch (e: Exception) {
-            logger.warn("Pano Host SSO failed: {}", e.javaClass.simpleName)
+            warn("Pano Host SSO failed: ${e.javaClass.simpleName}")
             "/panel/login"
         }
 
@@ -84,7 +99,15 @@ class HostSsoAPI(
         val ticket = context.queryParam("t").firstOrNull()?.takeIf { TICKET.matches(it) }
             ?: throw HostSsoUserMapper.Denied("missing or malformed ticket")
 
-        val userId = panoHostManager.redeem(ticket)
+        val clientIp = clientIp(context)
+
+        if (!guard.tryAcquire(clientIp)) throw Throttled()
+
+        val userId = try {
+            panoHostManager.redeem(ticket)
+        } finally {
+            guard.release()
+        }
 
         val sqlClient = getSqlClient()
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
@@ -97,5 +120,20 @@ class HostSsoAPI(
         authProvider.setCookies(context, token, CSRFTokenGenerator.nextToken())
 
         databaseManager.userDao.getById(userId, sqlClient)?.let { authProvider.runOnAfterLogin(it, context, sqlClient) }
+    }
+
+    private fun clientIp(context: RoutingContext): String {
+        val proxies = try {
+            configManager.config.server.trustedProxies
+        } catch (_: Throwable) {
+            emptyList()
+        }
+
+        return TrustedProxyIpResolver.resolve(context.request(), proxies)?.ip ?: "unknown"
+    }
+
+    private fun warn(message: String) = guard.log { suppressed ->
+        if (suppressed > 0) logger.warn("{} ({} similar messages suppressed)", message, suppressed)
+        else logger.warn(message)
     }
 }

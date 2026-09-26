@@ -29,6 +29,8 @@ class PanoHostClient(
     timeoutMs: Long = 10_000
 ) {
     companion object {
+        const val MAX_NOTICES = 20
+
         /** Backoff between capability announce attempts: 5 s doubling up to 10 min. */
         fun backoff(attempt: Int): Long = (5_000L shl (attempt - 1).coerceIn(0, 7)).coerceAtMost(600_000L)
 
@@ -77,14 +79,16 @@ class PanoHostClient(
 
     fun url(path: String): String = baseUrl + path
 
-    private suspend fun post(path: String, body: JsonObject): JsonObject {
+    private suspend fun post(path: String, body: JsonObject): JsonObject = request(HttpMethod.POST, path, body)
+
+    private suspend fun request(method: HttpMethod, path: String, body: JsonObject?): JsonObject {
         val response: HttpResponse<Buffer> = try {
-            client.requestAbs(HttpMethod.POST, url(path))
+            val request = client.requestAbs(method, url(path))
                 .putHeader("Authorization", "Bearer $instanceSecret")
                 .putHeader("Accept", "application/json")
                 .timeout(15_000)
-                .sendJsonObject(body)
-                .coAwait()
+
+            (if (body == null) request.send() else request.sendJsonObject(body)).coAwait()
         } catch (e: Throwable) {
             throw HostApiException(0, e.javaClass.simpleName)
         }
@@ -148,6 +152,35 @@ class PanoHostClient(
             workloadId = field("workloadId"),
             hostname = field("hostname")
         )
+    }
+
+    /**
+     * `GET /host/instance/notices` → the banner feed. Entries without an id or message are dropped
+     * here; [PanelGetHostedAPI][com.panomc.platform.route.api.panel.PanelGetHostedAPI] sanitises
+     * levels and links.
+     */
+    suspend fun notices(): List<HostNotice> {
+        val data = request(HttpMethod.GET, "/host/instance/notices", null)
+        val array = data.getJsonArray("notices") ?: return emptyList()
+
+        return array.mapNotNull { raw ->
+            val json = raw as? JsonObject ?: return@mapNotNull null
+            fun text(key: String) = json.getValue(key)?.toString()?.takeIf { it.isNotBlank() }
+
+            HostNotice(
+                id = text("id") ?: return@mapNotNull null,
+                level = text("level") ?: "info",
+                message = text("message") ?: return@mapNotNull null,
+                title = text("title"),
+                url = text("url"),
+                createdAt = (json.getValue("createdAt") as? Number)?.toLong(),
+                type = text("type"),
+                data = (json.getValue("data") as? JsonObject)?.map
+                    ?.filterValues { it is Number || it is Boolean || (it is String && it.length <= 200) }
+                    ?.entries?.take(20)?.associate { it.key to it.value }
+                    ?: emptyMap()
+            )
+        }.take(MAX_NOTICES)
     }
 
     fun close() = client.close()

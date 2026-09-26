@@ -119,4 +119,31 @@ class PanoHostClientTest {
         ) {}
         assertEquals("https://api.panomc.com/host/sso/redeem", client!!.url("/host/sso/redeem"))
     }
+
+    @Test
+    fun `reads the notice feed with the bearer secret and drops incomplete entries`() = runBlocking {
+        plane.notices = io.vertx.core.json.JsonArray()
+            .add(io.vertx.core.json.JsonObject().put("id", "disk").put("level", "warning").put("type", "HOST_DISK_QUOTA")
+                .put("title", "Storage almost full").put("message", "92%").put("data", io.vertx.core.json.JsonObject().put("percent", 92)))
+            .add(io.vertx.core.json.JsonObject().put("id", "n2").put("message", "no level").put("createdAt", 7L))
+            .add(io.vertx.core.json.JsonObject().put("level", "info").put("message", "no id"))
+            .add(io.vertx.core.json.JsonObject().put("id", "n3"))
+            .add("not an object")
+
+        val notices = client().notices()
+
+        assertEquals(listOf("disk", "n2"), notices.map { it.id })
+        assertEquals("warning", notices[0].level)
+        assertEquals("HOST_DISK_QUOTA", notices[0].type)
+        assertEquals(mapOf("percent" to 92), notices[0].data)
+        assertEquals("info", notices[1].level)
+        assertEquals(7L, notices[1].createdAt)
+
+        val seen = plane.requests.last()
+        assertEquals("/api/host/instance/notices", seen.path)
+        assertEquals("Bearer $secret", seen.authorization)
+
+        val error = assertThrows(PanoHostClient.HostApiException::class.java) { runBlocking { client("wrong-secret-0123456789").notices() } }
+        assertEquals("INVALID_TOKEN", error.code)
+    }
 }

@@ -13,7 +13,7 @@ class PanelGetHostedAPITest {
         throw UnsupportedOperationException(m.name)
     } as RoutingContext
 
-    private fun api(env: Map<String, String>, feed: HostNoticeFeed = StubHostNoticeFeed()) =
+    private fun api(env: Map<String, String>, feed: HostNoticeFeed = object : HostNoticeFeed { override suspend fun notices() = emptyList<HostNotice>() }) =
         PanelGetHostedAPI(feed).also { it.env = HostedEnvConfig(env) }
 
     @Suppress("UNCHECKED_CAST")

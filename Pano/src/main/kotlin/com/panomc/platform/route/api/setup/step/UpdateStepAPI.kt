@@ -174,6 +174,11 @@ class UpdateStepAPI(
             return true
         }
 
+        // Env-managed mail relay (Pano Host): the env wins on every boot, so nothing is stored.
+        if (clientStep == 3 && setupManager.isMailManaged()) {
+            return true
+        }
+
         if (clientStep == 3 &&
             !hostname.isNullOrEmpty() &&
             port != null &&

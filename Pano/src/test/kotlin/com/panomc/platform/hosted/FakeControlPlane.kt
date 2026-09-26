@@ -18,6 +18,7 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
     val requests = CopyOnWriteArrayList<Seen>()
     val tickets = ConcurrentHashMap<String, JsonObject>()
     var ssoSupported: Boolean? = null
+    var notices = io.vertx.core.json.JsonArray()
 
     /** Next N capability calls answer 503 (to exercise the retry loop). */
     val failCapabilities = AtomicInteger(0)
@@ -42,6 +43,8 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
                 fun ok(data: JsonObject) = reply(200, JsonObject().put("result", "ok").put("data", data))
 
                 when {
+                    req.path() == "$prefix/host/instance/notices" && req.method().name() == "GET" ->
+                        if (auth != "Bearer $secret") error(401, "INVALID_TOKEN") else ok(JsonObject().put("notices", notices))
                     req.path() !in setOf("$prefix/host/sso/redeem", "$prefix/host/instance/capabilities") -> error(404, "NOT_EXISTS")
                     body == null -> error(400, "BAD_REQUEST")
                     auth != "Bearer $secret" -> error(401, "INVALID_TOKEN")

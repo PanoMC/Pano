@@ -2,6 +2,7 @@ package com.panomc.platform.db.implementation
 
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.db.dao.SystemPropertyDao
+import com.panomc.platform.backup.PanoBackupSettings
 import com.panomc.platform.db.model.SystemProperty
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
@@ -31,6 +32,7 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
 
         addShowGettingStartedOption(sqlClient)
         addMainServerOption(sqlClient)
+        addPanoBackupSettingsOption(sqlClient)
     }
 
     override suspend fun add(
@@ -156,5 +158,14 @@ class SystemPropertyDaoImpl : SystemPropertyDao() {
         sqlClient: SqlClient
     ) {
         add(SystemProperty(option = "main_server", value = "-1"), sqlClient)
+    }
+
+    private suspend fun addPanoBackupSettingsOption(
+        sqlClient: SqlClient
+    ) {
+        add(
+            SystemProperty(option = PanoBackupSettings.OPTION, value = PanoBackupSettings().toJson().encode()),
+            sqlClient
+        )
     }
 }

@@ -1,5 +1,7 @@
 package com.panomc.platform.server.backup
 
+import com.panomc.platform.Main
+import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.ServerBackup
@@ -228,6 +230,21 @@ class ManagedServerBackupService(
         applyRetention(server, sqlClient)
 
         panelRealtimeHub.pushServerBackupsChanged(server.id)
+
+        offerToPanoBackup(server, report)
+    }
+
+    /** A finished full zip may also go to Pano Backup (when this server is selected there). */
+    private fun offerToPanoBackup(server: Server, report: CreatedReport) {
+        if (report.mode != BackupMode.FULL) {
+            return
+        }
+
+        try {
+            Main.applicationContext.getBean(PanoBackupManager::class.java).onMcBackupReady(server.id, report.backupId)
+        } catch (e: Exception) {
+            logger.warn("Could not offer backup ${report.backupId} to Pano Backup: ${e.message}")
+        }
     }
 
     /**
@@ -277,6 +294,8 @@ class ManagedServerBackupService(
         applyRetention(server, sqlClient)
 
         panelRealtimeHub.pushServerBackupsChanged(server.id)
+
+        offerToPanoBackup(server, report)
     }
 
     /**

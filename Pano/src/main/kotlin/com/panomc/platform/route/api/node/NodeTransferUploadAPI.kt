@@ -11,12 +11,15 @@ import com.panomc.platform.model.RouteType
 import com.panomc.platform.model.Successful
 import com.panomc.platform.node.transfer.TransferDirection
 import com.panomc.platform.node.transfer.TransferRedeemer
+import com.panomc.platform.node.transfer.TransferTicket
 import com.panomc.platform.node.transfer.TransferTicketStore
 import io.vertx.core.Handler
+import io.vertx.core.file.OpenOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
 import org.slf4j.Logger
+import java.io.File
 
 /**
  * The node half of a download (`PUT /api/node/transfer/:ticket`).
@@ -57,17 +60,19 @@ class NodeTransferUploadAPI(
         val ticket = transferRedeemer.redeem(context, ticketId, TransferDirection.DOWNLOAD)
             ?: return NotExists()
 
-        val browserResponse = ticket.browserResponse ?: return NotExists()
-
         // The node could not read the file. Told here rather than over the socket because this is
         // the request the browser is blocked on.
         val error = request.getHeader(ERROR_HEADER)
 
-        if (!error.isNullOrBlank()) {
+        if (!error.isNullOrBlank() && (ticket.browserResponse != null || ticket.downloadFile != null)) {
             ticket.completion.completeExceptionally(IllegalStateException(error))
 
             return Successful()
         }
+
+        ticket.downloadFile?.let { return receiveIntoFile(context, ticket, it) }
+
+        val browserResponse = ticket.browserResponse ?: return NotExists()
 
         if (browserResponse.ended() || browserResponse.closed()) {
             ticket.completion.completeExceptionally(IllegalStateException("The download was cancelled."))
@@ -123,6 +128,28 @@ class NodeTransferUploadAPI(
             // The response head is long gone by now, so the only honest way to tell the browser
             // this file is incomplete is to drop the connection under it.
             runCatching { browserResponse.reset() }
+        }
+
+        return Successful()
+    }
+
+    /** A download Pano keeps (no browser): the node's bytes go into [file]. */
+    private suspend fun receiveIntoFile(context: RoutingContext, ticket: TransferTicket, file: File): Result {
+        val request = context.request()
+
+        try {
+            val output = context.vertx().fileSystem()
+                .open(file.absolutePath, OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true))
+                .coAwait()
+
+            request.resume()
+            request.pipeTo(output).coAwait()
+
+            ticket.completion.complete(file.length())
+        } catch (exception: Exception) {
+            logger.warn("A transfer of ${ticket.fileName} into Pano broke: ${exception.message}")
+
+            ticket.completion.completeExceptionally(exception)
         }
 
         return Successful()

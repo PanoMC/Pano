@@ -1,13 +1,12 @@
 package com.panomc.platform.route.api.panel.settings
 
-import com.panomc.platform.Main
+import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.RestartedPanoLog
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
-import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.model.*
 import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
@@ -21,17 +20,15 @@ import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-import java.nio.file.Paths
 
 @Endpoint
 class PanelRestartPanoAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val vertx: Vertx,
-    private val main: Main
+    private val platformStateManager: PlatformStateManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings/restart-pano", RouteType.POST))
 
@@ -85,41 +82,8 @@ class PanelRestartPanoAPI(
 
     private suspend fun restartApplication(background: Boolean) {
         try {
-            // Container mode: the launcher relaunches Pano on exit 75, no detached JVM (and no -bg).
-            if (ContainerMode.current.restartInPlace { main.shutdown(exitCode = it) }) {
-                return
-            }
-
-            // Get current jar path
-            val targetJar = Paths.get(
-                Main::class.java.protectionDomain.codeSource.location.toURI()
-            ).toAbsolutePath().toString()
-
-            // Get Java binary path
-            val javaBin = Paths.get(
-                System.getProperty("java.home"),
-                "bin",
-                if (System.getProperty("os.name").lowercase().contains("win")) "java.exe" else "java"
-            ).toString()
-
-            // Build command arguments. Start from the original startup args; if the caller
-            // requested background, add -bg (independent of -nogui — the child's Main will
-            // self-respawn detached but still honor -nogui / GUI as a separate decision).
-            val args = mutableListOf(javaBin, "-jar", targetJar)
-            val baseArgs = Main.STARTUP_ARGS.toMutableList()
-            if (background && !baseArgs.contains("-bg")) {
-                baseArgs.add("-bg")
-            }
-            args.addAll(baseArgs)
-
-            // Start new process
-            ProcessBuilder(args)
-                .inheritIO()
-                .start()
-
-            delay(500)
-
-            main.shutdown()
+            // Container mode (exit 75 to the launcher) is handled inside PlatformStateManager.restart.
+            platformStateManager.restart(background)
         } catch (e: Exception) {
             e.printStackTrace()
         }

@@ -50,10 +50,16 @@ class PanelUploadTransferAPI(
     // session, so a schema would only be able to say "yes, that is a request".
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
-    override fun bodyHandler(): Handler<RoutingContext> =
+    override fun bodyHandler(): Handler<RoutingContext> = authorizedBodyHandler(
         BodyHandler.create()
             .setDeleteUploadedFilesOnEnd(true)
             .setBodyLimit(MAX_UPLOAD_BYTES)
+    )
+
+    // Login, panel access and the permission are checked before the (up to 1 GiB) upload is spooled.
+    override suspend fun checkBeforeBody(context: RoutingContext) {
+        authProvider.requirePermission(CreateServersPermission(), context)
+    }
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(CreateServersPermission(), context)

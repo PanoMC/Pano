@@ -21,6 +21,9 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
         const val DEFAULT_DB_PORT = 3306
         const val DEFAULT_SMTP_PORT = 587
 
+        /** panomc.com's per-workload management page is `<this>/<workloadId>`. */
+        const val DEFAULT_MANAGE_URL = "https://panomc.com/host/manage"
+
         /** Traefik reaches the workload over its private `pw-<id>` bridge network. */
         val PRIVATE_PROXY_RANGES = listOf(
             "127.0.0.1",
@@ -60,6 +63,14 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
     val instanceSecret: String? = value("PANO_HOST_INSTANCE_SECRET")
 
     val hostApiUrl: String? = value("PANO_HOST_API_URL")?.trimEnd('/')
+
+    /**
+     * Where the owner manages this instance on panomc.com: `PANO_HOST_MANAGE_URL` when it is an
+     * http(s) URL (never rendered as a `javascript:` href), else the website's workload page.
+     */
+    val manageUrl: String? = if (!isHosted) null else value("PANO_HOST_MANAGE_URL")
+        ?.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
+        ?: (DEFAULT_MANAGE_URL + (workloadId?.let { "/" + java.net.URLEncoder.encode(it, Charsets.UTF_8) } ?: ""))
 
     /** Present when host, name and user are all set; the password may be empty. */
     val database: Database? = run {

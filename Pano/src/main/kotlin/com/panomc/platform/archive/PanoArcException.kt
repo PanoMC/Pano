@@ -49,6 +49,15 @@ class PanoArcException(val code: Code, message: String? = null, cause: Throwable
         TOO_MANY_ENTRIES,
 
         /** An entry does not match the size or sha256 its manifest recorded. */
-        HASH_MISMATCH
+        HASH_MISMATCH,
+
+        /** The archive holds something other than what the caller restores (e.g. mc-server into an instance). */
+        WRONG_KIND,
+
+        /** The archive's scheme or config versions are newer than this Pano knows (restore onto an older Pano). */
+        ARCHIVE_NEWER_THAN_TARGET,
+
+        /** The database dump holds a statement the sanitised importer does not allow. */
+        UNSAFE_SQL
     }
 }

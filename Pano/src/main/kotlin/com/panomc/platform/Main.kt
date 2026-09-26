@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.hosted.ProcessExit
 import com.panomc.platform.i18n.I18nManager
@@ -462,6 +463,8 @@ class Main : CoroutineVerticle() {
 
             initTelemetryManager()
 
+            initPanoHostManager()
+
             initOnlinePlayerTracker()
 
             initServerMetricsRecorder()
@@ -522,6 +525,17 @@ class Main : CoroutineVerticle() {
         val telemetryManager = applicationContext.getBean(TelemetryManager::class.java)
 
         telemetryManager.init()
+    }
+
+    /** Pano Host only: tells the control plane this instance supports panel SSO. */
+    private fun initPanoHostManager() {
+        val panoHostManager = applicationContext.getBean(PanoHostManager::class.java)
+
+        if (!panoHostManager.ssoEnabled) return
+
+        logger.info("Initializing Pano Host integration")
+
+        panoHostManager.announceCapabilities()
     }
 
     private fun initOnlinePlayerTracker() {

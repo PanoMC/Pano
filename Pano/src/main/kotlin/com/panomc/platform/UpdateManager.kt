@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.*
+import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.model.Error as DomainError
 import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
@@ -88,6 +89,9 @@ class UpdateManager(
      * and "No resource update found!" lines on transitions instead of every minute. Read/written
      * from the periodic coroutine only — no cross-thread access.
      */
+    /** Replaceable in tests; the process-wide detection otherwise. */
+    internal var containerMode: ContainerMode = ContainerMode.current
+
     private var lastPlatformCheckFailed: Boolean = false
     private var lastResourceUpdatesPayload: String? = null
 
@@ -484,6 +488,22 @@ class UpdateManager(
 
             progressHandler.invoke(Successful()) // Verifying hash success
 
+            if (containerMode.active) {
+                // Container mode: install the jar through the launcher's pointer and exit 75, the
+                // launcher relaunches on the new jar. No updater process, no detached JVM.
+                containerMode.jarPointer.stage(temporaryFile, version)
+                temporaryFile.delete()
+                logger.info("Staged Pano {} in {}, restarting through the container launcher.", version, containerMode.dataDir)
+
+                progressHandler.invoke(Successful()) // Extracting pano updater done (not needed)
+                progressHandler.invoke(Successful()) // Installation start success
+
+                logPlatformUpdate(userId, version, sqlClient)
+
+                containerMode.restartInPlace { main.shutdown(exitCode = it) }
+                return
+            }
+
             val panoUpdaterJarPath = extractPanoUpdaterJar()
 
             progressHandler.invoke(Successful()) // Extracting pano updater done
@@ -527,18 +547,7 @@ class UpdateManager(
 
             progressHandler.invoke(Successful()) // Installation start success
 
-            if (userId != null) {
-                val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
-
-                databaseManager.panelActivityLogDao.add(
-                    UpdatedPlatformLog(
-                        userId,
-                        username,
-                        "v" + Main.VERSION,
-                        version,
-                    ), sqlClient
-                )
-            }
+            logPlatformUpdate(userId, version, sqlClient)
 
             main.shutdown()
         } catch (e: DomainError) {
@@ -597,6 +606,21 @@ class UpdateManager(
         } catch (e: Throwable) {
             progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
         }
+    }
+
+    private suspend fun logPlatformUpdate(userId: Long?, version: String, sqlClient: SqlClient) {
+        if (userId == null) return
+
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            UpdatedPlatformLog(
+                userId,
+                username,
+                "v" + Main.VERSION,
+                version,
+            ), sqlClient
+        )
     }
 
     internal suspend fun init() {

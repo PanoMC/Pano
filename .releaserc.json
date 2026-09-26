@@ -24,6 +24,10 @@
             "label": false
           },
           {
+            "path": "build/libs/*.jar.sha256",
+            "label": false
+          },
+          {
             "path": "Node/build/libs/pano-node.jar",
             "label": false
           },

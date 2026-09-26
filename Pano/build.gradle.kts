@@ -2,6 +2,7 @@
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.io.FileInputStream
+import java.security.MessageDigest
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
@@ -361,6 +362,46 @@ tasks {
         dependsOn("copyJar")
 
         enabled = false
+    }
+
+    // build/libs/Pano-<version>.jar.sha256, published next to the jar: the Pano Host control plane and
+    // the Portal agent refuse a release jar they cannot verify (sha256sum format, `sha256sum -c` works).
+    register("panoJarChecksum") {
+        dependsOn(shadowJar)
+        mustRunAfter("copyJar")
+
+        val jarFile = shadowJar.flatMap { it.archiveFile }
+        val checksumFile = jarFile.map { File(buildDir, it.asFile.name + ".sha256") }
+
+        inputs.file(jarFile)
+        outputs.file(checksumFile)
+
+        doLast {
+            val jar = jarFile.get().asFile
+            val digest = MessageDigest.getInstance("SHA-256")
+
+            jar.inputStream().use { stream ->
+                val buffer = ByteArray(1 shl 16)
+
+                while (true) {
+                    val read = stream.read(buffer)
+
+                    if (read <= 0) {
+                        break
+                    }
+
+                    digest.update(buffer, 0, read)
+                }
+            }
+
+            val out = checksumFile.get()
+            out.parentFile.mkdirs()
+            out.writeText(digest.digest().joinToString("") { "%02x".format(it) } + "  " + jar.name + "\n")
+        }
+    }
+
+    named("build") {
+        dependsOn("panoJarChecksum")
     }
 }
 

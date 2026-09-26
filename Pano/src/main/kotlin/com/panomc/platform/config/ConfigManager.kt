@@ -55,6 +55,15 @@ open class ConfigManager(
         configFile.writeText(HoconWriter.render(json, PanoConfig::class.java))
     }
 
+    /**
+     * Replaces the whole running config and writes it to config.conf (a restore). Going through here
+     * matters because Pano keeps the config in memory and writes it back on save.
+     */
+    fun replaceConfig(newConfig: JsonObject) {
+        updateConfig(newConfig)
+        saveConfig()
+    }
+
     internal suspend fun init() {
         if (!configFile.exists()) {
             logger.warn("Config file not found, creating one...")

@@ -452,6 +452,8 @@ class Main : CoroutineVerticle() {
 
             initScheduleRunner()
 
+            initPanoBackupManager()
+
             initLicenseManager()
 
             // Must follow initI18nManager(): composing page.hbs resolves its title and message from
@@ -532,6 +534,12 @@ class Main : CoroutineVerticle() {
             applicationContext.getBean(com.panomc.platform.server.schedule.ScheduleRunner::class.java)
 
         scheduleRunner.start()
+    }
+
+    private fun initPanoBackupManager() {
+        logger.info("Initializing Pano Backup manager")
+
+        applicationContext.getBean(com.panomc.platform.backup.PanoBackupManager::class.java).start()
     }
 
     private fun initLicenseManager() {

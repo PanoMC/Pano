@@ -146,6 +146,11 @@ class UpdateStepAPI(
             return true
         }
 
+        // Env-managed database (Pano Host): nothing to store, the step only advances.
+        if (clientStep == 2 && setupManager.isDatabaseManaged()) {
+            return true
+        }
+
         if (
             clientStep == 2 &&
             !host.isNullOrEmpty() &&
@@ -166,6 +171,11 @@ class UpdateStepAPI(
             databaseOptions.prefix = if (prefix.isNullOrEmpty()) "" else prefix
             configManager.saveConfig()
 
+            return true
+        }
+
+        // Env-managed mail relay (Pano Host): the env wins on every boot, so nothing is stored.
+        if (clientStep == 3 && setupManager.isMailManaged()) {
             return true
         }
 

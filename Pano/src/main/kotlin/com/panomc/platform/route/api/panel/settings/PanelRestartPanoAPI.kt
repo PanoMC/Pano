@@ -7,6 +7,7 @@ import com.panomc.platform.auth.panel.log.RestartedPanoLog
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
+import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.model.*
 import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
@@ -84,6 +85,11 @@ class PanelRestartPanoAPI(
 
     private suspend fun restartApplication(background: Boolean) {
         try {
+            // Container mode: the launcher relaunches Pano on exit 75, no detached JVM (and no -bg).
+            if (ContainerMode.current.restartInPlace { main.shutdown(exitCode = it) }) {
+                return
+            }
+
             // Get current jar path
             val targetJar = Paths.get(
                 Main::class.java.protectionDomain.codeSource.location.toURI()

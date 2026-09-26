@@ -11,6 +11,9 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.hosted.PanoHostManager
+import com.panomc.platform.hosted.ContainerMode
+import com.panomc.platform.hosted.ProcessExit
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.route.RouterProvider
@@ -148,12 +151,18 @@ class Main : CoroutineVerticle() {
             // the same args (env marker prevents an infinite loop) and exits, so closing the
             // terminal/SSH session no longer kills the platform. GUI / -nogui is independent:
             // -bg alone still tries to open the Swing GUI, -bg -nogui stays headless.
-            if (bg && System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()) {
+            // In container mode the launcher owns the process (exit 75 = relaunch), so never detach.
+            val containerMode = ContainerMode.current.active
+            if (bg && containerMode) {
+                System.err.println("Ignoring -bg: Pano runs in container mode, the container launcher manages the process.")
+            }
+
+            if (bg && !containerMode && System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()) {
                 respawnDetachedAndExit(args)
                 return
             }
 
-            IS_BG = bg
+            IS_BG = bg && !containerMode
 
             if (!noGui) {
                 // Try GUI first; if it fails (headless or no display), do normal start.
@@ -190,7 +199,7 @@ class Main : CoroutineVerticle() {
                 if (!IS_BG) {
                     ConsoleInputReader.stop(true)
                 }
-                exitProcess(0)
+                processExit.exit()
             }
         }
 
@@ -203,6 +212,9 @@ class Main : CoroutineVerticle() {
         val commandManager = CommandManager()
 
         private val mainShutdownDeferred = CompletableDeferred<Unit>()
+
+        /** Exit code the main thread ends the JVM with (75 = container relaunch). */
+        val processExit = ProcessExit()
 
         fun signalMainShutdown() = mainShutdownDeferred.complete(Unit)
 
@@ -268,7 +280,11 @@ class Main : CoroutineVerticle() {
     private lateinit var databaseManager: DatabaseManager
     private val shutdownDeferred = CompletableDeferred<Unit>()
 
-    suspend fun shutdown(error: Boolean = false, exit: Boolean = true) {
+    /**
+     * Graceful shutdown. [exitCode] is what the JVM exits with afterwards (default 1 on [error], else 0);
+     * container mode passes [ContainerMode.EXIT_RESTART] so the launcher relaunches Pano.
+     */
+    suspend fun shutdown(error: Boolean = false, exit: Boolean = true, exitCode: Int = if (error) 1 else 0) {
         if (!isStopping.compareAndSet(false, true)) {
             // Wait for existing shutdown if requested
             try {
@@ -277,6 +293,7 @@ class Main : CoroutineVerticle() {
             return
         }
 
+        processExit.request(exitCode)
         logger.info("Gracefully shutting down Pano...")
 
         try {
@@ -297,7 +314,7 @@ class Main : CoroutineVerticle() {
             // we should manually exit after a delay if signal wasn't caught
             if (IS_GUI && exit) {
                 delay(1000)
-                exitProcess(if (error) 1 else 0)
+                processExit.exit()
             }
         }
     }
@@ -446,6 +463,8 @@ class Main : CoroutineVerticle() {
 
             initTelemetryManager()
 
+            initPanoHostManager()
+
             initOnlinePlayerTracker()
 
             initServerMetricsRecorder()
@@ -506,6 +525,17 @@ class Main : CoroutineVerticle() {
         val telemetryManager = applicationContext.getBean(TelemetryManager::class.java)
 
         telemetryManager.init()
+    }
+
+    /** Pano Host only: tells the control plane this instance supports panel SSO. */
+    private fun initPanoHostManager() {
+        val panoHostManager = applicationContext.getBean(PanoHostManager::class.java)
+
+        if (!panoHostManager.ssoEnabled) return
+
+        logger.info("Initializing Pano Host integration")
+
+        panoHostManager.announceCapabilities()
     }
 
     private fun initOnlinePlayerTracker() {

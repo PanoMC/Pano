@@ -2,6 +2,7 @@ package com.panomc.platform.config
 
 import com.panomc.platform.Main.Companion.IS_DEV
 import com.panomc.platform.annotation.Migration
+import com.panomc.platform.hosted.HostedEnvConfig
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
@@ -60,6 +61,7 @@ open class ConfigManager(
             logger.warn("Config file not found, creating one...")
 
             updateConfig(JsonObject(defaultConfig.toString()))
+            applyEnv(creatingConfig = true)
             saveConfig()
             listenConfigFile()
 
@@ -80,6 +82,7 @@ open class ConfigManager(
             logger.info("Saving & using default config!")
 
             updateConfig(JsonObject(defaultConfig.toString()))
+            applyEnv(creatingConfig = true)
             saveConfig()
             listenConfigFile()
 
@@ -90,11 +93,36 @@ open class ConfigManager(
 
         migrate()
 
+        if (applyEnv(creatingConfig = false)) {
+            saveConfig()
+        }
+
         listenConfigFile()
     }
 
     lateinit var config: PanoConfig
         private set
+
+    /** Replaceable in tests; the process environment otherwise. */
+    internal var envConfig: HostedEnvConfig = HostedEnvConfig.current
+
+    /**
+     * Writes container env (DB, SMTP, HTTP port, hosted trusted proxies) into [config]: every boot on
+     * Pano Host, only while creating the file elsewhere. Returns whether anything changed; logs key
+     * names only, never values.
+     */
+    internal fun applyEnv(creatingConfig: Boolean): Boolean {
+        if (!envConfig.shouldApply(creatingConfig)) return false
+
+        val changed = envConfig.apply(config)
+
+        if (changed.isNotEmpty()) {
+            logger.info("Applied environment to config: ${changed.joinToString(", ")}")
+            configJsonObject = JsonObject(config.toString())
+        }
+
+        return changed.isNotEmpty()
+    }
 
     /** Values last read from disk (or defaults), before `--dev` runtime overrides to Pano dev hosts. */
     private var persistedPanoApiUrl: String = PanoConfig.PANO_API_URL_PRODUCTION

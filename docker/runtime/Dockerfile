@@ -14,7 +14,7 @@ ARG TARGETARCH
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends tini unzip; \
+    apt-get install -y --no-install-recommends tini unzip curl ca-certificates; \
     arch="${TARGETARCH:-$(dpkg --print-architecture)}"; \
     case "$arch" in \
       amd64) bun=bun-linux-x64-baseline ;; \

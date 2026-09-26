@@ -4,7 +4,8 @@
 #   PANO_DB_USER=pano PANO_DB_PASSWORD=... scripts/smoke-install.sh
 # The database is the one Pano was configured with through env; the script only proves that the setup
 # wizard, the DB driver, the migrations, password hashing (argon2 natives) and the UIs work on this JRE.
-# The admin is smokeadmin / SMOKE_ADMIN_PASSWORD (default Sm0ke-Test-Passw0rd). Needs curl and jq. Waits up to SMOKE_TIMEOUT seconds (default 300) for each phase.
+# The admin is smokeadmin / SMOKE_ADMIN_PASSWORD (default Sm0ke-Test-Passw0rd). SMOKE_EXPECT_MANAGED_MAIL=1 (hosted with
+# PANO_SMTP_*) fails if the wizard shows the mail step instead of skipping it. Needs curl and jq. Waits up to SMOKE_TIMEOUT seconds (default 300) for each phase.
 set -euo pipefail
 
 url=${PANO_URL:-http://127.0.0.1:8088}
@@ -41,12 +42,14 @@ if [ "$step" = 2 ]; then
   put_step "$(jq -c '. + {clientStep: 2, dbType: "mariadb"}' <<<"$body")" >/dev/null
   step=$(current_step)
 fi
+if [ "$step" = 3 ] && [ -n "${SMOKE_EXPECT_MANAGED_MAIL:-}" ]; then die "the env-managed mail step (3) was not skipped"; fi
 if [ "$step" = 3 ]; then
   [ "$(step_json | jq -r '.email.password')" = "" ] || die "step 3 leaked the SMTP password"
   put_step '{"clientStep":3,"hostname":"smtp.invalid","port":587,"ssl":false,"starttls":"REQUIRED","username":"smoke","password":"smoke","sender":"smoke@example.com","authMethods":""}' >/dev/null
   [ "$(current_step)" = 4 ] || die "step 3 did not advance"
 fi
 [ "$(current_step)" = 4 ] || die "expected step 4 after the mail step, got $(current_step)"
+[ -z "${SMOKE_EXPECT_MANAGED_MAIL:-}" ] || say "mail step skipped (env-managed mail)"
 
 say "finishing the install"
 finish=$(curl -sS -X POST -H 'Content-Type: application/json' \

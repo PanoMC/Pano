@@ -4,10 +4,13 @@
 # MariaDB and a fake Pano Host control plane (python3, bound to the test network's gateway).
 #   docker/runtime/e2e.sh <Pano jar> [JRE...]     (default JREs: 11 21; linux/amd64 only)
 # The first JRE runs the full scenario: env -> config, HTTP on 8088, setup (scripts/smoke-install.sh),
-# capabilities announce, /panel/host-sso (single use), GET /api/panel/hosted, in-panel restart as an
-# exit-75 relaunch (RestartCount stays 0), a simulated self-update through /data/.pano-jar, clean stop.
+# setup never visits the env-managed mail step (1 -> 4), capabilities announce, /panel/host-sso (single use),
+# GET /api/panel/hosted, mail delivered through a fake Portal mail relay (plain SMTP + AUTH on 2525, no STARTTLS),
+# in-panel restart as an exit-75 relaunch (RestartCount stays 0), a simulated self-update through /data/.pano-jar,
+# a local Pano backup restored in the panel (the post-restore restart is an exit-75 relaunch too), clean stop.
 # Every further JRE boots the installed instance again and checks it serves (smoke).
 # PH_KEEP=1 leaves everything running for debugging. Needs docker, python3, curl, jq. Resources are named ph-w4-* (PH_PREFIX) and removed on exit.
+# The fake control plane and the fake mail relay bind the test network's gateway on PH_CP_PORT (18601) and PH_SMTP_PORT (2525).
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -19,6 +22,7 @@ jres=("$@")
 prefix=${PH_PREFIX:-ph-w4}
 http_port=${PH_HTTP_PORT:-18088}
 cp_port=${PH_CP_PORT:-18601}
+smtp_port=${PH_SMTP_PORT:-2525}
 net="$prefix-net"
 db="$prefix-db"
 pano="$prefix-pano"
@@ -29,6 +33,7 @@ data="$work/data"
 base="http://127.0.0.1:$http_port"
 failures=0
 cp_pid=
+smtp_pid=
 last_image=
 
 # agent-generated secrets are random; so are these (never printed)
@@ -37,7 +42,7 @@ db_pass=$(head -c 18 /dev/urandom | base64 | tr '+/' 'xy' | tr -d '=')
 admin_pass="E2e-$(head -c 9 /dev/urandom | base64 | tr '+/' 'xy')1"
 
 cleanup() {
-  if [ -n "${PH_KEEP:-}" ]; then echo "PH_KEEP: left $pano, $db, $net, $work and the fake control plane (pid $cp_pid) running"; return; fi
+  if [ -n "${PH_KEEP:-}" ]; then echo "PH_KEEP: left $pano, $db, $net, $work and the fake control plane (pid $cp_pid) and mail relay (pid $smtp_pid) running"; return; fi
   docker rm -f "$pano" >/dev/null 2>&1 || true
   if [ -n "$last_image" ] && [ -d "$data" ]; then
     docker run --rm --user 0 --network none --entrypoint sh -v "$data:/data" "$last_image" -c 'rm -rf /data/* /data/.[!.]*' >/dev/null 2>&1 || true
@@ -45,6 +50,7 @@ cleanup() {
   docker rm -f "$db" >/dev/null 2>&1 || true
   docker network rm "$net" >/dev/null 2>&1 || true
   [ -n "$cp_pid" ] && kill "$cp_pid" 2>/dev/null || true
+  [ -n "$smtp_pid" ] && kill "$smtp_pid" 2>/dev/null || true
   for jre in "${jres[@]}"; do docker rmi -f "$prefix-runtime:jre$jre" >/dev/null 2>&1 || true; done
   rm -rf "$work" 2>/dev/null || true
 }
@@ -65,6 +71,7 @@ restart_count() { docker inspect -f '{{.RestartCount}}' "$pano"; }
 running() { [ "$(docker inspect -f '{{.State.Running}}' "$pano" 2>/dev/null)" = true ]; }
 no_secret_in_logs() { ! docker logs "$pano" 2>&1 | grep -qF -e "$secret" -e "$db_pass"; }
 not_matching() { ! grep -Eq "$1" <<<"$2"; }
+jqok() { jq -e "$@" >/dev/null; }
 not_contains() { ! grep -qF -- "$2" <<<"$1"; }
 logs_have() { docker logs "$pano" 2>&1 | grep -q -- "$1"; }
 
@@ -72,7 +79,7 @@ logs_have() { docker logs "$pano" 2>&1 | grep -q -- "$1"; }
 docker network create "$net" >/dev/null
 gateway=$(docker network inspect -f '{{(index .IPAM.Config 0).Gateway}}' "$net")
 
-docker run -d --name "$db" --network "$net" --memory 1536m --memory-swap 1536m --cpus 2 \
+docker run -d --name "$db" --network "$net" --memory 1024m --memory-swap 1024m --cpus 2 \
   -e MARIADB_RANDOM_ROOT_PASSWORD=1 -e MARIADB_DATABASE=pano_w -e MARIADB_USER=pano_w -e "MARIADB_PASSWORD=$db_pass" \
   mariadb:11 >/dev/null
 
@@ -114,6 +121,54 @@ cp_pid=$!
 wait_for 10 curl -fsS -X POST --data '{"ticket":"warmup-warmup-warmup","data":{}}' "http://$gateway:$cp_port/_issue" \
   || { echo "fake control plane did not start"; exit 1; }
 
+# A fake Portal mail relay: plain SMTP that offers AUTH but no STARTTLS (like the agent's relay on 2525).
+# Logs one JSON line per accepted message (auth user, whether STARTTLS was asked for, recipients, size).
+cat > "$work/relay.py" <<'PY'
+import base64, json, socketserver, sys
+host, port, log = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+class H(socketserver.StreamRequestHandler):
+    def send(self, line): self.wfile.write((line + "\r\n").encode()); self.wfile.flush()
+    def handle(self):
+        user, rcpts, starttls = None, [], False
+        self.send("220 relay.e2e ESMTP")
+        while True:
+            raw = self.rfile.readline(65536)
+            if not raw: return
+            line = raw.decode("utf-8", "replace").rstrip("\r\n"); verb = line.split(" ", 1)[0].upper()
+            if verb in ("EHLO", "HELO"): self.send("250-relay.e2e\r\n250-AUTH PLAIN LOGIN\r\n250-8BITMIME\r\n250 SIZE 26214400")
+            elif verb == "STARTTLS": starttls = True; self.send("502 5.5.1 STARTTLS not offered")
+            elif verb == "AUTH":
+                parts = line.split()
+                if parts[1].upper() == "PLAIN":
+                    if len(parts) > 2: resp = parts[2]
+                    else: self.send("334 "); resp = self.rfile.readline().decode().strip()
+                    user = base64.b64decode(resp).split(b"\0")[1].decode()
+                else:
+                    self.send("334 VXNlcm5hbWU6"); user = base64.b64decode(self.rfile.readline().decode().strip()).decode()
+                    self.send("334 UGFzc3dvcmQ6"); self.rfile.readline()
+                self.send("235 2.7.0 Authentication successful")
+            elif verb == "MAIL": rcpts = []; self.send("250 2.1.0 Ok")
+            elif verb == "RCPT": rcpts.append(line.split(":", 1)[1].strip().strip("<>").split(">")[0]); self.send("250 2.1.5 Ok")
+            elif verb == "DATA":
+                self.send("354 End data with <CR><LF>.<CR><LF>"); size = 0
+                while True:
+                    chunk = self.rfile.readline(1 << 20)
+                    if not chunk or chunk in (b".\r\n", b".\n"): break
+                    size += len(chunk)
+                with open(log, "a") as f: f.write(json.dumps({"user": user, "starttls": starttls, "rcpt": rcpts, "size": size}) + "\n")
+                self.send("250 2.0.0 Ok: queued")
+            elif verb == "RSET": rcpts = []; self.send("250 Ok")
+            elif verb == "NOOP": self.send("250 Ok")
+            elif verb == "QUIT": self.send("221 Bye"); return
+            else: self.send("502 5.5.2 Command not recognized")
+class S(socketserver.ThreadingTCPServer): allow_reuse_address = True; daemon_threads = True
+S((host, port), H).serve_forever()
+PY
+touch "$work/relay.log"
+python3 "$work/relay.py" "$gateway" "$smtp_port" "$work/relay.log" &
+smtp_pid=$!
+wait_for 10 sh -c "exec 3<>/dev/tcp/$gateway/$smtp_port" || { echo "fake mail relay did not start"; exit 1; }
+
 # ---- the Pano Instance container (ContainerPlan.runArgs with runtimeLauncher=image) --------------
 mkdir -p "$data"
 cp "$jar" "$data/Pano-e2e-a.jar"
@@ -121,7 +176,7 @@ printf 'Pano-e2e-a.jar' > "$data/.pano-jar"
 
 export PANO_HOSTED=pano-host PANO_HOST_WORKLOAD_ID=$workload PANO_HOST_INSTANCE_SECRET=$secret \
   PANO_HOST_API_URL="http://$gateway:$cp_port/api" PANO_DB_HOST=$db PANO_DB_PORT=3306 PANO_DB_NAME=pano_w \
-  PANO_DB_USER=pano_w PANO_DB_PASSWORD=$db_pass PANO_SMTP_HOST=$prefix-mail PANO_SMTP_PORT=2525 \
+  PANO_DB_USER=pano_w PANO_DB_PASSWORD=$db_pass PANO_SMTP_HOST=$gateway PANO_SMTP_PORT=$smtp_port \
   PANO_SMTP_USER=pano_w PANO_SMTP_PASSWORD=smtp-e2e PANO_JVM_ARGS="-Xmx512m -XX:+UseSerialGC"
 
 run_pano() { # image
@@ -169,13 +224,13 @@ for jre in "${jres[@]}"; do
     conf=$(in_pano 'cat /data/config.conf')
     check "config: database host from env" grep -q "\"$db:3306\"" <<<"$conf"
     check "config: http-port 8088" grep -Eq 'http-port *[=:] *8088' <<<"$conf"
-    check "config: SMTP relay from env" grep -q "$prefix-mail" <<<"$conf"
+    check "config: SMTP relay from env" grep -q "\"$gateway\"" <<<"$conf"
     check "config: relay STARTTLS not required" not_matching 'starttls *[=:] *"?REQUIRED' "$conf"
     check "logs carry no secret values" no_secret_in_logs
 
     echo "  -- setup (scripts/smoke-install.sh)"
     if PANO_URL=$base PANO_DB_HOST=$db PANO_DB_PORT=3306 PANO_DB_NAME=pano_w PANO_DB_USER=pano_w PANO_DB_PASSWORD=$db_pass \
-      SMOKE_TIMEOUT=240 SMOKE_ADMIN_PASSWORD=$admin_pass "$root/scripts/smoke-install.sh"; then pass "setup through the API"; else
+      SMOKE_TIMEOUT=240 SMOKE_ADMIN_PASSWORD=$admin_pass SMOKE_EXPECT_MANAGED_MAIL=1 "$root/scripts/smoke-install.sh"; then pass "setup through the API"; else
       fail "setup through the API"; docker logs --tail 80 "$pano" 2>&1; break; fi
     check "capabilities announced {ssoSupported} with the instance secret" wait_for 60 sh -c "grep -q '\"path\": \"/api/host/instance/capabilities\", \"authed\": true, \"keys\": \[\"ssoSupported\"\]' '$work/cp.log'"
 
@@ -217,6 +272,54 @@ for jre in "${jres[@]}"; do
     check "Pano serves after the update" wait_for 240 serves /panel/_app/version.json 200
     check "container RestartCount stays 0 after the update" test "$(restart_count)" = 0
     check "container never stopped" running
+
+    echo "  -- local Pano backup (taken before the mail user exists)"
+    login() {
+      rm -f "$work/admin.jar"
+      curl -fsS -c "$work/admin.jar" -H 'Content-Type: application/json' \
+        --data "{\"usernameOrEmail\":\"smokeadmin\",\"password\":\"$admin_pass\",\"panel\":true}" "$base/api/auth/login" >/dev/null &&
+        csrf=$(awk '$6 ~ /csrf_token/ {print $7}' "$work/admin.jar" | head -1)
+    }
+    panel() { # method path [body]
+      curl -sS -X "$1" -b "$work/admin.jar" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' ${3:+--data "$3"} "$base$2"
+    }
+    job_status() { panel GET /api/panel/pano-backups/job | jq -r '.job.status // empty'; }
+    job_done() { [ "$(job_status)" = DONE ]; }
+    check "admin login after the update" login
+    backup=$(panel POST /api/panel/pano-backups '{}')
+    check "backup job started" jqok '.result == "ok" and .job.type == "CREATE"' <<<"$backup"
+    check "backup job finished" wait_for 180 job_done
+    backup_id=$(panel GET /api/panel/pano-backups/job | jq -r '.job.backupId // empty')
+    check "backup listed" sh -c "test -n '$backup_id'"
+
+    echo "  -- mail through the Portal mail relay (no STARTTLS)"
+    mail_user=e2email$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    mail_to="$mail_user@example.com"
+    curl -sS -H 'Content-Type: application/json' \
+      --data "{\"username\":\"$mail_user\",\"email\":\"$mail_to\",\"password\":\"$admin_pass\",\"passwordRepeat\":\"$admin_pass\",\"agreement\":true}" \
+      "$base/api/auth/register" >"$work/register.json"
+    check "a new player registers" jqok '.result == "ok"' "$work/register.json"
+    check "the player exists before the restore" jqok '.result == "ok"' <<<"$(panel GET "/api/panel/players/$mail_user/exists")"
+    # registration mails only when verification is required; the panel's resend always mails an unverified player
+    panel POST "/api/panel/players/$mail_user/verificationMail" >"$work/verify.json"
+    relayed() { grep -F "\"$mail_to\"" "$work/relay.log" | grep -q '"user": "pano_w"'; }
+    check "activation mail reached the relay with the env credentials" wait_for 60 relayed
+    check "Pano never asked the relay for STARTTLS" not_contains "$(cat "$work/relay.log")" '"starttls": true'
+    check "no mail error logged" sh -c "! docker logs '$pano' 2>&1 | grep -Eqi 'SMTPException|Failed to send mail|STARTTLS is required'"
+
+    echo "  -- restore of the local backup (post-restore restart = exit 75)"
+    relaunches() { docker logs "$pano" 2>&1 | grep -c 'pano-launcher: planned restart (exit 75)' || true; }
+    before=$(relaunches)
+    restore=$(panel POST "/api/panel/pano-backups/$backup_id/restore" "{\"currentPassword\":\"$admin_pass\"}")
+    check "restore accepted" jqok '.result == "ok" and .job.type == "RESTORE"' <<<"$restore"
+    relaunched() { [ "$(relaunches)" -gt "$before" ]; }
+    check "launcher relaunched after the restore (exit 75)" wait_for 240 relaunched
+    check "Pano serves after the restore" wait_for 240 serves /panel/_app/version.json 200
+    check "admin login after the restore" wait_for 60 login
+    check "the restored database predates the mail user" test "$(panel GET "/api/panel/players/$mail_user/exists" | jq -r '.error // empty')" = NOT_EXISTS
+    check "container RestartCount stays 0 after the restore" test "$(restart_count)" = 0
+    check "the jar pointer survives the restore" sh -c "docker exec '$pano' cat /data/.pano-jar | grep -qx 'Pano-e2e-b.jar'"
+    check "container never stopped (restore)" running
   else
     check "jre$jre: installed instance serves /" wait_for 240 serves / 200
     check "jre$jre: installed instance serves panel-ui" wait_for 120 serves /panel/_app/version.json 200

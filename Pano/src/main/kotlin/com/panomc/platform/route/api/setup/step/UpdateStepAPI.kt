@@ -146,6 +146,11 @@ class UpdateStepAPI(
             return true
         }
 
+        // Env-managed database (Pano Host): nothing to store, the step only advances.
+        if (clientStep == 2 && setupManager.isDatabaseManaged()) {
+            return true
+        }
+
         if (
             clientStep == 2 &&
             !host.isNullOrEmpty() &&

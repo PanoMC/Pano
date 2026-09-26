@@ -84,14 +84,14 @@ class UpdateManager(
     @Autowired
     private lateinit var logger: Logger
 
+    /** Replaceable in tests; the process-wide detection otherwise. */
+    internal var containerMode: ContainerMode = ContainerMode.current
+
     /**
      * State for the background update sweep so we only log the "Failed to check Pano updates!"
      * and "No resource update found!" lines on transitions instead of every minute. Read/written
      * from the periodic coroutine only — no cross-thread access.
      */
-    /** Replaceable in tests; the process-wide detection otherwise. */
-    internal var containerMode: ContainerMode = ContainerMode.current
-
     private var lastPlatformCheckFailed: Boolean = false
     private var lastResourceUpdatesPayload: String? = null
 

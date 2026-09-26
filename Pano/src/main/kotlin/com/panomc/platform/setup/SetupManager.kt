@@ -5,6 +5,7 @@ import com.panomc.platform.PluginEventManager
 import com.panomc.platform.api.event.SetupEventListener
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.hosted.HostedEnvConfig
 import io.vertx.core.json.JsonObject
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.ApplicationContext
@@ -25,6 +26,15 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         applicationContext.getBean(MariaDBManager::class.java)
     }
 
+    /** Replaceable in tests; the process environment otherwise. */
+    internal var envConfig: HostedEnvConfig = HostedEnvConfig.current
+
+    /**
+     * On Pano Host the database comes from the container env (re-applied every boot), so the wizard
+     * skips its DB step and never accepts or returns DB credentials.
+     */
+    fun isDatabaseManaged() = envConfig.isHosted && envConfig.databaseManaged
+
     fun isSetupDone() = getCurrentStep() == 5
 
     fun getCurrentStepData(): JsonObject {
@@ -43,7 +53,9 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
 
         if (step == 2) {
             val databaseConfig = configManager.config.database
-            
+            val managed = isDatabaseManaged()
+
+            data.put("databaseManaged", managed)
             data.put("dbType", databaseConfig.type)
             data.put("installed", mariaDBManager.isInstalled())
             data.put("installProgress", mariaDBManager.installProgress)
@@ -55,7 +67,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
                     "host" to databaseConfig.host,
                     "dbName" to databaseConfig.name,
                     "username" to databaseConfig.username,
-                    "password" to databaseConfig.password,
+                    "password" to if (managed) "" else databaseConfig.password,
                     "prefix" to databaseConfig.prefix
                 )
             )
@@ -94,6 +106,8 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             return
         else if (step < 0)
             updateStep(0)
+        else if (step == 2 && isDatabaseManaged())
+            updateStep(1)
         else
             updateStep(step)
     }
@@ -103,6 +117,8 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
 
         if (currentStep - 1 < 0)
             updateStep(0)
+        else if (currentStep - 1 == 2 && isDatabaseManaged())
+            updateStep(1)
         else
             updateStep(currentStep - 1)
     }
@@ -112,6 +128,8 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
 
         if (currentStep + 1 > 4)
             updateStep(4)
+        else if (currentStep + 1 == 2 && isDatabaseManaged())
+            updateStep(3)
         else
             updateStep(currentStep + 1)
     }

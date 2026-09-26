@@ -64,6 +64,7 @@ in_pano() { docker exec "$pano" sh -c "$1"; }
 restart_count() { docker inspect -f '{{.RestartCount}}' "$pano"; }
 running() { [ "$(docker inspect -f '{{.State.Running}}' "$pano" 2>/dev/null)" = true ]; }
 no_secret_in_logs() { ! docker logs "$pano" 2>&1 | grep -qF -e "$secret" -e "$db_pass"; }
+not_matching() { ! grep -Eq "$1" <<<"$2"; }
 not_contains() { ! grep -qF -- "$2" <<<"$1"; }
 logs_have() { docker logs "$pano" 2>&1 | grep -q -- "$1"; }
 
@@ -120,7 +121,7 @@ printf 'Pano-e2e-a.jar' > "$data/.pano-jar"
 
 export PANO_HOSTED=pano-host PANO_HOST_WORKLOAD_ID=$workload PANO_HOST_INSTANCE_SECRET=$secret \
   PANO_HOST_API_URL="http://$gateway:$cp_port/api" PANO_DB_HOST=$db PANO_DB_PORT=3306 PANO_DB_NAME=pano_w \
-  PANO_DB_USER=pano_w PANO_DB_PASSWORD=$db_pass PANO_SMTP_HOST=$prefix-mail PANO_SMTP_PORT=587 \
+  PANO_DB_USER=pano_w PANO_DB_PASSWORD=$db_pass PANO_SMTP_HOST=$prefix-mail PANO_SMTP_PORT=2525 \
   PANO_SMTP_USER=pano_w PANO_SMTP_PASSWORD=smtp-e2e PANO_JVM_ARGS="-Xmx512m -XX:+UseSerialGC"
 
 run_pano() { # image
@@ -169,6 +170,7 @@ for jre in "${jres[@]}"; do
     check "config: database host from env" grep -q "\"$db:3306\"" <<<"$conf"
     check "config: http-port 8088" grep -Eq 'http-port *[=:] *8088' <<<"$conf"
     check "config: SMTP relay from env" grep -q "$prefix-mail" <<<"$conf"
+    check "config: relay STARTTLS not required" not_matching 'starttls *[=:] *"?REQUIRED' "$conf"
     check "logs carry no secret values" no_secret_in_logs
 
     echo "  -- setup (scripts/smoke-install.sh)"

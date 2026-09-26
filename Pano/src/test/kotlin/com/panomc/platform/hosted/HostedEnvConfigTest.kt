@@ -120,7 +120,8 @@ class HostedEnvConfigTest {
         assertEquals("wl_1", mail.getString("username"))
         assertEquals("smtp-secret", mail.getString("password"))
         assertFalse(mail.getBoolean("ssl"))
-        assertEquals("REQUIRED", mail.getString("starttls"))
+        // Hosted: the Portal relay has no STARTTLS, so 587 must not demand it.
+        assertEquals("OPTIONAL", mail.getString("starttls"))
         assertEquals("Pano <no-reply@example.com>", mail.getString("sender"))
 
         val server = reloaded.getJsonObject("server")
@@ -196,6 +197,37 @@ class HostedEnvConfigTest {
         HostedEnvConfig(base + ("PANO_SMTP_PORT" to "25")).apply(plain)
         assertFalse(plain.email.ssl)
         assertEquals("OPTIONAL", plain.email.starttls)
+
+        val relay = load(file)
+        HostedEnvConfig(base + ("PANO_SMTP_PORT" to "2525")).apply(relay)
+        assertFalse(relay.email.ssl)
+        assertEquals("OPTIONAL", relay.email.starttls)
+    }
+
+    @Test
+    fun `starttls is required on 587 only outside Pano Host and can be overridden`() {
+        val file = writeConf()
+
+        val hostedSubmission = load(file)
+        HostedEnvConfig(mapOf("PANO_HOSTED" to "pano-host", "PANO_SMTP_HOST" to "relay", "PANO_SMTP_PORT" to "587")).apply(hostedSubmission)
+        assertEquals("OPTIONAL", hostedSubmission.email.starttls)
+
+        val selfRun = load(file)
+        HostedEnvConfig(mapOf("PANO_CONTAINER" to "1", "PANO_SMTP_HOST" to "smtp.example.com", "PANO_SMTP_PORT" to "587")).apply(selfRun)
+        assertFalse(selfRun.email.ssl)
+        assertEquals("REQUIRED", selfRun.email.starttls)
+
+        val forced = load(file)
+        HostedEnvConfig(mapOf("PANO_HOSTED" to "pano-host", "PANO_SMTP_HOST" to "relay", "PANO_SMTP_PORT" to "2525", "PANO_SMTP_STARTTLS" to "required")).apply(forced)
+        assertEquals("REQUIRED", forced.email.starttls)
+
+        val disabled = load(file)
+        HostedEnvConfig(mapOf("PANO_CONTAINER" to "1", "PANO_SMTP_HOST" to "smtp", "PANO_SMTP_STARTTLS" to "disabled")).apply(disabled)
+        assertEquals("DISABLED", disabled.email.starttls)
+
+        val bogus = load(file)
+        HostedEnvConfig(mapOf("PANO_CONTAINER" to "1", "PANO_SMTP_HOST" to "smtp", "PANO_SMTP_STARTTLS" to "sometimes")).apply(bogus)
+        assertEquals("REQUIRED", bogus.email.starttls)
     }
 
     @Test

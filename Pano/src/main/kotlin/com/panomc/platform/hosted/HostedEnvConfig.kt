@@ -21,6 +21,8 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
         const val DEFAULT_DB_PORT = 3306
         const val DEFAULT_SMTP_PORT = 587
 
+        val STARTTLS_MODES = setOf("DISABLED", "OPTIONAL", "REQUIRED")
+
         /** panomc.com's per-workload management page is `<this>/<workloadId>`. */
         const val DEFAULT_MANAGE_URL = "https://panomc.com/host/manage"
 
@@ -93,6 +95,9 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
         )
     }
 
+    /** `PANO_SMTP_STARTTLS` (DISABLED, OPTIONAL or REQUIRED) overrides the mode derived from the port. */
+    val smtpStartTls: String? = value("PANO_SMTP_STARTTLS")?.uppercase()?.takeIf { it in STARTTLS_MODES }
+
     /** `PANO_HTTP_PORT`, else 8088 in container mode, else none. */
     val httpPort: Int? = port("PANO_HTTP_PORT", null) ?: if (isContainer) CONTAINER_HTTP_PORT else null
 
@@ -129,10 +134,13 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
 
         smtp?.let { smtp ->
             val c = config.email
-            val (ssl, starttls) = when (smtp.port) {
-                465 -> true to "DISABLED"
-                587 -> false to "REQUIRED"
-                else -> false to "OPTIONAL"
+            val ssl = smtp.port == 465
+            val starttls = smtpStartTls ?: when {
+                ssl -> "DISABLED"
+                // Pano Host's SMTP is the Portal mail relay on the private workload network, which
+                // offers no STARTTLS: REQUIRED would fail every mail, so never demand it there.
+                smtp.port == 587 && !isHosted -> "REQUIRED"
+                else -> "OPTIONAL"
             }
 
             set("email.enabled", c.enabled, true) { c.enabled = it }

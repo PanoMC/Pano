@@ -4,7 +4,7 @@
 #   PANO_DB_USER=pano PANO_DB_PASSWORD=... scripts/smoke-install.sh
 # The database is the one Pano was configured with through env; the script only proves that the setup
 # wizard, the DB driver, the migrations, password hashing (argon2 natives) and the UIs work on this JRE.
-# Needs curl and jq. Waits up to SMOKE_TIMEOUT seconds (default 300) for each phase.
+# The admin is smokeadmin / SMOKE_ADMIN_PASSWORD (default Sm0ke-Test-Passw0rd). Needs curl and jq. Waits up to SMOKE_TIMEOUT seconds (default 300) for each phase.
 set -euo pipefail
 
 url=${PANO_URL:-http://127.0.0.1:8088}
@@ -48,7 +48,8 @@ put_step '{"clientStep":3,"hostname":"smtp.invalid","port":587,"ssl":false,"star
 
 say "finishing the install"
 finish=$(curl -sS -X POST -H 'Content-Type: application/json' \
-  --data '{"username":"smokeadmin","email":"smoke@example.com","password":"Sm0ke-Test-Passw0rd","setupLocale":"en-US","telemetryEnabled":false}' \
+  --data "$(jq -nc --arg pass "${SMOKE_ADMIN_PASSWORD:-Sm0ke-Test-Passw0rd}" \
+    '{username: "smokeadmin", email: "smoke@example.com", password: $pass, setupLocale: "en-US", telemetryEnabled: false}')" \
   "$url/api/setup/finish")
 [ "$(jq -r .result <<<"$finish")" = ok ] || die "finish failed: $(jq -c 'del(.jwt, .token, .csrfToken)' <<<"$finish" 2>/dev/null || echo "$finish" | head -c 300)"
 
@@ -57,7 +58,8 @@ wait_until "the setup API to report the install" installed
 
 served() { local code; code=$(curl -s -o /dev/null -w '%{http_code}' "$url/"); [ "$code" = 200 ]; }
 wait_until "the theme to serve /" served
-served_panel() { local code; code=$(curl -s -o /dev/null -w '%{http_code}' "$url/panel/login"); [ "$code" = 200 ]; }
-wait_until "the panel to serve /panel/login" served_panel
+# the panel's pages depend on the session and usage mode; its SvelteKit version file only on panel-ui being up
+served_panel() { local code; code=$(curl -s -o /dev/null -w '%{http_code}' "$url/panel/_app/version.json"); [ "$code" = 200 ]; }
+wait_until "panel-ui behind /panel" served_panel
 
 say "ok: installed and serving on $url"

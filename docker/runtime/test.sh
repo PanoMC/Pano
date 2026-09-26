@@ -114,7 +114,7 @@ for jre in "${jres[@]}"; do
     test "$code" = 0 -a "$(cut -d' ' -f1 "$data/launches.log" | tr '\n' ' ')" = "Pano-a.jar Pano-b.jar "
   check "planned restart is logged" grep -q 'planned restart (exit 75)' "$work/out.log"
   check "jar runs with -nogui and never -bg" grep -q 'args=-nogui ' "$data/launches.log"
-  check "default heap is 75% of the container" grep -q 'jvm=-Duser.home=/data,-XX:MaxRAMPercentage=75 ' "$data/launches.log"
+  check "default heap is 75% of the container" grep -q 'jvm=-Duser.home=/data,-Djansi.tmpdir=/data/.cache/natives,-Djline.tmpdir=/data/.cache/natives,-XX:MaxRAMPercentage=75 ' "$data/launches.log"
   check "user.home and workdir are /data (uid without passwd entry)" grep -q 'home=/data cwd=/data' "$data/launches.log"
 
   reset_data 42 Pano-a.jar
@@ -140,7 +140,7 @@ for jre in "${jres[@]}"; do
   reset_data 0 Pano-a.jar
   set +e; run_fg -e "PANO_JVM_ARGS=-Xmx123m -Dpano.test=1"; code=$?; set -e
   check "PANO_JVM_ARGS replaces the default heap" \
-    grep -q 'jvm=-Duser.home=/data,-Xmx123m,-Dpano.test=1 ' "$data/launches.log"
+    grep -q 'jvm=-Duser.home=/data,-Djansi.tmpdir=/data/.cache/natives,-Djline.tmpdir=/data/.cache/natives,-Xmx123m,-Dpano.test=1 ' "$data/launches.log"
 
   reset_data bun Pano-a.jar
   set +e; run_fg; code=$?; set -e

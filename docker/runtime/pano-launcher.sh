@@ -21,6 +21,9 @@ seed_bun() {
   ln -s /opt/pano/bun "$link" 2>/dev/null || true
 }
 
+# The agent mounts /tmp noexec: jansi / jline unpack their natives next to the app instead.
+natives="$data/.cache/natives"
+
 stop=0
 pid=
 trap 'stop=1; [ -n "$pid" ] && kill -TERM "$pid" 2>/dev/null' TERM INT
@@ -37,9 +40,10 @@ while :; do
     exit 64
   fi
   seed_bun
+  mkdir -p "$natives" 2>/dev/null || true
   # shellcheck disable=SC2086 # PANO_JVM_ARGS is a space separated list, globbing is off (set -f)
   # arbitrary --user uids have no passwd entry, so the JVM would report user.home as "?"
-  java "-Duser.home=${HOME:-$data}" $jvm_args -jar "$data/$jar" -nogui <&3 &
+  java "-Duser.home=${HOME:-$data}" "-Djansi.tmpdir=$natives" "-Djline.tmpdir=$natives" $jvm_args -jar "$data/$jar" -nogui <&3 &
   pid=$!
   wait "$pid"; code=$?
   while [ "$stop" = 1 ] && kill -0 "$pid" 2>/dev/null; do wait "$pid"; code=$?; done

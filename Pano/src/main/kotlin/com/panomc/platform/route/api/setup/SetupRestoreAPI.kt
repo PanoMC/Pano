@@ -31,10 +31,12 @@ class SetupRestoreAPI(
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
-    override fun bodyHandler(): Handler<RoutingContext> = BodyHandler.create()
-        .setDeleteUploadedFilesOnEnd(true)
-        .setUploadsDirectory(configManager.config.fileUploadsFolder + File.separator + "temp")
-        .setBodyLimit(PanoBackupRoutes.MAX_UPLOAD_BYTES)
+    override fun bodyHandler(): Handler<RoutingContext> = authorizedBodyHandler(
+        BodyHandler.create()
+            .setDeleteUploadedFilesOnEnd(true)
+            .setUploadsDirectory(configManager.config.fileUploadsFolder + File.separator + "temp")
+            .setBodyLimit(PanoBackupRoutes.MAX_UPLOAD_BYTES)
+    )
 
     override suspend fun handle(context: RoutingContext): Result {
         val request = context.request()

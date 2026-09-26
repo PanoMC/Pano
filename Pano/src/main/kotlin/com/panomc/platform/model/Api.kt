@@ -61,7 +61,9 @@ abstract class Api : Route() {
 
     override fun getHandler() = Handler<RoutingContext> { context ->
         CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
-            onBeforeHandle(context)
+            if (context.get<Boolean>(BEFORE_HANDLE_DONE) != true) {
+                onBeforeHandle(context)
+            }
 
             val result = handle(context)
 
@@ -133,6 +135,30 @@ abstract class Api : Route() {
         context.fail(exception)
     }
 
+    /**
+     * Wraps [bodyHandler] so [onBeforeHandle] (setup state, login, panel access, maintenance) and
+     * [checkBeforeBody] run before a single byte of the body is read or spooled to disk. Meant for
+     * routes that accept large uploads: without it the router's body handler would store the whole
+     * upload before anyone is asked whether the caller may send it. The request is paused while the
+     * checks run; a failed check fails the route without reading the body.
+     */
+    protected fun authorizedBodyHandler(bodyHandler: Handler<RoutingContext>): Handler<RoutingContext> =
+        Handler { context ->
+            context.request().pause()
+
+            CoroutineScope(context.vertx().dispatcher()).launch(getExceptionHandler(context)) {
+                onBeforeHandle(context)
+                checkBeforeBody(context)
+
+                context.put(BEFORE_HANDLE_DONE, true)
+
+                bodyHandler.handle(context)
+            }
+        }
+
+    /** Extra checks (e.g. a permission) for [authorizedBodyHandler], run before the body is read. */
+    open suspend fun checkBeforeBody(context: RoutingContext) = Unit
+
     fun getParameters(context: RoutingContext): RequestParameters = context.get(REQUEST_CONTEXT_KEY)
 
     abstract override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler?
@@ -175,5 +201,10 @@ abstract class Api : Route() {
 
     open fun isAllowedInDemo(method: HttpMethod): Boolean {
         return method == HttpMethod.GET || method == HttpMethod.OPTIONS
+    }
+
+    companion object {
+        /** Set once [authorizedBodyHandler] has already run [onBeforeHandle] for this request. */
+        const val BEFORE_HANDLE_DONE = "pano.api.beforeHandleDone"
     }
 }

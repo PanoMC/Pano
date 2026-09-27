@@ -23,6 +23,21 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
     /** Next N capability calls answer 503 (to exercise the retry loop). */
     val failCapabilities = AtomicInteger(0)
 
+    /** Pre-W18 control plane: capabilities only accepts `{ssoSupported}`. */
+    var legacyCapabilities = false
+    var setupCompleted: Boolean? = null
+
+    /** `POST /host/instance/bootstrap` answer: status + `data` (ok) or error code. */
+    var bootstrapStatus = 404
+    var bootstrapData: JsonObject? = null
+    var bootstrapError = "NO_BOOTSTRAP"
+
+    /** Next N bootstrap calls answer 503. */
+    val failBootstrap = AtomicInteger(0)
+
+    /** Handover codes `/platform/authorize` accepts once → the platform row it answers with. */
+    val platformCodes = ConcurrentHashMap<String, JsonObject>()
+
     private lateinit var server: HttpServer
     var port = 0
         private set
@@ -45,15 +60,35 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
                 when {
                     req.path() == "$prefix/host/instance/notices" && req.method().name() == "GET" ->
                         if (auth != "Bearer $secret") error(401, "INVALID_TOKEN") else ok(JsonObject().put("notices", notices))
-                    req.path() !in setOf("$prefix/host/sso/redeem", "$prefix/host/instance/capabilities") -> error(404, "NOT_EXISTS")
+                    req.path() == "$prefix/platform/authorize" -> {
+                        val code = body?.getString("code")
+                        val version = body?.getString("version")
+                        if (auth != null || body?.fieldNames() != setOf("code", "version") || version == null || version.length !in 5..17) {
+                            error(400, "BAD_REQUEST")
+                        } else platformCodes.remove(code)?.let { ok(it) } ?: error(400, "INVALID_CODE")
+                    }
+                    req.path() !in setOf(
+                        "$prefix/host/sso/redeem",
+                        "$prefix/host/instance/capabilities",
+                        "$prefix/host/instance/bootstrap"
+                    ) -> error(404, "NOT_EXISTS")
                     body == null -> error(400, "BAD_REQUEST")
                     auth != "Bearer $secret" -> error(401, "INVALID_TOKEN")
+                    req.path().endsWith("/bootstrap") -> when {
+                        body.fieldNames().isNotEmpty() -> error(400, "BAD_REQUEST")
+                        failBootstrap.getAndDecrement() > 0 -> error(503, "UNAVAILABLE")
+                        bootstrapStatus == 200 -> ok(bootstrapData!!.copy())
+                        else -> error(bootstrapStatus, bootstrapError)
+                    }
                     req.path().endsWith("/capabilities") -> {
-                        if (body.fieldNames() != setOf("ssoSupported")) error(400, "BAD_REQUEST")
+                        val allowed = if (legacyCapabilities) setOf(setOf("ssoSupported"))
+                        else setOf(setOf("ssoSupported"), setOf("ssoSupported", "setupCompleted"))
+                        if (body.fieldNames() !in allowed) error(400, "BAD_REQUEST")
                         else if (failCapabilities.getAndDecrement() > 0) error(503, "UNAVAILABLE")
                         else {
                             ssoSupported = body.getBoolean("ssoSupported")
-                            ok(JsonObject().put("ssoSupported", ssoSupported))
+                            body.getBoolean("setupCompleted")?.let { setupCompleted = it }
+                            ok(JsonObject().put("ssoSupported", ssoSupported).put("setupCompleted", setupCompleted == true))
                         }
                     }
                     else -> {

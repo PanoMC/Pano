@@ -12,8 +12,9 @@ import kotlinx.coroutines.delay
 import java.net.URI
 
 /**
- * Server-to-server client for the Pano Host control plane (host-api.md §SSO): announces the
- * instance's capabilities and redeems SSO tickets, authenticated by `PANO_HOST_INSTANCE_SECRET`.
+ * Server-to-server client for the Pano Host control plane (host-api.md §SSO, §Instance bootstrap):
+ * announces the instance's capabilities, fetches the first-boot answers and redeems SSO tickets,
+ * authenticated by `PANO_HOST_INSTANCE_SECRET`.
  *
  * URLs are `PANO_HOST_API_URL` + `/host/...` (the dev URL carries an `/api` prefix, the live one
  * none). Responses are Parsek envelopes: `{result: "ok", data}` or `{result: "error", error}`.
@@ -102,9 +103,21 @@ class PanoHostClient(
         return json.getJsonObject("data") ?: JsonObject()
     }
 
-    /** `POST /host/instance/capabilities {ssoSupported}`. */
-    suspend fun announceCapabilities(ssoSupported: Boolean = true): Boolean {
-        val data = post("/host/instance/capabilities", JsonObject().put("ssoSupported", ssoSupported))
+    /**
+     * `POST /host/instance/capabilities {ssoSupported, setupCompleted?}`. `setupCompleted` is only
+     * sent when true; a control plane from before W18 rejects the unknown key (400), so that call is
+     * repeated without it.
+     */
+    suspend fun announceCapabilities(ssoSupported: Boolean = true, setupCompleted: Boolean = false): Boolean {
+        val body = JsonObject().put("ssoSupported", ssoSupported)
+
+        val data = if (!setupCompleted) post("/host/instance/capabilities", body) else try {
+            post("/host/instance/capabilities", body.copy().put("setupCompleted", true))
+        } catch (e: HostApiException) {
+            if (e.status != 400) throw e
+            post("/host/instance/capabilities", body)
+        }
+
         return data.getBoolean("ssoSupported", ssoSupported)
     }
 
@@ -115,12 +128,13 @@ class PanoHostClient(
     suspend fun announceWithRetry(
         ssoSupported: Boolean = true,
         maxAttempts: Int = 50,
+        setupCompleted: Boolean = false,
         wait: suspend (Long) -> Unit = { delay(it) }
     ): Boolean {
         for (attempt in 1..maxAttempts) {
             try {
-                announceCapabilities(ssoSupported)
-                log("Announced Pano Host capabilities (ssoSupported=$ssoSupported)")
+                announceCapabilities(ssoSupported, setupCompleted)
+                log("Announced Pano Host capabilities (ssoSupported=$ssoSupported, setupCompleted=$setupCompleted)")
                 return true
             } catch (e: HostApiException) {
                 if (!e.retryable || attempt == maxAttempts) {
@@ -135,6 +149,102 @@ class PanoHostClient(
         }
 
         return false
+    }
+
+    /** The site answers of the order form (host-api.md §Instance bootstrap). */
+    data class BootstrapSite(
+        val siteName: String?,
+        val description: String,
+        val websiteUrl: String?,
+        val locale: String?,
+        val telemetry: Boolean
+    )
+
+    data class BootstrapOwner(val accountId: String, val email: String, val username: String)
+
+    /** The order form's extra admin; the password is a one-time secret and never printed. */
+    class BootstrapAdmin(val username: String, val email: String, val password: String) {
+        override fun toString() = "BootstrapAdmin(username=$username, email=$email, password=***)"
+    }
+
+    /** One-time handover code for `POST <apiUrl>/platform/authorize`; never printed. */
+    class PlatformHandover(val code: String, val apiUrl: String?, val expiresAt: Long?) {
+        override fun toString() = "PlatformHandover(code=***, apiUrl=$apiUrl, expiresAt=$expiresAt)"
+    }
+
+    sealed class Bootstrap {
+        abstract val site: BootstrapSite
+
+        class Automatic(
+            override val site: BootstrapSite,
+            val owner: BootstrapOwner,
+            val extraAdmin: BootstrapAdmin?,
+            val platform: PlatformHandover?
+        ) : Bootstrap() {
+            override fun toString() = "Bootstrap.Automatic(site=$site, owner=$owner, extraAdmin=$extraAdmin, platform=$platform)"
+        }
+
+        class Manual(override val site: BootstrapSite) : Bootstrap() {
+            override fun toString() = "Bootstrap.Manual(site=$site)"
+        }
+    }
+
+    /**
+     * `POST /host/instance/bootstrap {}` → the first-boot answers, or null when there is nothing to
+     * do (`NO_BOOTSTRAP` 404: no order form; `BOOTSTRAP_DONE` 409: completed or restored). The
+     * response carries secrets (extra admin password, handover code): never logged or stored.
+     */
+    suspend fun bootstrap(): Bootstrap? {
+        val data = try {
+            post("/host/instance/bootstrap", JsonObject())
+        } catch (e: HostApiException) {
+            if ((e.status == 404 && e.code == "NO_BOOTSTRAP") || (e.status == 409 && e.code == "BOOTSTRAP_DONE")) return null
+            throw e
+        }
+
+        fun malformed(): Nothing = throw HostApiException(502, "MALFORMED_RESPONSE")
+        fun JsonObject.text(key: String) = getValue(key)?.toString()?.takeIf { it.isNotBlank() }
+
+        fun site(json: JsonObject) = BootstrapSite(
+            siteName = json.text("siteName"),
+            description = json.getValue("description")?.toString() ?: "",
+            websiteUrl = json.text("websiteUrl"),
+            locale = json.text("locale"),
+            telemetry = json.getValue("telemetry") as? Boolean ?: true
+        )
+
+        return when (data.getString("mode")) {
+            "MANUAL" -> Bootstrap.Manual(site(data.getValue("prefill") as? JsonObject ?: JsonObject()))
+            "AUTOMATIC" -> {
+                val site = site(data)
+                if (site.siteName == null || site.websiteUrl == null) malformed()
+
+                val owner = data.getValue("owner") as? JsonObject ?: malformed()
+                val admin = data.getValue("extraAdmin") as? JsonObject
+                val platform = data.getValue("platform") as? JsonObject
+
+                Bootstrap.Automatic(
+                    site = site,
+                    owner = BootstrapOwner(
+                        accountId = owner.text("accountId") ?: malformed(),
+                        email = owner.text("email") ?: malformed(),
+                        username = owner.text("username") ?: owner.text("email")!!.substringBefore('@')
+                    ),
+                    extraAdmin = admin?.let {
+                        BootstrapAdmin(
+                            it.text("username") ?: malformed(),
+                            it.text("email") ?: malformed(),
+                            it.getValue("password")?.toString()?.takeIf { p -> p.isNotEmpty() } ?: malformed()
+                        )
+                    },
+                    platform = platform?.text("code")?.let { code ->
+                        PlatformHandover(code, platform.text("apiUrl"), (platform.getValue("expiresAt") as? Number)?.toLong())
+                    }
+                )
+            }
+
+            else -> malformed()
+        }
     }
 
     /** `POST /host/sso/redeem {ticket}` → the panomc.com identity the ticket was issued for. */

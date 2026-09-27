@@ -48,15 +48,22 @@ class PanoHostManager(
 
     val ssoEnabled get() = client != null
 
-    /** (Re)starts the announce loop; a newer call replaces a pending one. */
+    /**
+     * (Re)starts the announce loop; a newer call replaces a pending one. Once setup is done it also
+     * reports `setupCompleted`, which closes the control plane's first-boot bootstrap.
+     */
     fun announceCapabilities() {
         val client = client ?: return
+        val setupCompleted = configManager.config.setup.step == 5
 
         announceJob?.cancel()
         announceJob = CoroutineScope(vertx.dispatcher()).launch {
-            client.announceWithRetry(ssoSupported = true)
+            client.announceWithRetry(ssoSupported = true, setupCompleted = setupCompleted)
         }
     }
+
+    /** The DB-backed store the SSO mapping (and the hosted first boot) creates local admins in. */
+    fun userStore(sqlClient: SqlClient): HostSsoUserStore = DatabaseUserStore(sqlClient)
 
     /** Redeems [ticket] and returns the local user id to log in as. */
     suspend fun redeem(ticket: String): Long {

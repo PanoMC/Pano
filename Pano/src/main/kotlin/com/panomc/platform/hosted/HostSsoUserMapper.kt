@@ -39,6 +39,7 @@ class HostSsoUserMapper(
         const val SUPPORT_USERNAME = "pano_support"
         const val HOST_PREFIX = "host_"
         private const val MAX_USERNAME = 16
+        private const val MIN_USERNAME = 3
     }
 
     class Denied(reason: String) : RuntimeException(reason)
@@ -48,13 +49,18 @@ class HostSsoUserMapper(
     fun keyOf(identity: PanoHostClient.SsoIdentity) =
         if (identity.isSupport) SUPPORT_KEY else ACCOUNT_KEY_PREFIX + identity.accountId.lowercase(Locale.ROOT)
 
-    suspend fun resolve(identity: PanoHostClient.SsoIdentity): Mapping {
+    /**
+     * [keepUsername]: a newly created admin takes the panomc.com username itself (hosted first boot,
+     * where the owner is the site's own admin) instead of `host_<username>`; a digit suffix is added
+     * when it is taken.
+     */
+    suspend fun resolve(identity: PanoHostClient.SsoIdentity, keepUsername: Boolean = false): Mapping {
         val key = keyOf(identity)
         var created = false
 
         val userId = store.mappedUserId(key)?.takeIf { store.userExists(it) }
             ?: (if (identity.isSupport) null else store.userIdByEmail(identity.email)?.takeIf { store.isAdmin(it) })
-            ?: create(identity).also { created = true }
+            ?: create(identity, keepUsername).also { created = true }
 
         if (store.isBanned(userId)) throw Denied("banned")
 
@@ -65,8 +71,13 @@ class HostSsoUserMapper(
         return Mapping(userId, created)
     }
 
-    private suspend fun create(identity: PanoHostClient.SsoIdentity): Long {
-        val base = if (identity.isSupport) SUPPORT_USERNAME else HOST_PREFIX + sanitize(identity.username)
+    private suspend fun create(identity: PanoHostClient.SsoIdentity, keepUsername: Boolean): Long {
+        val plain = identity.username.replace(Regex("[^A-Za-z0-9_]"), "").take(MAX_USERNAME)
+        val base = when {
+            identity.isSupport -> SUPPORT_USERNAME
+            keepUsername && plain.length >= MIN_USERNAME -> plain
+            else -> HOST_PREFIX + sanitize(identity.username)
+        }
         val username = freeUsername(base)
 
         val email = when {

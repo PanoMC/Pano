@@ -62,6 +62,44 @@ class PanoApiManager(
 
         /** Usage data is fire-and-forget, so it never waits long on a slow or unreachable API. */
         private const val TELEMETRY_TIMEOUT_MS = 10_000L
+
+        private const val HANDOVER_TIMEOUT_MS = 15_000L
+
+        /** What `POST /platform/authorize` answers: the platform connection's token and account. */
+        class PlatformConnection(val jwt: String, val platformId: String, val username: String, val email: String) {
+            override fun toString() = "PlatformConnection(jwt=***, platformId=$platformId, username=$username, email=$email)"
+        }
+
+        /** `https://api.panomc.com`-style base URL: http(s), a host, no trailing slash. */
+        internal fun normalizeApiUrl(raw: String): String? {
+            val trimmed = raw.trim().trimEnd('/')
+            val uri = runCatching { java.net.URI(trimmed) }.getOrNull() ?: return null
+            if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrEmpty()) return null
+            if (uri.rawQuery != null || uri.rawFragment != null || uri.rawUserInfo != null) return null
+            return trimmed
+        }
+
+        /**
+         * `POST <apiUrl>/platform/authorize {code, version}` without an account token (the code is the
+         * credential). Throws [PanoConnectFailed] on any failure; the code is never logged.
+         */
+        internal suspend fun authorizePlatform(webClient: WebClient, apiUrl: String, code: String, version: String): PlatformConnection {
+            val response = try {
+                webClient.requestAbs(HttpMethod.POST, "$apiUrl/platform/authorize")
+                    .timeout(HANDOVER_TIMEOUT_MS)
+                    .sendJson(JsonObject().put("code", code).put("version", version))
+                    .coAwait()
+            } catch (_: Exception) {
+                throw PanoConnectFailed()
+            }
+
+            val body = runCatching { response.bodyAsJsonObject() }.getOrNull()
+            val data = body?.takeIf { it.getString("result") == "ok" }?.getJsonObject("data") ?: throw PanoConnectFailed()
+
+            fun field(key: String) = data.getValue(key)?.toString()?.takeIf { it.isNotBlank() } ?: throw PanoConnectFailed()
+
+            return PlatformConnection(field("jwt"), field("id"), field("username"), field("email"))
+        }
     }
 
     private val uiManager: UIManager by lazy {
@@ -150,57 +188,61 @@ class PanoApiManager(
             throw PanoConnectFailed()
         }
 
-        val requestBody = JsonObject()
+        val connection = authorizePlatform(webClient, configManager.config.panoApiUrl, decryptedData, Main.VERSION)
 
-        requestBody.put("code", decryptedData)
-        requestBody.put("version", Main.VERSION)
+        persistConnection(connection)
 
-        val username: String
-        val email: String
-        val platformId: String
+        return Triple(connection.username, connection.email, connection.platformId)
+    }
+
+    /**
+     * Pano Host first boot: connects the owner's panomc.com account with the one-time handover code
+     * the control plane minted for this instance (host-api.md §Instance bootstrap) — the RSA
+     * connect-code leg is skipped, the result is stored exactly like [connectPlatform]'s. [apiUrl]
+     * (the API that minted the code) becomes `pano-api-url` once the code is redeemed, so the stored
+     * token is used against the API that issued it.
+     */
+    suspend fun connectWithHandoverCode(code: String, apiUrl: String?): Triple<String, String, String> {
+        if (isConnected()) {
+            throw AlreadyConnectedToPano()
+        }
+
+        val targetApiUrl = apiUrl?.let { normalizeApiUrl(it) ?: throw PanoConnectFailed() }
+            ?: configManager.config.panoApiUrl.trimEnd('/')
+
+        val connection = authorizePlatform(webClient, targetApiUrl, code, Main.VERSION)
+
+        if (targetApiUrl != configManager.config.panoApiUrl.trimEnd('/')) {
+            logger.info("Pano API URL set to {} for the Pano Host platform connection", targetApiUrl)
+            configManager.config.panoApiUrl = targetApiUrl
+        }
+
+        persistConnection(connection)
+
+        return Triple(connection.username, connection.email, connection.platformId)
+    }
+
+    private suspend fun persistConnection(connection: PlatformConnection) {
+        val panoAccountConfig = getPanoAccountConfig()
+
+        panoAccountConfig.accessToken = connection.jwt
+        panoAccountConfig.platformId = connection.platformId
+        panoAccountConfig.username = connection.username
+        panoAccountConfig.email = connection.email
+
+        panoAccountConfig.connect = null
+
+        configManager.saveConfig()
 
         try {
-            val authorizeResponse = createRequest(HttpMethod.POST, "/platform/authorize")
-                .sendJson(requestBody)
-                .coAwait()
-
-            val responseBody = authorizeResponse.bodyAsJsonObject()
-
-            if (responseBody.getString("result") != "ok") {
-                throw PanoConnectFailed()
-            }
-
-            val responseData = responseBody.getJsonObject("data")
-
-            val jwt = responseData.getString("jwt")
-            platformId = responseData.getString("id")
-            username = responseData.getString("username")
-            email = responseData.getString("email")
-
-            panoAccountConfig.accessToken = jwt
-            panoAccountConfig.platformId = platformId
-            panoAccountConfig.username = username
-            panoAccountConfig.email = email
-
-            panoAccountConfig.connect = null
-
-            configManager.saveConfig()
-
-            try {
-                updateManager.checkResourceUpdates(true)
-            } catch (_: Exception) {
-            }
-
-        } catch (e: Exception) {
-            throw PanoConnectFailed()
+            updateManager.checkResourceUpdates(true)
+        } catch (_: Exception) {
         }
 
         try {
             licenseManagerOrNull()?.refreshLicensesAfterPanoConnectedBestEffort()
         } catch (_: Throwable) {
         }
-
-        return Triple(username, email, platformId)
     }
 
     suspend fun removePanoAccount() {

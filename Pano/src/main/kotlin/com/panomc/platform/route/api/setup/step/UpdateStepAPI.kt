@@ -164,10 +164,12 @@ class UpdateStepAPI(
                 databaseOptions.type = dbType
             }
 
+            // Before host/name/username change: an empty password keeps an env-seeded one.
+            val newPassword = setupManager.databasePasswordFor(host, dbName, username, password)
             databaseOptions.host = host
             databaseOptions.name = dbName
             databaseOptions.username = username
-            databaseOptions.password = if (password.isNullOrEmpty()) "" else password
+            databaseOptions.password = newPassword
             databaseOptions.prefix = if (prefix.isNullOrEmpty()) "" else prefix
             configManager.saveConfig()
 

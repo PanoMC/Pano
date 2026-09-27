@@ -168,6 +168,20 @@ class HostedEnvConfigTest {
     }
 
     @Test
+    fun `manage url points at the website instance page`() {
+        assertEquals("https://panomc.com/host/manage/instances/wl_1", HostedEnvConfig(hosted).manageUrl)
+        assertEquals(
+            "https://panomc.com/host/manage/instances",
+            HostedEnvConfig(hosted - "PANO_HOST_WORKLOAD_ID").manageUrl
+        )
+        assertEquals(
+            "https://dev.panomc.com/host/manage/instances/x",
+            HostedEnvConfig(hosted + ("PANO_HOST_MANAGE_URL" to "https://dev.panomc.com/host/manage/instances/x")).manageUrl
+        )
+        assertNull(HostedEnvConfig(emptyMap()).manageUrl)
+    }
+
+    @Test
     fun `no env means nothing to apply`() {
         val env = HostedEnvConfig(emptyMap())
         assertFalse(env.hasAny)

@@ -3,6 +3,7 @@ package com.panomc.platform.hosted
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
@@ -32,6 +33,17 @@ class PanoHostClient(
     companion object {
         const val MAX_NOTICES = 20
 
+        /** host-api.md §Instance bootstrap: at most 100 reported admins, `[A-Za-z0-9_]{3,32}` each. */
+        const val MAX_ADMINS = 100
+        private val ADMIN_USERNAME = Regex("^[A-Za-z0-9_]{3,32}$")
+
+        /** The `admins` list as the control plane accepts it: valid names, deduplicated, sorted, capped. */
+        fun normalizeAdmins(usernames: Collection<String>): List<String> =
+            usernames.filter { ADMIN_USERNAME.matches(it) }
+                .distinctBy { it.lowercase() }
+                .sortedBy { it.lowercase() }
+                .take(MAX_ADMINS)
+
         /** Backoff between capability announce attempts: 5 s doubling up to 10 min. */
         fun backoff(attempt: Int): Long = (5_000L shl (attempt - 1).coerceIn(0, 7)).coerceAtMost(600_000L)
 
@@ -57,7 +69,9 @@ class PanoHostClient(
         val username: String,
         val role: String,
         val workloadId: String,
-        val hostname: String
+        val hostname: String,
+        /** The local admin the owner chose to sign in as on panomc.com; null = automatic (older control planes omit it). */
+        val adminUsername: String? = null
     ) {
         val isSupport get() = role == "support"
     }
@@ -104,21 +118,32 @@ class PanoHostClient(
     }
 
     /**
-     * `POST /host/instance/capabilities {ssoSupported, setupCompleted?}`. `setupCompleted` is only
-     * sent when true; a control plane from before W18 rejects the unknown key (400), so that call is
-     * repeated without it.
+     * `POST /host/instance/capabilities {ssoSupported, setupCompleted?, admins?}`. `setupCompleted`
+     * is only sent when true and `admins` (the local admin usernames, see [normalizeAdmins]) only
+     * when known. An older control plane rejects unknown keys (400), so the call is repeated without
+     * `admins` (pre-W22), then without `setupCompleted` too (pre-W18).
      */
-    suspend fun announceCapabilities(ssoSupported: Boolean = true, setupCompleted: Boolean = false): Boolean {
-        val body = JsonObject().put("ssoSupported", ssoSupported)
+    suspend fun announceCapabilities(
+        ssoSupported: Boolean = true,
+        setupCompleted: Boolean = false,
+        admins: Collection<String>? = null
+    ): Boolean {
+        val bare = JsonObject().put("ssoSupported", ssoSupported)
+        val withSetup = if (setupCompleted) bare.copy().put("setupCompleted", true) else bare
+        val full = if (admins != null) withSetup.copy().put("admins", JsonArray(normalizeAdmins(admins))) else withSetup
+        val attempts = listOf(full, withSetup, bare).distinct()
 
-        val data = if (!setupCompleted) post("/host/instance/capabilities", body) else try {
-            post("/host/instance/capabilities", body.copy().put("setupCompleted", true))
-        } catch (e: HostApiException) {
-            if (e.status != 400) throw e
-            post("/host/instance/capabilities", body)
+        var data: JsonObject? = null
+        for ((index, body) in attempts.withIndex()) {
+            try {
+                data = post("/host/instance/capabilities", body)
+                break
+            } catch (e: HostApiException) {
+                if (e.status != 400 || index == attempts.lastIndex) throw e
+            }
         }
 
-        return data.getBoolean("ssoSupported", ssoSupported)
+        return data!!.getBoolean("ssoSupported", ssoSupported)
     }
 
     /**
@@ -129,12 +154,13 @@ class PanoHostClient(
         ssoSupported: Boolean = true,
         maxAttempts: Int = 50,
         setupCompleted: Boolean = false,
+        admins: Collection<String>? = null,
         wait: suspend (Long) -> Unit = { delay(it) }
     ): Boolean {
         for (attempt in 1..maxAttempts) {
             try {
-                announceCapabilities(ssoSupported, setupCompleted)
-                log("Announced Pano Host capabilities (ssoSupported=$ssoSupported, setupCompleted=$setupCompleted)")
+                announceCapabilities(ssoSupported, setupCompleted, admins)
+                log("Announced Pano Host capabilities (ssoSupported=$ssoSupported, setupCompleted=$setupCompleted${admins?.let { ", admins=${it.size}" } ?: ""})")
                 return true
             } catch (e: HostApiException) {
                 if (!e.retryable || attempt == maxAttempts) {
@@ -260,7 +286,8 @@ class PanoHostClient(
             username = field("username"),
             role = field("role"),
             workloadId = field("workloadId"),
-            hostname = field("hostname")
+            hostname = field("hostname"),
+            adminUsername = data.getValue("adminUsername")?.toString()?.takeIf { it.isNotBlank() }
         )
     }
 

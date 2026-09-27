@@ -9,6 +9,7 @@ interface HostSsoUserStore {
     suspend fun setMapping(key: String, userId: Long)
     suspend fun userExists(userId: Long): Boolean
     suspend fun userIdByEmail(email: String): Long?
+    suspend fun userIdByUsername(username: String): Long?
     suspend fun isAdmin(userId: Long): Boolean
     suspend fun isBanned(userId: Long): Boolean
     suspend fun usernameTaken(username: String): Boolean
@@ -28,10 +29,16 @@ interface HostSsoUserStore {
  * The mapping is kept by panomc.com account id, so two accounts with the same e-mail local part
  * never share a local user. panomc.com is authoritative for who may manage a hosted instance: a
  * mapped user that lost admin locally gets it back.
+ *
+ * An owner who chose a local admin on panomc.com (`adminUsername`) signs in as that user when it
+ * exists, is still an admin and is not banned. The choice never grants admin and never replaces
+ * the remembered mapping, so switching back to automatic restores the previous user; otherwise the
+ * normal mapping applies and the reason is logged.
  */
 class HostSsoUserMapper(
     private val store: HostSsoUserStore,
-    private val random: SecureRandom = SecureRandom()
+    private val random: SecureRandom = SecureRandom(),
+    private val log: (String) -> Unit = {}
 ) {
     companion object {
         const val SUPPORT_KEY = "pano_host_sso_support"
@@ -44,7 +51,8 @@ class HostSsoUserMapper(
 
     class Denied(reason: String) : RuntimeException(reason)
 
-    data class Mapping(val userId: Long, val created: Boolean)
+    /** [chosen]: the owner's chosen local admin was used (the account mapping is untouched). */
+    data class Mapping(val userId: Long, val created: Boolean, val chosen: Boolean = false)
 
     fun keyOf(identity: PanoHostClient.SsoIdentity) =
         if (identity.isSupport) SUPPORT_KEY else ACCOUNT_KEY_PREFIX + identity.accountId.lowercase(Locale.ROOT)
@@ -55,6 +63,8 @@ class HostSsoUserMapper(
      * when it is taken.
      */
     suspend fun resolve(identity: PanoHostClient.SsoIdentity, keepUsername: Boolean = false): Mapping {
+        chosenAdmin(identity)?.let { return Mapping(it, created = false, chosen = true) }
+
         val key = keyOf(identity)
         var created = false
 
@@ -69,6 +79,23 @@ class HostSsoUserMapper(
         if (store.mappedUserId(key) != userId) store.setMapping(key, userId)
 
         return Mapping(userId, created)
+    }
+
+    /** The chosen admin's user id when it may be used as is, else null (reason logged). */
+    private suspend fun chosenAdmin(identity: PanoHostClient.SsoIdentity): Long? {
+        val username = identity.adminUsername?.takeIf { it.isNotBlank() } ?: return null
+        if (identity.isSupport) return null
+
+        val userId = store.userIdByUsername(username)
+        val reason = when {
+            userId == null || !store.userExists(userId) -> "does not exist"
+            !store.isAdmin(userId) -> "is not an admin"
+            store.isBanned(userId) -> "is banned"
+            else -> return userId
+        }
+
+        log("Pano Host SSO: chosen admin account '$username' $reason, using the default mapping")
+        return null
     }
 
     private suspend fun create(identity: PanoHostClient.SsoIdentity, keepUsername: Boolean): Long {

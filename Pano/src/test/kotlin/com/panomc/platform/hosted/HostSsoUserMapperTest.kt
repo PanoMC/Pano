@@ -18,6 +18,7 @@ class HostSsoUserMapperTest {
         override suspend fun setMapping(key: String, userId: Long) { mappings[key] = userId }
         override suspend fun userExists(userId: Long) = users.any { it.id == userId }
         override suspend fun userIdByEmail(email: String) = users.firstOrNull { it.email.equals(email, true) }?.id
+        override suspend fun userIdByUsername(username: String) = users.firstOrNull { it.username.equals(username, true) }?.id
         override suspend fun isAdmin(userId: Long) = user(userId).admin
         override suspend fun isBanned(userId: Long) = user(userId).banned
         override suspend fun usernameTaken(username: String) = users.any { it.username.equals(username, true) }
@@ -27,11 +28,17 @@ class HostSsoUserMapperTest {
         override suspend fun grantAdmin(userId: Long) { user(userId).admin = true }
     }
 
-    private fun identity(accountId: String, email: String, role: String = "owner", username: String = email.substringBefore('@')) =
-        PanoHostClient.SsoIdentity(accountId, email, username, role, "w1", "shop.panomc.site")
+    private fun identity(
+        accountId: String,
+        email: String,
+        role: String = "owner",
+        username: String = email.substringBefore('@'),
+        adminUsername: String? = null
+    ) = PanoHostClient.SsoIdentity(accountId, email, username, role, "w1", "shop.panomc.site", adminUsername)
 
     private val store = MemoryStore()
-    private val mapper = HostSsoUserMapper(store)
+    private val logs = mutableListOf<String>()
+    private val mapper = HostSsoUserMapper(store, log = { logs += it })
 
     @Test
     fun `maps to the local admin with the same email and remembers it`() = runBlocking {
@@ -121,5 +128,62 @@ class HostSsoUserMapperTest {
         val second = mapper.resolve(identity("acc-1", "owner@example.com"))
         assertTrue(second.created)
         assertEquals(second.userId, store.mappings["pano_host_sso_account:acc-1"])
+    }
+
+    @Test
+    fun `signs the owner in as the chosen admin without touching the mapping`() = runBlocking {
+        val default = mapper.resolve(identity("acc-1", "owner@example.com"))
+        val chosen = store.add("Builder", "builder@example.com", admin = true)
+
+        val mapping = mapper.resolve(identity("acc-1", "owner@example.com", adminUsername = "builder"))
+        assertEquals(HostSsoUserMapper.Mapping(chosen.id, created = false, chosen = true), mapping)
+        assertEquals(default.userId, store.mappings["pano_host_sso_account:acc-1"], "account mapping untouched")
+
+        // Back to automatic → the remembered user again.
+        assertEquals(HostSsoUserMapper.Mapping(default.userId, false), mapper.resolve(identity("acc-1", "owner@example.com")))
+        assertTrue(logs.isEmpty())
+    }
+
+    @Test
+    fun `a chosen non-admin is never promoted and falls back to the mapping`() = runBlocking {
+        val default = mapper.resolve(identity("acc-1", "owner@example.com"))
+        val player = store.add("player", "player@example.com", admin = false)
+
+        val mapping = mapper.resolve(identity("acc-1", "owner@example.com", adminUsername = "player"))
+        assertEquals(HostSsoUserMapper.Mapping(default.userId, false), mapping)
+        assertFalse(player.admin)
+        assertTrue(logs.single().contains("is not an admin"))
+
+        logs.clear()
+        assertEquals(default.userId, mapper.resolve(identity("acc-1", "owner@example.com", adminUsername = "ghost")).userId)
+        assertTrue(logs.single().contains("does not exist"))
+    }
+
+    @Test
+    fun `a banned chosen admin falls back, or is denied when it is the default mapping`() = runBlocking {
+        val default = mapper.resolve(identity("acc-1", "owner@example.com"))
+        val banned = store.add("banned_admin", "b@example.com", admin = true).also { it.banned = true }
+
+        val mapping = mapper.resolve(identity("acc-1", "owner@example.com", adminUsername = banned.username))
+        assertEquals(default.userId, mapping.userId)
+        assertFalse(mapping.chosen)
+        assertTrue(logs.single().contains("is banned"))
+
+        val self = store.user(default.userId)
+        self.banned = true
+        assertThrows(HostSsoUserMapper.Denied::class.java) {
+            runBlocking { mapper.resolve(identity("acc-1", "owner@example.com", adminUsername = self.username)) }
+        }
+        Unit
+    }
+
+    @Test
+    fun `support tickets ignore a chosen admin`() = runBlocking {
+        val owner = store.add("steve", "owner@example.com", admin = true)
+
+        val mapping = mapper.resolve(identity("staff-1", "staff@panomc.com", role = "support", adminUsername = owner.username))
+        assertNotEquals(owner.id, mapping.userId)
+        assertFalse(mapping.chosen)
+        assertEquals("pano_support", store.user(mapping.userId).username)
     }
 }

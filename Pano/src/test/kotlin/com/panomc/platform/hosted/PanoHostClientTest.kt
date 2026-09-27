@@ -69,6 +69,7 @@ class PanoHostClientTest {
         assertEquals("w1", identity.workloadId)
         assertEquals("shop.panomc.site", identity.hostname)
         assertFalse(identity.isSupport)
+        assertNull(identity.adminUsername, "older control planes omit it")
 
         val again = assertThrows(PanoHostClient.HostApiException::class.java) {
             runBlocking { client().redeemSso("ticket-aaaaaaaaaaaaaaaa") }
@@ -76,6 +77,39 @@ class PanoHostClientTest {
         assertEquals(401, again.status)
         assertEquals("INVALID_TOKEN", again.code)
         assertFalse(again.retryable)
+    }
+
+    @Test
+    fun `redeem carries the owner's chosen admin account`() = runBlocking {
+        plane.issue("ticket-bbbbbbbbbbbbbbbb", "acc-1", "owner@example.com", adminUsername = "Builder")
+        assertEquals("Builder", client().redeemSso("ticket-bbbbbbbbbbbbbbbb").adminUsername)
+    }
+
+    @Test
+    fun `announces the local admins, capped and valid only`() = runBlocking {
+        val many = (1..150).map { "admin_%03d".format(it) }
+        assertTrue(client().announceCapabilities(true, setupCompleted = true, admins = many + listOf("bad-name", "ADMIN_001", "x")))
+
+        val body = plane.requests.single().body!!
+        assertEquals(setOf("ssoSupported", "setupCompleted", "admins"), body.fieldNames())
+        assertEquals(many.take(100), plane.admins)
+        assertEquals(true, plane.setupCompleted)
+    }
+
+    @Test
+    fun `older control planes get the announce without admins, then without setupCompleted`() = runBlocking {
+        plane.legacyAdmins = true
+        assertTrue(client().announceCapabilities(true, setupCompleted = true, admins = listOf("steve")))
+        assertEquals(2, plane.requests.size)
+        assertEquals(setOf("ssoSupported", "setupCompleted"), plane.requests.last().body!!.fieldNames())
+        assertEquals(true, plane.setupCompleted)
+        assertNull(plane.admins)
+
+        plane.requests.clear()
+        plane.legacyCapabilities = true
+        assertTrue(client().announceWithRetry(setupCompleted = true, admins = listOf("steve"), wait = { fail("no retry wait") }))
+        assertEquals(3, plane.requests.size)
+        assertEquals(setOf("ssoSupported"), plane.requests.last().body!!.fieldNames())
     }
 
     @Test

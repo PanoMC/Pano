@@ -37,6 +37,7 @@ class HostedAutoSetupTest {
         override suspend fun setMapping(key: String, userId: Long) { mappings[key] = userId }
         override suspend fun userExists(userId: Long) = users.any { it.id == userId }
         override suspend fun userIdByEmail(email: String) = users.firstOrNull { it.email.equals(email, true) }?.id
+        override suspend fun userIdByUsername(username: String) = users.firstOrNull { it.username.equals(username, true) }?.id
         override suspend fun isAdmin(userId: Long) = user(userId).admin
         override suspend fun isBanned(userId: Long) = false
         override suspend fun usernameTaken(username: String) = users.any { it.username.equals(username, true) }

@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.hosted.HostedAutoSetupRunner
 import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.hosted.ProcessExit
@@ -446,6 +447,10 @@ class Main : CoroutineVerticle() {
             initPlugins()
         }
 
+        if (!isPlatformInstalled) {
+            isPlatformInstalled = runHostedAutoSetup()
+        }
+
         if (isPlatformInstalled) {
             initDatabaseManager()
 
@@ -527,6 +532,18 @@ class Main : CoroutineVerticle() {
         val telemetryManager = applicationContext.getBean(TelemetryManager::class.java)
 
         telemetryManager.init()
+    }
+
+    /**
+     * Pano Host first boot: finishes setup from the control plane's order-form answers (or prefills
+     * the installer) before the UI manager picks setup-ui or the panel/theme. True when setup is now done.
+     */
+    private suspend fun runHostedAutoSetup(): Boolean = try {
+        applicationContext.getBean(HostedAutoSetupRunner::class.java).run()
+    } catch (e: Throwable) {
+        if (e is VirtualMachineError) throw e
+        logger.error("Pano Host automatic setup failed, the installer runs: {}", e.javaClass.simpleName)
+        false
     }
 
     /** Pano Host only: tells the control plane this instance supports panel SSO. */

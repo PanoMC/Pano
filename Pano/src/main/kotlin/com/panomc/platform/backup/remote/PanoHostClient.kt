@@ -23,7 +23,8 @@ import java.time.Duration
 /**
  * An error from the Pano Host API (`{"result":"error","error":"CODE",…}`) or from talking to it.
  * [code] is the API's code (`PAYMENT_REQUIRED`, `QUOTA_EXCEEDED`, `INVALID_TOKEN`, …) or one of the
- * client's own: [UNAVAILABLE], [UPLOAD_FAILED], [DOWNLOAD_FAILED], [INTEGRITY_FAILED].
+ * client's own: [UNAVAILABLE], [UPLOAD_FAILED], [DOWNLOAD_FAILED], [INTEGRITY_FAILED],
+ * [CONNECT_REQUIRED], [STOPPED_REMOTELY].
  */
 class PanoHostException(
     val code: String,
@@ -38,6 +39,12 @@ class PanoHostException(
         const val DOWNLOAD_FAILED = "DOWNLOAD_FAILED"
         const val INTEGRITY_FAILED = "INTEGRITY_FAILED"
         const val INVALID_TOKEN = "INVALID_TOKEN"
+
+        /** This Pano is not connected to a panomc.com account (or the connection was revoked): connect it. */
+        const val CONNECT_REQUIRED = "CONNECT_REQUIRED"
+
+        /** The upload was stopped on the website (`/host/manage/backups`). */
+        const val STOPPED_REMOTELY = "STOPPED_REMOTELY"
     }
 }
 
@@ -61,17 +68,23 @@ data class UploadSession(val id: String, val partSize: Long, val parts: List<Par
 /** Retries of one part PUT / download: network errors, 408, 429 and 5xx; [baseDelayMs] doubles each time. */
 data class RetryPolicy(val attempts: Int = 4, val baseDelayMs: Long = 1000)
 
+/** Who this Pano is on `/host/connected/…` calls (`X-Pano-Instance-Id` / `X-Pano-Instance-Name`). */
+data class PanoIdentity(val instanceId: String, val instanceName: String)
+
 /**
- * Talks to the Pano Host control plane as a self-hosted Pano (host-api.md §Link): the device-code
- * link flow, the link-scoped Pano Backup (`/host/link/backups/…`) and transfer
- * (`/host/link/transfers/…`) routes, and the presigned S3 part uploads / downloads they hand out.
+ * Talks to the Pano Host control plane as a connected Pano (host-api.md §Connected Pano): the Pano
+ * Backup (`/host/connected/backups/…`) and transfer (`/host/connected/workloads`,
+ * `/host/connected/transfers/…`) routes, and the presigned S3 part uploads / downloads they hand out.
  *
  * [baseUrl] is read per call (e.g. `https://api.panomc.com`; the control plane's routes are
- * appended to it). The panomc.com account password never reaches this server: a link token is the
- * only credential, and presigned URLs are never logged.
+ * appended to it). [token] is the panomc.com platform connection JWT (`panoAccount.accessToken`,
+ * null = not connected → [PanoHostException.CONNECT_REQUIRED]); [identity] names this Pano. The
+ * account password never reaches this server and presigned URLs are never logged.
  */
 class PanoHostClient(
     private val baseUrl: () -> String,
+    private val token: () -> String?,
+    private val identity: suspend () -> PanoIdentity,
     private val retry: RetryPolicy = RetryPolicy(),
     private val http: HttpClient = HttpClient.newBuilder()
         .version(HttpClient.Version.HTTP_1_1)
@@ -79,63 +92,65 @@ class PanoHostClient(
         .followRedirects(HttpClient.Redirect.NEVER)
         .build()
 ) {
-    // Link flow
+    fun isConnected(): Boolean = !token().isNullOrBlank()
 
-    /** `POST /host/link/start` → `{code, verifyUrl, pollToken, expiresIn, interval}`. */
-    suspend fun linkStart(instanceName: String, purpose: LinkPurpose): JsonObject =
-        call("POST", "/host/link/start", null, JsonObject().put("instanceName", instanceName).put("purpose", purpose.name))
+    /** `GET /host/connected` → `{accountId, platformId, username, instanceId, instanceName}`. */
+    suspend fun connected(): JsonObject = call("GET", "/host/connected")
 
-    /** `POST /host/link/poll` → `{status: PENDING}` or once `{status: ACTIVE, token, linkId, purpose, workloadId}`. */
-    suspend fun linkPoll(pollToken: String): JsonObject = call("POST", "/host/link/poll", null, JsonObject().put("pollToken", pollToken))
+    // Pano Backup
 
-    /** `GET /host/link` → `{linkId, purpose, instanceName, workloadId}`. */
-    suspend fun linkInfo(token: String): JsonObject = call("GET", "/host/link", token)
+    /** `{instanceId, tier, subscription, usage, panos[]}` of the connection's account. */
+    suspend fun listBackups(): JsonObject = call("GET", "/host/connected/backups")
 
-    // Pano Backup (BACKUP links)
-
-    /** `{backups, tier, usage}`. */
-    suspend fun listBackups(token: String): JsonObject = call("GET", "/host/link/backups", token)
-
-    suspend fun startBackup(token: String, size: Long, kind: String, subject: String?): UploadSession {
+    suspend fun startBackup(size: Long, kind: String, subject: String?): UploadSession {
         val body = JsonObject().put("size", size).put("kind", kind)
 
         subject?.let { body.put("subject", it) }
 
-        return UploadSession.from(call("POST", "/host/link/backups", token, body), "backupId")
+        return UploadSession.from(call("POST", "/host/connected/backups", body), "backupId")
     }
 
-    suspend fun completeBackup(token: String, backupId: String, sha256: String, manifest: JsonObject?): JsonObject {
+    /** `{backup}` → the backup (`status` `CANCELED` = stopped on the website). */
+    suspend fun getBackup(backupId: String): JsonObject =
+        call("GET", "/host/connected/backups/${segment(backupId)}").getJsonObject("backup") ?: JsonObject()
+
+    suspend fun completeBackup(backupId: String, sha256: String, manifest: JsonObject?): JsonObject {
         val body = JsonObject().put("sha256", sha256)
 
         manifest?.let { body.put("manifest", it) }
 
-        return call("POST", "/host/link/backups/${segment(backupId)}/complete", token, body).getJsonObject("backup") ?: JsonObject()
+        return call("POST", "/host/connected/backups/${segment(backupId)}/complete", body).getJsonObject("backup") ?: JsonObject()
     }
 
     /** `{url, expiresAt, sizeBytes, sha256}`. */
-    suspend fun downloadBackup(token: String, backupId: String): JsonObject =
-        call("POST", "/host/link/backups/${segment(backupId)}/download", token, JsonObject())
+    suspend fun downloadBackup(backupId: String): JsonObject =
+        call("POST", "/host/connected/backups/${segment(backupId)}/download", JsonObject())
 
-    suspend fun deleteBackup(token: String, backupId: String) {
-        call("DELETE", "/host/link/backups/${segment(backupId)}", token)
+    suspend fun deleteBackup(backupId: String) {
+        call("DELETE", "/host/connected/backups/${segment(backupId)}")
     }
 
-    // Transfers (TRANSFER links)
+    // Transfers
 
-    /** `{workload, transfers}`. */
-    suspend fun listTransfers(token: String): JsonObject = call("GET", "/host/link/transfers", token)
+    /** `{workloads[{id, name, label, state, maxBytes}]}`: the account's Pano workloads a transfer may target. */
+    suspend fun listWorkloads(): JsonObject = call("GET", "/host/connected/workloads")
 
-    suspend fun startTransfer(token: String, size: Long): UploadSession =
-        UploadSession.from(call("POST", "/host/link/transfers", token, JsonObject().put("size", size)), "transferId")
+    /** `{transfers}` pushed by this Pano. */
+    suspend fun listTransfers(): JsonObject = call("GET", "/host/connected/transfers")
 
-    suspend fun completeTransfer(token: String, transferId: String): JsonObject =
-        call("POST", "/host/link/transfers/${segment(transferId)}/complete", token, JsonObject()).getJsonObject("transfer") ?: JsonObject()
+    suspend fun startTransfer(workloadId: String, size: Long): UploadSession = UploadSession.from(
+        call("POST", "/host/connected/transfers", JsonObject().put("workloadId", workloadId).put("size", size)),
+        "transferId"
+    )
 
-    suspend fun getTransfer(token: String, transferId: String): JsonObject =
-        call("GET", "/host/link/transfers/${segment(transferId)}", token).getJsonObject("transfer") ?: JsonObject()
+    suspend fun completeTransfer(transferId: String): JsonObject =
+        call("POST", "/host/connected/transfers/${segment(transferId)}/complete", JsonObject()).getJsonObject("transfer") ?: JsonObject()
 
-    suspend fun cancelTransfer(token: String, transferId: String) {
-        call("DELETE", "/host/link/transfers/${segment(transferId)}", token)
+    suspend fun getTransfer(transferId: String): JsonObject =
+        call("GET", "/host/connected/transfers/${segment(transferId)}").getJsonObject("transfer") ?: JsonObject()
+
+    suspend fun cancelTransfer(transferId: String) {
+        call("DELETE", "/host/connected/transfers/${segment(transferId)}")
     }
 
     // Object storage (presigned URLs)
@@ -143,9 +158,15 @@ class PanoHostClient(
     /**
      * PUTs [file] into [session]'s parts (part n = bytes `(n-1)·partSize` until the next part), one
      * after the other, each streamed from disk and retried per [retry]. [onProgress] gets the bytes
-     * sent so far after every finished part.
+     * sent so far after every finished part; [beforePart] runs before each part (the caller checks
+     * there whether the upload was stopped on the website).
      */
-    suspend fun uploadParts(file: File, session: UploadSession, onProgress: (Long) -> Unit = {}) {
+    suspend fun uploadParts(
+        file: File,
+        session: UploadSession,
+        beforePart: suspend (partNumber: Int) -> Unit = {},
+        onProgress: (Long) -> Unit = {}
+    ) {
         val size = file.length()
 
         val expectedParts = maxOf(1L, (size + session.partSize - 1) / maxOf(1L, session.partSize))
@@ -164,6 +185,7 @@ class PanoHostClient(
                 throw PanoHostException(PanoHostException.UPLOAD_FAILED, message = "The upload session does not fit the archive.")
             }
 
+            beforePart(part.partNumber)
             withRetry(PanoHostException.UPLOAD_FAILED) { putPart(file, offset, length, part.url) }
 
             offset += length
@@ -285,7 +307,15 @@ class PanoHostClient(
     }
 
     /** One control-plane call; returns `data` of an ok response, throws [PanoHostException] otherwise. */
-    private suspend fun call(method: String, path: String, token: String?, body: JsonObject? = null): JsonObject = withContext(Dispatchers.IO) {
+    private suspend fun call(method: String, path: String, body: JsonObject? = null): JsonObject {
+        val token = token()?.takeIf { it.isNotBlank() }
+            ?: throw PanoHostException(PanoHostException.CONNECT_REQUIRED, extras = JsonObject().put("reason", "NOT_CONNECTED"))
+        val identity = identity()
+
+        return send(method, path, token, identity, body)
+    }
+
+    private suspend fun send(method: String, path: String, token: String, identity: PanoIdentity, body: JsonObject?): JsonObject = withContext(Dispatchers.IO) {
         val base = baseUrl().trim().trimEnd('/')
 
         if (!base.startsWith("http://") && !base.startsWith("https://")) {
@@ -295,8 +325,9 @@ class PanoHostClient(
         val builder = HttpRequest.newBuilder(URI(base + path))
             .timeout(Duration.ofSeconds(60))
             .header("Accept", "application/json")
-
-        token?.let { builder.header("Authorization", "Bearer $it") }
+            .header("Authorization", "Bearer $token")
+            .header(HEADER_INSTANCE_ID, identity.instanceId)
+            .header(HEADER_INSTANCE_NAME, headerSafe(identity.instanceName))
 
         if (body != null) {
             builder.header("Content-Type", "application/json")
@@ -328,11 +359,35 @@ class PanoHostClient(
         val code = json.getString("error")?.takeIf { it.isNotBlank() } ?: PanoHostException.UNAVAILABLE
         val extras = json.copy().apply { remove("result"); remove("error") }
 
+        // The connection is gone on panomc.com (revoked, reconnected elsewhere, deleted): reconnect.
+        if (code == PanoHostException.INVALID_TOKEN || (code == NOT_CONNECTED && extras.getString("reason") == "MISSING")) {
+            throw PanoHostException(PanoHostException.CONNECT_REQUIRED, response.statusCode(), extras.put("reason", code))
+        }
+
         throw PanoHostException(code, response.statusCode(), extras)
     }
 
     companion object {
         private const val PROGRESS_STEP = 8L * 1024 * 1024
+
+        const val HEADER_INSTANCE_ID = "X-Pano-Instance-Id"
+        const val HEADER_INSTANCE_NAME = "X-Pano-Instance-Name"
+        private const val NOT_CONNECTED = "NOT_CONNECTED"
+
+        /**
+         * A header value is ASCII: accents are stripped (`Sunucum Ğüş` → `Sunucum Gus`, `ı` → `i`), anything
+         * else non-printable becomes a space; whitespace runs collapse, ≤ 64 chars, never empty.
+         */
+        fun headerSafe(name: String): String =
+            java.text.Normalizer.normalize(name.replace('ı', 'i').replace('İ', 'I'), java.text.Normalizer.Form.NFD)
+                .filter { it !in '\u0300'..'\u036f' }
+                .map { if (it in ' '..'~') it else ' ' }.joinToString("")
+                .replace(Regex(" +"), " ").trim().take(64).trim().ifEmpty { "Pano" }
+
+        /** A new random instance id (`[A-Za-z0-9-]{8,64}`). */
+        fun newInstanceId(): String = java.util.UUID.randomUUID().toString()
+
+        fun isValidInstanceId(id: String?): Boolean = id != null && id.length in 8..64 && id.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '-' }
 
         private fun segment(id: String): String {
             require(id.isNotEmpty() && id.all { it.isLetterOrDigit() || it == '-' }) { "Invalid id." }
@@ -393,5 +448,3 @@ class PanoHostClient(
         }
     }
 }
-
-enum class LinkPurpose { BACKUP, TRANSFER }

@@ -6,7 +6,6 @@ import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
 import com.panomc.platform.auth.panel.permission.ManageServerBackupsPermission
 import com.panomc.platform.backup.McServerBackupSources
 import com.panomc.platform.backup.PanoBackupManager
-import com.panomc.platform.backup.remote.LinkPurpose
 import com.panomc.platform.backup.remote.PassphraseFile
 import com.panomc.platform.backup.remote.RemoteBackupSettings
 import com.panomc.platform.db.DatabaseManager
@@ -19,6 +18,7 @@ import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRou
 import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.job
 import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.remoteId
 import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.requireReady
+import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.workloadId
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -27,7 +27,8 @@ import io.vertx.kotlin.coroutines.coAwait
 
 /*
  * Panel routes of Pano Backup (the E2E-encrypted remote target on panomc.com) and of the transfer to
- * Pano Host. All need MANAGE_PANO_BACKUPS; the background jobs are polled with
+ * Pano Host, both over this Pano's panomc.com platform connection (not connected → `hostError
+ * CONNECT_REQUIRED`). All need MANAGE_PANO_BACKUPS; the background jobs are polled with
  * `GET /api/panel/pano-backups/job`. Pano Host errors come back as `PANO_HOST_ERROR {hostError, …}`.
  */
 
@@ -40,7 +41,11 @@ abstract class PanoBackupRemoteApi(protected val authProvider: AuthProvider) : P
     protected suspend fun requireManage(context: RoutingContext) = authProvider.requirePermission(ManagePanoBackupsPermission(), context)
 }
 
-/** `GET /api/panel/pano-backups/remote` → `{apiUrl, links, pending, settings, passphraseSet, lastUploadAt, job, busy}`. */
+/**
+ * `GET /api/panel/pano-backups/remote[?fresh=true]` → `{connected, account {username, platformId}, plan
+ * {tier, subscription} | null, usage {used, reserved, quota, free} | null, settings, passphraseSet,
+ * lastUploadAt, hostError?, apiUrl, job, busy}` (plan + usage cached for a minute unless `fresh`).
+ */
 @Endpoint
 class PanelGetPanoBackupRemoteAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :
     PanoBackupRemoteApi(authProvider) {
@@ -49,7 +54,7 @@ class PanelGetPanoBackupRemoteAPI(authProvider: AuthProvider, private val panoBa
     override suspend fun handle(context: RoutingContext): Result {
         requireManage(context)
 
-        val status = panoBackupManager.remote.status()
+        val status = panoBackupManager.remote.status(fresh = context.queryParam("fresh").firstOrNull() == "true")
         val service = panoBackupManager.service
 
         status.put("apiUrl", panoBackupManager.hostApiUrl())
@@ -61,42 +66,7 @@ class PanelGetPanoBackupRemoteAPI(authProvider: AuthProvider, private val panoBa
 }
 
 /**
- * Device-code link: `POST …/remote/link {purpose BACKUP|TRANSFER}` → `{code, verifyUrl, expiresAt,
- * interval}` (open verifyUrl, approve on panomc.com); `POST …/remote/link/poll {purpose}` →
- * `{status NONE|PENDING|LINKED|EXPIRED, link?}`; `DELETE …/remote/link/:purpose` forgets the link here.
- */
-@Endpoint
-class PanelPanoBackupRemoteLinkAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :
-    PanoBackupRemoteApi(authProvider) {
-    override val paths = listOf(
-        Path("/api/panel/pano-backups/remote/link", RouteType.POST),
-        Path("/api/panel/pano-backups/remote/link/poll", RouteType.POST),
-        Path("/api/panel/pano-backups/remote/link/:purpose", RouteType.DELETE)
-    )
-
-    override suspend fun handle(context: RoutingContext): Result {
-        requireManage(context)
-
-        val remote = panoBackupManager.remote
-
-        if (method(context) == HttpMethod.DELETE) {
-            remote.unlink(PanoBackupRemoteRoutes.purpose(context.pathParam("purpose")))
-
-            return Successful()
-        }
-
-        val purpose = PanoBackupRemoteRoutes.purpose(body(context).getString("purpose"))
-
-        if (context.normalizedPath().endsWith("/poll")) {
-            return Successful(host { remote.pollLink(purpose) }.map)
-        }
-
-        return Successful(host { remote.startLink(purpose) }.toPublicJson().map)
-    }
-}
-
-/**
- * `PUT …/remote/settings {schedule OFF|TIER|DAILY|WEEKLY, hour, mcServerIds}`;
+ * `PUT …/remote/settings {schedule OFF|DAILY|WEEKLY, hour, mcServerIds}`;
  * `PUT …/remote/passphrase {currentPassword, passphrase}` (≥ 8 characters; kept on this server only,
  * lost = the remote backups are unrecoverable; changing it does not re-encrypt older backups).
  */
@@ -144,7 +114,8 @@ class PanelUpdatePanoBackupRemoteAPI(
 }
 
 /**
- * `GET …/remote/backups` → `{backups, tier, usage}` (the account's Pano Backups; `own` = this link's);
+ * `GET …/remote/backups` → `{instanceId, tier, subscription, usage, panos[]}` (every Pano of the account
+ * with its backups, this one first with `current: true`; `own` = this Pano's);
  * `POST …/remote/backups` → `{job}` (archive with the saved passphrase + upload).
  */
 @Endpoint
@@ -160,7 +131,7 @@ class PanelPanoBackupRemoteBackupsAPI(authProvider: AuthProvider, private val pa
         return when (method(context)) {
             HttpMethod.GET -> Successful(host { remote.listBackups() }.map)
             HttpMethod.POST -> {
-                requireReady(remote, LinkPurpose.BACKUP, passphrase = true)
+                requireReady(remote, passphrase = true)
 
                 Successful(mapOf("job" to job { remote.startUpload() }.toJson()))
             }
@@ -173,7 +144,7 @@ class PanelPanoBackupRemoteBackupsAPI(authProvider: AuthProvider, private val pa
 /**
  * `POST …/remote/backups/:id/restore {currentPassword, passphrase?}` → `{job}` (download, verify,
  * then the local restore flow: maintenance, safety archive, restart; passphrase omitted = the saved
- * one); `DELETE …/remote/backups/:id` (this link's own backups only).
+ * one; any backup of the account); `DELETE …/remote/backups/:id` (this Pano's own backups only).
  */
 @Endpoint
 class PanelPanoBackupRemoteBackupAPI(
@@ -205,7 +176,7 @@ class PanelPanoBackupRemoteBackupAPI(
             throw CurrentPasswordNotCorrect()
         }
 
-        requireReady(remote, LinkPurpose.BACKUP, passphrase = false)
+        requireReady(remote, passphrase = false)
 
         val passphrase = PanoBackupRoutes.passphrase(body.getString("passphrase"))
 
@@ -214,14 +185,17 @@ class PanelPanoBackupRemoteBackupAPI(
 }
 
 /**
- * Transfer to Pano Host through a TRANSFER link: `GET …/remote/transfers` → `{workload, transfers}`;
- * `POST …/remote/transfers` → `{job}` (plain archive pushed; then the owner confirms on panomc.com);
- * `GET …/remote/transfers/:id` → `{transfer}`; `DELETE …/remote/transfers/:id` cancels a pending one.
+ * Transfer to Pano Host: `GET …/remote/workloads` → `{workloads[{id, name, label, state, maxBytes}]}`
+ * (the account's Pano workloads); `GET …/remote/transfers` → `{transfers}` (pushed by this Pano);
+ * `POST …/remote/transfers {workloadId}` → `{job}` (plain archive pushed; then the owner confirms on
+ * panomc.com); `GET …/remote/transfers/:id` → `{transfer}`; `DELETE …/remote/transfers/:id` cancels a
+ * pending one.
  */
 @Endpoint
 class PanelPanoBackupRemoteTransfersAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :
     PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
+        Path("/api/panel/pano-backups/remote/workloads", RouteType.GET),
         Path("/api/panel/pano-backups/remote/transfers", RouteType.ROUTE),
         Path("/api/panel/pano-backups/remote/transfers/:id", RouteType.ROUTE)
     )
@@ -230,6 +204,11 @@ class PanelPanoBackupRemoteTransfersAPI(authProvider: AuthProvider, private val 
         requireManage(context)
 
         val remote = panoBackupManager.remote
+
+        if (context.normalizedPath().endsWith("/workloads")) {
+            return Successful(host { remote.listWorkloads() }.map)
+        }
+
         val single = context.pathParam("id") != null
 
         return when (method(context)) {
@@ -242,9 +221,11 @@ class PanelPanoBackupRemoteTransfersAPI(authProvider: AuthProvider, private val 
             HttpMethod.POST -> {
                 if (single) throw BadRequest()
 
-                requireReady(remote, LinkPurpose.TRANSFER, passphrase = false)
+                val workloadId = workloadId(body(context).getValue("workloadId") as? String)
 
-                Successful(mapOf("job" to job { remote.startTransfer() }.toJson()))
+                requireReady(remote, passphrase = false)
+
+                Successful(mapOf("job" to job { remote.startTransfer(workloadId) }.toJson()))
             }
 
             HttpMethod.DELETE -> {
@@ -278,7 +259,7 @@ class PanelUploadServerBackupToPanoBackupAPI(
 
         val remote = panoBackupManager.remote
 
-        requireReady(remote, LinkPurpose.BACKUP, passphrase = true)
+        requireReady(remote, passphrase = true)
 
         val source = host { mcServerBackupSources.source(serverId, backupId, getSqlClient()) }
 

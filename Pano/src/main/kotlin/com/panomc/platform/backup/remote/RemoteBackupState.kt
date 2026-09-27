@@ -9,64 +9,10 @@ import java.nio.file.attribute.PosixFilePermissions
 import java.time.Instant
 import java.time.ZoneId
 
-/** An active link to Pano Host (the `HostLinkToken` and what it is bound to). */
-data class HostLinkState(
-    val purpose: LinkPurpose,
-    val token: String,
-    val linkId: String?,
-    val instanceName: String,
-    val workloadId: String?,
-    val linkedAt: Long
-) {
-    fun toJson(): JsonObject = JsonObject()
-        .put("purpose", purpose.name)
-        .put("token", token)
-        .put("linkId", linkId)
-        .put("instanceName", instanceName)
-        .put("workloadId", workloadId)
-        .put("linkedAt", linkedAt)
-
-    /** What the UI sees: never the token. */
-    fun toPublicJson(): JsonObject = toJson().apply { remove("token") }
-
-    companion object {
-        fun fromJson(json: JsonObject?): HostLinkState? {
-            json ?: return null
-
-            return HostLinkState(
-                purpose = LinkPurpose.values().firstOrNull { it.name == json.getString("purpose") } ?: return null,
-                token = json.getString("token")?.takeIf { it.isNotBlank() } ?: return null,
-                linkId = json.getString("linkId"),
-                instanceName = json.getString("instanceName", ""),
-                workloadId = json.getString("workloadId"),
-                linkedAt = json.getLong("linkedAt", 0L)
-            )
-        }
-    }
-}
-
-/** A device-code link waiting for approval on panomc.com (memory only: the poll token is short-lived). */
-data class PendingLink(
-    val purpose: LinkPurpose,
-    val pollToken: String,
-    val code: String,
-    val verifyUrl: String,
-    val instanceName: String,
-    val expiresAt: Long,
-    val intervalSeconds: Int
-) {
-    fun toPublicJson(): JsonObject = JsonObject()
-        .put("purpose", purpose.name)
-        .put("code", code)
-        .put("verifyUrl", verifyUrl)
-        .put("expiresAt", expiresAt)
-        .put("interval", intervalSeconds)
-}
-
 /**
- * Pano Backup (remote) settings. [schedule] `TIER` = as often as the subscription tier allows; any
- * schedule is never more often than the tier's `minIntervalMinutes`. [mcServerIds] = managed MC
- * servers whose finished full backups are also uploaded (`kind: mc-server`).
+ * Pano Backup (remote) settings: [schedule] of the automatic upload (at the local [hour]; the plan has
+ * no frequency rule), [mcServerIds] = managed MC servers whose finished full backups are also
+ * uploaded (`kind: mc-server`).
  */
 data class RemoteBackupSettings(
     val schedule: Schedule = Schedule.OFF,
@@ -75,7 +21,6 @@ data class RemoteBackupSettings(
 ) {
     enum class Schedule(val intervalMs: Long) {
         OFF(0),
-        TIER(0),
         DAILY(24L * 60 * 60 * 1000),
         WEEKLY(7L * 24 * 60 * 60 * 1000)
     }
@@ -85,19 +30,9 @@ data class RemoteBackupSettings(
         .put("hour", hour)
         .put("mcServerIds", JsonArray(mcServerIds))
 
-    /**
-     * Whether an upload is due at [now]: schedule on, local [hour] reached (not for `TIER`), and the
-     * last upload at least max(schedule, tier minimum) ago (minus slack for tick jitter).
-     */
-    fun isDue(lastUploadAt: Long?, tierMinIntervalMinutes: Long?, now: Long, zone: ZoneId = ZoneId.systemDefault()): Boolean {
-        if (schedule == Schedule.OFF) {
-            return false
-        }
-
-        val tierMs = (tierMinIntervalMinutes ?: 0L) * 60_000L
-        val interval = maxOf(schedule.intervalMs, tierMs)
-
-        if (schedule != Schedule.TIER && Instant.ofEpochMilli(now).atZone(zone).hour < hour) {
+    /** Whether an upload is due at [now]: schedule on, local [hour] reached, the last upload a schedule ago (minus slack for tick jitter). */
+    fun isDue(lastUploadAt: Long?, now: Long, zone: ZoneId = ZoneId.systemDefault()): Boolean {
+        if (schedule == Schedule.OFF || Instant.ofEpochMilli(now).atZone(zone).hour < hour) {
             return false
         }
 
@@ -105,19 +40,19 @@ data class RemoteBackupSettings(
             return true
         }
 
-        val slack = if (schedule == Schedule.TIER) 0L else minOf(SLACK_MS, interval / 4)
-
-        return now - lastUploadAt >= maxOf(interval - slack, tierMs)
+        return now - lastUploadAt >= schedule.intervalMs - minOf(SLACK_MS, schedule.intervalMs / 4)
     }
 
     companion object {
         const val MAX_MC_SERVERS = 100
         private const val SLACK_MS = 60L * 60 * 1000
 
+        /** `TIER` (the link era's "as often as the tier allows") reads as `DAILY`. */
         fun fromJson(json: JsonObject?): RemoteBackupSettings? {
             json ?: return null
 
-            val schedule = Schedule.values().firstOrNull { it.name == json.getValue("schedule") } ?: return null
+            val raw = json.getValue("schedule")
+            val schedule = if (raw == "TIER") Schedule.DAILY else Schedule.values().firstOrNull { it.name == raw } ?: return null
             val hour = (json.getValue("hour") as? Number)?.toInt() ?: return null
             val servers = json.getValue("mcServerIds") ?: JsonArray()
 
@@ -132,26 +67,28 @@ data class RemoteBackupSettings(
     }
 }
 
-/** Everything persisted about Pano Backup / transfer on this Pano. */
+/**
+ * Everything persisted about Pano Backup on this Pano (the link era's `links` key is ignored when
+ * read and dropped on the next save: the platform connection is the credential now).
+ */
 data class RemoteBackupState(
-    val links: Map<LinkPurpose, HostLinkState> = emptyMap(),
     val settings: RemoteBackupSettings = RemoteBackupSettings(),
     val lastUploadAt: Long? = null
 ) {
     fun toJson(): JsonObject = JsonObject()
-        .put("links", JsonObject().also { json -> links.forEach { (purpose, link) -> json.put(purpose.name, link.toJson()) } })
         .put("settings", settings.toJson())
         .put("lastUploadAt", lastUploadAt)
 
     companion object {
         const val OPTION = "pano_backup_remote"
 
+        /** The system_property holding this Pano's `X-Pano-Instance-Id` (generated once, survives reconnects). */
+        const val INSTANCE_ID_OPTION = "pano-backup-instance-id"
+
         fun parse(value: String?): RemoteBackupState = try {
             val json = value?.let { JsonObject(it) } ?: JsonObject()
-            val links = json.getJsonObject("links") ?: JsonObject()
 
             RemoteBackupState(
-                links = LinkPurpose.values().mapNotNull { purpose -> HostLinkState.fromJson(links.getJsonObject(purpose.name))?.let { purpose to it } }.toMap(),
                 settings = RemoteBackupSettings.fromJson(json.getJsonObject("settings")) ?: RemoteBackupSettings(),
                 lastUploadAt = json.getLong("lastUploadAt")
             )

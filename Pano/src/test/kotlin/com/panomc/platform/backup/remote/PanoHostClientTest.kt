@@ -23,7 +23,10 @@ class PanoHostClientTest {
 
     private val vertx = Vertx.vertx()
     private val host = FakePanoHost(vertx, 18471)
-    private val client = PanoHostClient({ host.baseUrl }, RetryPolicy(attempts = 3, baseDelayMs = 10))
+    private val identity = PanoIdentity("7f3c2a10-aaaa-4bbb-8ccc-000000000001", "Sunucum Ğüşıİ\u0007  test")
+    private val client = PanoHostClient({ host.baseUrl }, { FakePanoHost.TOKEN }, { identity }, RetryPolicy(attempts = 3, baseDelayMs = 10))
+
+    private fun clientWith(token: String?) = PanoHostClient({ host.baseUrl }, { token }, { identity }, RetryPolicy(1, 1))
 
     @BeforeAll
     fun start() {
@@ -36,61 +39,66 @@ class PanoHostClientTest {
         vertx.close()
     }
 
-    private suspend fun linkToken(purpose: LinkPurpose): String {
-        host.approved.clear()
-
-        val start = client.linkStart("Test", purpose)
-
-        assertEquals("ABCD-1234", start.getString("code"))
-        assertEquals("PENDING", client.linkPoll(start.getString("pollToken")).getString("status"))
-
-        host.approved[purpose] = true
-
-        val active = client.linkPoll(start.getString("pollToken"))
-
-        assertEquals("ACTIVE", active.getString("status"))
-
-        return active.getString("token")
-    }
-
     @Test
-    fun `link flow, bearer auth and API errors with their extras`(): Unit = runBlocking {
-        val token = linkToken(LinkPurpose.BACKUP)
+    fun `connection token, instance headers and API errors with their extras`(): Unit = runBlocking {
+        host.instances.clear()
 
-        assertTrue(client.listBackups(token).containsKey("usage"))
+        val me = client.connected()
 
-        val invalid = assertThrows<PanoHostException> { runBlocking { client.listBackups("nope") } }
-        assertEquals(PanoHostException.INVALID_TOKEN, invalid.code)
-        assertEquals(401, invalid.status)
+        assertEquals("tester", me.getString("username"))
+        assertEquals(identity.instanceId, me.getString("instanceId"))
+        assertEquals("Sunucum GusiI test", me.getString("instanceName"))
+        assertTrue(client.listBackups().containsKey("usage"))
+        assertTrue(host.instances.all { it.first == identity.instanceId })
 
-        val scope = assertThrows<PanoHostException> { runBlocking { client.listTransfers(token) } }
-        assertEquals("NO_PERMISSION", scope.code)
-        assertEquals("LINK_SCOPE", scope.extras.getString("reason"))
+        // Not connected here → nothing is sent.
+        val calls = host.calls.size
+        val local = assertThrows<PanoHostException> { runBlocking { clientWith(null).listBackups() } }
+        assertEquals(PanoHostException.CONNECT_REQUIRED, local.code)
+        assertEquals("NOT_CONNECTED", local.extras.getString("reason"))
+        assertFalse(clientWith("").isConnected())
+        assertEquals(calls, host.calls.size)
+
+        // Revoked on panomc.com (disconnect / reconnect elsewhere) → reconnect.
+        val revoked = assertThrows<PanoHostException> { runBlocking { clientWith("revoked").listBackups() } }
+        assertEquals(PanoHostException.CONNECT_REQUIRED, revoked.code)
+        assertEquals(PanoHostException.INVALID_TOKEN, revoked.extras.getString("reason"))
+        assertEquals(401, revoked.status)
 
         host.subscription = false
 
         try {
-            val payment = assertThrows<PanoHostException> { runBlocking { client.startBackup(token, 10, "pano-instance", null) } }
+            val payment = assertThrows<PanoHostException> { runBlocking { client.startBackup(10, "pano-instance", null) } }
             assertEquals("PAYMENT_REQUIRED", payment.code)
             assertEquals("NO_SUBSCRIPTION", payment.extras.getString("reason"))
         } finally {
             host.subscription = true
         }
 
-        val gone = assertThrows<PanoHostException> { runBlocking { client.linkPoll("unknown") } }
-        assertEquals("LINK_NOT_FOUND", gone.code)
+        assertEquals(FakePanoHost.WORKLOAD_ID, client.listWorkloads().getJsonArray("workloads").getJsonObject(0).getString("id"))
+        assertEquals("WORKLOAD_NOT_FOUND", assertThrows<PanoHostException> { runBlocking { client.startTransfer("p-other0001", 10) } }.code)
 
-        val down = PanoHostClient({ "http://127.0.0.1:18479" }, RetryPolicy(1, 1))
-        assertEquals(PanoHostException.UNAVAILABLE, assertThrows<PanoHostException> { runBlocking { down.linkStart("x", LinkPurpose.BACKUP) } }.code)
-        assertEquals(PanoHostException.UNAVAILABLE, assertThrows<PanoHostException> { runBlocking { PanoHostClient({ "" }).linkStart("x", LinkPurpose.BACKUP) } }.code)
+        val down = PanoHostClient({ "http://127.0.0.1:18479" }, { "t" }, { identity }, RetryPolicy(1, 1))
+        assertEquals(PanoHostException.UNAVAILABLE, assertThrows<PanoHostException> { runBlocking { down.listBackups() } }.code)
+        assertEquals(PanoHostException.UNAVAILABLE, assertThrows<PanoHostException> { runBlocking { PanoHostClient({ "" }, { "t" }, { identity }).listBackups() } }.code)
+    }
+
+    @Test
+    fun `instance ids and header-safe names`() {
+        assertTrue(PanoHostClient.isValidInstanceId(PanoHostClient.newInstanceId()))
+        assertFalse(PanoHostClient.isValidInstanceId("short"))
+        assertFalse(PanoHostClient.isValidInstanceId("has space in it"))
+        assertFalse(PanoHostClient.isValidInstanceId(null))
+        assertEquals("Pano", PanoHostClient.headerSafe("  \n "))
+        assertEquals("Blok Dunyasi", PanoHostClient.headerSafe("Blok\tDünyası"))
+        assertEquals(64, PanoHostClient.headerSafe("x".repeat(100)).length)
     }
 
     @Test
     fun `multipart upload streams file slices, retries 5xx, and a download is checked`(): Unit = runBlocking {
-        val token = linkToken(LinkPurpose.BACKUP)
         val bytes = Random(1).nextBytes(4096 * 2 + 777)
         val file = File(temp, "archive.panoarc").apply { writeBytes(bytes) }
-        val session = client.startBackup(token, bytes.size.toLong(), "pano-instance", null)
+        val session = client.startBackup(bytes.size.toLong(), "pano-instance", null)
 
         assertEquals(3, session.parts.size)
 
@@ -98,16 +106,19 @@ class PanoHostClientTest {
         host.failPuts["backups/${session.id}#2"] = 2
 
         val progress = mutableListOf<Long>()
+        val before = mutableListOf<Int>()
 
-        client.uploadParts(file, session) { progress.add(it) }
+        client.uploadParts(file, session, beforePart = { before.add(it) }) { progress.add(it) }
         assertEquals(listOf(4096L, 8192L, bytes.size.toLong()), progress)
+        assertEquals(listOf(1, 2, 3), before)
+        assertEquals("UPLOADING", client.getBackup(session.id).getString("status"))
 
-        val done = client.completeBackup(token, session.id, sha256Hex(bytes), null)
+        val done = client.completeBackup(session.id, sha256Hex(bytes), null)
 
         assertEquals("DONE", done.getString("status"))
         assertArrayEquals(bytes, host.store.read("backups/${session.id}"))
 
-        val download = client.downloadBackup(token, session.id)
+        val download = client.downloadBackup(session.id)
         val target = File(temp, "download.panoarc")
 
         client.download(download.getString("url"), target, download.getLong("sizeBytes"), download.getString("sha256"))
@@ -123,21 +134,20 @@ class PanoHostClientTest {
         assertFalse(bad.exists())
         assertFalse(File(temp, "bad.panoarc.part").exists())
 
-        client.deleteBackup(token, session.id)
+        client.deleteBackup(session.id)
         assertEquals(null, host.store.read("backups/${session.id}"))
     }
 
     @Test
     fun `an upload gives up after the retries and never retries a 403`(): Unit = runBlocking {
-        val token = linkToken(LinkPurpose.BACKUP)
         val file = File(temp, "a.panoarc").apply { writeBytes(Random(2).nextBytes(100)) }
 
-        val flaky = client.startBackup(token, 100, "mc-server", "s-1")
+        val flaky = client.startBackup(100, "mc-server", "s-1")
         host.failPuts["backups/${flaky.id}#1"] = 5
         assertEquals(PanoHostException.UPLOAD_FAILED, assertThrows<PanoHostException> { runBlocking { client.uploadParts(file, flaky) } }.code)
         assertEquals(2, host.failPuts["backups/${flaky.id}#1"])
 
-        val expired = client.startBackup(token, 100, "mc-server", "s-2")
+        val expired = client.startBackup(100, "mc-server", "s-2")
         host.failPuts["backups/${expired.id}#1"] = -1
         val error = assertThrows<PanoHostException> { runBlocking { client.uploadParts(file, expired) } }
         assertEquals(PanoHostException.UPLOAD_FAILED, error.code)

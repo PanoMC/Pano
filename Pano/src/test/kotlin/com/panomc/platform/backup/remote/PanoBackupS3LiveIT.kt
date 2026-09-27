@@ -130,19 +130,17 @@ class PanoBackupS3LiveIT {
         val runner = FakeRunner(CoroutineScope(SupervisorJob() + Dispatchers.Default), payloadBytes = 6 * 1024 * 1024)
         val passphrase = "live round trip passphrase"
         val service = PanoRemoteBackupService(
-            client = PanoHostClient({ host.baseUrl }),
+            client = PanoHostClient({ host.baseUrl }, { FakePanoHost.TOKEN }, { PanoIdentity("w21-live-it-instance", "W21 live IT") }),
             stateStore = MemoryRemoteStateStore(),
             passphraseFile = PassphraseFile(File(temp, PassphraseFile.FILE_NAME)),
             backups = runner,
             tempDir = { File(temp, ".temp") },
+            account = { ConnectedAccount("tester", "p1") },
             instanceName = { "W6 live IT" },
             panoVersion = "1.0.0-test"
         )
 
         try {
-            service.startLink(LinkPurpose.BACKUP)
-            host.approved[LinkPurpose.BACKUP] = true
-            assertEquals(PanoRemoteBackupService.LINKED, service.pollLink(LinkPurpose.BACKUP).getString("status"))
             service.setPassphrase(passphrase.toCharArray())
 
             val upload = awaitJob(service.startUpload(), 300_000)

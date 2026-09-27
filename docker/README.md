@@ -73,6 +73,8 @@ the first release has pushed the package:
 bash docker/runtime/test.sh 11     # runtime + launcher, stand-in jars, agent hardening flags
 bash docker/pano/test.sh           # full image seeding
 bash docker/runtime/e2e.sh build/libs/Pano-<version>.jar 11   # real jar + MariaDB, like a Portal runs it
+cp build/libs/Pano-<version>.jar* docker/pano/release/ && bash docker/pano/compose-test.sh
+                                   # compose.yaml + real jar: setup wizard smoke, /data survives down/up
 ```
 
-`PH_PREFIX` names the local images and containers (default `ph-w4`).
+`PH_PREFIX` names the local images and containers (default `ph-w4`; `ph-compose` for compose-test.sh, which serves on `PANO_PORT`, default 18088).

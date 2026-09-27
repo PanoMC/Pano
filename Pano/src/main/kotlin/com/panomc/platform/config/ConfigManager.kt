@@ -53,8 +53,17 @@ open class ConfigManager(
         }
 
         val json = JsonObject(configToPersist.toString())
-        configFile.writeText(HoconWriter.render(json, PanoConfig::class.java))
+        val text = HoconWriter.render(json, PanoConfig::class.java)
+        configFile.writeText(text)
+        lastWrittenText = text
     }
+
+    // What saveConfig wrote last. The file listener polls on a worker thread, so a scan that read the file
+    // before a save can report that older content after it; reloading it would drop the save (seen on a
+    // first boot: a setup step PUT right after start was lost). A change is only reloaded when the file on
+    // disk is no longer what Pano itself wrote.
+    @Volatile
+    private var lastWrittenText: String? = null
 
     /**
      * Replaces the whole running config and writes it to config.conf (a restore). Going through here
@@ -195,6 +204,9 @@ open class ConfigManager(
         logger.info("Started to listen config file changes.")
 
         configRetriever.listen { change ->
+            val onDisk = runCatching { configFile.readText() }.getOrNull()
+            if (onDisk != null && onDisk == lastWrittenText) return@listen
+
             if (change.previousConfiguration.encode() != change.newConfiguration.encode()) {
                 logger.info("Config is updated, reloading...")
             }

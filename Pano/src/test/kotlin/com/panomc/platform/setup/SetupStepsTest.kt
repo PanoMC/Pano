@@ -1,6 +1,9 @@
 package com.panomc.platform.setup
 
 import com.panomc.platform.config.PanoConfig
+import com.panomc.platform.hosted.HostedEnvConfig
+import com.panomc.platform.setup.SetupManager.Companion.databasePasswordView
+import com.panomc.platform.setup.SetupManager.Companion.effectiveDatabasePassword
 import com.panomc.platform.setup.SetupManager.Companion.emailView
 import com.panomc.platform.setup.SetupManager.Companion.skippedSteps
 import com.panomc.platform.setup.SetupManager.Companion.stepBackTo
@@ -53,5 +56,45 @@ class SetupStepsTest {
         assertEquals("relay.portal", view["hostname"])
         assertEquals("", view["password"])
         assertFalse(view.toString().contains("relay-s3cret-value"))
+    }
+
+    private val envDb = HostedEnvConfig(
+        mapOf("PANO_CONTAINER" to "1", "PANO_DB_HOST" to "db", "PANO_DB_NAME" to "pano", "PANO_DB_USER" to "pano", "PANO_DB_PASSWORD" to "env-s3cret")
+    ).database!!
+
+    private fun seeded() = PanoConfig.Companion.DatabaseConfig(host = "db:3306", name = "pano", username = "pano", password = "env-s3cret")
+
+    @Test
+    fun `step 2 never returns a password seeded from PANO_DB_PASSWORD on a self-run image`() {
+        assertEquals("", databasePasswordView(seeded(), envDb, managed = false))
+        assertEquals("", databasePasswordView(seeded(), envDb, managed = true))
+    }
+
+    @Test
+    fun `step 2 still returns a password the wizard stored itself`() {
+        val typed = seeded().copy(password = "typed-in-wizard")
+
+        assertEquals("typed-in-wizard", databasePasswordView(typed, envDb, managed = false))
+        assertEquals("typed-in-wizard", databasePasswordView(typed, null, managed = false))
+    }
+
+    @Test
+    fun `empty step 2 password keeps the env one only for the same host, name and user`() {
+        val db = seeded()
+
+        assertEquals("env-s3cret", effectiveDatabasePassword("", "db:3306", "pano", "pano", db, envDb))
+        assertEquals("env-s3cret", effectiveDatabasePassword(null, "db:3306", "pano", "pano", db, envDb))
+        assertEquals("", effectiveDatabasePassword("", "evil.example:3306", "pano", "pano", db, envDb))
+        assertEquals("", effectiveDatabasePassword("", "db:3306", "other", "pano", db, envDb))
+        assertEquals("", effectiveDatabasePassword("", "db:3306", "pano", "root", db, envDb))
+        assertEquals("new", effectiveDatabasePassword("new", "db:3306", "pano", "pano", db, envDb))
+    }
+
+    @Test
+    fun `empty step 2 password stays empty without an env-seeded one`() {
+        val typed = seeded().copy(password = "typed-in-wizard")
+
+        assertEquals("", effectiveDatabasePassword("", "db:3306", "pano", "pano", typed, envDb))
+        assertEquals("", effectiveDatabasePassword("", "db:3306", "pano", "pano", seeded(), null))
     }
 }

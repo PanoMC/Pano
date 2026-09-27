@@ -45,6 +45,16 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
 
     private fun skipped() = skippedSteps(isDatabaseManaged(), isMailManaged())
 
+    /**
+     * Self-run image: the stored DB password is the one `PANO_DB_PASSWORD` seeded. It never leaves
+     * through the unauthenticated setup API, and an empty password on step 2 keeps it.
+     */
+    fun isDatabasePasswordFromEnv() = passwordFromEnv(configManager.config.database, envConfig.database)
+
+    /** Step 2 submit/verify password: see [effectiveDatabasePassword]. */
+    fun databasePasswordFor(host: String?, name: String?, username: String?, submitted: String?) =
+        effectiveDatabasePassword(submitted, host, name, username, configManager.config.database, envConfig.database)
+
     fun isSetupDone() = getCurrentStep() == 5
 
     fun getCurrentStepData(): JsonObject {
@@ -66,6 +76,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             val managed = isDatabaseManaged()
 
             data.put("databaseManaged", managed)
+            data.put("databasePasswordFromEnv", !managed && isDatabasePasswordFromEnv())
             data.put("dbType", databaseConfig.type)
             data.put("installed", mariaDBManager.isInstalled())
             data.put("installProgress", mariaDBManager.installProgress)
@@ -77,7 +88,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
                     "host" to databaseConfig.host,
                     "dbName" to databaseConfig.name,
                     "username" to databaseConfig.username,
-                    "password" to if (managed) "" else databaseConfig.password,
+                    "password" to databasePasswordView(databaseConfig, envConfig.database, managed),
                     "prefix" to databaseConfig.prefix
                 )
             )
@@ -163,6 +174,37 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             while (step in skipped && step > 0) step--
 
             return step.coerceAtLeast(0)
+        }
+
+        fun passwordFromEnv(db: PanoConfig.Companion.DatabaseConfig, env: HostedEnvConfig.Database?) =
+            env != null && env.password.isNotEmpty() && db.password == env.password
+
+        /**
+         * Step 2's DB password as the setup API returns it. `GET /api/setup/step` is unauthenticated,
+         * so it is empty when the environment owns the database or seeded this password.
+         */
+        fun databasePasswordView(
+            db: PanoConfig.Companion.DatabaseConfig,
+            env: HostedEnvConfig.Database?,
+            managed: Boolean
+        ): String = if (managed || passwordFromEnv(db, env)) "" else db.password ?: ""
+
+        /**
+         * The password a step 2 submit or verify uses: [submitted] when given; when empty, the
+         * env-seeded stored password if host, name and user are unchanged (the wizard never received
+         * it), else empty.
+         */
+        fun effectiveDatabasePassword(
+            submitted: String?,
+            host: String?,
+            name: String?,
+            username: String?,
+            db: PanoConfig.Companion.DatabaseConfig,
+            env: HostedEnvConfig.Database?
+        ): String = when {
+            !submitted.isNullOrEmpty() -> submitted
+            env != null && passwordFromEnv(db, env) && host == db.host && name == db.name && username == db.username -> env.password
+            else -> ""
         }
 
         /**

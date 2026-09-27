@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.setup
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
@@ -17,18 +18,23 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaRepository
 
 /*
- * setup-ui "import from Pano Backup / Pano Host": over the panomc.com account connected in setup step 4
- * (`/api/setup/steps/4/platform/connect`; not connected → `hostError CONNECT_REQUIRED`), the account's
+ * setup-ui "import from Pano Backup / Pano Host": over the panomc.com account connected with the setup
+ * step-4 connect endpoints (`/api/setup/steps/4/platform/code` + `/connect`; they only touch the config,
+ * so setup-ui's transfer dialog uses them from step 0 too, and the account stays connected for step 4;
+ * not connected → `hostError CONNECT_REQUIRED`, revoked → `INVALID_TOKEN`), the account's
  * Pano Backups and a restore of one of them into this new install. The restore job is polled with
  * `GET /api/setup/restore`, like a restore from a file.
  */
 
 /**
  * `GET /api/setup/pano-host/backups` → `{backups (pano-instance, DONE, every Pano of the account, newest
- * first, each with `instanceName`), tier, usage}`.
+ * first, each with `instanceName`), tier, usage, account {username}}`.
  */
 @Endpoint
-class SetupGetPanoHostBackupsAPI(private val panoBackupManager: PanoBackupManager) : SetupApi() {
+class SetupGetPanoHostBackupsAPI(
+    private val panoBackupManager: PanoBackupManager,
+    private val platformConfig: ConfigManager
+) : SetupApi() {
     override val paths = listOf(Path("/api/setup/pano-host/backups", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
@@ -45,7 +51,14 @@ class SetupGetPanoHostBackupsAPI(private val panoBackupManager: PanoBackupManage
             .filter { it.getString("kind") == "pano-instance" && it.getString("status") == "DONE" }
             .sortedByDescending { it.getLong("createdAt", 0L) }
 
-        return Successful(mapOf("backups" to JsonArray(backups), "tier" to list.getJsonObject("tier"), "usage" to list.getJsonObject("usage")))
+        return Successful(
+            mapOf(
+                "backups" to JsonArray(backups),
+                "tier" to list.getJsonObject("tier"),
+                "usage" to list.getJsonObject("usage"),
+                "account" to mapOf("username" to platformConfig.config.panoAccount.username)
+            )
+        )
     }
 }
 

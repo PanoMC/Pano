@@ -51,6 +51,10 @@ class PanoRemoteBackupServiceTest {
     private lateinit var service: PanoRemoteBackupService
     private var now = 1_800_000_000_000L
 
+    companion object {
+        const val INSTANCE_ID = "7f3c2a10-aaaa-4bbb-8ccc-000000000002"
+    }
+
     @BeforeAll
     fun start() {
         host.start()
@@ -62,84 +66,90 @@ class PanoRemoteBackupServiceTest {
         vertx.close()
     }
 
+    @Volatile
+    private var token: String? = FakePanoHost.TOKEN
+
     @BeforeEach
     fun setUp() {
         host.backups.clear()
         host.transfers.clear()
-        host.approved.clear()
+        host.aborted.clear()
+        host.tokens.add(FakePanoHost.TOKEN)
         host.subscription = true
-        host.minIntervalMinutes = 60
+        host.lapsed = false
+        host.quotaBytes = 10L shl 30
         host.partSize = 4096
+        host.onPart = { _, _ -> }
+        token = FakePanoHost.TOKEN
 
         runner = FakeRunner(scope)
         state = MemoryRemoteStateStore()
         passphraseFile = PassphraseFile(File(temp, "backups/${PassphraseFile.FILE_NAME}"))
         service = PanoRemoteBackupService(
-            client = PanoHostClient({ host.baseUrl }, RetryPolicy(3, 5)),
+            client = PanoHostClient({ host.baseUrl }, { token }, { PanoIdentity(INSTANCE_ID, "My Server") }, RetryPolicy(3, 5)),
             stateStore = state,
             passphraseFile = passphraseFile,
             backups = runner,
             tempDir = { File(temp, ".temp") },
+            account = { token?.let { ConnectedAccount("tester", "p1") } },
             instanceName = { "My Server" },
             panoVersion = "1.0.0-test",
             clock = { now }
         )
     }
 
-    private suspend fun link(purpose: LinkPurpose) {
-        val pending = service.startLink(purpose)
-
-        assertEquals("https://panomc.test/host/link?code=ABCD-1234", pending.verifyUrl)
-        assertEquals(PanoRemoteBackupService.PENDING, service.pollLink(purpose).getString("status"))
-
-        host.approved[purpose] = true
-
-        val linked = service.pollLink(purpose)
-
-        assertEquals(PanoRemoteBackupService.LINKED, linked.getString("status"))
-        assertNull(linked.getJsonObject("link").getString("token"))
-    }
-
     private fun tempLeftovers() = File(temp, ".temp").listFiles()?.map { it.name } ?: emptyList()
 
     @Test
-    fun `link flow keeps the token in the state store and never shows it`(): Unit = runBlocking {
-        assertEquals(PanoRemoteBackupService.NONE, service.pollLink(LinkPurpose.BACKUP).getString("status"))
+    fun `not connected asks to connect, the overview carries account, plan and usage`(): Unit = runBlocking {
+        token = null
 
-        link(LinkPurpose.BACKUP)
+        val offline = service.status()
 
-        val stored = state.state.links.getValue(LinkPurpose.BACKUP)
+        assertFalse(offline.getBoolean("connected"))
+        assertNull(offline.getValue("account"))
+        assertNull(offline.getValue("plan"))
+        assertEquals(PanoHostException.CONNECT_REQUIRED, awaitJob(service.startUpload()).error)
+        assertEquals(PanoHostException.CONNECT_REQUIRED, awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID)).error)
+        assertEquals(PanoHostException.CONNECT_REQUIRED, assertThrows<PanoHostException> { runBlocking { service.listBackups() } }.code)
 
-        assertTrue(stored.token.startsWith("hlt_"))
-        assertEquals("My Server", stored.instanceName)
-        assertEquals(RemoteBackupState.parse(state.state.toJson().encode()), state.state)
+        token = FakePanoHost.TOKEN
 
-        val status = service.status()
+        val online = service.status()
 
-        assertFalse(status.encode().contains(stored.token))
-        assertEquals(PanoRemoteBackupService.LINKED, service.pollLink(LinkPurpose.BACKUP).getString("status"))
+        assertTrue(online.getBoolean("connected"))
+        assertEquals("tester", online.getJsonObject("account").getString("username"))
+        assertEquals("backup-10", online.getJsonObject("plan").getJsonObject("tier").getString("id"))
+        assertEquals(10L shl 30, online.getJsonObject("usage").getLong("quota"))
+        assertEquals(10L shl 30, online.getJsonObject("usage").getLong("free"))
+        assertEquals(0L, online.getJsonObject("usage").getLong("used"))
+        assertFalse(online.encode().contains(FakePanoHost.TOKEN))
 
-        // An expired request is reported and dropped.
-        service.startLink(LinkPurpose.TRANSFER)
-        now += 601_000
-        assertEquals(PanoRemoteBackupService.EXPIRED, service.pollLink(LinkPurpose.TRANSFER).getString("status"))
-        assertEquals(PanoRemoteBackupService.NONE, service.pollLink(LinkPurpose.TRANSFER).getString("status"))
+        // Cached for a minute; `fresh` asks again.
+        host.subscription = false
+        assertNotNull(service.status().getValue("plan"))
+        assertNull(service.status(fresh = true).getValue("plan"))
 
-        // A token revoked on panomc.com is forgotten here on its first use.
-        host.tokens.remove(stored.token)
-        assertEquals(PanoHostException.INVALID_TOKEN, assertThrows<PanoHostException> { runBlocking { service.listBackups() } }.code)
-        assertNull(state.state.links[LinkPurpose.BACKUP])
+        // Disconnected on panomc.com: the host says so, the overview asks to reconnect.
+        host.tokens.remove(FakePanoHost.TOKEN)
 
-        host.approved.clear()
-        link(LinkPurpose.BACKUP)
-        service.unlink(LinkPurpose.BACKUP)
-        assertNull(state.state.links[LinkPurpose.BACKUP])
+        val revoked = service.status(fresh = true)
+
+        assertFalse(revoked.getBoolean("connected"))
+        assertEquals(PanoHostException.CONNECT_REQUIRED, revoked.getJsonObject("hostError").getString("code"))
+        assertEquals(PanoHostException.INVALID_TOKEN, revoked.getJsonObject("hostError").getString("reason"))
+
+        // The link era's state (tokens of `links`) is ignored and dropped on the next save.
+        val legacy = JsonObject().put("links", JsonObject().put("BACKUP", JsonObject().put("purpose", "BACKUP").put("token", "hlt_old")))
+            .put("settings", JsonObject().put("schedule", "TIER").put("hour", 5)).put("lastUploadAt", 7L)
+        val parsed = RemoteBackupState.parse(legacy.encode())
+
+        assertEquals(RemoteBackupState(RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, 5), 7L), parsed)
+        assertFalse(parsed.toJson().encode().contains("hlt_old"))
     }
 
     @Test
     fun `upload is end-to-end encrypted, multipart, and restores with the passphrase only`(): Unit = runBlocking {
-        link(LinkPurpose.BACKUP)
-
         // No passphrase yet → refused inside the job, nothing uploaded.
         val refused = awaitJob(service.startUpload())
         assertEquals("PASSPHRASE_NOT_SET", refused.error)
@@ -161,6 +171,7 @@ class PanoRemoteBackupServiceTest {
 
         assertEquals("DONE", backup.getString("status"))
         assertEquals("pano-instance", backup.getString("kind"))
+        assertEquals(INSTANCE_ID, backup.getString("instanceId"))
         assertEquals(sha256Hex(bytes), backup.getString("sha256"))
         assertTrue(bytes.size > 4096 * 4, "several parts")
         assertEquals(bytes.size.toLong(), job.bytesDone)
@@ -193,7 +204,6 @@ class PanoRemoteBackupServiceTest {
 
     @Test
     fun `host refusals end the job with the host code and its details`(): Unit = runBlocking {
-        link(LinkPurpose.BACKUP)
         service.setPassphrase(passphrase.toCharArray())
 
         host.subscription = false
@@ -204,18 +214,25 @@ class PanoRemoteBackupServiceTest {
         assertEquals("NO_SUBSCRIPTION", payment.details?.getString("reason"))
 
         host.subscription = true
-        assertEquals(PanoBackupJob.Status.DONE, awaitJob(service.startUpload()).status)
+        host.lapsed = true
 
-        val frequency = awaitJob(service.startUpload())
+        val lapsed = awaitJob(service.startUpload())
 
-        assertEquals("QUOTA_EXCEEDED", frequency.error)
-        assertEquals("FREQUENCY", frequency.details?.getString("reason"))
-        assertNotNull(frequency.details?.getLong("nextAllowedAt"))
+        assertEquals("PAYMENT_REQUIRED", lapsed.error)
+        assertEquals("LAPSED", lapsed.details?.getString("reason"))
+        assertNotNull(lapsed.details?.getLong("graceUntil"))
+
+        host.lapsed = false
+        host.quotaBytes = 1000
+
+        val quota = awaitJob(service.startUpload())
+
+        assertEquals("QUOTA_EXCEEDED", quota.error)
+        assertEquals("QUOTA", quota.details?.getString("reason"))
         assertTrue(tempLeftovers().isEmpty())
 
         // A part that keeps failing (after the retries) deletes the session at Pano Host.
-        host.minIntervalMinutes = 0
-        host.backups.clear()
+        host.quotaBytes = 10L shl 30
         host.failAllPuts = true
 
         try {
@@ -231,12 +248,36 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
-    fun `transfer pushes a plain archive and ends awaiting confirmation`(): Unit = runBlocking {
-        assertEquals(PanoRemoteBackupService.NOT_LINKED, awaitJob(service.startTransfer()).error)
+    fun `an upload stopped on the website ends as STOPPED_REMOTELY`(): Unit = runBlocking {
+        service.setPassphrase(passphrase.toCharArray())
 
-        link(LinkPurpose.TRANSFER)
+        // Stopped while part 1 is in flight: the poll before part 2 sees CANCELED.
+        host.onPart = { key, part -> if (part == 1) host.backups[key.removePrefix("backups/")]?.put("status", "CANCELED") }
 
-        val job = awaitJob(service.startTransfer())
+        val polled = awaitJob(service.startUpload())
+
+        assertEquals(PanoHostException.STOPPED_REMOTELY, polled.error)
+        assertEquals("CANCELED", host.backups.getValue(polled.remoteId!!).getString("status"))
+        assertTrue(host.parts["backups/${polled.remoteId}"]?.keys == setOf(1), "no part after the stop")
+        assertTrue(tempLeftovers().isEmpty())
+
+        // Stopped mid-part: the aborted upload refuses the PUT, the status explains why.
+        host.onPart = { key, part -> if (part == 3) host.stop(key.removePrefix("backups/")) }
+
+        val aborted = awaitJob(service.startUpload())
+
+        assertEquals(PanoHostException.STOPPED_REMOTELY, aborted.error)
+        assertEquals(aborted.remoteId, aborted.details?.getString("backupId"))
+        assertTrue(host.backups.containsKey(aborted.remoteId), "a stopped backup is not deleted by the Pano")
+        assertNull(state.state.lastUploadAt)
+    }
+
+    @Test
+    fun `transfer pushes a plain archive into the chosen workload and ends awaiting confirmation`(): Unit = runBlocking {
+        assertEquals(FakePanoHost.WORKLOAD_ID, service.listWorkloads().getJsonArray("workloads").getJsonObject(0).getString("id"))
+        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startTransfer("p-other0001")).error)
+
+        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID))
 
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
 
@@ -246,19 +287,14 @@ class PanoRemoteBackupServiceTest {
         assertEquals(listOf(false), runner.archived)
         assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, PanoArchive.verify(ByteArrayInputStream(bytes), PanoArcKeys.NONE).kind)
         assertEquals("AWAITING_CONFIRMATION", service.getTransfer(transferId).getString("status"))
-        assertEquals("p-test00001", service.listTransfers().getJsonObject("workload").getString("id"))
-        assertEquals("p-test00001", state.state.links.getValue(LinkPurpose.TRANSFER).workloadId)
+        assertEquals(transferId, service.listTransfers().getJsonArray("transfers").getJsonObject(0).getString("id"))
 
         service.cancelTransfer(transferId)
         assertEquals("CANCELED", service.getTransfer(transferId).getString("status"))
-
-        // A TRANSFER link cannot touch Pano Backup.
-        assertEquals(PanoRemoteBackupService.NOT_LINKED, assertThrows<PanoHostException> { runBlocking { service.listBackups() } }.code)
     }
 
     @Test
     fun `MC server backups are wrapped as mc-server, encrypted and uploaded per server`(): Unit = runBlocking {
-        link(LinkPurpose.BACKUP)
         service.setPassphrase(passphrase.toCharArray())
 
         val zip = Random(9).nextBytes(10_000)
@@ -295,30 +331,47 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
-    fun `schedule follows the settings and the tier minimum interval`(): Unit = runBlocking {
-        link(LinkPurpose.BACKUP)
+    fun `schedule follows the settings, needs a plan and backs off after a failure`(): Unit = runBlocking {
         service.setPassphrase(passphrase.toCharArray())
 
-        now = System.currentTimeMillis()
+        now = LocalDateTime.of(2026, 9, 27, 23, 30).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         service.tick(now)
         assertTrue(host.backups.isEmpty(), "schedule OFF")
+        assertNull(runner.job)
 
-        service.saveSettings(RemoteBackupSettings(schedule = RemoteBackupSettings.Schedule.TIER))
+        service.saveSettings(RemoteBackupSettings(schedule = RemoteBackupSettings.Schedule.DAILY, hour = 0))
         service.tick(now)
-        awaitJob(runner.job!!)
+        assertEquals(PanoBackupJob.Status.DONE, awaitJob(runner.job!!).status)
         assertEquals(1, host.backups.size)
 
         val first = runner.job
 
-        service.tick(now + 30 * 60_000)
-        assertTrue(runner.job === first, "not again within the tier's 60 minutes")
+        service.tick(now + 3 * 3600_000L)
+        assertTrue(runner.job === first, "not again the same day")
 
-        // The fake enforces the interval against real time; relax it for the second upload.
-        host.minIntervalMinutes = 0
-        service.tick(now + 61 * 60_000)
-        awaitJob(runner.job!!)
-        assertTrue(runner.job !== first)
-        assertEquals(2, host.backups.size)
+        // No plan: nothing is archived, and the next attempt waits an hour.
+        host.subscription = false
+        now += 24 * 3600_000L
+        service.status(fresh = true)
+        service.tick(now)
+        assertTrue(runner.job === first)
+        host.subscription = true
+        service.status(fresh = true)
+        service.tick(now + 10 * 60_000L)
+        assertTrue(runner.job === first, "backing off")
+
+        // A failed scheduled upload also backs off.
+        host.quotaBytes = 1000
+        service.tick(now + PanoRemoteBackupService.RETRY_AFTER_FAILURE_MS)
+        val failed = awaitJob(runner.job!!)
+        assertEquals("QUOTA_EXCEEDED", failed.error)
+        host.quotaBytes = 10L shl 30
+        service.tick(now + PanoRemoteBackupService.RETRY_AFTER_FAILURE_MS + 10 * 60_000L)
+        assertTrue(runner.job === failed, "backing off after the failed upload")
+
+        service.tick(now + 2 * PanoRemoteBackupService.RETRY_AFTER_FAILURE_MS + 10 * 60_000L)
+        assertEquals(PanoBackupJob.Status.DONE, awaitJob(runner.job!!).status)
+        assertEquals(2, host.backups.values.count { it.getString("status") == "DONE" })
     }
 
     @Test
@@ -326,17 +379,16 @@ class PanoRemoteBackupServiceTest {
         val daily = RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, hour = 4)
         val at = { hour: Int -> LocalDateTime.of(2026, 9, 26, hour, 0).toInstant(ZoneOffset.UTC).toEpochMilli() }
 
-        assertFalse(daily.isDue(null, 60, at(3), ZoneOffset.UTC))
-        assertTrue(daily.isDue(null, 60, at(4), ZoneOffset.UTC))
-        assertFalse(daily.isDue(at(4), 60, at(4) + 20 * 3600_000L, ZoneOffset.UTC))
-        assertTrue(daily.isDue(at(4) + 3600_000L, 60, at(4) + 24 * 3600_000L, ZoneOffset.UTC))
-        // A tier that allows one upload every two days wins over DAILY.
-        assertFalse(daily.isDue(at(4), 2 * 24 * 60, at(4) + 25 * 3600_000L, ZoneOffset.UTC))
+        assertFalse(daily.isDue(null, at(3), ZoneOffset.UTC))
+        assertTrue(daily.isDue(null, at(4), ZoneOffset.UTC))
+        assertFalse(daily.isDue(at(4), at(4) + 20 * 3600_000L, ZoneOffset.UTC))
+        assertTrue(daily.isDue(at(4) + 3600_000L, at(4) + 24 * 3600_000L, ZoneOffset.UTC))
+        assertFalse(RemoteBackupSettings().isDue(null, at(12), ZoneOffset.UTC))
 
-        val tier = RemoteBackupSettings(RemoteBackupSettings.Schedule.TIER)
-        assertTrue(tier.isDue(at(1), 60, at(2), ZoneOffset.UTC))
-        assertFalse(tier.isDue(at(1), 60, at(1) + 59 * 60_000L, ZoneOffset.UTC))
-        assertFalse(RemoteBackupSettings().isDue(null, 0, at(12), ZoneOffset.UTC))
+        val weekly = RemoteBackupSettings(RemoteBackupSettings.Schedule.WEEKLY, hour = 0)
+        assertFalse(weekly.isDue(at(1), at(1) + 5 * 24 * 3600_000L, ZoneOffset.UTC))
+        assertTrue(weekly.isDue(at(1), at(1) + 7 * 24 * 3600_000L, ZoneOffset.UTC))
+        assertEquals(RemoteBackupSettings.Schedule.DAILY, RemoteBackupSettings.fromJson(JsonObject().put("schedule", "TIER").put("hour", 1))?.schedule)
 
         assertEquals(daily, RemoteBackupSettings.fromJson(daily.toJson()))
         assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "HOURLY").put("hour", 1)))

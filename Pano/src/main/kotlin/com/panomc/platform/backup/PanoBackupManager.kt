@@ -5,9 +5,10 @@ import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.PluginManager
 import com.panomc.platform.api.PluginDatabaseManager
 import com.panomc.platform.archive.instance.InstanceLayout
-import com.panomc.platform.backup.remote.LinkPurpose
+import com.panomc.platform.backup.remote.ConnectedAccount
 import com.panomc.platform.backup.remote.MemoryRemoteStateStore
 import com.panomc.platform.backup.remote.PanoHostClient
+import com.panomc.platform.backup.remote.PanoIdentity
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.backup.remote.PassphraseFile
 import com.panomc.platform.backup.remote.RemoteBackupState
@@ -29,6 +30,8 @@ import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.slf4j.Logger
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.ApplicationContext
@@ -71,11 +74,58 @@ class PanoBackupManager(
             ?: System.getenv("PANO_HOST_API_URL")?.takeIf { it.isNotBlank() }
             ?: configManager.config.panoApiUrl
 
-    private val hostClient by lazy { PanoHostClient({ hostApiUrl() }) }
-
     private fun instanceName(): String = configManager.config.websiteName.ifBlank { "Pano" }
 
-    /** Pano Backup + transfer of the running Pano; link tokens + settings in the database. */
+    /** The platform connection (setup step 4 or the panel's "connect Pano account"): its token is the credential. */
+    private fun connectionToken(): String? = configManager.config.panoAccount.accessToken.takeIf { it.isNotBlank() }
+
+    private fun connectedAccount(): ConnectedAccount? {
+        val account = configManager.config.panoAccount
+
+        return if (account.accessToken.isBlank()) null else ConnectedAccount(account.username, account.platformId)
+    }
+
+    private val instanceIdLock = Mutex()
+
+    @Volatile
+    private var instanceId: String? = null
+
+    /** `X-Pano-Instance-Id`: generated once and kept in the `pano-backup-instance-id` system property. */
+    private suspend fun persistedInstanceId(): String {
+        instanceId?.let { return it }
+
+        return instanceIdLock.withLock {
+            instanceId ?: run {
+                val sqlClient = databaseManager.getSqlClient()
+                val dao = databaseManager.systemPropertyDao
+                val stored = dao.getByOption(RemoteBackupState.INSTANCE_ID_OPTION, sqlClient)?.value
+
+                if (PanoHostClient.isValidInstanceId(stored)) {
+                    stored!!
+                } else {
+                    val id = PanoHostClient.newInstanceId()
+
+                    if (stored != null) dao.update(RemoteBackupState.INSTANCE_ID_OPTION, id, sqlClient)
+                    else dao.add(SystemProperty(option = RemoteBackupState.INSTANCE_ID_OPTION, value = id), sqlClient)
+
+                    id
+                }
+            }.also { instanceId = it }
+        }
+    }
+
+    private val hostClient by lazy {
+        PanoHostClient({ hostApiUrl() }, ::connectionToken, { PanoIdentity(persistedInstanceId(), instanceName()) })
+    }
+
+    /** Setup mode has no database yet: a throwaway instance id (a restore only downloads). */
+    private val setupHostClient by lazy {
+        val id = PanoHostClient.newInstanceId()
+
+        PanoHostClient({ hostApiUrl() }, ::connectionToken, { PanoIdentity(id, instanceName()) })
+    }
+
+    /** Pano Backup + transfer of the running Pano over its platform connection; settings in the database. */
     val remote by lazy {
         PanoRemoteBackupService(
             client = hostClient,
@@ -83,19 +133,21 @@ class PanoBackupManager(
             passphraseFile = PassphraseFile(File(store.directory, PassphraseFile.FILE_NAME)),
             backups = service,
             tempDir = { InstanceLayout.current(configManager.config).tempDir },
+            account = ::connectedAccount,
             instanceName = ::instanceName,
             panoVersion = Main.VERSION
         )
     }
 
-    /** setup-ui "import from Pano Backup": the link lives in memory until the restored site brings its own. */
+    /** setup-ui "import from Pano Backup": uses the account connected in setup step 4. */
     val setupRemote by lazy {
         PanoRemoteBackupService(
-            client = hostClient,
+            client = setupHostClient,
             stateStore = MemoryRemoteStateStore(),
             passphraseFile = null,
             backups = service,
             tempDir = { InstanceLayout.current(configManager.config).tempDir },
+            account = ::connectedAccount,
             instanceName = ::instanceName,
             panoVersion = Main.VERSION
         )
@@ -111,7 +163,7 @@ class PanoBackupManager(
             try {
                 val state = remote.state()
 
-                if (serverId !in state.settings.mcServerIds || state.links[LinkPurpose.BACKUP] == null) {
+                if (serverId !in state.settings.mcServerIds || !remote.isConnected()) {
                     return@launch
                 }
 

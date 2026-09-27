@@ -49,26 +49,36 @@ interface ArchiveStore {
 }
 
 /**
- * A stand-in for the pano-host control plane's link routes (shapes of host-api.md §Link as W6/T6
- * implemented them) plus an in-memory S3 for presigned part PUTs / GETs on the same port.
+ * A stand-in for the pano-host control plane's connected-Pano routes (shapes of host-api.md §Connected
+ * Pano + §Pano Backup as W21 implemented them: platform connection JWT + `X-Pano-Instance-*` headers)
+ * plus an in-memory S3 for presigned part PUTs / GETs on the same port.
  */
 class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((FakePanoHost) -> ArchiveStore)? = null) {
     val baseUrl = "http://127.0.0.1:$port"
     val store: ArchiveStore = storeFactory?.invoke(this) ?: MemoryStore(this)
 
     // Control-plane state
-    val approved = ConcurrentHashMap<LinkPurpose, Boolean>()
-    private val pendingPolls = ConcurrentHashMap<String, LinkPurpose>()
-    val tokens = ConcurrentHashMap<String, LinkPurpose>()
+    /** Valid platform connection JWTs (a disconnect on panomc.com = removed). */
+    val tokens: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { add(TOKEN) }
     val backups = ConcurrentHashMap<String, JsonObject>()
     val transfers = ConcurrentHashMap<String, JsonObject>()
     val calls = CopyOnWriteArrayList<String>()
+
+    /** `X-Pano-Instance-Id` / `-Name` of every connected call. */
+    val instances = CopyOnWriteArrayList<Pair<String?, String?>>()
 
     @Volatile
     var subscription = true
 
     @Volatile
-    var minIntervalMinutes = 60L
+    var lapsed = false
+
+    @Volatile
+    var quotaBytes = 10L shl 30
+
+    /** Called on every part PUT (`key`, part number) before it is stored (e.g. to stop the backup there). */
+    @Volatile
+    var onPart: (String, Int) -> Unit = { _, _ -> }
 
     // In-memory S3 state
     val parts = ConcurrentHashMap<String, ConcurrentHashMap<Int, ByteArray>>()
@@ -84,6 +94,12 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     var failAllPuts = false
 
     private lateinit var server: HttpServer
+
+    companion object {
+        const val TOKEN = "platform-jwt-test"
+        const val ACCOUNT_ID = "0b8e4f6e-3c5d-4a2b-9f1e-2d3c4b5a6f70"
+        const val WORKLOAD_ID = "p-test00001"
+    }
 
     fun start(): FakePanoHost {
         val router = Router.router(vertx)
@@ -112,7 +128,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
         calls.add("$method $path")
 
-        vertx.executeBlocking(Callable { route(method, path, context.request().getHeader("Authorization"), context.body()?.asJsonObject() ?: JsonObject()) })
+        vertx.executeBlocking(Callable { route(method, path, context, context.body()?.asJsonObject() ?: JsonObject()) })
             .onComplete { result ->
                 val response = context.response().putHeader("Content-Type", "application/json")
 
@@ -127,85 +143,96 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
             }
     }
 
-    private fun auth(header: String?, purpose: LinkPurpose): String {
-        val token = header?.removePrefix("Bearer ")?.takeIf { header.startsWith("Bearer ") } ?: throw Failure(401, "INVALID_TOKEN")
-        val bound = tokens[token] ?: throw Failure(401, "INVALID_TOKEN")
+    private fun auth(header: String?): String {
+        val token = header?.removePrefix("Bearer ")?.takeIf { header.startsWith("Bearer ") }
+            ?: throw Failure(401, "NOT_CONNECTED", JsonObject().put("reason", "MISSING"))
 
-        if (bound != purpose) throw Failure(403, "NO_PERMISSION", JsonObject().put("reason", "LINK_SCOPE"))
+        if (token !in tokens) throw Failure(401, "INVALID_TOKEN")
 
         return token
     }
 
-    private fun route(method: String, path: String, authorization: String?, body: JsonObject): JsonObject {
-        val segments = path.removePrefix("/host/").split("/")
+    private fun instance(context: RoutingContext, required: Boolean): String? {
+        val id = context.request().getHeader("X-Pano-Instance-Id")?.lowercase()
+
+        instances.add(id to context.request().getHeader("X-Pano-Instance-Name"))
+
+        if (required && (id == null || !Regex("[a-z0-9-]{8,64}").matches(id))) {
+            throw Failure(400, "INVALID_INPUT", JsonObject().put("field", "X-Pano-Instance-Id").put("reason", "required"))
+        }
+
+        return id
+    }
+
+    private fun route(method: String, path: String, context: RoutingContext, body: JsonObject): JsonObject {
+        auth(context.request().getHeader("Authorization"))
+
+        val segments = path.removePrefix("/host/connected").removePrefix("/").split("/").filter { it.isNotEmpty() }
 
         return when {
-            method == "POST" && path == "/host/link/start" -> {
-                val purpose = LinkPurpose.valueOf(body.getString("purpose"))
-                val pollToken = UUID.randomUUID().toString()
-
-                pendingPolls[pollToken] = purpose
-
-                JsonObject().put("code", "ABCD-1234").put("verifyUrl", "https://panomc.test/host/link?code=ABCD-1234")
-                    .put("pollToken", pollToken).put("expiresIn", 600).put("interval", 1)
-            }
-
-            method == "POST" && path == "/host/link/poll" -> {
-                val purpose = pendingPolls[body.getString("pollToken")] ?: throw Failure(404, "LINK_NOT_FOUND")
-
-                if (approved[purpose] != true) return JsonObject().put("status", "PENDING").put("interval", 1)
-
-                pendingPolls.remove(body.getString("pollToken"))
-
-                val token = "hlt_" + UUID.randomUUID()
-
-                tokens[token] = purpose
-
-                JsonObject().put("status", "ACTIVE").put("token", token).put("linkId", UUID.randomUUID().toString())
-                    .put("purpose", purpose.name).put("workloadId", if (purpose == LinkPurpose.TRANSFER) "p-test00001" else null)
-            }
-
-            segments.getOrNull(1) == "backups" -> backupsRoute(method, segments, auth(authorization, LinkPurpose.BACKUP), body)
-            segments.getOrNull(1) == "transfers" -> transfersRoute(method, segments, auth(authorization, LinkPurpose.TRANSFER), body)
+            !path.startsWith("/host/connected") -> throw Failure(404, "NOT_FOUND")
+            segments.isEmpty() -> JsonObject().put("accountId", ACCOUNT_ID).put("platformId", "p1").put("username", "tester")
+                .put("instanceId", instance(context, false)).put("instanceName", context.request().getHeader("X-Pano-Instance-Name"))
+            segments[0] == "backups" -> backupsRoute(method, segments, instance(context, true)!!, body)
+            segments[0] == "workloads" -> JsonObject().put("workloads", JsonArray().add(JsonObject().put("id", WORKLOAD_ID).put("name", "Test").put("maxBytes", 10L shl 30)))
+            segments[0] == "transfers" -> transfersRoute(method, segments, instance(context, true)!!, body)
             else -> throw Failure(404, "NOT_FOUND")
         }
     }
 
-    private fun tier() = JsonObject().put("id", "backup-10").put("storageGb", 10).put("retentionDays", 30).put("minIntervalMinutes", minIntervalMinutes)
+    private fun tier() = JsonObject().put("id", "backup-10").put("name", "10 GB").put("storageGb", 10).put("priceMonthly", 100).put("graceDays", 7)
 
-    private fun backupsRoute(method: String, segments: List<String>, token: String, body: JsonObject): JsonObject {
-        val id = segments.getOrNull(2)
-        val action = segments.getOrNull(3)
+    private fun usedBytes() = backups.values.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") }
+
+    private fun backupsRoute(method: String, segments: List<String>, instanceId: String, body: JsonObject): JsonObject {
+        val id = segments.getOrNull(1)
+        val action = segments.getOrNull(2)
+        val active = subscription && !lapsed
 
         return when {
-            id == null && method == "GET" -> JsonObject()
-                .put("backups", JsonArray(backups.values.filter { it.getString("status") == "DONE" }.sortedByDescending { it.getLong("createdAt") }))
-                .put("tier", if (subscription) tier() else null)
-                .put("usage", JsonObject().put("usedBytes", backups.values.sumOf { it.getLong("sizeBytes") }).put("reservedBytes", 0).put("quotaBytes", 10L shl 30))
+            id == null && method == "GET" -> {
+                val visible = backups.values.map { it.copy().put("own", it.getString("instanceId") == instanceId) }
+                val panos = visible.groupBy { it.getString("instanceId") }.map { (instance, list) ->
+                    JsonObject().put("instanceId", instance).put("instanceName", list.first().getString("instanceName")).put("current", instance == instanceId)
+                        .put("usedBytes", list.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") })
+                        .put("backups", JsonArray(list.sortedByDescending { it.getLong("createdAt") }))
+                }
+
+                JsonObject()
+                    .put("instanceId", instanceId)
+                    .put("tier", if (active) tier() else null)
+                    .put("subscription", if (active) JsonObject().put("tierId", "backup-10").put("status", "ACTIVE") else null)
+                    .put("usage", JsonObject().put("usedBytes", usedBytes()).put("reservedBytes", 0).put("quotaBytes", if (active) quotaBytes else null)
+                        .put("freeBytes", if (active) maxOf(0L, quotaBytes - usedBytes()) else null))
+                    .put("panos", JsonArray(panos))
+            }
 
             id == null && method == "POST" -> {
+                if (lapsed) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "LAPSED").put("graceUntil", 1L))
                 if (!subscription) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "NO_SUBSCRIPTION"))
 
-                val kind = body.getString("kind", "pano-instance")
-                val subject = body.getString("subject")
-                val last = backups.values.filter { it.getString("kind") == kind && it.getString("subject") == subject }.maxOfOrNull { it.getLong("createdAt") }
+                val size = body.getLong("size")
 
-                if (last != null && System.currentTimeMillis() - last < minIntervalMinutes * 60_000) {
-                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("reason", "FREQUENCY").put("nextAllowedAt", last + minIntervalMinutes * 60_000))
+                if (usedBytes() + size > quotaBytes) {
+                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("reason", "QUOTA").put("quotaBytes", quotaBytes).put("usedBytes", usedBytes()))
                 }
 
                 val backupId = UUID.randomUUID().toString()
-                val size = body.getLong("size")
                 val (partSize, urls) = store.open("backups/$backupId", size)
 
-                backups[backupId] = JsonObject().put("id", backupId).put("kind", kind).put("subject", subject).put("status", "UPLOADING")
-                    .put("sizeBytes", size).put("createdAt", System.currentTimeMillis()).put("own", true)
+                backups[backupId] = JsonObject().put("id", backupId).put("instanceId", instanceId).put("instanceName", "?")
+                    .put("kind", body.getString("kind", "pano-instance")).put("subject", body.getString("subject")).put("status", "UPLOADING")
+                    .put("sizeBytes", size).put("createdAt", System.currentTimeMillis())
 
                 session("backupId", backupId, partSize, urls)
             }
 
             action == "complete" -> {
                 val backup = backups[id] ?: throw Failure(404, "BACKUP_NOT_FOUND")
+
+                if (backup.getString("instanceId") != instanceId) throw Failure(403, "NO_PERMISSION", JsonObject().put("reason", "OTHER_PANO"))
+                if (backup.getString("status") == "CANCELED") throw Failure(404, "BACKUP_NOT_FOUND", JsonObject().put("reason", "CANCELED"))
+
                 val stored = store.complete("backups/$id") ?: throw Failure(400, "INVALID_INPUT", JsonObject().put("reason", "not_uploaded"))
 
                 if (stored != backup.getLong("sizeBytes")) throw Failure(400, "INVALID_INPUT", JsonObject().put("reason", "size_mismatch"))
@@ -222,38 +249,57 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                     .put("sizeBytes", backup.getLong("sizeBytes")).put("sha256", backup.getString("sha256"))
             }
 
+            method == "GET" -> JsonObject().put("backup", backups[id] ?: throw Failure(404, "BACKUP_NOT_FOUND"))
+
             method == "DELETE" -> {
-                backups.remove(id) ?: throw Failure(404, "BACKUP_NOT_FOUND")
+                val backup = backups[id] ?: throw Failure(404, "BACKUP_NOT_FOUND")
+
+                if (backup.getString("instanceId") != instanceId) throw Failure(403, "NO_PERMISSION", JsonObject().put("reason", "OTHER_PANO"))
+
+                backups.remove(id)
                 store.delete("backups/$id")
 
-                JsonObject()
+                JsonObject().put("deleted", true)
             }
 
             else -> throw Failure(404, "NOT_FOUND")
         }
     }
 
-    private fun transfersRoute(method: String, segments: List<String>, token: String, body: JsonObject): JsonObject {
-        val id = segments.getOrNull(2)
-        val action = segments.getOrNull(3)
+    /** What the website's "stop" does: the backup is `CANCELED` and its upload aborted. */
+    fun stop(backupId: String) {
+        backups[backupId]?.put("status", "CANCELED")?.put("error", "STOPPED")
+        store.delete("backups/$backupId")
+        parts.remove("backups/$backupId")
+        aborted.add("backups/$backupId")
+    }
+
+    /** Aborted multipart uploads: their part PUTs answer 404 (as S3 does). */
+    val aborted: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    private fun transfersRoute(method: String, segments: List<String>, instanceId: String, body: JsonObject): JsonObject {
+        val id = segments.getOrNull(1)
+        val action = segments.getOrNull(2)
+        val mine = { transferId: String? -> transfers[transferId]?.takeIf { it.getString("instanceId") == instanceId } ?: throw Failure(404, "TRANSFER_NOT_FOUND") }
 
         return when {
-            id == null && method == "GET" -> JsonObject()
-                .put("workload", JsonObject().put("id", "p-test00001").put("name", "Test").put("maxBytes", 10L shl 30))
-                .put("transfers", JsonArray(transfers.values.toList()))
+            id == null && method == "GET" -> JsonObject().put("transfers", JsonArray(transfers.values.filter { it.getString("instanceId") == instanceId }))
 
             id == null && method == "POST" -> {
+                if (body.getString("workloadId") != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+
                 val transferId = UUID.randomUUID().toString()
                 val size = body.getLong("size")
                 val (partSize, urls) = store.open("imports/$transferId", size)
 
-                transfers[transferId] = JsonObject().put("id", transferId).put("status", "UPLOADING").put("sizeBytes", size)
+                transfers[transferId] = JsonObject().put("id", transferId).put("instanceId", instanceId).put("workloadId", WORKLOAD_ID)
+                    .put("status", "UPLOADING").put("sizeBytes", size)
 
                 session("transferId", transferId, partSize, urls)
             }
 
             action == "complete" -> {
-                val transfer = transfers[id] ?: throw Failure(404, "TRANSFER_NOT_FOUND")
+                val transfer = mine(id)
 
                 store.complete("imports/$id") ?: throw Failure(400, "INVALID_INPUT", JsonObject().put("reason", "not_uploaded"))
                 transfer.put("status", "AWAITING_CONFIRMATION")
@@ -261,12 +307,10 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                 JsonObject().put("transfer", transfer)
             }
 
-            method == "GET" -> JsonObject().put("transfer", transfers[id] ?: throw Failure(404, "TRANSFER_NOT_FOUND"))
+            method == "GET" -> JsonObject().put("transfer", mine(id))
 
             method == "DELETE" -> {
-                val transfer = transfers[id] ?: throw Failure(404, "TRANSFER_NOT_FOUND")
-
-                transfer.put("status", "CANCELED")
+                mine(id).put("status", "CANCELED")
 
                 JsonObject().put("canceled", true)
             }
@@ -286,6 +330,14 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     private fun s3Put(context: RoutingContext) {
         val key = context.request().path().removePrefix("/s3/")
         val partNumber = context.request().getParam("partNumber")?.toInt() ?: 1
+        onPart(key, partNumber)
+
+        if (key in aborted) {
+            context.response().setStatusCode(404).end()
+
+            return
+        }
+
         val failures = if (failAllPuts) 1 else failPuts["$key#$partNumber"] ?: 0
 
         if (failures != 0) {

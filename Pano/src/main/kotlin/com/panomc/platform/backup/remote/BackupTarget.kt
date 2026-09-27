@@ -84,26 +84,33 @@ class LocalBackupTarget(private val store: PanoBackupStore, private val panoVers
 }
 
 /**
- * The account's Pano Backup area through a `BACKUP` link: upload session (tier quota + frequency
- * enforced by Pano Host) → presigned part PUTs with retry → complete with the sha256; downloads via
- * a presigned GET, checked against size + sha256. A failed upload deletes its session.
+ * The connected account's Pano Backup area: upload session (account quota enforced by Pano Host) →
+ * presigned part PUTs with retry → complete with the sha256; downloads via a presigned GET, checked
+ * against size + sha256. Between parts the backup's status is polled: stopped on the website
+ * (`CANCELED`) ends the upload with [PanoHostException.STOPPED_REMOTELY]. A failed upload deletes its
+ * session.
  */
-class PanoBackupTarget(private val client: PanoHostClient, private val token: suspend () -> String) : BackupTarget {
+class PanoBackupTarget(private val client: PanoHostClient) : BackupTarget {
     override val type = BackupTargetType.PANO_BACKUP
 
     override suspend fun put(file: File, archive: StoredArchive, onStarted: (String) -> Unit, onProgress: (Long) -> Unit): String {
         val size = file.length()
         val sha256 = withContext(Dispatchers.IO) { PanoHostClient.sha256(file) }
-        val token = token()
-        val session = client.startBackup(token, size, archive.kind, archive.subject)
+        val session = client.startBackup(size, archive.kind, archive.subject)
 
         onStarted(session.id)
 
         try {
-            client.uploadParts(file, session, onProgress)
-            client.completeBackup(token, session.id, sha256, archive.summary)
+            client.uploadParts(file, session, beforePart = { part -> if (part > 1) checkNotStopped(session.id) }, onProgress = onProgress)
+            client.completeBackup(session.id, sha256, archive.summary)
         } catch (e: Throwable) {
-            runCatching { client.deleteBackup(token, session.id) }
+            val stopped = e is PanoHostException && (e.code == PanoHostException.STOPPED_REMOTELY || isStopped(e) || runCatching { stopped(session.id) }.getOrDefault(false))
+
+            if (stopped) {
+                throw PanoHostException(PanoHostException.STOPPED_REMOTELY, extras = JsonObject().put("backupId", session.id), cause = e)
+            }
+
+            runCatching { client.deleteBackup(session.id) }
 
             throw e
         }
@@ -111,8 +118,17 @@ class PanoBackupTarget(private val client: PanoHostClient, private val token: su
         return session.id
     }
 
+    private suspend fun stopped(id: String) = client.getBackup(id).getString("status") == CANCELED
+
+    private suspend fun checkNotStopped(id: String) {
+        if (stopped(id)) throw PanoHostException(PanoHostException.STOPPED_REMOTELY)
+    }
+
+    /** `complete` of a backup stopped meanwhile: `BACKUP_NOT_FOUND {reason CANCELED}`. */
+    private fun isStopped(e: PanoHostException) = e.code == LocalBackupTarget.NOT_FOUND && e.extras.getString("reason") == CANCELED
+
     override suspend fun fetch(id: String, target: File, onProgress: (Long) -> Unit) {
-        val download = client.downloadBackup(token(), id)
+        val download = client.downloadBackup(id)
 
         client.download(
             download.getString("url") ?: throw PanoHostException(PanoHostException.DOWNLOAD_FAILED),
@@ -123,5 +139,9 @@ class PanoBackupTarget(private val client: PanoHostClient, private val token: su
         )
     }
 
-    override suspend fun delete(id: String) = client.deleteBackup(token(), id)
+    override suspend fun delete(id: String) = client.deleteBackup(id)
+
+    companion object {
+        const val CANCELED = "CANCELED"
+    }
 }

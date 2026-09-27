@@ -1,7 +1,6 @@
 package com.panomc.platform.route.api.panel.panoBackup.remote
 
 import com.panomc.platform.backup.PanoBackupJob
-import com.panomc.platform.backup.remote.LinkPurpose
 import com.panomc.platform.backup.remote.PanoHostException
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.error.BadRequest
@@ -20,7 +19,7 @@ object PanoBackupRemoteRoutes {
         throw PanoHostError.of(e)
     }
 
-    /** Starts a job: BUSY → 409, a precondition (not linked, no passphrase) → [PanoHostError]. */
+    /** Starts a job: BUSY → 409, a precondition (not connected, no passphrase) → [PanoHostError]. */
     fun job(start: () -> PanoBackupJob): PanoBackupJob = try {
         PanoBackupRoutes.startJob(start)
     } catch (e: PanoHostException) {
@@ -34,21 +33,21 @@ object PanoBackupRemoteRoutes {
         throw BadRequest()
     }
 
-    fun purpose(value: String?): LinkPurpose = LinkPurpose.values().firstOrNull { it.name == value?.uppercase() } ?: throw BadRequest()
-
     fun remoteId(context: RoutingContext, name: String = "id"): String =
         context.pathParam(name)?.takeIf { PanoRemoteBackupService.isValidRemoteId(it) } ?: throw NotExists()
 
-    /** Fails fast (before a job starts) when the link or the passphrase is missing. */
-    suspend fun requireReady(remote: PanoRemoteBackupService, purpose: LinkPurpose, passphrase: Boolean) {
-        val status = remote.status()
-
-        if (status.getJsonObject("links")?.getJsonObject(purpose.name) == null) {
-            throw PanoHostError.of(PanoHostException(PanoRemoteBackupService.NOT_LINKED, extras = JsonObject().put("purpose", purpose.name)))
+    /** Fails fast (before a job starts) when the platform connection or the passphrase is missing. */
+    fun requireReady(remote: PanoRemoteBackupService, passphrase: Boolean) {
+        if (!remote.isConnected()) {
+            throw PanoHostError.of(PanoHostException(PanoHostException.CONNECT_REQUIRED, extras = JsonObject().put("reason", "NOT_CONNECTED")))
         }
 
-        if (passphrase && !status.getBoolean("passphraseSet", false)) {
+        if (passphrase && !remote.passphraseSet()) {
             throw PanoHostError.of(PanoHostException(PanoRemoteBackupService.PASSPHRASE_NOT_SET))
         }
     }
+
+    /** A Pano Host workload id (`p-…`); anything else never reaches a URL or body. */
+    fun workloadId(value: String?): String =
+        value?.takeIf { it.length in 3..64 && it.all { c -> c.isLetterOrDigit() || c == '-' } } ?: throw BadRequest(extras = mapOf("field" to "workloadId"))
 }

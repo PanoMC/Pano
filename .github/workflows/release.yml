@@ -428,7 +428,9 @@ jobs:
   # ghcr.io/panomc/pano-web-platform:<version> for self-hosters' Docker installs: the runtime-jre11 image
   # built above plus the smoke-tested release jar, which docker/pano/pano-seed.sh copies into the /data
   # volume on first start (and when the image changes). alpha/beta releases also move their channel tag;
-  # main releases move `latest`.
+  # main releases move `latest`. Until the first stable release exists, `latest` (the compose/docs
+  # default) follows the most stable channel that has an image: beta releases move it, and alpha
+  # releases move it only while no `beta` image exists, so the documented install always resolves.
   pano_image:
     runs-on: ubuntu-latest
     needs: [ get_next_version, runtime_images, smoke_jre11 ]
@@ -463,6 +465,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Pick the image tags
+        id: tags
+        run: |
+          bash docker/pano/image-tags-test.sh
+          bash docker/pano/image-tags.sh | tee -a "$GITHUB_OUTPUT"
+
       - name: Build and push ghcr.io/panomc/pano-web-platform
         uses: docker/build-push-action@v6
         with:
@@ -472,6 +480,4 @@ jobs:
           build-args: |
             RUNTIME=ghcr.io/panomc/pano-web-platform:runtime-jre11-${{ env.PANO_VERSION }}
           push: true
-          tags: |
-            ghcr.io/panomc/pano-web-platform:${{ env.PANO_VERSION }}
-            ghcr.io/panomc/pano-web-platform:${{ env.CHANNEL }}
+          tags: ${{ steps.tags.outputs.tags }}

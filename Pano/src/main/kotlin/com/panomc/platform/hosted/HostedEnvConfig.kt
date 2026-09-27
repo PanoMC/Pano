@@ -24,7 +24,7 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
         val STARTTLS_MODES = setOf("DISABLED", "OPTIONAL", "REQUIRED")
 
         /** panomc.com's per-workload management page is `<this>/<workloadId>`. */
-        const val DEFAULT_MANAGE_URL = "https://panomc.com/host/manage"
+        const val DEFAULT_MANAGE_URL = "https://panomc.com/host/manage/instances"
 
         /** Traefik reaches the workload over its private `pw-<id>` bridge network. */
         val PRIVATE_PROXY_RANGES = listOf(

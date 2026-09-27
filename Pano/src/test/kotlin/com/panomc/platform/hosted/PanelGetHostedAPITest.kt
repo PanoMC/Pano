@@ -46,7 +46,7 @@ class PanelGetHostedAPITest {
 
         assertEquals(true, body["hosted"])
         assertEquals("wl_abc123", body["workloadId"])
-        assertEquals("https://panomc.com/host/manage/wl_abc123", body["manageUrl"])
+        assertEquals("https://panomc.com/host/manage/instances/wl_abc123", body["manageUrl"])
         assertEquals(emptyList<Any>(), body["notices"])
         assertFalse(body.toString().contains("s3cret"))
         assertTrue(Successful(body).encode(mapOf()).contains("\"hosted\":true"))
@@ -59,7 +59,7 @@ class PanelGetHostedAPITest {
             respond(api(hostedEnv + ("PANO_HOST_MANAGE_URL" to "https://dev.panomc.com/host/manage/x")))["manageUrl"]
         )
         assertEquals(
-            "https://panomc.com/host/manage/wl_abc123",
+            "https://panomc.com/host/manage/instances/wl_abc123",
             respond(api(hostedEnv + ("PANO_HOST_MANAGE_URL" to "javascript:alert(1)")))["manageUrl"]
         )
     }
@@ -68,7 +68,7 @@ class PanelGetHostedAPITest {
     fun `hosted passes feed notices through, sanitised`() {
         val feed = object : HostNoticeFeed {
             override suspend fun notices() = listOf(
-                HostNotice("n1", "WARNING", "Disk 90% full", "Storage", "https://panomc.com/host/manage/wl_abc123", 1L),
+                HostNotice("n1", "WARNING", "Disk 90% full", "Storage", "https://panomc.com/host/manage/instances/wl_abc123", 1L),
                 HostNotice("n2", "shout", "Unknown level", url = "javascript:alert(1)"),
                 HostNotice("", "info", "no id"),
                 HostNotice("n3", "info", " ")
@@ -81,7 +81,7 @@ class PanelGetHostedAPITest {
         assertEquals(listOf("n1", "n2"), notices.map { it["id"] })
         assertEquals("warning", notices[0]["level"])
         assertEquals("Storage", notices[0]["title"])
-        assertEquals("https://panomc.com/host/manage/wl_abc123", notices[0]["url"])
+        assertEquals("https://panomc.com/host/manage/instances/wl_abc123", notices[0]["url"])
         assertEquals("info", notices[1]["level"])
         assertNull(notices[1]["url"])
     }

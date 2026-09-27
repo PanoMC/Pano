@@ -27,6 +27,10 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
     var legacyCapabilities = false
     var setupCompleted: Boolean? = null
 
+    /** Pre-W22 control plane: capabilities rejects `admins`. */
+    var legacyAdmins = false
+    var admins: List<String>? = null
+
     /** `POST /host/instance/bootstrap` answer: status + `data` (ok) or error code. */
     var bootstrapStatus = 404
     var bootstrapData: JsonObject? = null
@@ -81,13 +85,20 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
                         else -> error(bootstrapStatus, bootstrapError)
                     }
                     req.path().endsWith("/capabilities") -> {
-                        val allowed = if (legacyCapabilities) setOf(setOf("ssoSupported"))
-                        else setOf(setOf("ssoSupported"), setOf("ssoSupported", "setupCompleted"))
+                        val allowed = when {
+                            legacyCapabilities -> setOf(setOf("ssoSupported"))
+                            legacyAdmins -> setOf(setOf("ssoSupported"), setOf("ssoSupported", "setupCompleted"))
+                            else -> setOf(
+                                setOf("ssoSupported"), setOf("ssoSupported", "setupCompleted"),
+                                setOf("ssoSupported", "admins"), setOf("ssoSupported", "setupCompleted", "admins")
+                            )
+                        }
                         if (body.fieldNames() !in allowed) error(400, "BAD_REQUEST")
                         else if (failCapabilities.getAndDecrement() > 0) error(503, "UNAVAILABLE")
                         else {
                             ssoSupported = body.getBoolean("ssoSupported")
                             body.getBoolean("setupCompleted")?.let { setupCompleted = it }
+                            body.getJsonArray("admins")?.let { admins = it.map { a -> a.toString() } }
                             ok(JsonObject().put("ssoSupported", ssoSupported).put("setupCompleted", setupCompleted == true))
                         }
                     }
@@ -115,7 +126,14 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
         error("no free 18xxx port")
     }
 
-    fun issue(ticket: String, accountId: String, email: String, role: String = "owner", workloadId: String = "w1") {
+    fun issue(
+        ticket: String,
+        accountId: String,
+        email: String,
+        role: String = "owner",
+        workloadId: String = "w1",
+        adminUsername: String? = null
+    ) {
         tickets[ticket] = JsonObject()
             .put("accountId", accountId)
             .put("email", email)
@@ -123,6 +141,7 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
             .put("role", role)
             .put("workloadId", workloadId)
             .put("hostname", "shop.panomc.site")
+            .also { json -> adminUsername?.let { json.put("adminUsername", it) } }
     }
 
     fun stop() {

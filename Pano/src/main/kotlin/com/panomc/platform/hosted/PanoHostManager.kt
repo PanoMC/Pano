@@ -40,26 +40,72 @@ class PanoHostManager(
     private val configManager: ConfigManager,
     private val logger: Logger
 ) {
+    companion object {
+        /** How often the local admin list is compared with the last announced one. */
+        const val ADMIN_CHECK_INTERVAL_MS = 10 * 60 * 1000L
+    }
+
     private val env get() = HostedEnvConfig.current
 
     val client: PanoHostClient? by lazy { PanoHostClient.fromEnv(vertx, env) { logger.info(it) } }
 
     private var announceJob: Job? = null
 
+    /** Hash of the admin list the control plane last accepted; null = not announced yet. */
+    @Volatile
+    private var announcedAdminsHash: Int? = null
+
+    private var adminCheckTimer: Long? = null
+
     val ssoEnabled get() = client != null
+
+    private val setupDone get() = configManager.config.setup.step == 5
 
     /**
      * (Re)starts the announce loop; a newer call replaces a pending one. Once setup is done it also
-     * reports `setupCompleted`, which closes the control plane's first-boot bootstrap.
+     * reports `setupCompleted`, which closes the control plane's first-boot bootstrap, and the local
+     * admin usernames (the owner's choice of panel account on panomc.com). A light periodic check
+     * re-announces when that admin list changes.
      */
     fun announceCapabilities() {
         val client = client ?: return
-        val setupCompleted = configManager.config.setup.step == 5
+        val setupCompleted = setupDone
 
         announceJob?.cancel()
         announceJob = CoroutineScope(vertx.dispatcher()).launch {
-            client.announceWithRetry(ssoSupported = true, setupCompleted = setupCompleted)
+            val admins = if (setupCompleted) runCatching { localAdmins() }
+                .onFailure { logger.warn("Pano Host: could not list local admins: {}", it.message) }
+                .getOrNull() else null
+
+            val announced = client.announceWithRetry(ssoSupported = true, setupCompleted = setupCompleted, admins = admins)
+            if (announced && admins != null) announcedAdminsHash = admins.hashCode()
         }
+
+        if (adminCheckTimer == null) {
+            adminCheckTimer = vertx.setPeriodic(ADMIN_CHECK_INTERVAL_MS) {
+                CoroutineScope(vertx.dispatcher()).launch { checkAdminsChanged() }
+            }
+        }
+    }
+
+    private suspend fun checkAdminsChanged() {
+        if (!setupDone || announceJob?.isActive == true) return
+
+        val admins = runCatching { localAdmins() }.getOrNull() ?: return
+        if (admins.hashCode() != announcedAdminsHash) announceCapabilities()
+    }
+
+    /** Usernames of the unbanned local admins, as [PanoHostClient.normalizeAdmins] reports them. */
+    suspend fun localAdmins(): List<String> {
+        val sqlClient = databaseManager.getSqlClient()
+        val adminIds = permissionManager.getCachedUserIds().filter { authProvider.isUserAdmin(it) }
+        if (adminIds.isEmpty()) return emptyList()
+
+        val usernames = databaseManager.userDao.getAllByIds(adminIds, sqlClient)
+            .filterNot(BanUtil::isBanned)
+            .map { it.username }
+
+        return PanoHostClient.normalizeAdmins(usernames)
     }
 
     /** The DB-backed store the SSO mapping (and the hosted first boot) creates local admins in. */
@@ -75,13 +121,17 @@ class PanoHostManager(
         }
 
         val sqlClient = databaseManager.getSqlClient()
-        val mapping = HostSsoUserMapper(DatabaseUserStore(sqlClient)).resolve(identity)
+        val mapping = HostSsoUserMapper(DatabaseUserStore(sqlClient), log = { logger.info(it) }).resolve(identity)
 
         logger.info(
             "Pano Host SSO: {} signed in as local user #{}{}",
             if (identity.isSupport) "support" else "account ${identity.accountId}",
             mapping.userId,
-            if (mapping.created) " (created)" else ""
+            when {
+                mapping.created -> " (created)"
+                mapping.chosen -> " (chosen admin account)"
+                else -> ""
+            }
         )
 
         return mapping.userId
@@ -102,6 +152,8 @@ class PanoHostManager(
 
         override suspend fun userIdByEmail(email: String) =
             userDao.getUserIdFromUsernameOrEmail(email, sqlClient)?.takeIf { userDao.getEmailFromUserId(it, sqlClient).equals(email, true) }
+
+        override suspend fun userIdByUsername(username: String) = userDao.getUserIdFromUsername(username, sqlClient)
 
         override suspend fun isAdmin(userId: Long) = authProvider.isUserAdmin(userId)
 

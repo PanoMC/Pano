@@ -5,7 +5,7 @@ import java.io.File
 import java.nio.file.Path
 
 /**
- * Pano runs inside the pano-runtime container (Pano Host or a self-run image) when `PANO_HOSTED` is
+ * Pano runs inside the pano-web-platform runtime container (Pano Host or a self-run image) when `PANO_HOSTED` is
  * set, `PANO_CONTAINER=1`, or `.pano-jar` next to the running jar names it. Then the launcher owns the
  * process: restart and self-update exit with [EXIT_RESTART] instead of spawning a detached JVM, and the
  * new jar is installed through [JarPointer].

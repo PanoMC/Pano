@@ -18,7 +18,7 @@ class PlatformStateManager {
     }
 
     /**
-     * Restarts Pano. In container mode (Pano Host or the pano-runtime image) the launcher owns the
+     * Restarts Pano. In container mode (Pano Host or the pano-web-platform image) the launcher owns the
      * process: exit [ContainerMode.EXIT_RESTART] and it relaunches in place (no detached JVM, `-bg`
      * ignored). Otherwise starts a new process with the same jar and startup args, then shuts this one
      * down. [background] adds `-bg` (detached respawn).

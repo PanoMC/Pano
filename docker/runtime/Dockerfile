@@ -1,16 +1,22 @@
-# ghcr.io/panomc/pano-runtime:jre<N> — the Pano Host runtime for a Pano Instance.
+# ghcr.io/panomc/pano-web-platform:runtime-jre<N> — the runtime base for a Pano Instance (Pano Host) and
+# for the full ghcr.io/panomc/pano-web-platform:<version> image (docker/pano).
 #
 # The Portal agent runs it with runtimeLauncher=image: no command, no entrypoint override, the app dir
 # bind-mounted at /data (workdir, HOME), an arbitrary --user uid:uid, --read-only, --cap-drop ALL,
 # no-new-privileges, tmpfs /tmp and PANO_JVM_ARGS (-Xmx + customer JVM args). The launcher runs the jar
 # named in /data/.pano-jar and relaunches it in place when Pano exits with 75 (planned restart/update).
 #
-#   docker build --build-arg JRE=21 -t ghcr.io/panomc/pano-runtime:jre21 docker/runtime
+#   docker build --build-arg JRE=21 -t ghcr.io/panomc/pano-web-platform:runtime-jre21 docker/runtime
 ARG JRE=11
 FROM eclipse-temurin:${JRE}-jre-noble
 
 ARG BUN_VERSION=bun-v1.4.2
 ARG TARGETARCH
+
+LABEL org.opencontainers.image.title="pano-web-platform"
+LABEL org.opencontainers.image.description="Pano runtime base: JRE, tini, Bun and the Pano launcher, without a release."
+LABEL org.opencontainers.image.source="https://github.com/PanoMC/Pano"
+LABEL org.opencontainers.image.licenses="MIT"
 
 RUN set -eux; \
     apt-get update; \

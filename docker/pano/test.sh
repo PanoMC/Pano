@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests the ghcr.io/panomc/pano image (pano-seed on top of pano-runtime) with stand-in release jars.
+# Tests the full ghcr.io/panomc/pano-web-platform:<version> image (pano-seed on top of runtime-jre11) with stand-in release jars.
 #   docker/pano/test.sh              (builds linux/amd64 only, runtime jre11)
 # Needs docker and a host JDK >= 11 (javac/jar, JAVA_HOME honoured). Resources are named ph-w4-*.
 set -euo pipefail
@@ -9,8 +9,8 @@ prefix=${PH_PREFIX:-ph-w4}
 javabin=${JAVA_HOME:+$JAVA_HOME/bin/}
 work=$(mktemp -d)
 data="$work/data"
-runtime="$prefix-runtime:jre11"
-image="$prefix-pano:test"
+runtime="$prefix-pano-web-platform:runtime-jre11"
+image="$prefix-pano-web-platform:test"
 container="$prefix-pano-test"
 failures=0
 
@@ -20,7 +20,7 @@ cleanup() {
     docker run --rm --user 0 --entrypoint sh -v "$data:/data" "$runtime" -c 'rm -rf /data/* /data/.[!.]*' >/dev/null 2>&1 || true
   fi
   rm -rf "$work" 2>/dev/null || true
-  docker rmi -f "$image" "$prefix-pano:bad" "$runtime" >/dev/null 2>&1 || true
+  docker rmi -f "$image" "$prefix-pano-web-platform:bad" "$runtime" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -110,13 +110,13 @@ reset_data
 set +e; docker run --rm --name "$container" --memory 1g --memory-swap 1g --cpus 2 -v "$data:/data" "$image" >"$work/out.log" 2>&1; code=$?; set -e
 check "default user (image uid) works" test "$code" = 0 -a "$(last_launch)" = Pano-2.0.0.jar
 
-set +e; build_pano "$prefix-pano:bad" Pano-3.0.0.jar Pano-3.0.1.jar; code=$?; set -e
+set +e; build_pano "$prefix-pano-web-platform:bad" Pano-3.0.0.jar Pano-3.0.1.jar; code=$?; set -e
 check "a build with two release jars fails" test "$code" != 0
 
 rm -rf "$work/ctx"; mkdir -p "$work/ctx/release"; cp "$here/Dockerfile" "$here/pano-seed.sh" "$work/ctx/"
 cp "$work/standin.jar" "$work/ctx/release/Pano-4.0.0.jar"
 echo "0000000000000000000000000000000000000000000000000000000000000000  Pano-4.0.0.jar" > "$work/ctx/release/Pano-4.0.0.jar.sha256"
-set +e; docker build --platform linux/amd64 --build-arg "RUNTIME=$runtime" -t "$prefix-pano:bad" "$work/ctx" >"$work/build.log" 2>&1; code=$?; set -e
+set +e; docker build --platform linux/amd64 --build-arg "RUNTIME=$runtime" -t "$prefix-pano-web-platform:bad" "$work/ctx" >"$work/build.log" 2>&1; code=$?; set -e
 check "a build whose jar fails its .sha256 fails" test "$code" != 0
 
 if [ "$failures" -gt 0 ]; then echo "$failures test(s) failed"; exit 1; fi

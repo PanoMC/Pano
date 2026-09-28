@@ -149,6 +149,44 @@ class HostedEnvConfigTest {
     }
 
     @Test
+    fun `own mail settings saved in the panel survive hosted boots until host mail is chosen again`() {
+        val file = writeConf()
+        val env = HostedEnvConfig(hosted)
+
+        load(file).also { env.apply(it); save(it, file) }
+
+        // The customer switches to another provider in the panel (host-managed = false).
+        load(file).also {
+            it.email.hostManaged = false
+            it.email.hostname = "smtp.sendgrid.net"
+            it.email.port = 587
+            it.email.username = "apikey"
+            save(it, file)
+        }
+
+        val booted = load(file)
+        assertFalse(env.apply(booted).any { it.startsWith("email.") })
+        assertEquals("smtp.sendgrid.net", booted.email.hostname)
+
+        // Back to Pano Host mail: the relay values return.
+        booted.email.hostManaged = true
+        assertTrue(env.apply(booted).contains("email.hostname"))
+        assertNotEquals("smtp.sendgrid.net", booted.email.hostname)
+    }
+
+    @Test
+    fun `migration 35 to 36 keeps existing mail blocks on host mail`() {
+        val config = JsonObject().put("email", JsonObject().put("hostname", "x"))
+
+        com.panomc.platform.config.migration.ConfigMigration35To36().migrate(config)
+        assertEquals(true, config.getJsonObject("email").getBoolean("host-managed"))
+
+        val off = JsonObject().put("email", JsonObject().put("host-managed", false))
+        com.panomc.platform.config.migration.ConfigMigration35To36().migrate(off)
+        assertEquals(false, off.getJsonObject("email").getBoolean("host-managed"))
+    }
+
+    @Test
     fun `non-hosted env only seeds a new config`() {
         val env = HostedEnvConfig(
             mapOf("PANO_CONTAINER" to "1", "PANO_DB_HOST" to "db", "PANO_DB_NAME" to "pano", "PANO_DB_USER" to "u")

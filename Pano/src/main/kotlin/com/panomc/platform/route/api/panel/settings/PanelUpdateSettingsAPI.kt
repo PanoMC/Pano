@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
+import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.error.*
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.maintenance.MaintenanceModeManager
@@ -141,6 +142,8 @@ class PanelUpdateSettingsAPI(
                                 .requiredProperty("password", stringSchema())
                                 .requiredProperty("sender", stringSchema())
                                 .optionalProperty("authMethods", stringSchema())
+                                // Pano Host: true = use the instance's Pano Host mail again (the other fields are ignored).
+                                .optionalProperty("hostManaged", booleanSchema())
                         )
                         .optionalProperty(
                             // One nested object, like "email" above, so the maintenance card can
@@ -389,10 +392,21 @@ class PanelUpdateSettingsAPI(
 
         if (email != null) {
             val mailConfiguration = configManager.config.email
+            val hosted = HostedEnvConfig.current
+            val hostMail = hosted.isHosted && hosted.smtp != null
 
-            mailConfiguration.enabled = email.getBoolean("enabled")
+            if (hostMail && email.getBoolean("hostManaged") == true) {
+                // Back to Pano Host mail: the env values are written again now and on every boot.
+                mailConfiguration.hostManaged = true
+                hosted.apply(configManager.config)
+            } else {
+                // Own mail settings on Pano Host: kept across boots from now on.
+                if (hostMail) mailConfiguration.hostManaged = false
 
-            if (email.getBoolean("enabled")) {
+                mailConfiguration.enabled = email.getBoolean("enabled")
+            }
+
+            if (!(hostMail && mailConfiguration.hostManaged) && email.getBoolean("enabled")) {
                 mailConfiguration.sender = email.getString("sender")
                 mailConfiguration.hostname = email.getString("hostname")
                 mailConfiguration.port = email.getInteger("port")

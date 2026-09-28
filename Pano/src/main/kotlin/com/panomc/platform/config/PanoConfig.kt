@@ -333,7 +333,14 @@ data class PanoConfig(
             var starttls: String = "",
 
             @ConfigComment("Optional, mostly \"PLAIN\".")
-            var authMethods: String = ""
+            var authMethods: String = "",
+
+            @ConfigComment(
+                "Pano Host only: true = this block follows the instance's Pano Host mail (rewritten on",
+                "every boot). Saving other mail settings in Panel -> Settings sets it to false, so they stay."
+            )
+            @SerializedName("host-managed")
+            var hostManaged: Boolean = true
         )
 
         data class ServerConfig(

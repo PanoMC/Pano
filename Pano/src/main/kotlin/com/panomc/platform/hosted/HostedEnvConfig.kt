@@ -132,7 +132,8 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
             set("database.password", c.password, db.password) { c.password = it }
         }
 
-        smtp?.let { smtp ->
+        // Pano Host: the customer's own mail settings (saved in the panel, `host-managed = false`) are kept.
+        smtp?.takeIf { !isHosted || config.email.hostManaged }?.let { smtp ->
             val c = config.email
             val ssl = smtp.port == 465
             val starttls = smtpStartTls ?: when {

@@ -10,6 +10,7 @@ import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
 import io.vertx.core.json.JsonObject
@@ -98,6 +99,11 @@ class PanelGetSettingsAPI(
             val email = JsonObject.mapFrom(emailConfig)
 
             email.remove("password")
+
+            // Pano Host: whether the instance has Pano Host mail to fall back to (`email.hostManaged` = in use).
+            val hosted = HostedEnvConfig.current
+
+            email.put("hostMailAvailable", hosted.isHosted && hosted.smtp != null)
 
             result["email"] = email
         }

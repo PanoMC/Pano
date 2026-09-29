@@ -1,6 +1,6 @@
 # Pano Docker images
 
-All images live in one public GHCR package, `ghcr.io/panomc/pano-web-platform`, built by
+All images live in one public GHCR package, `ghcr.io/panomc/pano`, built by
 `.github/workflows/release.yml` on every release (linux/amd64 + linux/arm64).
 
 | Tag | What it is | Used by |
@@ -33,7 +33,7 @@ Plain `docker run` against an existing MariaDB/MySQL:
 ```sh
 docker run -d --name pano --restart unless-stopped -p 8088:8088 -v pano-data:/data \
   -e PANO_DB_HOST=db.example.com -e PANO_DB_NAME=pano -e PANO_DB_USER=pano -e PANO_DB_PASSWORD=... \
-  ghcr.io/panomc/pano-web-platform:latest
+  ghcr.io/panomc/pano:latest
 ```
 
 Environment (all optional; without `PANO_DB_*` the wizard asks for the database):
@@ -60,13 +60,14 @@ older version; the database is not downgraded, so back it up first.
 The GitHub REST API cannot change a container package's visibility, so it is done in the web UI after
 the first release has pushed the package:
 
-1. Open <https://github.com/orgs/PanoMC/packages/container/package/pano-web-platform>.
-2. **Package settings** → **Danger Zone** → **Change visibility** → **Public**, type
-   `pano-web-platform` to confirm. This covers every tag, the `runtime-jre<N>` ones included.
+Do it for both packages the release creates, `pano` and `pano-node` (new GHCR packages start private):
+
+1. Open <https://github.com/orgs/PanoMC/packages/container/package/pano> (then `.../package/pano-node`).
+2. **Package settings** → **Danger Zone** → **Change visibility** → **Public**, type the package
+   name to confirm. For `pano` this covers every tag, the `runtime-jre<N>` ones included.
 3. If **Public** is greyed out: Organization settings → **Packages** → allow public packages, then retry.
 4. Under **Manage Actions access**, PanoMC/Pano should have **Write** (it is linked through the
    `org.opencontainers.image.source` label; add it by hand otherwise).
-5. Optional: delete the old private packages `pano` and `pano-runtime` in their own Danger Zone.
 
 ## Test locally
 

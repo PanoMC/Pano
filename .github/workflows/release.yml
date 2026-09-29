@@ -308,7 +308,7 @@ jobs:
             ghcr.io/panomc/pano-node:${{ needs.get_next_version.outputs.new_tag_version }}
             ${{ github.ref_name == 'main' && 'ghcr.io/panomc/pano-node:latest' || '' }}
 
-  # Runtime base images, ghcr.io/panomc/pano-web-platform:runtime-jre<N>: the JRE, tini, the launcher and
+  # Runtime base images, ghcr.io/panomc/pano:runtime-jre<N>: the JRE, tini, the launcher and
   # Bun a Portal runs a Pano Instance with (the release itself lives in the instance's /data). 11 is Pano's
   # minimum and always built; the agent picks the tag from the instance's Java setting. runtime-jre<N>
   # moves with every release, runtime-jre<N>-<version> pins the one built with it. Tested (amd64) before
@@ -345,7 +345,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push ghcr.io/panomc/pano-web-platform:runtime-jre${{ matrix.jre }}
+      - name: Build and push ghcr.io/panomc/pano:runtime-jre${{ matrix.jre }}
         uses: docker/build-push-action@v6
         with:
           context: docker/runtime
@@ -354,11 +354,11 @@ jobs:
           build-args: |
             JRE=${{ matrix.jre }}
           push: true
-          cache-from: type=gha,scope=pano-web-platform-runtime-jre${{ matrix.jre }}
-          cache-to: type=gha,mode=max,scope=pano-web-platform-runtime-jre${{ matrix.jre }}
+          cache-from: type=gha,scope=pano-runtime-jre${{ matrix.jre }}
+          cache-to: type=gha,mode=max,scope=pano-runtime-jre${{ matrix.jre }}
           tags: |
-            ghcr.io/panomc/pano-web-platform:runtime-jre${{ matrix.jre }}
-            ghcr.io/panomc/pano-web-platform:runtime-jre${{ matrix.jre }}-${{ needs.get_next_version.outputs.new_tag_version }}
+            ghcr.io/panomc/pano:runtime-jre${{ matrix.jre }}
+            ghcr.io/panomc/pano:runtime-jre${{ matrix.jre }}-${{ needs.get_next_version.outputs.new_tag_version }}
 
   # Every release boots on the minimum JRE (11): the release jar on Temurin 11 against a MariaDB
   # service, configured through the container env only (PANO_DB_*, no config.conf), then installed
@@ -425,7 +425,7 @@ jobs:
           sleep 5
           tail -n 300 smoke/pano.log || true
 
-  # ghcr.io/panomc/pano-web-platform:<version> for self-hosters' Docker installs: the runtime-jre11 image
+  # ghcr.io/panomc/pano:<version> for self-hosters' Docker installs: the runtime-jre11 image
   # built above plus the smoke-tested release jar, which docker/pano/pano-seed.sh copies into the /data
   # volume on first start (and when the image changes). alpha/beta releases also move their channel tag;
   # main releases move `latest`. Until the first stable release exists, `latest` (the compose/docs
@@ -471,13 +471,13 @@ jobs:
           bash docker/pano/image-tags-test.sh
           bash docker/pano/image-tags.sh | tee -a "$GITHUB_OUTPUT"
 
-      - name: Build and push ghcr.io/panomc/pano-web-platform
+      - name: Build and push ghcr.io/panomc/pano
         uses: docker/build-push-action@v6
         with:
           context: docker/pano
           file: docker/pano/Dockerfile
           platforms: linux/amd64,linux/arm64
           build-args: |
-            RUNTIME=ghcr.io/panomc/pano-web-platform:runtime-jre11-${{ env.PANO_VERSION }}
+            RUNTIME=ghcr.io/panomc/pano:runtime-jre11-${{ env.PANO_VERSION }}
           push: true
           tags: ${{ steps.tags.outputs.tags }}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests the pano-web-platform runtime-jre<N> image + launcher with stand-in jars under the Portal agent's hardening flags.
+# Tests the ghcr.io/panomc/pano runtime-jre<N> image + launcher with stand-in jars under the Portal agent's hardening flags.
 #   docker/runtime/test.sh [JRE...]      (default: 11 21; builds linux/amd64 only)
 # Needs docker and a host JDK >= 11 (javac/jar, JAVA_HOME honoured). Resources are named ph-w4-*.
 set -euo pipefail
@@ -22,7 +22,7 @@ cleanup() {
     docker run --rm --user 0 --entrypoint sh -v "$data:/data" "$image" -c 'rm -rf /data/* /data/.[!.]*' >/dev/null 2>&1 || true
   fi
   rm -rf "$work" 2>/dev/null || true
-  for jre in "${jres[@]}"; do docker rmi -f "$prefix-pano-web-platform:runtime-jre$jre" >/dev/null 2>&1 || true; done
+  for jre in "${jres[@]}"; do docker rmi -f "$prefix-pano:runtime-jre$jre" >/dev/null 2>&1 || true; done
 }
 trap cleanup EXIT
 
@@ -102,7 +102,7 @@ wait_for() { local f=$1 i; for i in $(seq 1 100); do [ -f "$f" ] && return 0; sl
 
 # ---- tests ---------------------------------------------------------------------------------------
 for jre in "${jres[@]}"; do
-  image="$prefix-pano-web-platform:runtime-jre$jre"
+  image="$prefix-pano:runtime-jre$jre"
   echo "== building $image (linux/amd64)"
   docker build --platform linux/amd64 --build-arg "JRE=$jre" -t "$image" "$here" >"$work/build-$jre.log" 2>&1 \
     || { cat "$work/build-$jre.log"; exit 1; }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end boot test of a real Pano jar in the pano-web-platform runtime-jre<N> image, run exactly like the Portal agent
+# End-to-end boot test of a real Pano jar in the ghcr.io/panomc/pano runtime-jre<N> image, run exactly like the Portal agent
 # runs a Pano Instance with runtimeLauncher=image (ContainerPlan flags + env), against a memory-limited
 # MariaDB and a fake Pano Host control plane (python3, bound to the test network's gateway).
 #   docker/runtime/e2e.sh <Pano jar> [JRE...]     (default JREs: 11 21; linux/amd64 only)
@@ -51,7 +51,7 @@ cleanup() {
   docker network rm "$net" >/dev/null 2>&1 || true
   [ -n "$cp_pid" ] && kill "$cp_pid" 2>/dev/null || true
   [ -n "$smtp_pid" ] && kill "$smtp_pid" 2>/dev/null || true
-  for jre in "${jres[@]}"; do docker rmi -f "$prefix-pano-web-platform:runtime-jre$jre" >/dev/null 2>&1 || true; done
+  for jre in "${jres[@]}"; do docker rmi -f "$prefix-pano:runtime-jre$jre" >/dev/null 2>&1 || true; done
   rm -rf "$work" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -194,7 +194,7 @@ run_pano() { # image
 }
 
 build_image() { # jre
-  local image="$prefix-pano-web-platform:runtime-jre$1"
+  local image="$prefix-pano:runtime-jre$1"
   docker build --platform linux/amd64 --build-arg "JRE=$1" -t "$image" "$here" >"$work/build-$1.log" 2>&1 \
     || { tail -20 "$work/build-$1.log"; exit 1; }
   last_image=$image
@@ -205,7 +205,7 @@ cp_seen() { grep -c "\"path\": \"$1\", \"authed\": true" "$work/cp.log" || true;
 
 full=1
 for jre in "${jres[@]}"; do
-  echo "== pano-web-platform:runtime-jre$jre (linux/amd64) $([ $full = 1 ] && echo 'full scenario' || echo smoke)"
+  echo "== pano:runtime-jre$jre (linux/amd64) $([ $full = 1 ] && echo 'full scenario' || echo smoke)"
   build_image "$jre"
   image=$last_image
   if [ $full = 1 ]; then

@@ -2,7 +2,7 @@
 # Boots a real Pano release from the full image with docker/compose.yaml (the file the docs publish), runs
 # scripts/smoke-install.sh against it, and checks that /data and the database survive a down/up.
 #   cp build/libs/Pano-<version>.jar* docker/pano/release/ && docker/pano/compose-test.sh
-# Builds linux/amd64 runtime-jre11 + the full image locally as $PH_PREFIX-pano-web-platform:{runtime-jre11,test}
+# Builds linux/amd64 runtime-jre11 + the full image locally as $PH_PREFIX-pano:{runtime-jre11,test}
 # (PH_PREFIX default ph-compose), host port $PANO_PORT (default 18088), Pano capped at 1g / 2 cpus and MariaDB
 # at 1536m. Everything it creates (containers, volumes, network, images) is removed on exit.
 # Needs docker with compose v2, curl and jq.
@@ -12,8 +12,8 @@ here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 prefix=${PH_PREFIX:-ph-compose}
 port=${PANO_PORT:-18088}
-runtime="$prefix-pano-web-platform:runtime-jre11"
-image="$prefix-pano-web-platform:test"
+runtime="$prefix-pano:runtime-jre11"
+image="$prefix-pano:test"
 work=$(mktemp -d)
 password=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
 

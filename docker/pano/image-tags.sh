@@ -6,7 +6,7 @@
 # Inputs: PANO_VERSION, CHANNEL. Overridable for tests: STABLE_TAGS (stable release tags, one per line)
 # and BETA_IMAGE_EXISTS (true/false); otherwise they come from `git ls-remote` and the registry.
 set -euo pipefail
-IMAGE="${IMAGE:-ghcr.io/panomc/pano-web-platform}"
+IMAGE="${IMAGE:-ghcr.io/panomc/pano}"
 : "${PANO_VERSION:?}" "${CHANNEL:?}"
 
 if [ -z "${STABLE_TAGS+x}" ]; then

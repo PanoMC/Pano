@@ -7,7 +7,7 @@ name: pano
 
 services:
   pano:
-    image: ghcr.io/panomc/pano-web-platform:${PANO_TAG:-latest}
+    image: ghcr.io/panomc/pano:${PANO_TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:

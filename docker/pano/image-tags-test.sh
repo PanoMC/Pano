@@ -2,7 +2,7 @@
 # Unit test for image-tags.sh (no network: STABLE_TAGS / BETA_IMAGE_EXISTS are injected).
 set -euo pipefail
 cd "$(dirname "$0")"
-I=ghcr.io/panomc/pano-web-platform
+I=ghcr.io/panomc/pano
 fail=0
 check() { # name expected env...
   local name="$1" want="$2"; shift 2

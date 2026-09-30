@@ -2,7 +2,9 @@ package com.panomc.platform.route.api.panel.panoBackup
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
+import com.panomc.platform.backup.PanoBackupAudit
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.PanoBackupStore
 import com.panomc.platform.db.DatabaseManager
@@ -28,6 +30,7 @@ import io.vertx.kotlin.coroutines.coAwait
 @Endpoint
 class PanelRestorePanoBackupAPI(
     private val authProvider: AuthProvider,
+    private val panoBackupAudit: PanoBackupAudit,
     private val databaseManager: DatabaseManager,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
@@ -72,6 +75,9 @@ class PanelRestorePanoBackupAPI(
         val job = PanoBackupRoutes.startJob {
             panoBackupManager.service.startRestore(store.archiveFile(id), passphrase, deleteSource = false)
         }
+
+        // Written into the restored database once the restore is applied (it replaces the log).
+        panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE, id)
 
         return Successful(mapOf("job" to job.toJson()))
     }

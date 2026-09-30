@@ -1,8 +1,10 @@
 package com.panomc.platform.route
 
 import com.panomc.platform.route.ServersModeRootHandler.Companion.decide
+import com.panomc.platform.route.ServersModeRootHandler.Companion.panelLocation
 import com.panomc.platform.util.UsageMode
 import io.vertx.core.http.HttpMethod
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -76,5 +78,24 @@ class ServersModeRootHandlerTest {
         assertTrue(redirects(method = HttpMethod.GET, secFetchDest = null))
         assertFalse(redirects(method = HttpMethod.POST, secFetchDest = null))
         assertFalse(redirects(method = HttpMethod.GET, secFetchDest = null, accept = null))
+    }
+
+    @Test
+    fun `sends a bare site page to the dashboard`() {
+        assertEquals("/panel", panelLocation("/", null))
+        assertEquals("/panel", panelLocation("/profile", null))
+        assertEquals("/panel", panelLocation("/login", ""))
+    }
+
+    @Test
+    fun `keeps path and query of a sign-in hop`() {
+        // OAuth callbacks, magic links and login errors carry their state in the query; the panel
+        // serves these pages itself, so they move under /panel unchanged.
+        assertEquals(
+            "/panel/social-login/callback?provider=discord&code=a&state=b",
+            panelLocation("/social-login/callback", "provider=discord&code=a&state=b")
+        )
+        assertEquals("/panel/login?socialError=INVALID_FLOW_STATE", panelLocation("/login", "socialError=INVALID_FLOW_STATE"))
+        assertEquals("/panel?utm_source=x", panelLocation("/", "utm_source=x"))
     }
 }

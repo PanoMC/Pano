@@ -78,11 +78,14 @@ class UsageModeGateHandler(
             return
         }
 
-        logger.debug("Usage mode is SERVERS: redirecting theme page {} -> {}", path, PANEL_PATH)
+        // Same target as the order-6 fallback, so a sign-in hop keeps its path and query.
+        val location = ServersModeRootHandler.panelLocation(path, context.request().query())
+
+        logger.debug("Usage mode is SERVERS: redirecting theme page {} -> {}", path, location)
 
         response
             .setStatusCode(302)
-            .putHeader("Location", PANEL_PATH)
+            .putHeader("Location", location)
             .putHeader("Cache-Control", "no-store")
             .end()
     }
@@ -93,8 +96,6 @@ class UsageModeGateHandler(
     }
 
     companion object {
-        private const val PANEL_PATH = "/panel"
-
         /**
          * Paths that are never a theme page: the panel, the APIs, and the theme's own assets and
          * resources. The asset prefixes are belt and braces — a subresource is not a document

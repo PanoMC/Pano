@@ -3,7 +3,9 @@ package com.panomc.platform.route.api.panel.panoBackup
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.archive.instance.InstanceLayout
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
+import com.panomc.platform.backup.PanoBackupAudit
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
@@ -26,6 +28,7 @@ import java.io.File
 @Endpoint
 class PanelRestoreUploadedPanoBackupAPI(
     private val authProvider: AuthProvider,
+    private val panoBackupAudit: PanoBackupAudit,
     private val databaseManager: DatabaseManager,
     private val configManager: ConfigManager,
     private val panoBackupManager: PanoBackupManager
@@ -74,6 +77,9 @@ class PanelRestoreUploadedPanoBackupAPI(
 
             throw e
         }
+
+        // Written into the restored database once the restore is applied (it replaces the log).
+        panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE_FILE)
 
         return Successful(mapOf("job" to job.toJson()))
     }

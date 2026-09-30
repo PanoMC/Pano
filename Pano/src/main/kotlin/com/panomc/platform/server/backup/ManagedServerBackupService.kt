@@ -1,6 +1,7 @@
 package com.panomc.platform.server.backup
 
 import com.panomc.platform.Main
+import com.panomc.platform.auth.panel.log.ServerBackupSystemLog
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
@@ -291,6 +292,9 @@ class ManagedServerBackupService(
             sqlClient
         )
 
+        // Taken by a schedule on the node / plugin side: nobody here asked for it.
+        databaseManager.serverBackupDao.getByUuid(report.backupId, sqlClient)?.let { recordScheduled(server.id, it, sqlClient) }
+
         applyRetention(server, sqlClient)
 
         panelRealtimeHub.pushServerBackupsChanged(server.id)
@@ -333,7 +337,23 @@ class ManagedServerBackupService(
         surplus.forEach { backup ->
             if (delete(server, backup, sqlClient)) {
                 logger.info("Retention removed backup ${backup.uuid} of server ${server.id}.")
+
+                record(ServerBackupSystemLog(server.id, ServerBackupSystemLog.ACTION_RETENTION, backup.uuid, backup.name), sqlClient)
             }
+        }
+    }
+
+    /** Records a backup a schedule took (nobody pressed a button, so no user). */
+    suspend fun recordScheduled(serverId: Long, backup: ServerBackup, sqlClient: SqlClient) {
+        record(ServerBackupSystemLog(serverId, ServerBackupSystemLog.ACTION_SCHEDULED, backup.uuid, backup.name), sqlClient)
+    }
+
+    /** An activity log entry that never fails the backup work it records. */
+    private suspend fun record(entry: ServerBackupSystemLog, sqlClient: SqlClient) {
+        try {
+            databaseManager.panelActivityLogDao.add(entry, sqlClient)
+        } catch (e: Exception) {
+            logger.warn("Could not write the server backup activity log: ${e.message}")
         }
     }
 

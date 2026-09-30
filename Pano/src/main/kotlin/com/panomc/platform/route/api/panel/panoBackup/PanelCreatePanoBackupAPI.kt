@@ -2,7 +2,9 @@ package com.panomc.platform.route.api.panel.panoBackup
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
+import com.panomc.platform.backup.PanoBackupAudit
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.PanoBackupTag
 import com.panomc.platform.db.DatabaseManager
@@ -23,6 +25,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 @Endpoint
 class PanelCreatePanoBackupAPI(
     private val authProvider: AuthProvider,
+    private val panoBackupAudit: PanoBackupAudit,
     private val databaseManager: DatabaseManager,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
@@ -45,6 +48,8 @@ class PanelCreatePanoBackupAPI(
         val job = PanoBackupRoutes.startJob {
             panoBackupManager.service.startCreate(passphrase, PanoBackupTag.MANUAL, username)
         }
+
+        panoBackupAudit.log(context, PanoBackupActionLog.ACTION_CREATE)
 
         return Successful(mapOf("job" to job.toJson()))
     }

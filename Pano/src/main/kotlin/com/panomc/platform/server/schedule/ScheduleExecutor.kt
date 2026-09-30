@@ -166,7 +166,9 @@ class ScheduleExecutor(
         val keep = payload.getInteger("keep")
 
         return try {
-            backupService.create(target, payload.getString("name"), issuedBy ?: SYSTEM_USER_ID, sqlClient, options)
+            val (backup, _) = backupService.create(target, payload.getString("name"), issuedBy ?: SYSTEM_USER_ID, sqlClient, options)
+
+            backupService.recordScheduled(server.id, backup, sqlClient)
 
             // Trimmed now rather than when the archive finishes: the row already exists and
             // counts, so the oldest copies go while this one is still being written.

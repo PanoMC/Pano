@@ -2,7 +2,9 @@ package com.panomc.platform.route.api.panel.panoBackup
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
+import com.panomc.platform.backup.PanoBackupAudit
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.PanoBackupStore
 import com.panomc.platform.error.NotExists
@@ -19,6 +21,7 @@ import io.vertx.kotlin.coroutines.coAwait
 @Endpoint
 class PanelDeletePanoBackupAPI(
     private val authProvider: AuthProvider,
+    private val panoBackupAudit: PanoBackupAudit,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/pano-backups/:id", RouteType.DELETE))
@@ -42,6 +45,8 @@ class PanelDeletePanoBackupAPI(
         if (!deleted) {
             throw NotExists()
         }
+
+        panoBackupAudit.log(context, PanoBackupActionLog.ACTION_DELETE, id)
 
         return Successful()
     }

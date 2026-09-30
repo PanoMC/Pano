@@ -130,6 +130,19 @@ class PanoHostClient(
         call("DELETE", "/host/connected/backups/${segment(backupId)}")
     }
 
+    // Moving out of Pano Host
+
+    /** `{workloads[{id, name, label, state, exportable, reason?, export{availableAt, current?}}]}`: the account's instances. */
+    suspend fun listExports(): JsonObject = call("GET", "/host/connected/exports")
+
+    /** `{export{exportId, status, sizeBytes, expiresAt, url?}}`: the instance's valid export, or a new live one. */
+    suspend fun startExport(workloadId: String): JsonObject =
+        call("POST", "/host/connected/workloads/${segment(workloadId)}/export", JsonObject())
+
+    /** `{export}` of [workloadId] (null when there is none); `url` once it is `DONE`. */
+    suspend fun exportStatus(workloadId: String): JsonObject =
+        call("GET", "/host/connected/workloads/${segment(workloadId)}/export")
+
     // Transfers
 
     /** `{workloads[{id, name, label, state, maxBytes}]}`: the account's Pano workloads a transfer may target. */

@@ -93,6 +93,19 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     @Volatile
     var failAllPuts = false
 
+    /** Moving out: the plain archive the instance export yields, and how many status reads stay PENDING. */
+    @Volatile
+    var exportArchive: ByteArray? = null
+
+    @Volatile
+    var exportPendingReads = 1
+
+    @Volatile
+    var exportFails = false
+
+    @Volatile
+    var exportStarts = 0
+
     private lateinit var server: HttpServer
 
     companion object {
@@ -174,6 +187,11 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
             segments.isEmpty() -> JsonObject().put("accountId", ACCOUNT_ID).put("platformId", "p1").put("username", "tester")
                 .put("instanceId", instance(context, false)).put("instanceName", context.request().getHeader("X-Pano-Instance-Name"))
             segments[0] == "backups" -> backupsRoute(method, segments, instance(context, true)!!, body)
+            segments[0] == "exports" -> JsonObject().put(
+                "workloads",
+                JsonArray().add(JsonObject().put("id", WORKLOAD_ID).put("name", "Test").put("state", "RUNNING").put("exportable", true))
+            )
+            segments[0] == "workloads" && segments.getOrNull(2) == "export" -> exportRoute(method, segments[1])
             segments[0] == "workloads" -> JsonObject().put("workloads", JsonArray().add(JsonObject().put("id", WORKLOAD_ID).put("name", "Test").put("maxBytes", 10L shl 30)))
             segments[0] == "transfers" -> transfersRoute(method, segments, instance(context, true)!!, body)
             else -> throw Failure(404, "NOT_FOUND")
@@ -276,6 +294,24 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
     /** Aborted multipart uploads: their part PUTs answer 404 (as S3 does). */
     val aborted: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    private fun exportRoute(method: String, workloadId: String): JsonObject {
+        if (workloadId != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+
+        if (method == "POST") exportStarts++
+
+        val archive = exportArchive ?: return JsonObject().putNull("export")
+        val view = JsonObject().put("exportId", "e1").put("sizeBytes", archive.size.toLong())
+
+        return when {
+            exportFails -> JsonObject().put("export", view.put("status", "FAILED").put("error", "disk full"))
+            method == "GET" && exportPendingReads-- <= 0 -> {
+                objects["exports/e1"] = archive
+                JsonObject().put("export", view.put("status", "DONE").put("url", "$baseUrl/s3/exports/e1"))
+            }
+            else -> JsonObject().put("export", view.put("status", "PENDING"))
+        }
+    }
 
     private fun transfersRoute(method: String, segments: List<String>, instanceId: String, body: JsonObject): JsonObject {
         val id = segments.getOrNull(1)

@@ -2,7 +2,9 @@ package com.panomc.platform.route.api.panel.panoBackup
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
+import com.panomc.platform.backup.PanoBackupAudit
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.PanoBackupStore
 import com.panomc.platform.error.NotExists
@@ -19,6 +21,7 @@ import io.vertx.kotlin.coroutines.coAwait
 @Endpoint
 class PanelDownloadPanoBackupAPI(
     private val authProvider: AuthProvider,
+    private val panoBackupAudit: PanoBackupAudit,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/pano-backups/:id/download", RouteType.GET))
@@ -40,6 +43,8 @@ class PanelDownloadPanoBackupAPI(
         val store = panoBackupManager.store
         val info = context.vertx().executeBlocking { store.get(id) }.coAwait() ?: throw NotExists()
         val file = store.archiveFile(id)
+
+        panoBackupAudit.log(context, PanoBackupActionLog.ACTION_DOWNLOAD, id)
 
         context.response()
             .putHeader("Content-Type", "application/octet-stream")

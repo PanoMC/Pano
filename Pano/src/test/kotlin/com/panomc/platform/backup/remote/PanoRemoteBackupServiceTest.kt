@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -149,11 +150,15 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
-    fun `upload is end-to-end encrypted, multipart, and restores with the passphrase only`(): Unit = runBlocking {
-        // No passphrase yet → refused inside the job, nothing uploaded.
-        val refused = awaitJob(service.startUpload())
-        assertEquals("PASSPHRASE_NOT_SET", refused.error)
-        assertTrue(host.backups.isEmpty())
+    fun `upload is plain without a passphrase, end-to-end encrypted with one, multipart, and restores`(): Unit = runBlocking {
+        // No passphrase: recommended, not required — the archive goes up plain.
+        val plain = awaitJob(service.startUpload())
+        assertEquals(PanoBackupJob.Status.DONE, plain.status, plain.error)
+        val plainBytes = host.store.read("backups/${plain.remoteId}")!!
+        assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, PanoArchive.verify(ByteArrayInputStream(plainBytes), PanoArcKeys.NONE).kind)
+        assertEquals(listOf(false), runner.archived)
+        service.deleteBackup(plain.remoteId!!)
+        runner.archived.clear()
 
         service.setPassphrase(passphrase.toCharArray())
         assertTrue(passphraseFile.isSet())
@@ -294,7 +299,55 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
+    fun `moving out of Pano Host waits for the export, downloads it and restores it plain`(): Unit = runBlocking {
+        assertTrue(service.listHostInstances().getJsonArray("workloads").getJsonObject(0).getBoolean("exportable"))
+
+        val archive = File(temp, "hosted.panoarc").also { runner.archiveTo(it, null) }
+        host.exportArchive = archive.readBytes()
+        host.exportPendingReads = 2
+
+        val job = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
+        assertEquals(PanoBackupJob.Type.RESTORE, job.type)
+        assertEquals(1, host.exportStarts)
+        assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, runner.restored.single().kind)
+        assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
+
+        // An export that failed on Pano Host fails the move with its own code; nothing is restored.
+        host.exportFails = true
+        val failed = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+
+        assertEquals(PanoRemoteBackupService.EXPORT_FAILED_CODE, failed.error)
+        assertEquals(1, runner.restored.size)
+
+        // Another account's (or an unknown) instance is not found.
+        host.exportFails = false
+        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startHostMove("p-other0001", pollIntervalMs = 10)).error)
+    }
+
+    @Test
+    fun `MC server backups to Pano Backup are off while they are coming soon`(): Unit = runBlocking {
+        assertFalse(PanoRemoteBackupService.MC_UPLOADS_ENABLED)
+
+        val source = McServerBackupSource(4, "server-uuid-4", "b-1", JsonObject()) { it.writeBytes(ByteArray(10)) }
+
+        // Even a selected server's finished backup is not uploaded.
+        service.saveSettings(RemoteBackupSettings(mcServerIds = listOf(4)))
+        service.onMcBackupReady(source)
+        service.tick(now)
+        kotlinx.coroutines.delay(100)
+        assertTrue(host.backups.isEmpty())
+
+        assertEquals(
+            PanoRemoteBackupService.NOT_AVAILABLE,
+            assertThrows<PanoHostException> { service.startMcUpload(source) }.code
+        )
+    }
+
+    @Test
     fun `MC server backups are wrapped as mc-server, encrypted and uploaded per server`(): Unit = runBlocking {
+        assumeTrue(PanoRemoteBackupService.MC_UPLOADS_ENABLED, "coming soon")
         service.setPassphrase(passphrase.toCharArray())
 
         val zip = Random(9).nextBytes(10_000)

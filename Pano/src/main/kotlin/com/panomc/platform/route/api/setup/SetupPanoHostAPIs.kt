@@ -97,3 +97,67 @@ class SetupRestorePanoHostBackupAPI(private val panoBackupManager: PanoBackupMan
         return Successful(mapOf("job" to job.toJson()))
     }
 }
+
+/**
+ * `GET /api/setup/pano-host/instances` → `{workloads[{id, name, label, state, exportable, reason?, export}],
+ * account {username}}`: the connected account's Pano Host instances setup-ui can move here.
+ */
+@Endpoint
+class SetupGetPanoHostInstancesAPI(
+    private val panoBackupManager: PanoBackupManager,
+    private val platformConfig: ConfigManager
+) : SetupApi() {
+    override val paths = listOf(Path("/api/setup/pano-host/instances", RouteType.GET))
+
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
+
+    override suspend fun handle(context: RoutingContext): Result {
+        val remote = panoBackupManager.setupRemote
+
+        PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
+
+        val list = host { remote.listHostInstances() }
+
+        return Successful(
+            mapOf(
+                "workloads" to (list.getJsonArray("workloads") ?: JsonArray()),
+                "account" to mapOf("username" to platformConfig.config.panoAccount.username)
+            )
+        )
+    }
+}
+
+/**
+ * `POST /api/setup/pano-host/instances/:id/move {host?, dbName?, username?, password?}` → `{job}`: exports that
+ * Pano Host instance (or reuses its valid export), downloads it and restores it into the target database
+ * (omitted = the one from setup step 2); Pano restarts as the moved site. Polled with `GET /api/setup/restore`.
+ */
+@Endpoint
+class SetupMovePanoHostInstanceAPI(private val panoBackupManager: PanoBackupManager) : SetupApi() {
+    override val paths = listOf(Path("/api/setup/pano-host/instances/:id/move", RouteType.POST))
+
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
+
+    override suspend fun handle(context: RoutingContext): Result {
+        val workloadId = context.pathParam("id")
+            ?.takeIf { it.length in 3..64 && it.all { c -> c.isLetterOrDigit() || c == '-' } }
+            ?: throw NotExists()
+        val body = body(context)
+        val remote = panoBackupManager.setupRemote
+
+        PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
+
+        val hostAddress = body.getString("host")?.trim()
+        val database = if (hostAddress.isNullOrEmpty()) null else JsonObject()
+            .put("host", hostAddress)
+            .put("name", body.getString("dbName") ?: "")
+            .put("username", body.getString("username") ?: "")
+            .put("password", body.getString("password") ?: "")
+
+        val service = panoBackupManager.prepareSetupService(database)
+
+        val job = PanoBackupRemoteRoutes.job { remote.startHostMove(workloadId, service = service) }
+
+        return Successful(mapOf("job" to job.toJson()))
+    }
+}

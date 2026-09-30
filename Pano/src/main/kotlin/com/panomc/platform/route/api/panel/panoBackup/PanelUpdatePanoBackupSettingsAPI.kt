@@ -2,7 +2,9 @@ package com.panomc.platform.route.api.panel.panoBackup
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
+import com.panomc.platform.backup.PanoBackupAudit
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.PanoBackupSettings
 import com.panomc.platform.error.BadRequest
@@ -21,6 +23,7 @@ import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 @Endpoint
 class PanelUpdatePanoBackupSettingsAPI(
     private val authProvider: AuthProvider,
+    private val panoBackupAudit: PanoBackupAudit,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/pano-backups/settings", RouteType.PUT))
@@ -44,6 +47,8 @@ class PanelUpdatePanoBackupSettingsAPI(
         val settings = PanoBackupSettings.fromJson(getParameters(context).body().jsonObject) ?: throw BadRequest()
 
         panoBackupManager.saveSettings(settings)
+
+        panoBackupAudit.log(context, PanoBackupActionLog.ACTION_SETTINGS)
 
         return Successful(mapOf("settings" to settings.toJson()))
     }

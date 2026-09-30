@@ -2,15 +2,20 @@ package com.panomc.platform.route.api.panel.panoBackup.remote
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
 import com.panomc.platform.auth.panel.permission.ManageServerBackupsPermission
 import com.panomc.platform.backup.McServerBackupSources
+import com.panomc.platform.backup.PanoBackupAudit
 import com.panomc.platform.backup.PanoBackupManager
+import com.panomc.platform.backup.remote.PanoHostException
+import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.backup.remote.PassphraseFile
 import com.panomc.platform.backup.remote.RemoteBackupSettings
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.CurrentPasswordNotCorrect
+import com.panomc.platform.error.PanoHostError
 import com.panomc.platform.model.*
 import com.panomc.platform.route.api.panel.panoBackup.PanoBackupRoutes
 import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.body
@@ -74,7 +79,8 @@ class PanelGetPanoBackupRemoteAPI(authProvider: AuthProvider, private val panoBa
 class PanelUpdatePanoBackupRemoteAPI(
     authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val panoBackupManager: PanoBackupManager
+    private val panoBackupManager: PanoBackupManager,
+    private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
         Path("/api/panel/pano-backups/remote/settings", RouteType.PUT),
@@ -91,6 +97,8 @@ class PanelUpdatePanoBackupRemoteAPI(
             val settings = RemoteBackupSettings.fromJson(body) ?: throw BadRequest()
 
             remote.saveSettings(settings)
+
+            panoBackupAudit.log(context, PanoBackupActionLog.ACTION_REMOTE_SETTINGS)
 
             return Successful(mapOf("settings" to settings.toJson()))
         }
@@ -109,6 +117,9 @@ class PanelUpdatePanoBackupRemoteAPI(
 
         context.vertx().executeBlocking { remote.setPassphrase(passphrase.toCharArray()) }.coAwait()
 
+        // Only that it was set: the passphrase itself never reaches a log.
+        panoBackupAudit.log(context, PanoBackupActionLog.ACTION_PASSPHRASE)
+
         return Successful(mapOf("passphraseSet" to true))
     }
 }
@@ -119,8 +130,11 @@ class PanelUpdatePanoBackupRemoteAPI(
  * `POST …/remote/backups` → `{job}` (archive with the saved passphrase + upload).
  */
 @Endpoint
-class PanelPanoBackupRemoteBackupsAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :
-    PanoBackupRemoteApi(authProvider) {
+class PanelPanoBackupRemoteBackupsAPI(
+    authProvider: AuthProvider,
+    private val panoBackupManager: PanoBackupManager,
+    private val panoBackupAudit: PanoBackupAudit
+) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(Path("/api/panel/pano-backups/remote/backups", RouteType.ROUTE))
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -131,9 +145,14 @@ class PanelPanoBackupRemoteBackupsAPI(authProvider: AuthProvider, private val pa
         return when (method(context)) {
             HttpMethod.GET -> Successful(host { remote.listBackups() }.map)
             HttpMethod.POST -> {
-                requireReady(remote, passphrase = true)
+                // A passphrase is recommended, not required: without one the archive is uploaded plain.
+                requireReady(remote, passphrase = false)
 
-                Successful(mapOf("job" to job { remote.startUpload() }.toJson()))
+                val job = job { remote.startUpload() }
+
+                panoBackupAudit.log(context, PanoBackupActionLog.ACTION_UPLOAD)
+
+                Successful(mapOf("job" to job.toJson()))
             }
 
             else -> throw BadRequest()
@@ -150,7 +169,8 @@ class PanelPanoBackupRemoteBackupsAPI(authProvider: AuthProvider, private val pa
 class PanelPanoBackupRemoteBackupAPI(
     authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val panoBackupManager: PanoBackupManager
+    private val panoBackupManager: PanoBackupManager,
+    private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
         Path("/api/panel/pano-backups/remote/backups/:id/restore", RouteType.POST),
@@ -166,6 +186,8 @@ class PanelPanoBackupRemoteBackupAPI(
         if (method(context) == HttpMethod.DELETE) {
             host { remote.deleteBackup(id) }
 
+            panoBackupAudit.log(context, PanoBackupActionLog.ACTION_DELETE_REMOTE, id)
+
             return Successful()
         }
 
@@ -180,7 +202,12 @@ class PanelPanoBackupRemoteBackupAPI(
 
         val passphrase = PanoBackupRoutes.passphrase(body.getString("passphrase"))
 
-        return Successful(mapOf("job" to job { remote.startRestore(id, passphrase) }.toJson()))
+        val job = job { remote.startRestore(id, passphrase) }
+
+        // Written into the restored database once the restore is applied (it replaces the log).
+        panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE_REMOTE, id)
+
+        return Successful(mapOf("job" to job.toJson()))
     }
 }
 
@@ -192,8 +219,11 @@ class PanelPanoBackupRemoteBackupAPI(
  * pending one.
  */
 @Endpoint
-class PanelPanoBackupRemoteTransfersAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :
-    PanoBackupRemoteApi(authProvider) {
+class PanelPanoBackupRemoteTransfersAPI(
+    authProvider: AuthProvider,
+    private val panoBackupManager: PanoBackupManager,
+    private val panoBackupAudit: PanoBackupAudit
+) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
         Path("/api/panel/pano-backups/remote/workloads", RouteType.GET),
         Path("/api/panel/pano-backups/remote/transfers", RouteType.ROUTE),
@@ -225,13 +255,21 @@ class PanelPanoBackupRemoteTransfersAPI(authProvider: AuthProvider, private val 
 
                 requireReady(remote, passphrase = false)
 
-                Successful(mapOf("job" to job { remote.startTransfer(workloadId) }.toJson()))
+                val job = job { remote.startTransfer(workloadId) }
+
+                panoBackupAudit.log(context, PanoBackupActionLog.ACTION_TRANSFER)
+
+                Successful(mapOf("job" to job.toJson()))
             }
 
             HttpMethod.DELETE -> {
                 if (!single) throw BadRequest()
 
-                host { remote.cancelTransfer(remoteId(context)) }
+                val transferId = remoteId(context)
+
+                host { remote.cancelTransfer(transferId) }
+
+                panoBackupAudit.log(context, PanoBackupActionLog.ACTION_TRANSFER_CANCEL, transferId)
 
                 Successful()
             }
@@ -257,9 +295,14 @@ class PanelUploadServerBackupToPanoBackupAPI(
         authProvider.requirePermission(ManageServerBackupsPermission(), context, serverId)
         requireManage(context)
 
+        // Coming soon: refused before anything is fetched (see MC_UPLOADS_ENABLED).
+        if (!PanoRemoteBackupService.MC_UPLOADS_ENABLED) {
+            throw PanoHostError.of(PanoHostException(PanoRemoteBackupService.NOT_AVAILABLE))
+        }
+
         val remote = panoBackupManager.remote
 
-        requireReady(remote, passphrase = true)
+        requireReady(remote, passphrase = false)
 
         val source = host { mcServerBackupSources.source(serverId, backupId, getSqlClient()) }
 

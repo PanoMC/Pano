@@ -5,6 +5,7 @@ import com.panomc.platform.auth.panel.log.LinkedAgentServerLog
 import com.panomc.platform.auth.panel.log.ReinstalledServerLog
 import com.panomc.platform.auth.panel.log.SentServerCommandLog
 import com.panomc.platform.auth.panel.log.ServerBackupActionLog
+import com.panomc.platform.auth.panel.log.ServerBackupSystemLog
 import com.panomc.platform.auth.panel.log.ServerCrashedLog
 import com.panomc.platform.auth.panel.log.ServerFileChangedLog
 import com.panomc.platform.auth.panel.log.ServerPanoPluginUpdatedLog
@@ -38,6 +39,7 @@ object ServerActivityLogTypes {
         ServerPanoPluginUpdatedLog::class,
         ServerFileChangedLog::class,
         ServerBackupActionLog::class,
+        ServerBackupSystemLog::class,
         ServerScheduleActionLog::class,
         ServerScheduleRunLog::class,
         ServerCrashedLog::class,

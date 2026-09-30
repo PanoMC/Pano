@@ -5,6 +5,7 @@ import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.PluginManager
 import com.panomc.platform.api.PluginDatabaseManager
 import com.panomc.platform.archive.instance.InstanceLayout
+import com.panomc.platform.auth.panel.log.PanoBackupSystemLog
 import com.panomc.platform.backup.remote.ConnectedAccount
 import com.panomc.platform.backup.remote.MemoryRemoteStateStore
 import com.panomc.platform.backup.remote.PanoHostClient
@@ -60,6 +61,7 @@ class PanoBackupManager(
     private val pluginManager by lazy { applicationContext.getBean(PluginManager::class.java) }
     private val pluginDatabaseManager by lazy { applicationContext.getBean(PluginDatabaseManager::class.java) }
     private val mariaDBManager by lazy { applicationContext.getBean(MariaDBManager::class.java) }
+    private val audit by lazy { applicationContext.getBean(PanoBackupAudit::class.java) }
 
     private val scope by lazy { CoroutineScope(vertx.dispatcher()) }
 
@@ -135,7 +137,8 @@ class PanoBackupManager(
             tempDir = { InstanceLayout.current(configManager.config).tempDir },
             account = ::connectedAccount,
             instanceName = ::instanceName,
-            panoVersion = Main.VERSION
+            panoVersion = Main.VERSION,
+            onScheduledSettled = { ok -> audit.system(PanoBackupSystemLog.ACTION_SCHEDULED_UPLOAD, ok) }
         )
     }
 
@@ -227,14 +230,25 @@ class PanoBackupManager(
         if (settings.isDue(lastScheduled, now)) {
             logger.info("Taking the scheduled Pano backup")
 
-            try {
-                service.tryCreate(null, PanoBackupTag.SCHEDULED)
+            // null = another backup job was running; the next tick tries again, nothing to record.
+            val ok = try {
+                service.tryCreate(null, PanoBackupTag.SCHEDULED)?.let { true }
             } catch (e: Exception) {
                 logger.error("The scheduled Pano backup failed", e)
+
+                false
+            }
+
+            if (ok != null) {
+                audit.system(PanoBackupSystemLog.ACTION_SCHEDULED, ok)
             }
         }
 
-        store.prune(settings.keep, now)
+        val pruned = store.prune(settings.keep, now)
+
+        if (pruned.isNotEmpty()) {
+            audit.system(PanoBackupSystemLog.ACTION_RETENTION, count = pruned.size)
+        }
 
         try {
             remote.tick(now)
@@ -342,6 +356,11 @@ class PanoBackupManager(
 
         override suspend fun restoreApplied() {
             platformStateManager.restartRequired = true
+
+            // The panel's restore entry goes into the database the restore just brought back.
+            if (panel) {
+                audit.writePendingRestore()
+            }
 
             if (!autoRestart) {
                 return

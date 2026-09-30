@@ -26,6 +26,12 @@ import org.springframework.stereotype.Component
  * panel had no login of its own. With a panel-native login those addresses have no owner, so
  * sending them to the panel is both the only useful answer and the one an old bookmark expects.
  *
+ * An address that carries a query string keeps its path and query: `/x?q` goes to `/panel/x?q`
+ * (see [panelLocation]). Those are the sign-in hops that land on a site path — an OAuth callback
+ * (`/social-login/callback?code=…`), a magic link, `/login?socialError=…` — and the panel serves
+ * them itself (plugin pages registered `public`, its own `/panel/login`). A bare old bookmark
+ * still goes to the dashboard.
+ *
  * Only document requests are redirected. A stylesheet or an API call that reaches this far is a
  * genuine "nothing serves this", and turning a missing asset into a 302 to an HTML page would give
  * the browser something worse than the error.
@@ -62,17 +68,38 @@ class ServersModeRootHandler(
             return@Handler
         }
 
-        logger.debug("Usage mode is SERVERS and no theme is bound: {} -> {}", context.normalizedPath(), PANEL_PATH)
+        val location = panelLocation(context.normalizedPath(), request.query())
+
+        logger.debug("Usage mode is SERVERS and no theme is bound: {} -> {}", context.normalizedPath(), location)
 
         response
             .setStatusCode(302)
-            .putHeader("Location", PANEL_PATH)
+            .putHeader("Location", location)
             .putHeader("Cache-Control", "no-store")
             .end()
     }
 
     companion object {
         private const val PANEL_PATH = "/panel"
+
+        /**
+         * Where a SERVERS install sends a page request for a site path.
+         *
+         * With a query string the address is state for one specific page — an OAuth `code` and
+         * `state`, a magic-link `token`, a `?socialError=` for the login form — and dropping it
+         * would break that flow, so path and query move under `/panel` as they are. Without one
+         * it is an ordinary site page the panel has no counterpart for, and the dashboard is the
+         * useful answer.
+         */
+        internal fun panelLocation(path: String, query: String?): String {
+            if (query.isNullOrEmpty()) {
+                return PANEL_PATH
+            }
+
+            val panelPath = if (path.isEmpty() || path == "/") PANEL_PATH else PANEL_PATH + path
+
+            return "$panelPath?$query"
+        }
 
         /**
          * Whether this request should be sent to the panel instead of the "no UI" error.

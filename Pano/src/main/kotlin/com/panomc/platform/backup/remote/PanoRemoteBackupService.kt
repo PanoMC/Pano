@@ -7,6 +7,7 @@ import com.panomc.platform.backup.PanoBackupService
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -25,7 +26,8 @@ data class ConnectedAccount(val username: String, val platformId: String) {
 /**
  * Pano Backup + transfer of a Pano over its panomc.com platform connection (host-api.md §Connected
  * Pano; the connection's account = the account the backups belong to):
- * - upload: passphrase-E2E archive to a temp file → [PanoBackupTarget] (presigned multipart with
+ * - upload: archive to a temp file — E2E-encrypted with the saved passphrase, or a plain archive
+ *   when none is set (recommended, not required) — → [PanoBackupTarget] (presigned multipart with
  *   retry, stop polled between parts → complete); restore: download → verify → the local restore
  *   flow of [backups];
  * - schedule per [RemoteBackupSettings] (the plan has no frequency rule; a failed scheduled upload
@@ -49,7 +51,9 @@ class PanoRemoteBackupService(
     private val instanceName: () -> String,
     private val panoVersion: String,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val logger: Logger = LoggerFactory.getLogger(PanoRemoteBackupService::class.java)
+    private val logger: Logger = LoggerFactory.getLogger(PanoRemoteBackupService::class.java),
+    /** A scheduled upload ended (true = uploaded): the platform records it in the activity log. */
+    private val onScheduledSettled: suspend (ok: Boolean) -> Unit = {}
 ) {
     private val stateLock = Mutex()
     private val mcQueue = ConcurrentLinkedQueue<McServerBackupSource>()
@@ -166,7 +170,10 @@ class PanoRemoteBackupService(
         listCache = null
     }
 
-    /** Archives this Pano with the saved passphrase and uploads it; throws BUSY when a job runs. */
+    /**
+     * Archives this Pano (encrypted with the saved passphrase, plain without one) and uploads it;
+     * throws BUSY when a job runs.
+     */
     fun startUpload(): PanoBackupJob {
         val temp = tempFile("upload")
 
@@ -176,13 +183,14 @@ class PanoRemoteBackupService(
     private suspend fun upload(job: PanoBackupJob, temp: File) {
         requireConnected()
 
-        val passphrase = passphraseFile?.read() ?: throw PanoHostException(PASSPHRASE_NOT_SET)
+        val passphrase = passphraseFile?.read()
+        val encrypted = passphrase != null && passphrase.isNotEmpty()
 
         try {
             job.phase = PanoBackupService.PHASE_ARCHIVING
             backups.archiveTo(temp, passphrase)
         } finally {
-            passphrase.fill('\u0000')
+            passphrase?.fill('\u0000')
         }
 
         job.phase = PanoBackupService.PHASE_UPLOADING
@@ -190,12 +198,12 @@ class PanoRemoteBackupService(
 
         val summary = JsonObject()
             .put("panoVersion", panoVersion)
-            .put("encrypted", true)
+            .put("encrypted", encrypted)
 
         try {
             job.remoteId = target.put(
                 temp,
-                StoredArchive(LocalBackupTarget.KIND_PANO_INSTANCE, null, encrypted = true, summary = summary),
+                StoredArchive(LocalBackupTarget.KIND_PANO_INSTANCE, null, encrypted = encrypted, summary = summary),
                 onStarted = { job.remoteId = it }
             ) { job.bytesDone = it }
         } finally {
@@ -203,6 +211,67 @@ class PanoRemoteBackupService(
         }
 
         update { it.copy(lastUploadAt = clock()) }
+    }
+
+    // Moving out of Pano Host
+
+    /** `{workloads}`: the account's Pano Host instances, each saying whether it can be exported now. */
+    suspend fun listHostInstances(): JsonObject {
+        requireConnected()
+
+        return client.listExports()
+    }
+
+    /**
+     * Moves Pano Host instance [workloadId] here (setup-ui "Transfer → Pano Host"): asks for its export (an
+     * export still valid is reused), waits until Pano Host has made it, downloads the plain archive and
+     * restores it through [service]. Exports are plain, so no passphrase; the instance on Pano Host keeps
+     * running — its subscription is the owner's to end.
+     */
+    fun startHostMove(
+        workloadId: String,
+        service: PanoBackupRunner = backups,
+        safetyArchive: Boolean = false,
+        maintenance: Boolean = false,
+        pollIntervalMs: Long = EXPORT_POLL_MS,
+        timeoutMs: Long = EXPORT_TIMEOUT_MS
+    ): PanoBackupJob {
+        val temp = tempFile("move")
+
+        return service.startTask(PanoBackupJob.Type.RESTORE, cleanup = { delete(temp) }) { job ->
+            requireConnected()
+
+            job.remoteId = workloadId
+            job.phase = PHASE_EXPORTING
+
+            var export = client.startExport(workloadId).getJsonObject("export")
+            val deadline = clock() + timeoutMs
+
+            while (export?.getString("status") != EXPORT_DONE) {
+                when (export?.getString("status")) {
+                    EXPORT_FAILED -> throw PanoHostException(EXPORT_FAILED_CODE, message = export.getString("error") ?: "The export failed.")
+                    null -> throw PanoHostException(EXPORT_FAILED_CODE, message = "Pano Host has no export of this instance.")
+                }
+
+                if (clock() > deadline) {
+                    throw PanoHostException(EXPORT_FAILED_CODE, message = "The export did not finish in time.")
+                }
+
+                delay(pollIntervalMs)
+
+                export = client.exportStatus(workloadId).getJsonObject("export")
+            }
+
+            val url = export.getString("url") ?: throw PanoHostException(EXPORT_FAILED_CODE, message = "The export has no download link.")
+
+            job.phase = PanoBackupService.PHASE_DOWNLOADING
+            job.bytesTotal = export.getLong("sizeBytes") ?: 0L
+
+            client.download(url, temp, export.getLong("sizeBytes"), null) { job.bytesDone = it }
+
+            job.phase = PanoBackupService.PHASE_RESTORING
+            job.backupId = service.restoreFrom(temp, null, safetyArchive, maintenance)?.id
+        }
     }
 
     /**
@@ -299,15 +368,18 @@ class PanoRemoteBackupService(
 
     // MC server backups
 
-    /** Wraps + encrypts + uploads one managed MC server backup (`kind: mc-server`). */
+    /** Wraps (+ encrypts, with a saved passphrase) + uploads one managed MC server backup (`kind: mc-server`). */
     fun startMcUpload(source: McServerBackupSource): PanoBackupJob {
+        if (!MC_UPLOADS_ENABLED) throw PanoHostException(NOT_AVAILABLE)
+
         val zip = tempFile("mc-zip")
         val temp = tempFile("mc")
 
         return backups.startTask(PanoBackupJob.Type.MC_UPLOAD, cleanup = { delete(zip); delete(temp) }) { job ->
             requireConnected()
 
-            val passphrase = passphraseFile?.read() ?: throw PanoHostException(PASSPHRASE_NOT_SET)
+            val passphrase = passphraseFile?.read()
+            val encrypted = passphrase != null && passphrase.isNotEmpty()
 
             try {
                 job.phase = PanoBackupService.PHASE_FETCHING
@@ -316,7 +388,7 @@ class PanoRemoteBackupService(
                 job.phase = PanoBackupService.PHASE_ARCHIVING
                 withContext(Dispatchers.IO) { McServerArchive.wrap(zip, source.meta, temp, passphrase, producer, instanceName()) }
             } finally {
-                passphrase.fill('\u0000')
+                passphrase?.fill('\u0000')
             }
 
             delete(zip)
@@ -324,12 +396,12 @@ class PanoRemoteBackupService(
             job.phase = PanoBackupService.PHASE_UPLOADING
             job.bytesTotal = temp.length()
 
-            val summary = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId).put("encrypted", true)
+            val summary = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId).put("encrypted", encrypted)
 
             try {
                 job.remoteId = target.put(
                     temp,
-                    StoredArchive(KIND_MC_SERVER, source.subject, encrypted = true, summary = summary),
+                    StoredArchive(KIND_MC_SERVER, source.subject, encrypted = encrypted, summary = summary),
                     onStarted = { job.remoteId = it }
                 ) { job.bytesDone = it }
             } finally {
@@ -343,9 +415,11 @@ class PanoRemoteBackupService(
      * (queued while another job runs; the tick retries).
      */
     suspend fun onMcBackupReady(source: McServerBackupSource) {
+        if (!MC_UPLOADS_ENABLED) return
+
         val state = state()
 
-        if (source.serverId !in state.settings.mcServerIds || !isConnected() || passphraseFile?.isSet() != true) {
+        if (source.serverId !in state.settings.mcServerIds || !isConnected()) {
             return
         }
 
@@ -366,7 +440,7 @@ class PanoRemoteBackupService(
 
         val state = state()
 
-        if (!isConnected() || passphraseFile?.isSet() != true) {
+        if (!isConnected()) {
             return
         }
 
@@ -390,7 +464,9 @@ class PanoRemoteBackupService(
             }
         }
 
-        mcQueue.peek()?.let { next -> if (tryStart { startMcUpload(next) }) mcQueue.remove(next) }
+        if (MC_UPLOADS_ENABLED) {
+            mcQueue.peek()?.let { next -> if (tryStart { startMcUpload(next) }) mcQueue.remove(next) }
+        }
     }
 
     /** Remembers the scheduled upload; [settleScheduled] records a failure once its job ends. */
@@ -406,7 +482,7 @@ class PanoRemoteBackupService(
     private var scheduledAt: Long = 0
 
     /** Records the outcome of the last scheduled upload (called at the start of [tick]). */
-    private fun settleScheduled() {
+    private suspend fun settleScheduled() {
         val job = scheduledJob ?: return
 
         if (job.status == PanoBackupJob.Status.RUNNING) return
@@ -417,6 +493,12 @@ class PanoRemoteBackupService(
         }
 
         scheduledJob = null
+
+        try {
+            onScheduledSettled(job.status == PanoBackupJob.Status.DONE)
+        } catch (e: Exception) {
+            logger.warn("Could not record the scheduled Pano Backup upload: ${e.message}")
+        }
     }
 
     private fun tryStart(start: () -> PanoBackupJob): Boolean = try {
@@ -444,7 +526,22 @@ class PanoRemoteBackupService(
     companion object {
         const val KIND_MC_SERVER = "mc-server"
 
+        /**
+         * Minecraft server backups to Pano Backup (the automatic upload of the selected servers and the
+         * manual one from a server's Backups page) are "coming soon": off until the feature ships, the
+         * panel shows them disabled. The code stays so switching this on is the whole change.
+         */
+        const val MC_UPLOADS_ENABLED = false
+
         const val PASSPHRASE_NOT_SET = "PASSPHRASE_NOT_SET"
+
+        /** A move out of Pano Host: its export failed, vanished or took too long. */
+        const val EXPORT_FAILED_CODE = "EXPORT_FAILED"
+        const val PHASE_EXPORTING = "EXPORTING"
+        private const val EXPORT_DONE = "DONE"
+        private const val EXPORT_FAILED = "FAILED"
+        const val EXPORT_POLL_MS = 5_000L
+        const val EXPORT_TIMEOUT_MS = 60L * 60 * 1000
         const val NOT_AVAILABLE = "NOT_AVAILABLE"
         const val WORKLOAD_NOT_FOUND = "WORKLOAD_NOT_FOUND"
 

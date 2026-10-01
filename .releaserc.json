@@ -13,41 +13,23 @@
     "main"
   ],
   "plugins": [
-    "@semantic-release/commit-analyzer",
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "releaseRules": [
+          {
+            "type": "chore",
+            "scope": "ui",
+            "release": "patch"
+          }
+        ]
+      }
+    ],
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/github",
       {
-        "assets": [
-          {
-            "path": "build/libs/*.jar",
-            "label": false
-          },
-          {
-            "path": "build/libs/*.jar.sha256",
-            "label": false
-          },
-          {
-            "path": "Node/build/libs/pano-node.jar",
-            "label": false
-          },
-          {
-            "path": "Node/build/libs/pano-node.jar.sha256",
-            "label": false
-          },
-          {
-            "path": "build/pano-git/pano-git-*.tar.gz",
-            "label": false
-          },
-          {
-            "path": "build/pano-git/pano-git-*.tar.gz.sha256",
-            "label": false
-          },
-          {
-            "path": "LICENSE",
-            "label": false
-          }
-        ]
+        "draftRelease": true
       }
     ]
   ],

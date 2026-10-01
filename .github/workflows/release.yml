@@ -222,10 +222,57 @@ jobs:
         run: |
           npx semantic-release@24.2.6
 
-      # Append UI changelog to latest release with a Markdown separator
+      # semantic-release only opens a DRAFT without assets (.releaserc `draftRelease`): its own uploader retried
+      # uploads that had already landed, failed with `already_exists` and left a draft plus a tag that a rerun
+      # no-ops on. This step is idempotent, so "Re-run failed jobs" (which keeps get_next_version's output)
+      # finishes a half-done release: it creates the release if only the tag exists, re-uploads with --clobber
+      # and publishes only once every asset is there with its exact size.
+      - name: Upload the release assets and publish the release
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+          VERSION: ${{ needs.get_next_version.outputs.new_tag_version }}
+          PRERELEASE: ${{ steps.extract_branch.outputs.branch != 'main' }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          git fetch --tags --force -q
+          if [ "$(git rev-parse -q --verify "$tag^{commit}" || true)" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::tag $tag is missing or not on this commit"
+            exit 1
+          fi
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            echo "::warning::$tag has no release (semantic-release no-oped on a rerun), creating it"
+            gh release create "$tag" --verify-tag --draft --prerelease="$PRERELEASE" --title "$tag" \
+              --notes "Release $tag"
+          fi
+
+          shopt -s nullglob
+          assets=(build/libs/*.jar build/libs/*.jar.sha256 Node/build/libs/pano-node.jar \
+            Node/build/libs/pano-node.jar.sha256 build/pano-git/pano-git-*.tar.gz \
+            build/pano-git/pano-git-*.tar.gz.sha256 LICENSE)
+          for attempt in 1 2 3 4 5; do
+            gh release upload "$tag" "${assets[@]}" --clobber && break
+            if [ "$attempt" = 5 ]; then exit 1; fi
+            sleep $((attempt * 10))
+          done
+
+          uploaded=$(gh release view "$tag" --json assets -q '.assets[] | "\(.name) \(.size)"')
+          for file in "${assets[@]}"; do
+            if ! grep -qxF "$(basename "$file") $(stat -c %s "$file")" <<<"$uploaded"; then
+              echo "::error::$(basename "$file") is missing or truncated on $tag"
+              exit 1
+            fi
+          done
+
+          gh release edit "$tag" --draft=false --prerelease="$PRERELEASE"
+
+      # Append UI changelog to this run's release with a Markdown separator (once, so a rerun does not repeat it)
       - name: Append UI changelog to latest release
         if: success()
         uses: actions/github-script@v7
+        env:
+          VERSION: ${{ needs.get_next_version.outputs.new_tag_version }}
         with:
           script: |
             const fs = require('fs');
@@ -242,12 +289,17 @@ jobs:
             }
 
             const { owner, repo } = context.repo;
-            const { data: releases } = await github.rest.repos.listReleases({ owner, repo, per_page: 1 });
-            if (!releases.length) {
-              core.warning('No releases found to update.');
+            const tag = `v${process.env.VERSION}`;
+            const { data: releases } = await github.rest.repos.listReleases({ owner, repo, per_page: 20 });
+            const rel = releases.find((release) => release.tag_name === tag);
+            if (!rel) {
+              core.warning(`No release found for ${tag}.`);
               return;
             }
-            const rel = releases[0];
+            if ((rel.body || '').includes(extra)) {
+              core.info('UI changelog already appended, skipping.');
+              return;
+            }
 
             // Use a Markdown separator to FORCE paragraph break & block context reset.
             // Also add a non-breaking space paragraph to fully exit list contexts.

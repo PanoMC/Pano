@@ -50,6 +50,9 @@ class NodePairingCodeManager(
     @Volatile
     private var generatedAt = System.currentTimeMillis()
 
+    /** Called after every rotation, e.g. by the panel hub to push the new code to an open add-node dialog. */
+    private val rotationListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+
     init {
         vertx.setPeriodic(ROTATE_INTERVAL_MS) {
             rotate()
@@ -57,6 +60,10 @@ class NodePairingCodeManager(
     }
 
     fun getPairingCode() = pairingCode
+
+    fun addRotationListener(listener: () -> Unit) {
+        rotationListeners.add(listener)
+    }
 
     /** When the current code was generated, so the panel can show how long it is still good for. */
     fun getGeneratedAt() = generatedAt
@@ -161,6 +168,13 @@ class NodePairingCodeManager(
         }
 
         generatedAt = Date().time
+
+        rotationListeners.forEach {
+            try {
+                it()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     companion object {

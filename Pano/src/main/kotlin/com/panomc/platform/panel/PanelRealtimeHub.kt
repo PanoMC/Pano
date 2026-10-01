@@ -7,14 +7,17 @@ import com.panomc.platform.auth.panel.permission.ManageServerConsolePermission
 import com.panomc.platform.auth.panel.permission.ManageServerPlayersPermission
 import com.panomc.platform.auth.panel.permission.ManageServerPluginsPermission
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.db.model.ServerTask
 import com.panomc.platform.node.AgentNodeDirectory
 import com.panomc.platform.node.NodeInstallScriptProvider
 import com.panomc.platform.node.NodeManager
+import com.panomc.platform.node.NodePairingCodeManager
 import com.panomc.platform.node.NodeProtocol
 import com.panomc.platform.node.NodeUpdateProgressStore
+import com.panomc.platform.node.PanoUrlOverride
 import com.panomc.platform.node.dto.NodeMetricSample
 import com.panomc.platform.node.message.SetNodeMetricsIntervalMessage
 import com.panomc.platform.node.message.ConsoleStreamMessage as NodeConsoleStreamMessage
@@ -22,6 +25,7 @@ import com.panomc.platform.node.message.SetMetricsIntervalMessage as NodeSetMetr
 import com.panomc.platform.server.ServerActiveTaskStore
 import com.panomc.platform.server.ServerActivityNotifier
 import com.panomc.platform.server.ServerCapability
+import com.panomc.platform.server.PlatformCodeManager
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.dto.ConsoleLineData
 import com.panomc.platform.server.dto.ServerMetricSample
@@ -32,6 +36,7 @@ import com.panomc.platform.server.message.SetMetricsIntervalMessage as PluginSet
 import com.panomc.platform.server.metrics.MetricsRates
 import com.panomc.platform.server.metrics.ServerLatestMetrics
 import com.panomc.platform.server.players.ServerRosterBuilder
+import com.panomc.platform.util.UsageMode
 import io.vertx.core.Vertx
 import io.vertx.core.http.ServerWebSocket
 import io.vertx.core.json.JsonArray
@@ -67,7 +72,11 @@ class PanelRealtimeHub(
     private val featureResolver: ServerFeatureResolver,
     private val activeTaskStore: ServerActiveTaskStore,
     private val agentNodeDirectory: AgentNodeDirectory,
-    private val nodeUpdateProgressStore: NodeUpdateProgressStore
+    private val nodeUpdateProgressStore: NodeUpdateProgressStore,
+    private val platformCodeManager: PlatformCodeManager,
+    private val nodePairingCodeManager: NodePairingCodeManager,
+    private val nodeInstallScriptProvider: NodeInstallScriptProvider,
+    private val configManager: ConfigManager
 ) {
     private data class ClientSession(
         val userId: Long,
@@ -102,7 +111,16 @@ class PanelRealtimeHub(
         /** Bumped by every `subscribeMetricsServerIds`, so a slow permission check cannot undo a newer one. */
         var metricsServerIdsGeneration: Long = 0,
         var subscribePlayersServerId: Long? = null,
-        var subscribePluginsServerId: Long? = null
+        var subscribePluginsServerId: Long? = null,
+        /**
+         * The connect-server dialog is open: the rotating platform key is pushed on every rotation
+         * instead of being polled, see [pushPlatformKey].
+         */
+        var subscribePlatformKey: Boolean = false,
+        /** The add-node dialog is open: the same for the node pairing code, see [pushNodePairingCode]. */
+        var subscribeNodePairingCode: Boolean = false,
+        /** The `?panoUrl=` override the add-node dialog's install commands are built with. */
+        var nodePairingPanoUrl: String? = null
     )
 
     private val sessions = ConcurrentHashMap<ServerWebSocket, ClientSession>()
@@ -138,6 +156,11 @@ class PanelRealtimeHub(
     init {
         // Every server-scoped activity entry, from any writer, ends up here (see the notifier).
         ServerActivityNotifier.sink = ::notifyServerActivity
+
+        // The rotating codes are pushed to the dialogs that show them; polling them over HTTP
+        // every 30 s raced the browser's idle-connection timeout and raised the offline splash.
+        platformCodeManager.addRotationListener(::pushPlatformKey)
+        nodePairingCodeManager.addRotationListener(::pushNodePairingCode)
 
         // The lease: a fast rate is re-sent every minute while somebody still wants it, and the
         // sessions are looked at again on the way, because a dead socket can be dropped from
@@ -268,6 +291,37 @@ class PanelRealtimeHub(
                 { s.subscribePlayersServerId = it }
             )
         }
+        if (body.containsKey("subscribePlatformKey")) {
+            val wanted = s.canManageServers && body.getBoolean("subscribePlatformKey", false)
+            val wasSubscribed = s.subscribePlatformKey
+
+            s.subscribePlatformKey = wanted
+
+            // The current key at once, so the dialog never waits up to 30 s for its first one.
+            if (wanted && !wasSubscribed) {
+                writeTo(socket, platformKeyFrame())
+            }
+        }
+        if (body.containsKey("subscribeNodePairingCode") || body.containsKey("nodePairingPanoUrl")) {
+            val wanted = s.canManageNodes &&
+                configManager.config.effectiveUsageMode in UsageMode.WITH_SERVERS &&
+                body.getBoolean("subscribeNodePairingCode", s.subscribeNodePairingCode)
+            val panoUrl = if (body.containsKey("nodePairingPanoUrl")) {
+                // An invalid override gets no frame here; the dialog's HTTP fallback reports it.
+                runCatching { PanoUrlOverride.sanitize(body.getValue("nodePairingPanoUrl") as? String) }.getOrNull()
+            } else {
+                s.nodePairingPanoUrl
+            }
+            val changed = wanted && (!s.subscribeNodePairingCode || panoUrl != s.nodePairingPanoUrl)
+
+            s.subscribeNodePairingCode = wanted
+            s.nodePairingPanoUrl = panoUrl
+
+            // The commands carry the override, so a new one needs a new frame as well.
+            if (changed) {
+                writeTo(socket, nodePairingCodeFrame(panoUrl))
+            }
+        }
         if (body.containsKey("subscribePluginsServerId")) {
             applyScopedSubscription(
                 socket,
@@ -277,6 +331,75 @@ class PanelRealtimeHub(
                 { s.subscribePluginsServerId },
                 { s.subscribePluginsServerId = it }
             )
+        }
+    }
+
+    /** The current platform key (the `/pano connect` code) as a `platformKey` frame. */
+    private fun platformKeyFrame() = platformKeyFrame(
+        platformCodeManager.getPlatformKey(),
+        platformCodeManager.getTimeStarted(),
+        System.currentTimeMillis()
+    )
+
+    /** The current node pairing code and its install commands, built with [panoUrl]. */
+    private fun nodePairingCodeFrame(panoUrl: String?): String {
+        val generatedAt = nodePairingCodeManager.getGeneratedAt()
+        val pairingCode = nodePairingCodeManager.getPairingCode().toString()
+
+        return JsonObject()
+            .put("type", "nodePairingCode")
+            .put("pairingCode", pairingCode)
+            .put("generatedAt", generatedAt)
+            .put("expiresAt", generatedAt + NodePairingCodeManager.ROTATE_INTERVAL_MS)
+            .put("periodMs", NodePairingCodeManager.ROTATE_INTERVAL_MS)
+            .put("serverTime", System.currentTimeMillis())
+            .put("installCommand", nodeInstallScriptProvider.installCommand(pairingCode, panoUrl))
+            .put("installCommandWindows", nodeInstallScriptProvider.installCommandWindows(pairingCode, panoUrl))
+            .encode()
+    }
+
+    /** Sends the new platform key to every open connect-server dialog; called on each rotation. */
+    fun pushPlatformKey() {
+        if (!hasSubscriber { it.subscribePlatformKey }) {
+            return
+        }
+
+        writeToSubscribers(platformKeyFrame()) { it.subscribePlatformKey }
+    }
+
+    /**
+     * Sends the new node pairing code to every open add-node dialog; called on each rotation. The
+     * commands depend on each dialog's override, so one frame is built per distinct override.
+     */
+    fun pushNodePairingCode() {
+        val frames = HashMap<String?, String>()
+
+        for ((ws, s) in sessions.toList()) {
+            if (!s.subscribeNodePairingCode) {
+                continue
+            }
+
+            val frame = try {
+                frames.getOrPut(s.nodePairingPanoUrl) { nodePairingCodeFrame(s.nodePairingPanoUrl) }
+            } catch (_: Exception) {
+                continue
+            }
+
+            writeTo(ws, frame)
+        }
+    }
+
+    private fun writeTo(socket: ServerWebSocket, message: String) {
+        if (socket.isClosed) {
+            sessions.remove(socket)
+
+            return
+        }
+
+        try {
+            socket.writeTextMessage(message)
+        } catch (_: Exception) {
+            sessions.remove(socket)
         }
     }
 
@@ -1266,6 +1389,18 @@ class PanelRealtimeHub(
     }
 
     companion object {
+        /**
+         * A `platformKey` frame. [serverTime] lets the panel count down against Pano's clock rather
+         * than its own, which may be off by more than the key's whole lifetime.
+         */
+        fun platformKeyFrame(key: Int, timeStarted: Long, serverTime: Long): String = JsonObject()
+            .put("type", "platformKey")
+            .put("key", key)
+            .put("timeStarted", timeStarted)
+            .put("periodMs", PlatformCodeManager.ROTATE_INTERVAL_MS)
+            .put("serverTime", serverTime)
+            .encode()
+
         /** Who gets every `taskProgress` frame: the task's creator and anyone watching nodes. */
         fun isTaskOwnerAudience(userId: Long, subscribeNodes: Boolean, taskCreatedBy: Long) =
             userId == taskCreatedBy || subscribeNodes

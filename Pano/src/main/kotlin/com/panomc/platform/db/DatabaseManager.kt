@@ -6,6 +6,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.*
 import com.panomc.platform.error.PlatformAlreadyInstalled
+import com.panomc.platform.hosted.HostedEnvConfig
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLBuilder
@@ -119,7 +120,7 @@ class DatabaseManager(
             connectOptions.password = databaseConfig.password
 
         val poolOptions = PoolOptions()
-            .setMaxSize(100)
+            .setMaxSize(HostedEnvConfig.current.dbPoolSize)
 
         sqlClient = MySQLBuilder.pool()
             .with(poolOptions)

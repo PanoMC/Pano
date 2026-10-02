@@ -284,6 +284,17 @@ class HostedEnvConfigTest {
     }
 
     @Test
+    fun `the DB pool stays below the DB user's connection limit`() {
+        assertEquals(100, HostedEnvConfig(emptyMap()).dbPoolSize, "self-hosted without a limit")
+        assertEquals(32, HostedEnvConfig(hosted).dbPoolSize, "Pano Host's default limit of 40")
+        assertEquals(16, HostedEnvConfig(hosted + ("PANO_DB_MAX_CONNECTIONS" to "20")).dbPoolSize)
+        assertEquals(8, HostedEnvConfig(mapOf("PANO_DB_MAX_CONNECTIONS" to "10")).dbPoolSize, "a limit outside Pano Host too")
+        assertEquals(1, HostedEnvConfig(mapOf("PANO_DB_MAX_CONNECTIONS" to "2")).dbPoolSize)
+        assertEquals(100, HostedEnvConfig(mapOf("PANO_DB_MAX_CONNECTIONS" to "5000")).dbPoolSize, "never above the default")
+        assertEquals(32, HostedEnvConfig(hosted + ("PANO_DB_MAX_CONNECTIONS" to "nope")).dbPoolSize)
+    }
+
+    @Test
     fun `manage url points at the website instance page`() {
         assertEquals("https://panomc.com/host/manage/instances/wl_1", HostedEnvConfig(hosted).manageUrl)
         assertEquals(

@@ -23,6 +23,12 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
 
         val STARTTLS_MODES = setOf("DISABLED", "OPTIONAL", "REQUIRED")
 
+        /** The DB pool size outside Pano Host (and the cap everywhere). */
+        const val DEFAULT_DB_POOL_SIZE = 100
+
+        /** Pano Host's per-instance `MAX_USER_CONNECTIONS` when the env does not say (control plane `db.internal.maxConnections`). */
+        const val HOSTED_DB_MAX_CONNECTIONS = 40
+
         /** Pano Host mail sender name (before `@`): letters, digits, `. _ + -`, no leading/trailing/double dot. */
         val SENDER_LOCAL = Regex("^[A-Za-z0-9_+-]+(\\.[A-Za-z0-9_+-]+)*$")
         const val SENDER_LOCAL_MAX = 64
@@ -108,6 +114,22 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
 
     /** `PANO_HTTP_PORT`, else 8088 in container mode, else none. */
     val httpPort: Int? = port("PANO_HTTP_PORT", null) ?: if (isContainer) CONTAINER_HTTP_PORT else null
+
+    /** `PANO_DB_MAX_CONNECTIONS`: the DB user's connection limit, when the host sets one. */
+    val dbMaxConnections: Int? = value("PANO_DB_MAX_CONNECTIONS")?.toIntOrNull()?.takeIf { it > 0 }
+
+    /**
+     * Size of Pano's DB pool: below the DB user's connection limit (`PANO_DB_MAX_CONNECTIONS`, else Pano Host's
+     * default on a hosted instance), keeping a fifth (at least 2) for other short-lived connections such as the
+     * migration importers. A full pool queues queries instead of opening connections the server refuses
+     * ("has exceeded the 'max_user_connections' resource"). Self-hosted without a limit: [DEFAULT_DB_POOL_SIZE].
+     */
+    val dbPoolSize: Int
+        get() {
+            val limit = dbMaxConnections ?: (if (isHosted) HOSTED_DB_MAX_CONNECTIONS else return DEFAULT_DB_POOL_SIZE)
+
+            return (limit - maxOf(2, limit / 5)).coerceIn(1, DEFAULT_DB_POOL_SIZE)
+        }
 
     /** The DB step of the setup wizard is owned by the environment. */
     val databaseManaged get() = database != null

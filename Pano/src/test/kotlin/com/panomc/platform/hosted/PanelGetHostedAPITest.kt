@@ -65,6 +65,27 @@ class PanelGetHostedAPITest {
     }
 
     @Test
+    fun `the control plane's manage url wins over the default, the env override over both`() {
+        val feed = object : HostNoticeFeed {
+            override suspend fun notices() = emptyList<HostNotice>()
+            override val manageUrl = "https://local.panomc.com:3003/host/manage/instances/wl_abc123"
+        }
+
+        assertEquals(feed.manageUrl, respond(api(hostedEnv, feed))["manageUrl"])
+        assertEquals(
+            "https://dev.panomc.com/host/manage/x",
+            respond(api(hostedEnv + ("PANO_HOST_MANAGE_URL" to "https://dev.panomc.com/host/manage/x"), feed))["manageUrl"]
+        )
+
+        val unsafe = object : HostNoticeFeed {
+            override suspend fun notices() = emptyList<HostNotice>()
+            override val manageUrl = "javascript:alert(1)"
+        }
+
+        assertEquals("https://panomc.com/host/manage/instances/wl_abc123", respond(api(hostedEnv, unsafe))["manageUrl"])
+    }
+
+    @Test
     fun `hosted passes feed notices through, sanitised`() {
         val feed = object : HostNoticeFeed {
             override suspend fun notices() = listOf(

@@ -340,7 +340,32 @@ data class PanoConfig(
                 "every boot). Saving other mail settings in Panel -> Settings sets it to false, so they stay."
             )
             @SerializedName("host-managed")
-            var hostManaged: Boolean = true
+            var hostManaged: Boolean = true,
+
+            @ConfigComment(
+                "Pano Host only: the sender used with Pano Host mail instead of the instance's default",
+                "(kept across boots). Empty = the default."
+            )
+            @SerializedName("host-sender")
+            var hostSender: String? = null,
+
+            @ConfigComment(
+                "Pano Host only: the customer's own SMTP settings, kept while Pano Host mail is in use so",
+                "switching back to them loses nothing."
+            )
+            var custom: CustomSmtpConfig? = null
+        )
+
+        /** A copy of the mail block's SMTP fields (Pano Host: the customer's own server). */
+        data class CustomSmtpConfig(
+            var sender: String = "",
+            var hostname: String = "",
+            var port: Int = 465,
+            var username: String = "",
+            var password: String = "",
+            var ssl: Boolean = true,
+            var starttls: String = "",
+            var authMethods: String = ""
         )
 
         data class ServerConfig(

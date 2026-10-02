@@ -180,4 +180,12 @@ class PanoHostClientTest {
         val error = assertThrows(PanoHostClient.HostApiException::class.java) { runBlocking { client("wrong-secret-0123456789").notices() } }
         assertEquals("INVALID_TOKEN", error.code)
     }
+
+    @Test
+    fun `the notice feed carries the control plane's manage url when it sends one`() = runBlocking {
+        assertNull(client().noticeFeed().manageUrl)
+
+        plane.manageUrl = "https://dev.panomc.com/host/manage/instances/p-aaaaaaaaaa"
+        assertEquals("https://dev.panomc.com/host/manage/instances/p-aaaaaaaaaa", client().noticeFeed().manageUrl)
+    }
 }

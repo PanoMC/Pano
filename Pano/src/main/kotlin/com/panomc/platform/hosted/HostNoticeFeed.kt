@@ -42,9 +42,15 @@ data class HostNotice(
     )
 }
 
+/** One `GET /host/instance/notices` answer: the notices and the control plane's `manageUrl`, if any. */
+data class HostNotices(val notices: List<HostNotice>, val manageUrl: String? = null)
+
 /** Source of [HostNotice]s for this instance; implementations should cache and fail soft. */
 interface HostNoticeFeed {
     suspend fun notices(): List<HostNotice>
+
+    /** The control plane's link to this workload on its website, as of the last [notices] fetch. */
+    val manageUrl: String? get() = null
 }
 
 /**
@@ -53,7 +59,7 @@ interface HostNoticeFeed {
  * (or `[]`) and the next fetch waits [retryMs], so a slow or down control plane never slows the panel.
  */
 open class CachedHostNoticeFeed(
-    private val fetch: suspend () -> List<HostNotice>?,
+    private val fetch: suspend () -> HostNotices?,
     private val ttlMs: Long = 5 * 60_000L,
     private val retryMs: Long = 60_000L,
     private val clock: () -> Long = System::currentTimeMillis,
@@ -67,6 +73,10 @@ open class CachedHostNoticeFeed(
     @Volatile
     private var nextFetchAt = Long.MIN_VALUE
 
+    @Volatile
+    final override var manageUrl: String? = null
+        private set
+
     override suspend fun notices(): List<HostNotice> {
         if (clock() < nextFetchAt) return cached
 
@@ -74,7 +84,9 @@ open class CachedHostNoticeFeed(
             if (clock() < nextFetchAt) return@withLock cached
 
             try {
-                cached = fetch() ?: emptyList()
+                val result = fetch()
+                cached = result?.notices ?: emptyList()
+                result?.manageUrl?.let { manageUrl = it }
                 nextFetchAt = clock() + ttlMs
             } catch (e: CancellationException) {
                 throw e
@@ -92,6 +104,6 @@ open class CachedHostNoticeFeed(
 @Lazy
 @Component
 class ControlPlaneHostNoticeFeed(panoHostManager: PanoHostManager, logger: Logger) : CachedHostNoticeFeed(
-    fetch = { panoHostManager.client?.notices() },
+    fetch = { panoHostManager.client?.noticeFeed() },
     onError = { logger.warn("Pano Host notice feed unavailable: {}", (it as? PanoHostClient.HostApiException)?.message ?: it.javaClass.simpleName) }
 )

@@ -132,7 +132,7 @@ open class ConfigManager(
     internal fun applyEnv(creatingConfig: Boolean): Boolean {
         if (!envConfig.shouldApply(creatingConfig)) return false
 
-        val changed = envConfig.apply(config)
+        val changed = envConfig.apply(config, creatingConfig)
 
         if (changed.isNotEmpty()) {
             logger.info("Applied environment to config: ${changed.joinToString(", ")}")

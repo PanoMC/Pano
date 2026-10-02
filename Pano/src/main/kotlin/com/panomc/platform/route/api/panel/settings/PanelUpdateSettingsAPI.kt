@@ -195,12 +195,16 @@ class PanelUpdateSettingsAPI(
         val serverGameVersion = data.getString("serverGameVersion")
         val keywords = context.request().getFormAttribute("keywords")?.split(",")
 
-        val httpPort = data.getInteger("httpPort")
-        val httpsPort = data.getInteger("httpsPort")
-        val sslMode = if (data.getString("sslMode") == null) null else PanoConfig.Companion.SslMode.valueOf(data.getString("sslMode"))
-        val sslCert = data.getString("sslCert")
-        val sslKey = data.getString("sslKey")
-        val redirectHttps = data.getBoolean("redirectHttps")
+        // Pano Host terminates TLS in front of the container and fixes the HTTP port by env: SSL and
+        // ports are not the customer's to change there, so a (stale) panel sending them is ignored.
+        val hostManagesSsl = HostedEnvConfig.current.isHosted
+
+        val httpPort = data.getInteger("httpPort")?.takeUnless { hostManagesSsl }
+        val httpsPort = data.getInteger("httpsPort")?.takeUnless { hostManagesSsl }
+        val sslMode = if (hostManagesSsl || data.getString("sslMode") == null) null else PanoConfig.Companion.SslMode.valueOf(data.getString("sslMode"))
+        val sslCert = data.getString("sslCert")?.takeUnless { hostManagesSsl }
+        val sslKey = data.getString("sslKey")?.takeUnless { hostManagesSsl }
+        val redirectHttps = data.getBoolean("redirectHttps")?.takeUnless { hostManagesSsl }
 
         val password = data.getString("password")
 
@@ -394,27 +398,77 @@ class PanelUpdateSettingsAPI(
             val mailConfiguration = configManager.config.email
             val hosted = HostedEnvConfig.current
             val hostMail = hosted.isHosted && hosted.smtp != null
+            val enabled = email.getBoolean("enabled")
 
-            if (hostMail && email.getBoolean("hostManaged") == true) {
-                // Back to Pano Host mail: the env values are written again now and on every boot.
-                mailConfiguration.hostManaged = true
-                hosted.apply(configManager.config)
+            if (hostMail) {
+                // Pano Host: `hostManaged` picks the mode. Without it, a save of the form (an older
+                // panel) means the customer's own SMTP and turning mail off keeps the current mode.
+                val toHost = email.getBoolean("hostManaged") ?: if (enabled) false else mailConfiguration.hostManaged
+
+                // The customer's sender name at the default's domain (empty or the default = the
+                // default), kept across boots. Pano Host's domain and server are never the panel's to
+                // change. Checked before anything changes, so a refusal leaves the config as it was.
+                val senderInput = if (toHost) email.getString("sender") else null
+                val hostSender = senderInput?.let { sender ->
+                    try {
+                        hosted.hostSender(sender)
+                    } catch (e: IllegalArgumentException) {
+                        throw InvalidData(extras = mapOf("field" to "sender", "reason" to e.message))
+                    }
+                }
+
+                mailConfiguration.enabled = enabled
+
+                if (toHost) {
+
+                    // Leaving own SMTP: keep a copy, so switching back loses nothing.
+                    if (!mailConfiguration.hostManaged) mailConfiguration.custom = mailConfiguration.customCopy()
+
+                    mailConfiguration.hostManaged = true
+                    if (senderInput != null) mailConfiguration.hostSender = hostSender
+
+                    hosted.apply(configManager.config)
+                } else {
+                    val custom = mailConfiguration.custom
+
+                    if (enabled) {
+                        val hostname = email.getString("hostname")
+                        val username = email.getString("username")
+                        // An empty password keeps the stored one of the same server and account (the
+                        // panel never receives it, so it cannot send it back).
+                        val password = email.getString("password").takeIf { it.isNotEmpty() }
+                            ?: custom?.takeIf { it.hostname == hostname && it.username == username }?.password
+                            ?: ""
+
+                        mailConfiguration.sender = email.getString("sender")
+                        mailConfiguration.hostname = hostname
+                        mailConfiguration.port = email.getInteger("port")
+                        mailConfiguration.username = username
+                        mailConfiguration.password = password
+                        mailConfiguration.ssl = email.getBoolean("ssl")
+                        mailConfiguration.starttls = email.getString("starttls")
+                        mailConfiguration.authMethods = email.getString("authMethods")
+                        mailConfiguration.custom = mailConfiguration.customCopy()
+                    } else if (mailConfiguration.hostManaged) {
+                        // Turned off while switching to own SMTP: its last settings become the active ones.
+                        custom?.let { mailConfiguration.restoreCustom(it) }
+                    }
+
+                    mailConfiguration.hostManaged = false
+                }
             } else {
-                // Own mail settings on Pano Host: kept across boots from now on.
-                if (hostMail) mailConfiguration.hostManaged = false
+                mailConfiguration.enabled = enabled
 
-                mailConfiguration.enabled = email.getBoolean("enabled")
-            }
-
-            if (!(hostMail && mailConfiguration.hostManaged) && email.getBoolean("enabled")) {
-                mailConfiguration.sender = email.getString("sender")
-                mailConfiguration.hostname = email.getString("hostname")
-                mailConfiguration.port = email.getInteger("port")
-                mailConfiguration.username = email.getString("username")
-                mailConfiguration.password = email.getString("password")
-                mailConfiguration.ssl = email.getBoolean("ssl")
-                mailConfiguration.starttls = email.getString("starttls")
-                mailConfiguration.authMethods = email.getString("authMethods")
+                if (enabled) {
+                    mailConfiguration.sender = email.getString("sender")
+                    mailConfiguration.hostname = email.getString("hostname")
+                    mailConfiguration.port = email.getInteger("port")
+                    mailConfiguration.username = email.getString("username")
+                    mailConfiguration.password = email.getString("password")
+                    mailConfiguration.ssl = email.getBoolean("ssl")
+                    mailConfiguration.starttls = email.getString("starttls")
+                    mailConfiguration.authMethods = email.getString("authMethods")
+                }
             }
         }
 
@@ -571,4 +625,26 @@ class PanelUpdateSettingsAPI(
 
         return Successful()
     }
+}
+
+private fun PanoConfig.Companion.EmailConfig.customCopy() = PanoConfig.Companion.CustomSmtpConfig(
+    sender = sender,
+    hostname = hostname,
+    port = port,
+    username = username,
+    password = password,
+    ssl = ssl,
+    starttls = starttls,
+    authMethods = authMethods
+)
+
+private fun PanoConfig.Companion.EmailConfig.restoreCustom(custom: PanoConfig.Companion.CustomSmtpConfig) {
+    sender = custom.sender
+    hostname = custom.hostname
+    port = custom.port
+    username = custom.username
+    password = custom.password
+    ssl = custom.ssl
+    starttls = custom.starttls
+    authMethods = custom.authMethods
 }

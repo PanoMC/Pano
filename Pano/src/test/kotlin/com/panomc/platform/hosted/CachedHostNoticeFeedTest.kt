@@ -2,16 +2,18 @@ package com.panomc.platform.hosted
 
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class CachedHostNoticeFeedTest {
     private var now = 0L
     private var calls = 0
     private var next: () -> List<HostNotice>? = { emptyList() }
+    private var nextManageUrl: String? = null
     private val errors = mutableListOf<Throwable>()
 
     private val feed = CachedHostNoticeFeed(
-        fetch = { calls++; next() },
+        fetch = { calls++; next()?.let { HostNotices(it, nextManageUrl) } },
         ttlMs = 300_000, retryMs = 60_000, clock = { now }, onError = { errors += it }
     )
 
@@ -39,6 +41,20 @@ class CachedHostNoticeFeedTest {
         next = { emptyList() }
         assertEquals(emptyList<HostNotice>(), feed.notices())
         assertEquals(3, calls)
+    }
+
+    @Test
+    fun `keeps the last manage url the control plane sent`() = runBlocking {
+        assertNull(feed.manageUrl)
+
+        nextManageUrl = "https://local.panomc.com:3003/host/manage/instances/p-aaaaaaaaaa"
+        feed.notices()
+        assertEquals(nextManageUrl, feed.manageUrl)
+
+        now += 300_000
+        nextManageUrl = null
+        feed.notices()
+        assertEquals("https://local.panomc.com:3003/host/manage/instances/p-aaaaaaaaaa", feed.manageUrl)
     }
 
     @Test

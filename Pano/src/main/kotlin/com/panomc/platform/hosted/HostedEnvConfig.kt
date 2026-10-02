@@ -23,6 +23,10 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
 
         val STARTTLS_MODES = setOf("DISABLED", "OPTIONAL", "REQUIRED")
 
+        /** Pano Host mail sender name (before `@`): letters, digits, `. _ + -`, no leading/trailing/double dot. */
+        val SENDER_LOCAL = Regex("^[A-Za-z0-9_+-]+(\\.[A-Za-z0-9_+-]+)*$")
+        const val SENDER_LOCAL_MAX = 64
+
         /** panomc.com's per-workload management page is `<this>/<workloadId>`. */
         const val DEFAULT_MANAGE_URL = "https://panomc.com/host/manage/instances"
 
@@ -67,12 +71,16 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
     val hostApiUrl: String? = value("PANO_HOST_API_URL")?.trimEnd('/')
 
     /**
-     * Where the owner manages this instance on panomc.com: `PANO_HOST_MANAGE_URL` when it is an
-     * http(s) URL (never rendered as a `javascript:` href), else the website's workload page.
+     * Where the owner manages this instance: `PANO_HOST_MANAGE_URL` when it is an http(s) URL (never
+     * rendered as a `javascript:` href), else panomc.com's workload page. The panel prefers the control
+     * plane's `manageUrl` (right website per environment) over this fallback.
      */
-    val manageUrl: String? = if (!isHosted) null else value("PANO_HOST_MANAGE_URL")
-        ?.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
+    val manageUrl: String? = if (!isHosted) null else manageUrlOverride()
         ?: (DEFAULT_MANAGE_URL + (workloadId?.let { "/" + java.net.URLEncoder.encode(it, Charsets.UTF_8) } ?: ""))
+
+    /** `PANO_HOST_MANAGE_URL` when set to an http(s) URL: wins over the control plane's link. */
+    fun manageUrlOverride(): String? = value("PANO_HOST_MANAGE_URL")
+        ?.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
 
     /** Present when host, name and user are all set; the password may be empty. */
     val database: Database? = run {
@@ -109,11 +117,62 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
     /** Hosted: every boot. Otherwise only when the config file is being created. */
     fun shouldApply(creatingConfig: Boolean) = hasAny && (isHosted || creatingConfig)
 
+    private fun smtpSsl(smtp: Smtp) = smtp.port == 465
+
+    private fun smtpStartTlsOf(smtp: Smtp) = smtpStartTls ?: when {
+        smtpSsl(smtp) -> "DISABLED"
+        // Pano Host's SMTP is the Portal mail relay on the private workload network, which
+        // offers no STARTTLS: REQUIRED would fail every mail, so never demand it there.
+        smtp.port == 587 && !isHosted -> "REQUIRED"
+        else -> "OPTIONAL"
+    }
+
+    /**
+     * Pano Host mail as [apply] would write it, in the panel's `email` shape, or null without host
+     * mail. The panel shows it read-only; [withPassword] only for checking it server-side.
+     */
+    fun hostMail(sender: String?, withPassword: Boolean = false): Map<String, Any?>? {
+        val smtp = smtp?.takeIf { isHosted } ?: return null
+
+        return linkedMapOf(
+            "hostname" to smtp.host,
+            "port" to smtp.port,
+            "ssl" to smtpSsl(smtp),
+            "starttls" to smtpStartTlsOf(smtp),
+            "username" to smtp.user,
+            "sender" to (sender?.takeIf { it.isNotBlank() } ?: smtp.from ?: ""),
+            // The instance's default sender (`PANO_SMTP_FROM`), what "reset" goes back to.
+            "defaultSender" to smtp.from
+        ).apply { if (withPassword) put("password", smtp.password) }
+    }
+
+    /**
+     * The `host-sender` to store for the Pano Host mail sender [input]: only the name before `@` is the
+     * customer's, the domain stays the default's (`PANO_SMTP_FROM`). Takes a bare name or a full address
+     * at that domain; null = the default (empty or equal to it). Throws [IllegalArgumentException] for
+     * another domain, an invalid name or when there is no default sender to take the domain from.
+     */
+    fun hostSender(input: String): String? {
+        val trimmed = input.trim()
+        val default = smtp?.from
+
+        if (trimmed.isEmpty() || trimmed.equals(default, ignoreCase = true)) return null
+
+        val domain = default?.substringAfterLast('@', "")?.takeIf { it.isNotEmpty() }
+            ?: throw IllegalArgumentException("no default sender")
+        val local = trimmed.substringBeforeLast('@')
+
+        require(!trimmed.contains('@') || trimmed.substringAfterLast('@').equals(domain, ignoreCase = true)) { "foreign domain" }
+        require(local.length <= SENDER_LOCAL_MAX && SENDER_LOCAL.matches(local)) { "invalid name" }
+
+        return "$local@$domain".takeUnless { it.equals(default, ignoreCase = true) }
+    }
+
     /**
      * Writes the env values into [config] and returns the names of the keys that changed (never
      * their values, which include secrets).
      */
-    fun apply(config: PanoConfig): List<String> {
+    fun apply(config: PanoConfig, creatingConfig: Boolean = false): List<String> {
         val changed = mutableListOf<String>()
 
         fun <T> set(key: String, current: T, new: T, write: (T) -> Unit) {
@@ -135,23 +194,20 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
         // Pano Host: the customer's own mail settings (saved in the panel, `host-managed = false`) are kept.
         smtp?.takeIf { !isHosted || config.email.hostManaged }?.let { smtp ->
             val c = config.email
-            val ssl = smtp.port == 465
-            val starttls = smtpStartTls ?: when {
-                ssl -> "DISABLED"
-                // Pano Host's SMTP is the Portal mail relay on the private workload network, which
-                // offers no STARTTLS: REQUIRED would fail every mail, so never demand it there.
-                smtp.port == 587 && !isHosted -> "REQUIRED"
-                else -> "OPTIONAL"
-            }
+            val ssl = smtpSsl(smtp)
+            val starttls = smtpStartTlsOf(smtp)
 
-            set("email.enabled", c.enabled, true) { c.enabled = it }
+            // On only in a new config: afterwards turning mail off in the panel must survive a boot.
+            if (creatingConfig || !isHosted) set("email.enabled", c.enabled, true) { c.enabled = it }
             set("email.hostname", c.hostname, smtp.host) { c.hostname = it }
             set("email.port", c.port, smtp.port) { c.port = it }
             set("email.username", c.username, smtp.user) { c.username = it }
             set("email.password", c.password, smtp.password) { c.password = it }
             set("email.ssl", c.ssl, ssl) { c.ssl = it }
             set("email.starttls", c.starttls, starttls) { c.starttls = it }
-            smtp.from?.let { from -> set("email.sender", c.sender, from) { c.sender = it } }
+            // Pano Host: the customer's sender name (`host-sender`, at the default's domain) wins over the default.
+            val sender = c.hostSender?.takeIf { isHosted }?.let { runCatching { hostSender(it) }.getOrNull() } ?: smtp.from
+            sender?.let { from -> set("email.sender", c.sender, from) { c.sender = it } }
         }
 
         httpPort?.let { port -> set("server.http-port", config.server.httpPort, port) { config.server.httpPort = it } }

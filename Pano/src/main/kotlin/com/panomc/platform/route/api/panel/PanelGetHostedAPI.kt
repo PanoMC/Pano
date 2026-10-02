@@ -11,7 +11,8 @@ import org.slf4j.LoggerFactory
 
 /**
  * Pano Host info for the panel's "managed by Pano Host" link and notice banner:
- * `{hosted, workloadId, manageUrl, notices[]}`. Any panel user may read it; outside Pano Host it
+ * `{hosted, workloadId, manageUrl, notices[]}`. `manageUrl`: `PANO_HOST_MANAGE_URL`, else the control
+ * plane's (its own website: dev / local / panomc.com), else panomc.com. Any panel user may read it; outside Pano Host it
  * answers `hosted: false` with no notices.
  */
 @Endpoint
@@ -44,7 +45,7 @@ class PanelGetHostedAPI(private val noticeFeed: HostNoticeFeed) : PanelApi() {
         return mapOf(
             "hosted" to true,
             "workloadId" to env.workloadId,
-            "manageUrl" to env.manageUrl,
+            "manageUrl" to (env.manageUrlOverride() ?: noticeFeed.manageUrl?.takeIf(::isHttpUrl) ?: env.manageUrl),
             "notices" to notices.mapNotNull { it.sanitized()?.toMap() }
         )
     }
@@ -54,7 +55,9 @@ class PanelGetHostedAPI(private val noticeFeed: HostNoticeFeed) : PanelApi() {
 
         return copy(
             level = level.lowercase().takeIf { it in HostNotice.LEVELS } ?: "info",
-            url = url?.takeIf { it.startsWith("https://", true) || it.startsWith("http://", true) }
+            url = url?.takeIf(::isHttpUrl)
         )
     }
+
+    private fun isHttpUrl(url: String) = url.startsWith("https://", true) || url.startsWith("http://", true)
 }

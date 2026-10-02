@@ -104,6 +104,14 @@ class PanelGetSettingsAPI(
             val hosted = HostedEnvConfig.current
 
             email.put("hostMailAvailable", hosted.isHosted && hosted.smtp != null)
+            // What Pano Host mail uses (no password), shown read-only in the panel even while own mail is set.
+            hosted.hostMail(emailConfig.hostSender)?.let { email.put("hostMail", it) }
+
+            // The customer's own SMTP kept while Pano Host mail is in use: without its password.
+            email.getJsonObject("custom")?.let { custom ->
+                email.put("customHasPassword", !custom.getString("password").isNullOrEmpty())
+                custom.remove("password")
+            }
 
             result["email"] = email
         }

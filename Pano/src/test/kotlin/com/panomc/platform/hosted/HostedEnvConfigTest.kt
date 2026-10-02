@@ -90,7 +90,8 @@ class HostedEnvConfigTest {
         val file = writeConf()
         val config = load(file)
 
-        val changed = HostedEnvConfig(hosted).apply(config)
+        // First boot (a new config): mail is turned on along with the relay settings.
+        val changed = HostedEnvConfig(hosted).apply(config, creatingConfig = true)
         save(config, file)
         val reloaded = parse(file)
 
@@ -175,6 +176,49 @@ class HostedEnvConfigTest {
     }
 
     @Test
+    fun `hosted boots keep mail turned off and the customer's sender, a new config starts with mail on`() {
+        val file = writeConf()
+        val env = HostedEnvConfig(hosted + ("PANO_SMTP_FROM" to "noreply@shop.panomc.site"))
+
+        load(file).also { env.apply(it, creatingConfig = true); assertTrue(it.email.enabled); save(it, file) }
+
+        load(file).also {
+            it.email.enabled = false
+            it.email.hostSender = "support@shop.panomc.site"
+            save(it, file)
+        }
+
+        val booted = load(file)
+        env.apply(booted)
+
+        assertFalse(booted.email.enabled)
+        assertEquals("support@shop.panomc.site", booted.email.sender)
+
+        booted.email.hostSender = null
+        env.apply(booted)
+        assertEquals("noreply@shop.panomc.site", booted.email.sender)
+    }
+
+    @Test
+    fun `migration 36 to 37 keeps a copy of own SMTP settings only`() {
+        val own = JsonObject().put(
+            "email",
+            JsonObject().put("host-managed", false).put("hostname", "smtp.sendgrid.net").put("port", 587)
+                .put("username", "apikey").put("password", "pw").put("sender", "a@b.c")
+        )
+
+        com.panomc.platform.config.migration.ConfigMigration36To37().migrate(own)
+        val custom = own.getJsonObject("email").getJsonObject("custom")
+        assertEquals("smtp.sendgrid.net", custom.getString("hostname"))
+        assertEquals("pw", custom.getString("password"))
+        assertEquals(587, custom.getInteger("port"))
+
+        val host = JsonObject().put("email", JsonObject().put("host-managed", true).put("hostname", "relay"))
+        com.panomc.platform.config.migration.ConfigMigration36To37().migrate(host)
+        assertFalse(host.getJsonObject("email").containsKey("custom"))
+    }
+
+    @Test
     fun `migration 35 to 36 keeps existing mail blocks on host mail`() {
         val config = JsonObject().put("email", JsonObject().put("hostname", "x"))
 
@@ -203,6 +247,40 @@ class HostedEnvConfigTest {
         val config = load(writeConf())
         env.apply(config)
         assertEquals(listOf("203.0.113.7"), config.server.trustedProxies)
+    }
+
+    @Test
+    fun `host mail view matches what apply writes and only carries the password on request`() {
+        val view = HostedEnvConfig(hosted).hostMail("old@x.com")!!
+
+        assertEquals("smtp.panomc.com", view["hostname"])
+        assertEquals(587, view["port"])
+        assertEquals(false, view["ssl"])
+        assertEquals("OPTIONAL", view["starttls"])
+        assertEquals("wl_1", view["username"])
+        assertEquals("old@x.com", view["sender"])
+        assertFalse(view.containsKey("password"))
+        assertEquals("smtp-secret", HostedEnvConfig(hosted).hostMail("", withPassword = true)!!["password"])
+
+        assertNull(HostedEnvConfig(hosted - "PANO_HOSTED").hostMail(""))
+        assertNull(HostedEnvConfig(hosted - "PANO_SMTP_HOST").hostMail(""))
+    }
+
+    @Test
+    fun `host sender keeps the default's domain and only takes a name`() {
+        val env = HostedEnvConfig(hosted + ("PANO_SMTP_FROM" to "noreply@shop.panomc.site"))
+
+        assertEquals("destek@shop.panomc.site", env.hostSender("destek"))
+        assertEquals("destek.ekip@shop.panomc.site", env.hostSender(" destek.ekip@SHOP.panomc.site "))
+        assertNull(env.hostSender(""))
+        assertNull(env.hostSender("noreply@shop.panomc.site"))
+        assertNull(env.hostSender("noreply"))
+
+        assertThrows(IllegalArgumentException::class.java) { env.hostSender("admin@mail.kabuk.app") }
+        assertThrows(IllegalArgumentException::class.java) { env.hostSender("bad name") }
+        assertThrows(IllegalArgumentException::class.java) { env.hostSender("a..b") }
+        assertThrows(IllegalArgumentException::class.java) { env.hostSender("x".repeat(65)) }
+        assertThrows(IllegalArgumentException::class.java) { HostedEnvConfig(hosted).hostSender("destek") }
     }
 
     @Test

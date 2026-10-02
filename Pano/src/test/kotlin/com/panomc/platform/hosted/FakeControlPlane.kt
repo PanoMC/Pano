@@ -20,6 +20,9 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
     var ssoSupported: Boolean? = null
     var notices = io.vertx.core.json.JsonArray()
 
+    /** `manageUrl` of the notice feed; null leaves it out (an older control plane). */
+    var manageUrl: String? = null
+
     /** Next N capability calls answer 503 (to exercise the retry loop). */
     val failCapabilities = AtomicInteger(0)
 
@@ -63,7 +66,7 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
 
                 when {
                     req.path() == "$prefix/host/instance/notices" && req.method().name() == "GET" ->
-                        if (auth != "Bearer $secret") error(401, "INVALID_TOKEN") else ok(JsonObject().put("notices", notices))
+                        if (auth != "Bearer $secret") error(401, "INVALID_TOKEN") else ok(JsonObject().put("notices", notices).apply { manageUrl?.let { put("manageUrl", it) } })
                     req.path() == "$prefix/platform/authorize" -> {
                         val code = body?.getString("code")
                         val version = body?.getString("version")

@@ -296,11 +296,15 @@ class PanoHostClient(
      * here; [PanelGetHostedAPI][com.panomc.platform.route.api.panel.PanelGetHostedAPI] sanitises
      * levels and links.
      */
-    suspend fun notices(): List<HostNotice> {
-        val data = request(HttpMethod.GET, "/host/instance/notices", null)
-        val array = data.getJsonArray("notices") ?: return emptyList()
+    suspend fun notices(): List<HostNotice> = noticeFeed().notices
 
-        return array.mapNotNull { raw ->
+    /** [notices] plus the control plane's `manageUrl` (this environment's website page of the workload). */
+    suspend fun noticeFeed(): HostNotices {
+        val data = request(HttpMethod.GET, "/host/instance/notices", null)
+        val manageUrl = data.getValue("manageUrl")?.toString()?.takeIf { it.isNotBlank() }
+        val array = data.getJsonArray("notices") ?: return HostNotices(emptyList(), manageUrl)
+
+        val notices = array.mapNotNull { raw ->
             val json = raw as? JsonObject ?: return@mapNotNull null
             fun text(key: String) = json.getValue(key)?.toString()?.takeIf { it.isNotBlank() }
 
@@ -318,6 +322,8 @@ class PanoHostClient(
                     ?: emptyMap()
             )
         }.take(MAX_NOTICES)
+
+        return HostNotices(notices, manageUrl)
     }
 
     fun close() = client.close()

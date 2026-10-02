@@ -10,6 +10,7 @@ import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
@@ -189,9 +190,11 @@ class PanelGetSettingsAPI(
         return Successful(result)
     }
 
+    /** `container`: the container launcher owns the process (Pano Host, the Docker image), so there is no terminal to detach from. */
     private fun currentRunMode(): JsonObject = JsonObject()
         .put("gui", Main.IS_GUI)
         .put("background", Main.IS_BG)
+        .put("container", ContainerMode.current.active)
 
     enum class SettingType {
         GENERAL,

@@ -9,8 +9,10 @@ import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.ReleaseStage
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
+import com.panomc.platform.util.UpdateSource
 import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.deserializer.UpdatePeriodDeserializer
+import com.panomc.platform.util.deserializer.UpdateSourceDeserializer
 import com.panomc.platform.util.deserializer.UsageModeDeserializer
 import io.vertx.core.json.JsonObject
 import java.net.URI
@@ -117,6 +119,17 @@ data class PanoConfig(
         "Note: \"stable\" maps to ReleaseStage.RELEASE in code."
     )
     @SerializedName("release-channel") var releaseChannel: ReleaseStage = STAGE,
+
+    @ConfigComment(
+        "Where Pano asks which Pano and Pano MC plugin release is the newest:",
+        "  AUTO     — the Pano API (api.panomc.com) first, GitHub when it cannot answer (default).",
+        "  PANO_API — the Pano API only.",
+        "  GITHUB   — GitHub only (api.github.com allows 60 anonymous requests an hour per IP).",
+        "Downloads always come from the GitHub release and are verified with its .sha256 file."
+    )
+    // Nullable for the same reason as the blocks below: a config.conf missing this key deserialises
+    // to null through Gson's Unsafe path. Read it through effectiveUpdateSource.
+    @SerializedName("update-source") var updateSource: UpdateSource? = UpdateSource.AUTO,
 
     @ConfigComment("Folder where user-uploaded files are stored.")
     @SerializedName("file-uploads-folder") var fileUploadsFolder: String = "file-uploads",
@@ -249,6 +262,9 @@ data class PanoConfig(
      * Always read the usage mode through this, never the raw field.
      */
     val effectiveUsageMode: UsageMode get() = usageMode ?: UsageMode.BOTH
+
+    /** [updateSource] with the missing-key case resolved to [UpdateSource.AUTO]. */
+    val effectiveUpdateSource: UpdateSource get() = updateSource ?: UpdateSource.AUTO
 
     /**
      * JWT `iss` plugins expect when verifying license tokens. No extra config key: uses the
@@ -563,6 +579,7 @@ data class PanoConfig(
         private val gson = GsonBuilder()
             .registerTypeAdapter(UpdatePeriod::class.java, UpdatePeriodDeserializer())
             .registerTypeAdapter(UsageMode::class.java, UsageModeDeserializer())
+            .registerTypeAdapter(UpdateSource::class.java, UpdateSourceDeserializer())
             .create()
 
         fun from(jsonObject: JsonObject) = gson.fromJson(jsonObject.encode(), PanoConfig::class.java)

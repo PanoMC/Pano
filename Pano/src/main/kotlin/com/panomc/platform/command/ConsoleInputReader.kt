@@ -114,8 +114,12 @@ class ConsoleInputReader(
             // Try to create a system terminal; if it fails, it will fallback to a dumb terminal.
             // We set dumb(true) to indicate that falling back to a dumb terminal is expected/allowed,
             // which can sometimes suppress the warning in some JLine versions.
+            // Without a TTY (a container's piped stdin, a detached restart) the exec provider has no
+            // terminal to drive and, on Java 11, only prints an "illegal reflective access" warning on
+            // every start; a dumb terminal reads the piped commands just the same.
             val terminal = TerminalBuilder.builder()
                 .system(true)
+                .exec(System.console() != null)
                 .dumb(true)
                 .signalHandler(org.jline.terminal.Terminal.SignalHandler.SIG_IGN)
                 .build()

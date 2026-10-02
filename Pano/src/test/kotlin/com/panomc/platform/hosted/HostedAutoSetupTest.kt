@@ -129,7 +129,8 @@ class HostedAutoSetupTest {
     @Test
     fun `automatic bootstrap finishes setup with the owner, the extra admin and the platform connection`() = runBlocking {
         automatic()
-        val target = MemoryTarget()
+        // Not the default, so the BOTH below is the automatic setup's doing.
+        val target = MemoryTarget().also { it.config.usageMode = UsageMode.WEBSITE }
 
         assertEquals(HostedAutoSetup.Outcome.COMPLETED, setup(target).run())
 
@@ -140,7 +141,7 @@ class HostedAutoSetupTest {
         assertEquals("https://shop.panomc.site", config.websiteUrl)
         assertEquals("tr", config.locale)
         assertEquals(false, config.telemetry!!.enabled)
-        assertEquals(UsageMode.WEBSITE, config.usageMode)
+        assertEquals(UsageMode.BOTH, config.usageMode)
         assertEquals(1, target.dbInits)
 
         val ownerId = target.store.mappings["pano_host_sso_account:acc-1"]!!

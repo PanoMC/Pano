@@ -85,7 +85,7 @@ class HostedAutoSetup(
     companion object {
         /**
          * The order-form answers → [config]. MANUAL only prefills what the installer shows; AUTOMATIC
-         * also fixes the usage mode to WEBSITE (a Pano Host instance is a website).
+         * also sets the usage mode to BOTH (website and server management; the owner can narrow it later).
          */
         fun applySite(config: PanoConfig, site: BootstrapSite, automatic: Boolean) {
             site.siteName?.takeIf { it.isNotBlank() }?.let { config.websiteName = it.trim() }
@@ -101,7 +101,7 @@ class HostedAutoSetup(
             val telemetry = config.telemetry ?: PanoConfig.Companion.TelemetryConfig().also { config.telemetry = it }
             telemetry.enabled = site.telemetry
 
-            if (automatic) config.usageMode = UsageMode.WEBSITE
+            if (automatic) config.usageMode = UsageMode.BOTH
         }
 
         private fun httpUrl(raw: String): String? = runCatching { URI(raw.trim()) }.getOrNull()

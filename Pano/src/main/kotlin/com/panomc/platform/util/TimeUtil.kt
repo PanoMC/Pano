@@ -15,8 +15,9 @@ object TimeUtil {
 
     fun getStartupTime() = secondsWithPrecision(calculateStartTime())
 
+    // Today and the seven days before it: the eight day buckets the statistics chart draws.
     fun getStartOfLastWeekAtMidnightInMillis(): Long {
-        val oneWeekAgo = LocalDate.now(ZoneId.systemDefault()).minusWeeks(1).minusDays(1)
+        val oneWeekAgo = LocalDate.now(ZoneId.systemDefault()).minusWeeks(1)
         return oneWeekAgo
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
@@ -24,7 +25,7 @@ object TimeUtil {
     }
 
     fun getStartOfLastMonthAtMidnightInMillis(): Long {
-        val oneMonthAgo = LocalDate.now(ZoneId.systemDefault()).minusMonths(1).minusDays(1)
+        val oneMonthAgo = LocalDate.now(ZoneId.systemDefault()).minusMonths(1)
         return oneMonthAgo
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
@@ -42,6 +43,8 @@ object TimeUtil {
      * Returns the start of the previous equivalent period relative to the current period start.
      * For WEEK: returns the start of the week before the current week window.
      * For MONTH: returns the start of the month before the current month window.
+     *
+     * The previous window ends where the current one starts, so the two never overlap.
      */
     fun getPreviousPeriodStart(dashboardPeriodType: DashboardPeriodType): Long {
         val currentStart = getTimeToCompareByDashboardPeriodType(dashboardPeriodType)
@@ -52,7 +55,7 @@ object TimeUtil {
         if (dashboardPeriodType == DashboardPeriodType.WEEK) {
             calendar.add(Calendar.DAY_OF_YEAR, -7)
         } else {
-            calendar.add(Calendar.DAY_OF_YEAR, -30)
+            calendar.add(Calendar.MONTH, -1)
         }
 
         return calendar.timeInMillis

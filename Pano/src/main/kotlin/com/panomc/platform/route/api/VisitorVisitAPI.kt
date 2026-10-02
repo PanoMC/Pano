@@ -9,6 +9,7 @@ import com.panomc.platform.error.InvalidIpAddress
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import java.net.InetAddress
 
 @Endpoint
 class VisitorVisitAPI(
@@ -38,8 +39,32 @@ class VisitorVisitAPI(
     }
 
     private fun validateIpAddress(ipAddress: String) {
-        if (!ipAddress.matches(Regex("^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\\.(?!\$)|\$)){4}\$"))) {
+        if (!ipAddress.matches(IPV4_REGEX) && !isIpv6Literal(ipAddress)) {
             throw InvalidIpAddress()
         }
+    }
+
+    /**
+     * IPv6 visitors used to be rejected outright and never counted. Only hex digits, colons and an
+     * embedded IPv4 tail get this far, so [InetAddress.getByName] parses a literal and never resolves.
+     */
+    private fun isIpv6Literal(ipAddress: String): Boolean {
+        if (!ipAddress.contains(':') || !ipAddress.matches(IPV6_CHARS_REGEX)) {
+            return false
+        }
+
+        return try {
+            // Not `is Inet6Address`: an IPv4-mapped literal (::ffff:1.2.3.4) parses to an Inet4Address.
+            InetAddress.getByName(ipAddress)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    companion object {
+        private val IPV4_REGEX =
+            Regex("^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(\\.(?!\$)|\$)){4}\$")
+        private val IPV6_CHARS_REGEX = Regex("^[0-9a-fA-F:.]{2,45}\$")
     }
 }

@@ -548,7 +548,7 @@ class TicketDaoImpl : TicketDao() {
         dashboardPeriodType: DashboardPeriodType,
         sqlClient: SqlClient
     ): List<Long> {
-        val query = "SELECT `date` FROM `${getTablePrefix() + tableName}` WHERE `date` > ?"
+        val query = "SELECT `date` FROM `${getTablePrefix() + tableName}` WHERE `date` >= ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

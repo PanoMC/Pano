@@ -11,7 +11,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.concurrent.TimeUnit
 
-/** Proxies to an upstream that echoes the X-Forwarded-Proto it received. */
+/** Proxies to an upstream that echoes the X-Forwarded-Proto (or X-Forwarded-For) it received. */
 class ForwardedProtoInterceptorTest {
     private lateinit var vertx: Vertx
 
@@ -28,9 +28,9 @@ class ForwardedProtoInterceptorTest {
     private fun <T> io.vertx.core.Future<T>.blockingGet(): T =
         toCompletionStage().toCompletableFuture().get(15, TimeUnit.SECONDS)
 
-    private fun startProxy(): Int {
+    private fun startProxy(echoedHeader: String = "X-Forwarded-Proto"): Int {
         val upstreamPort = vertx.createHttpServer().requestHandler { req ->
-            req.response().end(req.getHeader("X-Forwarded-Proto") ?: "<none>")
+            req.response().end(req.getHeader(echoedHeader) ?: "<none>")
         }.listen(0, "127.0.0.1").blockingGet().actualPort()
 
         val proxy = HttpProxy.reverseProxy(ProxyOptions(), vertx.createHttpClient()).origin(upstreamPort, "127.0.0.1")
@@ -38,11 +38,12 @@ class ForwardedProtoInterceptorTest {
         return vertx.createHttpServer().requestHandler(proxy).listen(0, "127.0.0.1").blockingGet().actualPort()
     }
 
-    private fun fetch(port: Int, forwardedProto: String?): String {
+    private fun fetch(port: Int, forwardedProto: String?, forwardedFor: String? = null): String {
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
         return client.request(HttpMethod.GET, port, "127.0.0.1", "/")
             .compose { req ->
                 if (forwardedProto != null) req.putHeader("X-Forwarded-Proto", forwardedProto)
+                if (forwardedFor != null) req.putHeader("X-Forwarded-For", forwardedFor)
                 req.send()
             }
             .compose { it.body() }
@@ -58,5 +59,15 @@ class ForwardedProtoInterceptorTest {
     @Test
     fun `leaves a header set by the reverse proxy in front untouched`() {
         assertEquals("https", fetch(startProxy(), "https"))
+    }
+
+    @Test
+    fun `fills the client address from the inbound connection when no proxy set it`() {
+        assertEquals("127.0.0.1", fetch(startProxy("X-Forwarded-For"), null))
+    }
+
+    @Test
+    fun `leaves a client address set by the reverse proxy in front untouched`() {
+        assertEquals("203.0.113.7", fetch(startProxy("X-Forwarded-For"), null, "203.0.113.7"))
     }
 }

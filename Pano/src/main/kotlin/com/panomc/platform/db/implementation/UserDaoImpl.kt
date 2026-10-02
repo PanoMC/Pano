@@ -213,7 +213,7 @@ class UserDaoImpl : UserDao() {
         dashboardPeriodType: DashboardPeriodType,
         sqlClient: SqlClient
     ): Long {
-        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `registerDate` > ?"
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `registerDate` >= ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -227,7 +227,7 @@ class UserDaoImpl : UserDao() {
         dashboardPeriodType: DashboardPeriodType,
         sqlClient: SqlClient
     ): List<Long> {
-        val query = "SELECT `registerDate` FROM `${getTablePrefix() + tableName}` WHERE `registerDate` > ?"
+        val query = "SELECT `registerDate` FROM `${getTablePrefix() + tableName}` WHERE `registerDate` >= ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -267,6 +267,17 @@ class UserDaoImpl : UserDao() {
             .coAwait()
 
         return rows.toList().map { it.getLong(0) }
+    }
+
+    override suspend fun getFirstRegisterDate(sqlClient: SqlClient): Long? {
+        val query = "SELECT MIN(`registerDate`) FROM `${getTablePrefix() + tableName}`"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
     }
 
     override suspend fun countBeforeTime(time: Long, sqlClient: SqlClient): Long {

@@ -2,10 +2,10 @@ package com.panomc.platform.node
 
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.server.ServerType
+import com.panomc.platform.update.ReleaseInfo
+import com.panomc.platform.update.ReleaseLookup
+import com.panomc.platform.update.ReleaseProduct
 import io.vertx.core.Vertx
-import io.vertx.core.json.JsonArray
-import io.vertx.ext.web.client.WebClient
-import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -22,8 +22,9 @@ import java.util.concurrent.atomic.AtomicReference
  * Finds the `pano-mc-plugin` build that belongs in a managed server, so it comes up already linked.
  *
  * Two sources, in this order. A `managed-servers.plugin-jar-dir` in config.conf wins: it is how a
- * development install points a node at the jars it just built. Otherwise the newest GitHub release
- * of the plugin is asked for its assets.
+ * development install points a node at the jars it just built. Otherwise the newest release of the
+ * plugin is looked up through [ReleaseLookup] (the Pano API first, GitHub as the fallback, per
+ * `update-source`) and its jar downloaded from the GitHub release assets.
  *
  * A local jar used to be handed over as a `file://` URL, which quietly assumed every node runs on
  * this machine. A node on a VPS cannot open `/home/someone/pano-mc-plugin/...`, so its install
@@ -34,8 +35,9 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * **The release assets are versioned** (`pano-spigot-1.0.0-alpha.62.jar`), so there is no
  * `releases/latest/download/<name>` shortcut: the release has to be looked up and the asset found
- * by prefix. That lookup is cached for an hour, like the software catalog, because every install
- * would otherwise spend one of api.github.com's sixty anonymous requests an hour.
+ * by prefix (GitHub lists them) or named after the tag (the Pano API does not). That lookup is cached
+ * for an hour, like the software catalog, because every install would otherwise spend one of
+ * api.github.com's sixty anonymous requests an hour whenever the Pano API cannot answer.
  *
  * Nothing here throws. A plugin that cannot be resolved means a managed server that installs
  * without one — an inconvenience an admin fixes with `/pano connect` — and is never a reason to
@@ -45,10 +47,10 @@ import java.util.concurrent.atomic.AtomicReference
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class ManagedPluginJarResolver(
-    private val webClient: WebClient,
     private val configManager: ConfigManager,
     private val logger: Logger,
-    private val vertx: Vertx
+    private val vertx: Vertx,
+    private val releaseLookup: ReleaseLookup
 ) {
     /**
      * One release lookup: the asset URL per platform, and the version of the release they came from
@@ -165,9 +167,9 @@ class ManagedPluginJarResolver(
     /**
      * Asset download URLs of the newest plugin release, keyed by platform.
      *
-     * `releases` rather than `releases/latest`: the plugin ships on prerelease channels, and
-     * `latest` skips every prerelease — on a repository that has never cut a stable release it
-     * answers 404 and managed servers would silently never get a plugin.
+     * Every channel rather than Pano's own: the plugin ships on prerelease channels, and asking for
+     * `stable` only would on a repository that has never cut a stable release answer nothing and
+     * managed servers would silently never get a plugin.
      */
     private suspend fun cachedAssets(): Map<String, String>? {
         releaseCache.get()?.let { entry ->
@@ -177,26 +179,14 @@ class ManagedPluginJarResolver(
         }
 
         val releases = try {
-            val response = webClient
-                .getAbs("https://api.github.com/repos/$PLUGIN_REPO/releases?per_page=$RELEASE_PAGE_SIZE")
-                .timeout(REQUEST_TIMEOUT_MS)
-                .send()
-                .coAwait()
-
-            if (response.statusCode() != 200) {
-                logger.warn("GitHub answered ${response.statusCode()} for the $PLUGIN_REPO releases.")
-
-                null
-            } else {
-                response.bodyAsJsonArray()
-            }
+            releaseLookup.lookup(ReleaseProduct.PANO_MC_PLUGIN, null)
         } catch (e: Exception) {
-            logger.warn("Could not reach GitHub for the $PLUGIN_REPO releases: ${e.message}")
+            logger.warn("Could not look up the $PLUGIN_REPO releases: ${e.message}")
 
             null
         } ?: return null
 
-        val newest = newestAssets(releases)
+        val newest = newestAssets(releases.releases)
 
         if (newest.assets.isEmpty()) {
             return null
@@ -207,61 +197,12 @@ class ManagedPluginJarResolver(
         return newest.assets
     }
 
-    /**
-     * Picks the first release that actually carries plugin jars.
-     *
-     * The list comes back newest first. A release whose assets are still uploading, or one that
-     * only carries a LICENSE, is skipped rather than treated as "no plugin exists".
-     */
-    private data class NewestAssets(val assets: Map<String, String>, val versions: Map<String, String>)
-
-    private fun newestAssets(releases: JsonArray): NewestAssets {
-        releases.forEach { element ->
-            val release = element as? io.vertx.core.json.JsonObject ?: return@forEach
-
-            if (release.getBoolean("draft", false)) {
-                return@forEach
-            }
-
-            val assets = release.getJsonArray("assets") ?: return@forEach
-            val resolved = mutableMapOf<String, String>()
-
-            PLATFORMS.forEach { platform ->
-                assets.forEach inner@{ assetElement ->
-                    val asset = assetElement as? io.vertx.core.json.JsonObject ?: return@inner
-                    val name = asset.getString("name") ?: return@inner
-
-                    if (!matchesAsset(name, platform)) {
-                        return@inner
-                    }
-
-                    asset.getString("browser_download_url")?.let { resolved.putIfAbsent(platform, it) }
-                }
-            }
-
-            if (resolved.isNotEmpty()) {
-                // The release's tag is the version of every jar in it (`v1.0.0-alpha.62`), which is
-                // what an installed plugin reports back once it runs.
-                val version = releaseVersion(release.getString("tag_name"))
-
-                return NewestAssets(
-                    resolved,
-                    if (version == null) emptyMap() else resolved.keys.associateWith { version }
-                )
-            }
-        }
-
-        return NewestAssets(emptyMap(), emptyMap())
-    }
-
     companion object {
         /** Where the plugin's releases live. Verified against the repository's own git remote. */
         const val PLUGIN_REPO = "PanoMC/pano-mc-plugin"
 
         /** How long a release lookup is reused. Same hour the software catalog caches for. */
         const val CACHE_TTL_MS = 60 * 60 * 1000L
-
-        private const val REQUEST_TIMEOUT_MS = 15_000L
 
         /**
          * How old a release lookup the Overview's "update available" may be answered from (SM-61):
@@ -272,9 +213,55 @@ class ManagedPluginJarResolver(
         /** What a development jar reports as its version, and what [latestVersionOrWarm] says for one. */
         const val LOCAL_BUILD = "local-build"
 
+        /**
+         * One release lookup: the asset URL per platform, and the version of the release they came from
+         * per platform.
+         */
+        data class NewestAssets(val assets: Map<String, String>, val versions: Map<String, String>)
+
+        /**
+         * Picks the first release that actually carries plugin jars.
+         *
+         * The list comes newest first. When GitHub answered, a release whose assets are still
+         * uploading, or one that only carries a LICENSE, is skipped rather than treated as "no plugin
+         * exists". The Pano API lists no assets, so every platform's jar is named after the tag
+         * (`pano-<platform>-<version>.jar`, how every release so far publishes them). Either way the
+         * URL is built from the tag, never taken from the answer.
+         */
+        fun newestAssets(releases: List<ReleaseInfo>): NewestAssets {
+            releases.forEach { release ->
+                val resolved = mutableMapOf<String, String>()
+                val version = releaseVersion(release.tag)
+
+                if (release.assets.isEmpty()) {
+                    if (version != null) {
+                        PLATFORMS.forEach { platform ->
+                            resolved[platform] = ReleaseProduct.PANO_MC_PLUGIN.assetUrl(release.tag, "${assetPrefix(platform)}$version.jar")
+                        }
+                    }
+                } else {
+                    PLATFORMS.forEach { platform ->
+                        release.assets.firstOrNull { matchesAsset(it.name, platform) }?.let {
+                            resolved[platform] = ReleaseProduct.PANO_MC_PLUGIN.assetUrl(release.tag, it.name)
+                        }
+                    }
+                }
+
+                if (resolved.isNotEmpty()) {
+                    // The release's tag is the version of every jar in it (`v1.0.0-alpha.62`), which
+                    // is what an installed plugin reports back once it runs.
+                    return NewestAssets(
+                        resolved,
+                        if (version == null) emptyMap() else resolved.keys.associateWith { version }
+                    )
+                }
+            }
+
+            return NewestAssets(emptyMap(), emptyMap())
+        }
+
         /** A release tag as a version: `v1.0.0-alpha.62` → `1.0.0-alpha.62`; blank is none. */
         fun releaseVersion(tag: String?): String? = tag?.trim()?.removePrefix("v")?.takeIf { it.isNotEmpty() }
-        private const val RELEASE_PAGE_SIZE = 10
 
         /** How deep the development directory is searched, so `<repo>/<module>/build/libs` is found. */
         const val MAX_LOCAL_SEARCH_DEPTH = 4

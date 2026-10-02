@@ -165,7 +165,10 @@ open class ConfigManager(
 
     private val options = ConfigRetrieverOptions().addStore(fileStore)
 
-    private val configRetriever = ConfigRetriever.create(vertx, options)
+    // Created on first use, not with the bean: a retriever scans its file from creation on, and on a first boot
+    // the file only exists once init() writes it (a slow container boot scanned before that and logged
+    // "Unable to read file at path 'config.conf'").
+    private val configRetriever by lazy { ConfigRetriever.create(vertx, options) }
 
     private fun migrate(
         configVersion: Int = configJsonObject.getInteger("config-version"),

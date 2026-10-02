@@ -60,15 +60,17 @@ class HostSsoUserMapper(
     /**
      * [keepUsername]: a newly created admin takes the panomc.com username itself (hosted first boot,
      * where the owner is the site's own admin) instead of `host_<username>`; a digit suffix is added
-     * when it is taken.
+     * when it is taken. [preferredUserId]: an existing admin to map an unmapped account to (hosted
+     * first boot: the site admin from the order form) instead of matching by e-mail or creating one.
      */
-    suspend fun resolve(identity: PanoHostClient.SsoIdentity, keepUsername: Boolean = false): Mapping {
+    suspend fun resolve(identity: PanoHostClient.SsoIdentity, keepUsername: Boolean = false, preferredUserId: Long? = null): Mapping {
         chosenAdmin(identity)?.let { return Mapping(it, created = false, chosen = true) }
 
         val key = keyOf(identity)
         var created = false
 
         val userId = store.mappedUserId(key)?.takeIf { store.userExists(it) }
+            ?: preferredUserId?.takeIf { !identity.isSupport && store.userExists(it) && store.isAdmin(it) }
             ?: (if (identity.isSupport) null else store.userIdByEmail(identity.email)?.takeIf { store.isAdmin(it) })
             ?: create(identity, keepUsername).also { created = true }
 

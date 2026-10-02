@@ -44,14 +44,15 @@ interface HostedSetupTarget {
  * started, asks the control plane for the order-form answers and
  *
  * - **AUTOMATIC**: finishes setup without the installer — site name/description/URL, locale,
- *   telemetry, usage mode WEBSITE, database schema, the owner as admin under the SSO mapping key
- *   (so "Open panel" lands on that user), the optional extra admin, the owner's panomc.com account
+ *   telemetry, usage mode BOTH, database schema, the order form's site admin (its username, e-mail
+ *   and password) with the owner's SSO mapping key on it (so "Open panel" lands on that same user;
+ *   without a site admin the owner gets an account of its own), the owner's panomc.com account
  *   connected through the handover code (best effort), `finishSetup()`, `setupCompleted` announced.
  * - **MANUAL**: writes the answers into config.conf so the installer shows them, and stays at step 0.
  * - nothing to do (`NO_BOOTSTRAP`/`BOOTSTRAP_DONE`) or unreachable → the installer is untouched.
  *
  * Restart-safe: until `finishSetup()` the step stays 0, so a crashed first boot runs again; the
- * schema, the owner mapping and the extra admin are all reused when they already exist. The extra
+ * schema, the site admin and the owner mapping are all reused when they already exist. The site
  * admin's password and the handover code are never logged.
  */
 class HostedAutoSetup(
@@ -178,11 +179,12 @@ class HostedAutoSetup(
             )
 
             val store = target.userStore()
-            val mapping = HostSsoUserMapper(store).resolve(identity, keepUsername = true)
+            // The order form's site admin first: the owner's SSO mapping goes onto it, so the site
+            // has one admin with the username, e-mail and password the customer chose.
+            val siteAdmin = answers.extraAdmin?.let { admin -> registerSiteAdmin(admin, store)?.let { it to admin.username } }
+            val mapping = HostSsoUserMapper(store).resolve(identity, keepUsername = true, preferredUserId = siteAdmin?.first)
             ownerId = mapping.userId
-            ownerUsername = answers.owner.username
-
-            answers.extraAdmin?.let { admin -> registerExtraAdmin(admin, store) }
+            ownerUsername = siteAdmin?.takeIf { it.first == ownerId }?.second ?: answers.owner.username
 
             target.markInstaller(ownerId, ownerUsername)
         } catch (e: Throwable) {
@@ -221,22 +223,27 @@ class HostedAutoSetup(
         return Outcome.COMPLETED
     }
 
-    private suspend fun registerExtraAdmin(admin: PanoHostClient.BootstrapAdmin, store: HostSsoUserStore) {
-        if (store.usernameTaken(admin.username)) {
-            log("Pano Host: extra admin ${admin.username} not created, the username is taken")
-            return
+    /**
+     * The order form's site admin: created, or reused when a crashed first boot already created it
+     * (same username and e-mail, admin). Null when it cannot be (a different user holds the username
+     * or e-mail, which is never promoted, or the creation failed); the owner then gets its own account.
+     */
+    private suspend fun registerSiteAdmin(admin: PanoHostClient.BootstrapAdmin, store: HostSsoUserStore): Long? {
+        if (store.usernameTaken(admin.username) || store.emailTaken(admin.email)) {
+            val id = store.userIdByUsername(admin.username)
+
+            if (id != null && store.userIdByEmail(admin.email) == id && store.isAdmin(id)) return id
+
+            log("Pano Host: site admin ${admin.username} not created, the username or e-mail is taken")
+            return null
         }
 
-        if (store.emailTaken(admin.email)) {
-            log("Pano Host: extra admin ${admin.username} not created, the e-mail is taken")
-            return
-        }
-
-        try {
-            val id = target.registerAdmin(admin.username, admin.email, admin.password)
-            log("Pano Host: created extra admin ${admin.username} (local user #$id)")
+        return try {
+            target.registerAdmin(admin.username, admin.email, admin.password)
+                .also { log("Pano Host: created site admin ${admin.username} (local user #$it)") }
         } catch (e: Throwable) {
-            log("Pano Host: extra admin ${admin.username} not created (${e.javaClass.simpleName})")
+            log("Pano Host: site admin ${admin.username} not created (${e.javaClass.simpleName})")
+            null
         }
     }
 }

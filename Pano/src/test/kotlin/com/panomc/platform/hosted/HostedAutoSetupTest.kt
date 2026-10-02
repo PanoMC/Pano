@@ -99,7 +99,7 @@ class HostedAutoSetupTest {
     private fun setup(target: MemoryTarget, attempts: Int = 4, waits: MutableList<Long> = mutableListOf()) =
         HostedAutoSetup(client(), target, "w1", { logs += it }, attempts) { waits += it }
 
-    private fun automatic(extraAdmin: Boolean = true, telemetry: Boolean = false) {
+    private fun automatic(extraAdmin: Boolean = true, telemetry: Boolean = false, adminEmail: String = "helper@example.com") {
         plane.bootstrapStatus = 200
         plane.bootstrapData = JsonObject()
             .put("mode", "AUTOMATIC")
@@ -112,7 +112,7 @@ class HostedAutoSetupTest {
             .put(
                 "extraAdmin",
                 if (!extraAdmin) null
-                else JsonObject().put("username", "helper").put("email", "helper@example.com").put("password", adminPassword)
+                else JsonObject().put("username", "helper").put("email", adminEmail).put("password", adminPassword)
             )
             .put("platform", JsonObject().put("code", handoverCode).put("expiresAt", 1).put("apiUrl", plane.baseUrl))
         plane.platformCodes[handoverCode] = JsonObject()
@@ -127,7 +127,7 @@ class HostedAutoSetupTest {
     }
 
     @Test
-    fun `automatic bootstrap finishes setup with the owner, the extra admin and the platform connection`() = runBlocking {
+    fun `automatic bootstrap finishes setup with the order form's site admin as the owner and the platform connection`() = runBlocking {
         automatic()
         // Not the default, so the BOTH below is the automatic setup's doing.
         val target = MemoryTarget().also { it.config.usageMode = UsageMode.WEBSITE }
@@ -144,16 +144,15 @@ class HostedAutoSetupTest {
         assertEquals(UsageMode.BOTH, config.usageMode)
         assertEquals(1, target.dbInits)
 
+        // One admin: the form's username, e-mail and password, with the owner's SSO mapping on it.
         val ownerId = target.store.mappings["pano_host_sso_account:acc-1"]!!
         val owner = target.store.user(ownerId)
-        assertEquals("owner", owner.username, "the panomc.com username is kept when free")
-        assertEquals("owner@example.com", owner.email)
+        assertEquals(1, target.store.users.size, "no separate account for the panomc.com owner")
+        assertEquals("helper", owner.username)
+        assertEquals("helper@example.com", owner.email)
+        assertEquals(adminPassword, owner.password)
         assertTrue(owner.admin)
         assertEquals(ownerId, target.installer)
-
-        val helper = target.store.users.single { it.username == "helper" }
-        assertTrue(helper.admin)
-        assertEquals(adminPassword, helper.password)
 
         assertEquals("platform-1", target.connection!!.platformId)
         assertEquals(plane.baseUrl, target.connectedApiUrl)
@@ -268,14 +267,14 @@ class HostedAutoSetupTest {
         automatic()
         assertEquals(HostedAutoSetup.Outcome.COMPLETED, setup(target).run())
         assertEquals(5, target.config.setup.step)
-        assertEquals(2, target.store.users.size, "owner and extra admin reused")
+        assertEquals(1, target.store.users.size, "the site admin is reused, not duplicated")
         assertEquals(target.store.mappings["pano_host_sso_account:acc-1"], target.installer)
         assertEquals(2, target.dbInits)
         assertNoSecretsLogged()
     }
 
     @Test
-    fun `an extra admin whose username is taken is skipped and the owner gets a suffix`() = runBlocking {
+    fun `a site admin whose username is taken is skipped and the owner gets an account with a suffix`() = runBlocking {
         automatic()
         val target = MemoryTarget()
         target.store.users += MemoryStore.U(1, "owner", "player@example.com", false, "x")
@@ -288,7 +287,24 @@ class HostedAutoSetupTest {
         assertTrue(owner.admin)
         assertFalse(target.store.user(2).admin, "the existing helper is never promoted")
         assertEquals(3, target.store.users.size)
-        assertTrue(logs.any { it.contains("extra admin helper not created") })
+        assertTrue(logs.any { it.contains("site admin helper not created") })
+        assertNoSecretsLogged()
+    }
+
+    @Test
+    fun `a site admin with the owner's own e-mail becomes the owner's account`() = runBlocking {
+        // The usual order form: the customer types their panomc.com e-mail for the site admin too.
+        automatic(adminEmail = "owner@example.com")
+        val target = MemoryTarget()
+
+        assertEquals(HostedAutoSetup.Outcome.COMPLETED, setup(target).run())
+
+        val owner = target.store.user(target.store.mappings["pano_host_sso_account:acc-1"]!!)
+        assertEquals(1, target.store.users.size)
+        assertEquals("helper", owner.username, "the form's username, not one made from the e-mail")
+        assertEquals("owner@example.com", owner.email)
+        assertEquals(adminPassword, owner.password, "the form's password signs in")
+        assertTrue(owner.admin)
         assertNoSecretsLogged()
     }
 

@@ -145,7 +145,7 @@ object NodeCli {
 
         Pano Agent -- the same jar, saved as pano-agent.jar in an existing server's folder and run
         there instead of the server jar. It starts the server, shows its console and passes what
-        you type to it, and lets Pano manage it (Java 17 or newer):
+        you type to it, and lets Pano manage it (Java 11 or newer):
           cd /path/to/your/server
           java -jar pano-agent.jar                               first run: asks for the Pano
                                                                  address, the server's jar, memory,

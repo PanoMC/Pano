@@ -523,7 +523,7 @@ data class PanoConfig(
             @ConfigComment("Explicit path to pano-node.jar. Leave empty to let Pano find or download it.")
             @SerializedName("jar-path") var jarPath: String? = null,
 
-            @ConfigComment("Java 17+ home (or java binary) the node runs on. Leave empty to detect one.")
+            @ConfigComment("Java 11+ home (or java binary) the node runs on. Leave empty to use the Java Pano runs on.")
             @SerializedName("java-path") var javaPath: String? = null,
 
             @ConfigComment("Stop the local node when Pano stops. False keeps managed servers running.")

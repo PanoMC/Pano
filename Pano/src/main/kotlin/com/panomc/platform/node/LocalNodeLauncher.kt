@@ -7,10 +7,8 @@ import java.nio.channels.OverlappingFileLockException
 /**
  * Builds the command line Pano starts its local node with.
  *
- * The `java` is chosen by [JavaRuntimeLocator] rather than inherited from this process: Pano runs
- * on Java 11 on plenty of hosts and `pano-node.jar` is compiled for 17, so passing down
- * `java.home` is how the daemon ends up dying with an `UnsupportedClassVersionError` on every
- * restart.
+ * The `java` comes from [JavaRuntimeLocator]: the JVM Pano runs on, unless `local-node.java-path`
+ * names another one.
  *
  * A list, never a string: the data directory and the node name come from a config file and a
  * translation, and either could contain a space or a quote that a shell would read as syntax.

@@ -145,7 +145,7 @@ class PanoAgentLinkTest {
                     "Invoke-WebRequest -Uri 'https://pano.example.com/api/node/pano-agent.jar' -OutFile pano-agent.jar",
                 "runCommand" to "java -jar pano-agent.jar --pano 'https://pano.example.com' --code 123456",
                 "startCommand" to "java -jar pano-agent.jar",
-                "javaVersion" to 17
+                "javaVersion" to 11
             ),
             link
         )

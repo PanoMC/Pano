@@ -604,7 +604,7 @@ class BackupService(
         fun restoreArchive(serverDirectory: File, archive: File) {
             // ZipTool skips the agent's jar and data folder itself, as it skips every denied path.
             val worlds = ZipFile(archive).use { zip ->
-                BackupScope.worldsIn(zip.stream().filter { !it.isDirectory }.map { it.name }.toList().asSequence())
+                BackupScope.worldsIn(zip.entries().asSequence().filter { !it.isDirectory }.map { it.name }.toList().asSequence())
             }
 
             worlds.forEach { world -> WorldReplacement.clear(serverDirectory, world) }

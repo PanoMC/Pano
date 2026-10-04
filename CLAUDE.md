@@ -19,8 +19,8 @@ auto-included as a subproject by `settings.gradle.kts`). JDK notes that bite in 
   immediately with *"Gradle requires JVM 17 or later"* — set `JAVA_HOME` to a 17/21 JDK first.
 - Compile **toolchain targets Java 11**; the **test task forces JDK 21** (see `Pano/build.gradle.kts`).
   Gradle auto-detects installed JDKs for toolchains, so both 11 and 21 must be installed.
-- `:Node` targets **Java 17** (toolchain + jvmTarget), so a JDK 17 must be installed too.
-- The produced jar runs on **JRE 11+**; `pano-node.jar` needs **JRE 17+**.
+- `:Node` targets **Java 11** (toolchain + jvmTarget) like `:Pano`; the local node is started on Pano's own JVM.
+- The produced jar runs on **JRE 11+**; `pano-node.jar` too.
 
 ```bash
 # Run for local development (root `run` cascades to :Pano:run; :Updater:run is disabled)

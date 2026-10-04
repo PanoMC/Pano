@@ -103,7 +103,7 @@ class AgentLinkSwitchTest {
                 "jarUrl" to "https://pano.example.com/api/node/pano-agent.jar",
                 "jarFileName" to "pano-agent.jar",
                 "startCommand" to "java -jar pano-agent.jar",
-                "javaVersion" to 17
+                "javaVersion" to 11
             ),
             disabled
         )

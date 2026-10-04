@@ -23,14 +23,12 @@ data class JavaRuntimeLookup(
 )
 
 /**
- * Finds a Java the `pano-node` daemon can actually run on.
+ * Finds the Java the `pano-node` daemon is started with.
  *
- * Pano itself is built for Java 11 and is routinely run on it -- the Gradle `run` toolchain and
- * plenty of production hosts are exactly that -- while `pano-node.jar` is compiled for 17. Handing
- * the daemon the JVM Pano happens to be running on therefore fails on a whole class of installs
- * with `UnsupportedClassVersionError (class file version 61.0)`, and because the supervisor
- * restarts what it started, it fails again every few seconds forever. So the runtime is chosen,
- * not inherited.
+ * `pano-node.jar` is compiled for the same Java Pano is, 11, so the JVM Pano is running on can
+ * always run it and is the one that is used: a host that runs Pano needs nothing else installed
+ * to run its local node. The rest of the search is for the two cases that are left, an operator
+ * who named another JDK in `local-node.java-path` and a `java.home` that cannot be read.
  *
  * The version is read from the `release` file every JDK since 9 ships (and 8 ships too), and
  * `java -version` is only ever run for a candidate that has no such file: probing a dozen
@@ -39,7 +37,9 @@ data class JavaRuntimeLookup(
  */
 object JavaRuntimeLocator {
     /** What `pano-node.jar` is compiled for; anything below cannot load its classes at all. */
-    const val MINIMUM_MAJOR = 17
+    const val MINIMUM_MAJOR = 11
+
+    private const val OWN_JVM = "Pano's own JVM"
 
     private const val PROBE_TIMEOUT_SECONDS = 5L
 
@@ -54,12 +54,20 @@ object JavaRuntimeLocator {
      * the setting look broken. It is ignored (with the reason in the message) when it does not
      * resolve or is too old, because refusing to start at all would be worse than using the
      * perfectly good JDK sitting next to it.
+     *
+     * Without one it is Pano's own JVM, and the host is only searched when that cannot be used.
      */
     fun locate(configuredPath: String? = null): JavaRuntimeLookup {
         val configured = configuredPath?.takeIf { it.isNotBlank() }?.let { inspect(homeOf(File(it.trim())), "local-node.java-path") }
 
         if (configured != null && configured.major >= MINIMUM_MAJOR) {
             return JavaRuntimeLookup(configured, null)
+        }
+
+        val own = ownJvm()
+
+        if (own != null && own.major >= MINIMUM_MAJOR) {
+            return JavaRuntimeLookup(own, null)
         }
 
         val discovered = discover()
@@ -84,6 +92,10 @@ object JavaRuntimeLocator {
 
         return found.values.sortedWith(compareByDescending<JavaRuntime> { it.major }.thenBy { it.path })
     }
+
+    /** The JVM this process runs on. */
+    fun ownJvm(): JavaRuntime? =
+        System.getProperty("java.home")?.takeIf { it.isNotBlank() }?.let { inspect(File(it), OWN_JVM) }
 
     /** The highest runtime that can load the daemon's classes. */
     fun select(runtimes: List<JavaRuntime>): JavaRuntime? =
@@ -144,15 +156,14 @@ object JavaRuntimeLocator {
     /**
      * Where to look, in the order an operator would expect.
      *
-     * Pano's own JVM and `JAVA_HOME` come first only so they are cheap to inspect; the pick is by
-     * version, not by order, so a host whose `JAVA_HOME` is 11 and whose `/usr/lib/jvm` has 21
-     * gets 21.
+     * The pick among these is by version, not by order, so a host whose `JAVA_HOME` is 8 and whose
+     * `/usr/lib/jvm` has 21 gets 21.
      */
     private fun candidates(): List<Pair<File, String>> {
         val candidates = mutableListOf<Pair<File, String>>()
 
         System.getProperty("java.home")?.takeIf { it.isNotBlank() }
-            ?.let { candidates.add(File(it) to "Pano's own JVM") }
+            ?.let { candidates.add(File(it) to OWN_JVM) }
 
         System.getenv("JAVA_HOME")?.takeIf { it.isNotBlank() }
             ?.let { candidates.add(File(it) to "JAVA_HOME") }

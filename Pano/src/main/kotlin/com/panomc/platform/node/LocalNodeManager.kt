@@ -681,7 +681,7 @@ class LocalNodeManager(
     }
 
     /**
-     * The Java the daemon is started with, which is never simply the one Pano runs on.
+     * The Java the daemon is started with: the one Pano runs on, unless another is configured.
      *
      * Throws [LocalNodeJavaMissing] with the reason instead of spawning a process that is going to
      * die with an `UnsupportedClassVersionError` and be restarted forever.

@@ -146,7 +146,7 @@ class NodeInstallScriptProvider(
         const val AGENT_JAR_NAME = LocalNodeJarLocator.AGENT_JAR_NAME
 
         /** The Java the agent (and the node) needs, shown next to the agent's commands. */
-        const val AGENT_JAVA_VERSION = 17
+        const val AGENT_JAVA_VERSION = 11
 
         /** How the server is started once the agent is linked. */
         const val AGENT_START_COMMAND = "java -jar $AGENT_JAR_NAME"

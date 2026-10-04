@@ -11,7 +11,12 @@ import java.nio.file.Files
  * operating system and architecture the node supports, in exchange for figures the JDK's own
  * management bean already provides. Anything the bean cannot answer is reported as null rather
  * than guessed -- a wrong CPU reading in the panel is worse than a blank one.
+ *
+ * The bean is read through the names it had before Java 14 (`systemCpuLoad`, `totalPhysicalMemorySize`,
+ * `freePhysicalMemorySize`): the node runs on the Java Pano runs on, which may be 11, and the newer
+ * JDKs keep the old names as aliases of the new ones.
  */
+@Suppress("DEPRECATION")
 object HostMetrics {
     private val osBean = ManagementFactory.getOperatingSystemMXBean()
 
@@ -23,7 +28,7 @@ object HostMetrics {
     /** System-wide CPU usage as a 0..100 percentage, or null when the JVM cannot measure it. */
     fun cpuPercent(): Double? {
         val load = try {
-            sunBean?.cpuLoad ?: return null
+            sunBean?.systemCpuLoad ?: return null
         } catch (_: Throwable) {
             return null
         }
@@ -36,7 +41,7 @@ object HostMetrics {
     }
 
     fun memTotal(): Long = try {
-        sunBean?.totalMemorySize ?: 0L
+        sunBean?.totalPhysicalMemorySize ?: 0L
     } catch (_: Throwable) {
         0L
     }
@@ -51,8 +56,8 @@ object HostMetrics {
      * bean reports the cgroup limit while `/proc/meminfo` is still the whole host's.
      */
     fun memUsed(): Long = try {
-        val total = sunBean?.totalMemorySize ?: return 0L
-        val free = linuxAvailable(total) ?: sunBean.freeMemorySize
+        val total = sunBean?.totalPhysicalMemorySize ?: return 0L
+        val free = linuxAvailable(total) ?: sunBean.freePhysicalMemorySize
 
         (total - free).coerceAtLeast(0L)
     } catch (_: Throwable) {

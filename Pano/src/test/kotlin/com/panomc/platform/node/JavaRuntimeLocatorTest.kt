@@ -85,7 +85,7 @@ class JavaRuntimeLocatorTest {
 
     @Test
     fun `refuses every runtime below the one the daemon is compiled for`() {
-        val runtimes = listOf(runtime(8, "/usr/lib/jvm/java-8"), runtime(11, "/usr/lib/jvm/java-11"))
+        val runtimes = listOf(runtime(7, "/usr/lib/jvm/java-7"), runtime(8, "/usr/lib/jvm/java-8"))
 
         assertNull(JavaRuntimeLocator.select(runtimes))
         assertNull(JavaRuntimeLocator.select(emptyList()))
@@ -93,8 +93,17 @@ class JavaRuntimeLocatorTest {
 
     @Test
     fun `takes the minimum straight from the daemon's own target`() {
-        assertEquals(17, JavaRuntimeLocator.MINIMUM_MAJOR)
-        assertEquals(17, JavaRuntimeLocator.select(listOf(runtime(17, "/opt/java/17")))?.major)
+        assertEquals(11, JavaRuntimeLocator.MINIMUM_MAJOR)
+        assertEquals(11, JavaRuntimeLocator.select(listOf(runtime(11, "/opt/java/11")))?.major)
+    }
+
+    @Test
+    fun `starts the node on the java pano itself runs on`() {
+        val own = JavaRuntimeLocator.ownJvm()
+
+        assertNotNull(own)
+        assertEquals(own, JavaRuntimeLocator.locate(null).runtime)
+        assertEquals(File(System.getProperty("java.home")).canonicalFile, own!!.home)
     }
 
     @Test

@@ -113,9 +113,9 @@ class AgentTerminal(
             }
         }
 
-        /** The charset the terminal types in. */
+        /** The charset the terminal types in; `Console.charset()` is asked by name, it is Java 17's. */
         fun inputCharset(): Charset = try {
-            System.console()?.charset()
+            System.console()?.let { java.io.Console::class.java.getMethod("charset").invoke(it) as? Charset }
                 ?: System.getProperty("stdin.encoding")?.let { Charset.forName(it) }
                 ?: System.getProperty("native.encoding")?.let { Charset.forName(it) }
                 ?: Charset.defaultCharset()

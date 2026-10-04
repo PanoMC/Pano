@@ -17,6 +17,7 @@ import io.vertx.ext.web.validation.builder.Bodies.json
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelUpdateTicketsAPI(
@@ -24,6 +25,8 @@ class PanelUpdateTicketsAPI(
     private val authProvider: AuthProvider,
     private val notificationManager: NotificationManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/tickets", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

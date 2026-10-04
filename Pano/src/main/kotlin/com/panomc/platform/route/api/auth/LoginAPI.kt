@@ -48,6 +48,9 @@ class LoginAPI(
                         .optionalProperty("password", Schemas.stringSchema())
                         .optionalProperty("registerEmail", Schemas.stringSchema())
                         .optionalProperty("newUsername", Schemas.stringSchema())
+                        // Sent by the panel's own sign-in form: only an account that can use the
+                        // panel gets a session. The theme's login sends nothing and is unaffected.
+                        .optionalProperty("panel", Schemas.booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -61,6 +64,7 @@ class LoginAPI(
         val password = data.getString("password")
         val registerEmail = data.getString("registerEmail")?.let { TextUtil.stripWhitespace(it) }
         val newUsername = data.getString("newUsername")?.let { TextUtil.stripWhitespace(it) }
+        val panelLogin = data.getBoolean("panel", false)
 
         val sqlClient = getSqlClient()
 
@@ -140,6 +144,14 @@ class LoginAPI(
                     throw e
                 }
             }
+        }
+
+        // The panel's sign-in (U-06) opens a session only for someone who can use the panel.
+        // Checked once the password is known to be right, so it tells a guess nothing, and before
+        // the account-completion steps and the plugins' onBeforeLogin (two-factor), so a player is
+        // never asked for an e-mail or a code only to be turned away afterwards.
+        if (panelLogin && !authProvider.hasAccessPanel(checkUserId!!)) {
+            throw NoPanelAccess()
         }
 
         val email = databaseManager.userDao.getEmailFromUserId(checkUserId!!, sqlClient)

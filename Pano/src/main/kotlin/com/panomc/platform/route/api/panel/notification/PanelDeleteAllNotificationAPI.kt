@@ -23,6 +23,8 @@ class PanelDeleteAllNotificationAPI(
 
         databaseManager.panelNotificationDao.deleteAllByUserId(userId, sqlClient)
 
-        return Successful()
+        return Successful(
+            mapOf("notReadCount" to databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlClient))
+        )
     }
 }

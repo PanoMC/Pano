@@ -10,6 +10,8 @@ import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.hosted.ContainerMode
+import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
 import io.vertx.core.json.JsonObject
@@ -88,6 +90,7 @@ class PanelGetSettingsAPI(
             result["locale"] = configManager.config.locale
             result["allowUserLocaleSelection"] = configManager.config.allowUserLocaleSelection
             result["developmentMode"] = configManager.config.developmentMode
+            result["usageMode"] = configManager.config.effectiveUsageMode.name
 
             // Null when the block was hand-removed from config.conf; reporting is on by default.
             result["telemetryEnabled"] = configManager.config.telemetry?.enabled ?: true
@@ -97,6 +100,19 @@ class PanelGetSettingsAPI(
             val email = JsonObject.mapFrom(emailConfig)
 
             email.remove("password")
+
+            // Pano Host: whether the instance has Pano Host mail to fall back to (`email.hostManaged` = in use).
+            val hosted = HostedEnvConfig.current
+
+            email.put("hostMailAvailable", hosted.isHosted && hosted.smtp != null)
+            // What Pano Host mail uses (no password), shown read-only in the panel even while own mail is set.
+            hosted.hostMail(emailConfig.hostSender)?.let { email.put("hostMail", it) }
+
+            // The customer's own SMTP kept while Pano Host mail is in use: without its password.
+            email.getJsonObject("custom")?.let { custom ->
+                email.put("customHasPassword", !custom.getString("password").isNullOrEmpty())
+                custom.remove("password")
+            }
 
             result["email"] = email
         }
@@ -131,6 +147,10 @@ class PanelGetSettingsAPI(
             result["lastCheckedAt"] = lastCheck
             result["platformUpdate"] = platformUpdate
             result["resourceUpdates"] = resourceUpdatesInfo
+
+            // Whether nodes and Pano Agents are updated to the daemon this Pano serves on their own
+            // (`managed-servers.node-auto-update`); the Updates page's switch writes it back.
+            result["nodeAutoUpdate"] = configManager.config.effectiveManagedServers.nodeAutoUpdate
 
             if (platformUpdate != null) {
                 (result["platformUpdate"] as JsonObject).put("oldVersion", Main.VERSION)
@@ -170,9 +190,11 @@ class PanelGetSettingsAPI(
         return Successful(result)
     }
 
+    /** `container`: the container launcher owns the process (Pano Host, the Docker image), so there is no terminal to detach from. */
     private fun currentRunMode(): JsonObject = JsonObject()
         .put("gui", Main.IS_GUI)
         .put("background", Main.IS_BG)
+        .put("container", ContainerMode.current.active)
 
     enum class SettingType {
         GENERAL,

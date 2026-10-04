@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "id": 238222,
+      "gameId": 432,
+      "name": "Just Enough Items",
+      "slug": "jei",
+      "links": {
+        "websiteUrl": "https://www.curseforge.com/minecraft/mc-mods/jei",
+        "wikiUrl": null
+      }
+    },
+    {
+      "id": 310111,
+      "name": "Some Mod",
+      "slug": "some-mod",
+      "links": {}
+    }
+  ]
+}

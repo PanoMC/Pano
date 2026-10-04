@@ -6,11 +6,13 @@ import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.license.LicenseManager
 import com.panomc.platform.model.*
 import com.panomc.platform.util.BanUtil
+import com.panomc.platform.util.UsageMode
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
@@ -20,7 +22,8 @@ class PanelGetDashboardAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
     private val permissionManager: PermissionManager,
-    private val licenseManager: LicenseManager
+    private val licenseManager: LicenseManager,
+    private val configManager: ConfigManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/dashboard", RouteType.GET))
 
@@ -55,7 +58,10 @@ class PanelGetDashboardAPI(
 
         val ticketCount = databaseManager.ticketDao.count(sqlClient)
 
-        if (authProvider.hasPermission(ManageTicketsPermission(), context) && ticketCount != 0L) {
+        // Tickets are a website feature; a SERVERS install shows none (their endpoints answer 404).
+        val ticketsEnabled = configManager.config.effectiveUsageMode in UsageMode.WITH_WEBSITE
+
+        if (ticketsEnabled && authProvider.hasPermission(ManageTicketsPermission(), context) && ticketCount != 0L) {
             val tickets = databaseManager.ticketDao.getLast5Tickets(sqlClient)
 
             val userIdList = tickets.distinctBy { it.userId }.map { it.userId }

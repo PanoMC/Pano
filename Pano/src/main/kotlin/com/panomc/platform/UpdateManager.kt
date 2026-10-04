@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.error.*
+import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.model.Error as DomainError
 import com.panomc.platform.model.Progress
 import com.panomc.platform.model.Result
@@ -21,8 +22,12 @@ import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.NetworkFailureUtil
 import com.panomc.platform.util.ProgressWriteStream
-import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.util.VersionUtil
+import com.panomc.platform.update.ReleaseAsset
+import com.panomc.platform.update.ReleaseInfo
+import com.panomc.platform.update.ReleaseLookup
+import com.panomc.platform.update.ReleaseProduct
+import com.panomc.platform.update.UpdateCheckSchedule
 import io.vertx.core.Vertx
 import io.vertx.core.file.OpenOptions
 import io.vertx.core.http.HttpMethod
@@ -51,9 +56,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.temporal.WeekFields
 import java.util.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -69,7 +71,8 @@ class UpdateManager(
     private val configManager: ConfigManager,
     private val installManager: InstallManager,
     private val setupManager: SetupManager,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val releaseLookup: ReleaseLookup
 ) {
     companion object {
         const val PLATFORM_UPDATE_CHECK_INFO = "platform_update_check_info"
@@ -84,6 +87,15 @@ class UpdateManager(
     private lateinit var logger: Logger
 
     /**
+     * Per-instance offset into each update period, so instances sharing an IP do not all ask for
+     * release info in the same minute. Drawn once per start; see [UpdateCheckSchedule].
+     */
+    internal var checkSchedule = UpdateCheckSchedule()
+
+    /** Replaceable in tests; the process-wide detection otherwise. */
+    internal var containerMode: ContainerMode = ContainerMode.current
+
+    /**
      * State for the background update sweep so we only log the "Failed to check Pano updates!"
      * and "No resource update found!" lines on transitions instead of every minute. Read/written
      * from the periodic coroutine only — no cross-thread access.
@@ -94,92 +106,63 @@ class UpdateManager(
     suspend fun checkPlatformUpdate(background: Boolean) {
         try {
             val channel = configManager.config.releaseChannel
-            val latestRelease = if (channel == ReleaseStage.RELEASE) {
-                val getLatestReleaseResponse = webClient
-                    .getAbs("https://api.github.com/repos/${AppConstants.REPO}/releases/latest")
-                    .send()
-                    .coAwait()
+            val releases = releaseLookup.lookup(ReleaseProduct.PANO, channel)
 
-                if (getLatestReleaseResponse.statusCode() == 404) {
-                    deletePlatformUpdateInfo(background)
-
-                    return
-                }
-
-                if (getLatestReleaseResponse.statusCode() != 200) {
-                    throw InternalServerError()
-                }
-
-                getLatestReleaseResponse.bodyAsJsonObject()
-            } else {
-                val getReleasesResponse = webClient
-                    .getAbs("https://api.github.com/repos/${AppConstants.REPO}/releases")
-                    .send()
-                    .coAwait()
-
-                if (getReleasesResponse.statusCode() != 200) {
-                    throw InternalServerError()
-                }
-
-                val releases = getReleasesResponse.bodyAsJsonArray().map { it as JsonObject }
-
-                if (releases.isEmpty()) {
-                    deletePlatformUpdateInfo(background)
-
-                    return
-                }
-
-                // For alpha/beta channels, pick the latest release matching the selected pre-release type
-                val desiredType = channel.stage // "alpha" | "beta"
-                val match = releases.firstOrNull { r ->
-                    val tag = r.getString("tag_name") ?: ""
-                    VersionUtil.getReleaseType(tag) == desiredType
-                }
-
-                if (match == null) {
-                    deletePlatformUpdateInfo(background)
-                    return
-                }
-
-                match
+            if (background) {
+                lastPlatformCheckFailed = false
             }
 
-            val changelog = latestRelease.getString("body")
-            val version = latestRelease.getString("tag_name")
-            val assets = latestRelease.getJsonArray("assets").map { it as JsonObject }
-            val releaseDate = latestRelease.getString("published_at")
+            val latestRelease = releases.latest
 
-            if (!VersionUtil.isVersionHigher(version, Main.VERSION)) {
+            if (latestRelease == null || !VersionUtil.isVersionHigher(latestRelease.tag, Main.VERSION)) {
                 deletePlatformUpdateInfo(background)
 
                 return
             }
 
-            val asset = assets.find { it.getString("name").endsWith(".jar") }
+            // GitHub lists the assets: a release whose jar is not uploaded yet is not an update yet.
+            // The Pano API does not, so the jar name follows the release naming and its .sha256 is
+            // asked for below instead.
+            val jarAsset = platformJarAsset(latestRelease)
 
-            if (asset == null) {
+            if (latestRelease.assets.isNotEmpty() && jarAsset == null) {
                 deletePlatformUpdateInfo(background)
 
                 return
             }
 
-            val downloadUrl = asset.getString("browser_download_url")
-            val size = asset.getLong("size")
-            val hash = asset.getString("digest")
-            val fileName = asset.getString("name")
+            val fileName = jarAsset?.name ?: platformJarName(latestRelease)
+            // Built here from the tag, never taken from whoever answered the lookup.
+            val downloadUrl = ReleaseProduct.PANO.assetUrl(latestRelease.tag, fileName)
+            val hashUrl = "$downloadUrl.sha256"
+
+            val hash = jarAsset?.digest?.takeIf { it.startsWith("sha256:") } ?: when (val published = fetchPublishedSha256(hashUrl)) {
+                is PublishedSha256.Found -> "sha256:${published.hex}"
+                // No .sha256 yet: the release is still uploading its assets.
+                PublishedSha256.Missing -> {
+                    deletePlatformUpdateInfo(background)
+
+                    return
+                }
+                // Not reachable right now: fetched again when the update is installed.
+                PublishedSha256.Unknown -> null
+            }
+
+            val version = latestRelease.tag
 
             val sqlClient = databaseManager.getSqlClient()
             val propertyExists = databaseManager.systemPropertyDao.existsByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
 
             val versionInfo = JsonObject(
                 mapOf(
-                    "changelog" to changelog,
+                    "changelog" to latestRelease.notes,
                     "version" to version,
                     "downloadUrl" to downloadUrl,
+                    "hashUrl" to hashUrl,
                     "fileName" to fileName,
-                    "size" to size,
+                    "size" to (jarAsset?.size ?: fetchDownloadSize(downloadUrl)),
                     "hash" to hash,
-                    "releaseDate" to releaseDate,
+                    "releaseDate" to latestRelease.publishedAt?.let { Instant.ofEpochMilli(it).toString() },
                     "channel" to VersionUtil.getReleaseType(version),
                     "state" to UUID.randomUUID()
                 )
@@ -200,9 +183,6 @@ class UpdateManager(
                     value = versionInfo.encode()
                 ), sqlClient
             )
-            if (background) {
-                lastPlatformCheckFailed = false
-            }
         } catch (e: Exception) {
             if (background) {
                 if (!lastPlatformCheckFailed) {
@@ -221,6 +201,49 @@ class UpdateManager(
 
             throw InternalServerError()
         }
+    }
+
+    /** The Pano jar among a GitHub-listed release's assets (`Pano-<version>.jar`), not pano-node.jar. */
+    private fun platformJarAsset(release: ReleaseInfo): ReleaseAsset? =
+        release.assets.firstOrNull { it.name == platformJarName(release) }
+            ?: release.assets.firstOrNull { it.name.startsWith("Pano-") && it.name.endsWith(".jar") }
+
+    private fun platformJarName(release: ReleaseInfo) = "Pano-${release.tag.removePrefix("v")}.jar"
+
+    private sealed class PublishedSha256 {
+        data class Found(val hex: String) : PublishedSha256()
+        object Missing : PublishedSha256()
+        object Unknown : PublishedSha256()
+    }
+
+    /** The release's `<jar>.sha256` asset (`<hex>  <name>`), downloaded from github.com, not its API. */
+    private suspend fun fetchPublishedSha256(url: String): PublishedSha256 = try {
+        val response = webClient.getAbs(url)
+            .timeout(ReleaseLookup.REQUEST_TIMEOUT_MS)
+            .send()
+            .coAwait()
+
+        when (response.statusCode()) {
+            200 -> HashUtil.parseSha256File(response.bodyAsString())?.let { PublishedSha256.Found(it) }
+                ?: PublishedSha256.Unknown
+            404 -> PublishedSha256.Missing
+            else -> PublishedSha256.Unknown
+        }
+    } catch (_: Exception) {
+        PublishedSha256.Unknown
+    }
+
+    /** The update jar's size for the download progress bar; null when GitHub does not say. */
+    private suspend fun fetchDownloadSize(url: String): Long? = try {
+        webClient.headAbs(url)
+            .timeout(ReleaseLookup.REQUEST_TIMEOUT_MS)
+            .send()
+            .coAwait()
+            .takeIf { it.statusCode() == 200 }
+            ?.getHeader("Content-Length")
+            ?.toLongOrNull()
+    } catch (_: Exception) {
+        null
     }
 
     /**
@@ -445,6 +468,16 @@ class UpdateManager(
                 throw FailedToUpdatePlatform(extras = mapOf("message" to "There are no updates. Please run check updates."))
             }
 
+            val downloadUrl = platformUpdateInfo.getString("downloadUrl")
+
+            // Looked up through the Pano API while github.com was unreachable: the checksum is
+            // fetched now, and an update is never installed without one.
+            val hash = platformUpdateInfo.getString("hash")?.removePrefix("sha256:")?.takeIf { it.isNotBlank() }
+                ?: (fetchPublishedSha256(platformUpdateInfo.getString("hashUrl") ?: "$downloadUrl.sha256") as? PublishedSha256.Found)?.hex
+                ?: throw FailedToUpdatePlatform(extras = mapOf("message" to "Could not fetch the update's checksum. Please try again later."))
+
+            val size = platformUpdateInfo.getLong("size") ?: fetchDownloadSize(downloadUrl) ?: -1L
+
             progressHandler.invoke(Successful()) // Getting platform update info success
 
             val tempFolder = File(AppConstants.TEMP_FOLDER)
@@ -461,19 +494,18 @@ class UpdateManager(
                 OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
             ).coAwait()
 
-            val progressWriteStream = ProgressWriteStream(writeStream, platformUpdateInfo.getLong("size")) {
+            val progressWriteStream = ProgressWriteStream(writeStream, size) {
                 progressHandler.invoke(Progress(it))
             }
 
             webClient
-                .getAbs(platformUpdateInfo.getString("downloadUrl"))
+                .getAbs(downloadUrl)
                 .`as`(BodyCodec.pipe(progressWriteStream))
                 .send()
                 .coAwait()
 
             progressHandler.invoke(Successful()) // Downloading update success
 
-            val hash = platformUpdateInfo.getString("hash").split("sha256:")[1]
             val version = platformUpdateInfo.getString("version")
 
             val temporaryFile = File(temporaryFilePath)
@@ -483,6 +515,22 @@ class UpdateManager(
             }
 
             progressHandler.invoke(Successful()) // Verifying hash success
+
+            if (containerMode.active) {
+                // Container mode: install the jar through the launcher's pointer and exit 75, the
+                // launcher relaunches on the new jar. No updater process, no detached JVM.
+                containerMode.jarPointer.stage(temporaryFile, version)
+                temporaryFile.delete()
+                logger.info("Staged Pano {} in {}, restarting through the container launcher.", version, containerMode.dataDir)
+
+                progressHandler.invoke(Successful()) // Extracting pano updater done (not needed)
+                progressHandler.invoke(Successful()) // Installation start success
+
+                logPlatformUpdate(userId, version, sqlClient)
+
+                containerMode.restartInPlace { main.shutdown(exitCode = it) }
+                return
+            }
 
             val panoUpdaterJarPath = extractPanoUpdaterJar()
 
@@ -527,18 +575,7 @@ class UpdateManager(
 
             progressHandler.invoke(Successful()) // Installation start success
 
-            if (userId != null) {
-                val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
-
-                databaseManager.panelActivityLogDao.add(
-                    UpdatedPlatformLog(
-                        userId,
-                        username,
-                        "v" + Main.VERSION,
-                        version,
-                    ), sqlClient
-                )
-            }
+            logPlatformUpdate(userId, version, sqlClient)
 
             main.shutdown()
         } catch (e: DomainError) {
@@ -597,6 +634,21 @@ class UpdateManager(
         } catch (e: Throwable) {
             progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
         }
+    }
+
+    private suspend fun logPlatformUpdate(userId: Long?, version: String, sqlClient: SqlClient) {
+        if (userId == null) return
+
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        databaseManager.panelActivityLogDao.add(
+            UpdatedPlatformLog(
+                userId,
+                username,
+                "v" + Main.VERSION,
+                version,
+            ), sqlClient
+        )
     }
 
     internal suspend fun init() {
@@ -682,35 +734,12 @@ class UpdateManager(
         val sqlClient = databaseManager.getSqlClient()
 
         val config = configManager.config
-        if (config.updatePeriod == UpdatePeriod.NEVER) {
-            return false
-        }
 
-        val lastUpdateCheck = databaseManager.systemPropertyDao.getByOption(UPDATE_LAST_CHECK, sqlClient) ?: return true
-        val lastUpdateCheckDate = lastUpdateCheck.value.toLong()
+        val lastUpdateCheck = databaseManager.systemPropertyDao.getByOption(UPDATE_LAST_CHECK, sqlClient)
+            ?.value
+            ?.toLongOrNull()
 
-        val now = LocalDateTime.now()
-        val time = Instant.ofEpochMilli(lastUpdateCheckDate)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDateTime()
-
-        val lastDate = time.toLocalDate()
-        val nowDate = now.toLocalDate()
-
-        return when (config.updatePeriod) {
-            UpdatePeriod.ONCE_PER_DAY -> nowDate.isAfter(lastDate)
-            UpdatePeriod.ONCE_PER_WEEK -> {
-                val weekFields = WeekFields.ISO
-                val lastWeek = time.get(weekFields.weekOfWeekBasedYear())
-                val lastYear = time.get(weekFields.weekBasedYear())
-                val currentWeek = now.get(weekFields.weekOfWeekBasedYear())
-                val currentYear = now.get(weekFields.weekBasedYear())
-
-                currentYear > lastYear || currentWeek > lastWeek
-            }
-            UpdatePeriod.ONCE_PER_MONTH -> now.year > time.year || now.monthValue > time.monthValue
-            else -> false
-        }
+        return checkSchedule.isDue(config.updatePeriod, lastUpdateCheck, System.currentTimeMillis())
     }
 
     private suspend fun cleanupOldUpdates() {

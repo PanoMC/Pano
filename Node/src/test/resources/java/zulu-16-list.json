@@ -1,0 +1,22 @@
+[
+  {
+    "availability_type": "CA",
+    "distro_version": [
+      16,
+      32,
+      15,
+      0
+    ],
+    "download_url": "https://cdn.azul.com/zulu/bin/zulu16.32.15-ca-jre16.0.2-linux_x64.tar.gz",
+    "java_version": [
+      16,
+      0,
+      2
+    ],
+    "latest": true,
+    "name": "zulu16.32.15-ca-jre16.0.2-linux_x64.tar.gz",
+    "openjdk_build_number": 7,
+    "package_uuid": "f8268574-977d-4b40-94f8-5a8f5ba0d777",
+    "product": "zulu"
+  }
+]

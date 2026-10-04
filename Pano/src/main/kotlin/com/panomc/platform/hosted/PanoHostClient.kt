@@ -1,0 +1,332 @@
+package com.panomc.platform.hosted
+
+import io.vertx.core.Vertx
+import io.vertx.core.buffer.Buffer
+import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
+import io.vertx.ext.web.client.HttpResponse
+import io.vertx.ext.web.client.WebClient
+import io.vertx.ext.web.client.WebClientOptions
+import io.vertx.kotlin.coroutines.coAwait
+import kotlinx.coroutines.delay
+import java.net.URI
+
+/**
+ * Server-to-server client for the Pano Host control plane (host-api.md §SSO, §Instance bootstrap):
+ * announces the instance's capabilities, fetches the first-boot answers and redeems SSO tickets,
+ * authenticated by `PANO_HOST_INSTANCE_SECRET`.
+ *
+ * URLs are `PANO_HOST_API_URL` + `/host/...` (the dev URL carries an `/api` prefix, the live one
+ * none). Responses are Parsek envelopes: `{result: "ok", data}` or `{result: "error", error}`.
+ *
+ * The secret only ever goes into the `Authorization` header; it is never part of a URL, a log
+ * line or an exception message.
+ */
+class PanoHostClient(
+    vertx: Vertx,
+    baseUrl: String,
+    private val instanceSecret: String,
+    private val log: (String) -> Unit = {},
+    timeoutMs: Long = 10_000
+) {
+    companion object {
+        const val MAX_NOTICES = 20
+
+        /** host-api.md §Instance bootstrap: at most 100 reported admins, `[A-Za-z0-9_]{3,32}` each. */
+        const val MAX_ADMINS = 100
+        private val ADMIN_USERNAME = Regex("^[A-Za-z0-9_]{3,32}$")
+
+        /** The `admins` list as the control plane accepts it: valid names, deduplicated, sorted, capped. */
+        fun normalizeAdmins(usernames: Collection<String>): List<String> =
+            usernames.filter { ADMIN_USERNAME.matches(it) }
+                .distinctBy { it.lowercase() }
+                .sortedBy { it.lowercase() }
+                .take(MAX_ADMINS)
+
+        /** Backoff between capability announce attempts: 5 s doubling up to 10 min. */
+        fun backoff(attempt: Int): Long = (5_000L shl (attempt - 1).coerceIn(0, 7)).coerceAtMost(600_000L)
+
+        /** A client for the hosted env, or null when not on Pano Host or the env is incomplete. */
+        fun fromEnv(vertx: Vertx, env: HostedEnvConfig, log: (String) -> Unit): PanoHostClient? {
+            if (!env.isHosted) return null
+            val url = env.hostApiUrl ?: return null
+            val secret = env.instanceSecret ?: return null
+
+            return runCatching { PanoHostClient(vertx, url, secret, log) }.getOrNull()
+        }
+    }
+
+    /** Non-2xx or `result != ok`; [code] is the control plane's error code (e.g. `INVALID_TOKEN`). */
+    class HostApiException(val status: Int, val code: String?) : RuntimeException("Pano Host API error $status ${code ?: ""}".trim()) {
+        /** Network failures and 5xx/429 are worth retrying; other 4xx are final. */
+        val retryable get() = status == 0 || status >= 500 || status == 429
+    }
+
+    data class SsoIdentity(
+        val accountId: String,
+        val email: String,
+        val username: String,
+        val role: String,
+        val workloadId: String,
+        val hostname: String,
+        /** The local admin the owner chose to sign in as on panomc.com; null = automatic (older control planes omit it). */
+        val adminUsername: String? = null
+    ) {
+        val isSupport get() = role == "support"
+    }
+
+    val baseUrl: String = baseUrl.trim().trimEnd('/').also {
+        val uri = URI(it)
+        require(uri.scheme == "https" || uri.scheme == "http") { "PANO_HOST_API_URL must be http(s)" }
+        require(!uri.host.isNullOrEmpty()) { "PANO_HOST_API_URL has no host" }
+    }
+
+    private val client = WebClient.create(
+        vertx,
+        WebClientOptions()
+            .setFollowRedirects(false)
+            .setConnectTimeout(timeoutMs.toInt())
+            .setIdleTimeout(timeoutMs.toInt())
+            .setIdleTimeoutUnit(java.util.concurrent.TimeUnit.MILLISECONDS)
+            .setUserAgent("Pano-Host-Instance")
+    )
+
+    fun url(path: String): String = baseUrl + path
+
+    private suspend fun post(path: String, body: JsonObject): JsonObject = request(HttpMethod.POST, path, body)
+
+    private suspend fun request(method: HttpMethod, path: String, body: JsonObject?): JsonObject {
+        val response: HttpResponse<Buffer> = try {
+            val request = client.requestAbs(method, url(path))
+                .putHeader("Authorization", "Bearer $instanceSecret")
+                .putHeader("Accept", "application/json")
+                .timeout(15_000)
+
+            (if (body == null) request.send() else request.sendJsonObject(body)).coAwait()
+        } catch (e: Throwable) {
+            throw HostApiException(0, e.javaClass.simpleName)
+        }
+
+        val json = runCatching { response.bodyAsJsonObject() }.getOrNull()
+
+        if (response.statusCode() !in 200..299 || json?.getString("result") != "ok") {
+            throw HostApiException(response.statusCode(), json?.getString("error"))
+        }
+
+        return json.getJsonObject("data") ?: JsonObject()
+    }
+
+    /**
+     * `POST /host/instance/capabilities {ssoSupported, setupCompleted?, admins?}`. `setupCompleted`
+     * is only sent when true and `admins` (the local admin usernames, see [normalizeAdmins]) only
+     * when known. An older control plane rejects unknown keys (400), so the call is repeated without
+     * `admins` (pre-W22), then without `setupCompleted` too (pre-W18).
+     */
+    suspend fun announceCapabilities(
+        ssoSupported: Boolean = true,
+        setupCompleted: Boolean = false,
+        admins: Collection<String>? = null
+    ): Boolean {
+        val bare = JsonObject().put("ssoSupported", ssoSupported)
+        val withSetup = if (setupCompleted) bare.copy().put("setupCompleted", true) else bare
+        val full = if (admins != null) withSetup.copy().put("admins", JsonArray(normalizeAdmins(admins))) else withSetup
+        val attempts = listOf(full, withSetup, bare).distinct()
+
+        var data: JsonObject? = null
+        for ((index, body) in attempts.withIndex()) {
+            try {
+                data = post("/host/instance/capabilities", body)
+                break
+            } catch (e: HostApiException) {
+                if (e.status != 400 || index == attempts.lastIndex) throw e
+            }
+        }
+
+        return data!!.getBoolean("ssoSupported", ssoSupported)
+    }
+
+    /**
+     * Announces with retry: transient failures back off ([backoff]) until [maxAttempts]; a final
+     * 4xx (bad secret, rejected body) stops at once. Returns whether the announce landed.
+     */
+    suspend fun announceWithRetry(
+        ssoSupported: Boolean = true,
+        maxAttempts: Int = 50,
+        setupCompleted: Boolean = false,
+        admins: Collection<String>? = null,
+        wait: suspend (Long) -> Unit = { delay(it) }
+    ): Boolean {
+        for (attempt in 1..maxAttempts) {
+            try {
+                announceCapabilities(ssoSupported, setupCompleted, admins)
+                log("Announced Pano Host capabilities (ssoSupported=$ssoSupported, setupCompleted=$setupCompleted${admins?.let { ", admins=${it.size}" } ?: ""})")
+                return true
+            } catch (e: HostApiException) {
+                if (!e.retryable || attempt == maxAttempts) {
+                    log("Could not announce Pano Host capabilities: ${e.message}")
+                    return false
+                }
+
+                val pause = backoff(attempt)
+                log("Pano Host capabilities announce failed (${e.message}), retrying in ${pause / 1000}s")
+                wait(pause)
+            }
+        }
+
+        return false
+    }
+
+    /** The site answers of the order form (host-api.md §Instance bootstrap). */
+    data class BootstrapSite(
+        val siteName: String?,
+        val description: String,
+        val websiteUrl: String?,
+        val locale: String?,
+        val telemetry: Boolean
+    )
+
+    data class BootstrapOwner(val accountId: String, val email: String, val username: String)
+
+    /** The order form's extra admin; the password is a one-time secret and never printed. */
+    class BootstrapAdmin(val username: String, val email: String, val password: String) {
+        override fun toString() = "BootstrapAdmin(username=$username, email=$email, password=***)"
+    }
+
+    /** One-time handover code for `POST <apiUrl>/platform/authorize`; never printed. */
+    class PlatformHandover(val code: String, val apiUrl: String?, val expiresAt: Long?) {
+        override fun toString() = "PlatformHandover(code=***, apiUrl=$apiUrl, expiresAt=$expiresAt)"
+    }
+
+    sealed class Bootstrap {
+        abstract val site: BootstrapSite
+
+        class Automatic(
+            override val site: BootstrapSite,
+            val owner: BootstrapOwner,
+            val extraAdmin: BootstrapAdmin?,
+            val platform: PlatformHandover?
+        ) : Bootstrap() {
+            override fun toString() = "Bootstrap.Automatic(site=$site, owner=$owner, extraAdmin=$extraAdmin, platform=$platform)"
+        }
+
+        class Manual(override val site: BootstrapSite) : Bootstrap() {
+            override fun toString() = "Bootstrap.Manual(site=$site)"
+        }
+    }
+
+    /**
+     * `POST /host/instance/bootstrap {}` → the first-boot answers, or null when there is nothing to
+     * do (`NO_BOOTSTRAP` 404: no order form; `BOOTSTRAP_DONE` 409: completed or restored). The
+     * response carries secrets (extra admin password, handover code): never logged or stored.
+     */
+    suspend fun bootstrap(): Bootstrap? {
+        val data = try {
+            post("/host/instance/bootstrap", JsonObject())
+        } catch (e: HostApiException) {
+            if ((e.status == 404 && e.code == "NO_BOOTSTRAP") || (e.status == 409 && e.code == "BOOTSTRAP_DONE")) return null
+            throw e
+        }
+
+        fun malformed(): Nothing = throw HostApiException(502, "MALFORMED_RESPONSE")
+        fun JsonObject.text(key: String) = getValue(key)?.toString()?.takeIf { it.isNotBlank() }
+
+        fun site(json: JsonObject) = BootstrapSite(
+            siteName = json.text("siteName"),
+            description = json.getValue("description")?.toString() ?: "",
+            websiteUrl = json.text("websiteUrl"),
+            locale = json.text("locale"),
+            telemetry = json.getValue("telemetry") as? Boolean ?: true
+        )
+
+        return when (data.getString("mode")) {
+            "MANUAL" -> Bootstrap.Manual(site(data.getValue("prefill") as? JsonObject ?: JsonObject()))
+            "AUTOMATIC" -> {
+                val site = site(data)
+                if (site.siteName == null || site.websiteUrl == null) malformed()
+
+                val owner = data.getValue("owner") as? JsonObject ?: malformed()
+                val admin = data.getValue("extraAdmin") as? JsonObject
+                val platform = data.getValue("platform") as? JsonObject
+
+                Bootstrap.Automatic(
+                    site = site,
+                    owner = BootstrapOwner(
+                        accountId = owner.text("accountId") ?: malformed(),
+                        email = owner.text("email") ?: malformed(),
+                        username = owner.text("username") ?: owner.text("email")!!.substringBefore('@')
+                    ),
+                    extraAdmin = admin?.let {
+                        BootstrapAdmin(
+                            it.text("username") ?: malformed(),
+                            it.text("email") ?: malformed(),
+                            it.getValue("password")?.toString()?.takeIf { p -> p.isNotEmpty() } ?: malformed()
+                        )
+                    },
+                    platform = platform?.text("code")?.let { code ->
+                        PlatformHandover(code, platform.text("apiUrl"), (platform.getValue("expiresAt") as? Number)?.toLong())
+                    }
+                )
+            }
+
+            else -> malformed()
+        }
+    }
+
+    /** `POST /host/sso/redeem {ticket}` → the panomc.com identity the ticket was issued for. */
+    suspend fun redeemSso(ticket: String): SsoIdentity {
+        val data = post("/host/sso/redeem", JsonObject().put("ticket", ticket))
+
+        fun field(key: String) = data.getValue(key)?.toString()?.takeIf { it.isNotBlank() }
+            ?: throw HostApiException(502, "MALFORMED_RESPONSE")
+
+        return SsoIdentity(
+            accountId = field("accountId"),
+            email = field("email"),
+            username = field("username"),
+            role = field("role"),
+            workloadId = field("workloadId"),
+            hostname = field("hostname"),
+            adminUsername = data.getValue("adminUsername")?.toString()?.takeIf { it.isNotBlank() }
+        )
+    }
+
+    /**
+     * `GET /host/instance/notices` → the banner feed. Entries without an id or message are dropped
+     * here; [PanelGetHostedAPI][com.panomc.platform.route.api.panel.PanelGetHostedAPI] sanitises
+     * levels and links.
+     */
+    suspend fun notices(): List<HostNotice> = noticeFeed().notices
+
+    /** [notices] plus the control plane's `manageUrl` (this environment's website page of the workload). */
+    suspend fun noticeFeed(): HostNotices {
+        val data = request(HttpMethod.GET, "/host/instance/notices", null)
+        val manageUrl = data.getValue("manageUrl")?.toString()?.takeIf { it.isNotBlank() }
+        val websiteUrl = data.getValue("websiteUrl")?.toString()?.takeIf { it.isNotBlank() }
+        val platformApiUrl = data.getValue("platformApiUrl")?.toString()?.takeIf { it.isNotBlank() }
+        val array = data.getJsonArray("notices") ?: return HostNotices(emptyList(), manageUrl, websiteUrl, platformApiUrl)
+
+        val notices = array.mapNotNull { raw ->
+            val json = raw as? JsonObject ?: return@mapNotNull null
+            fun text(key: String) = json.getValue(key)?.toString()?.takeIf { it.isNotBlank() }
+
+            HostNotice(
+                id = text("id") ?: return@mapNotNull null,
+                level = text("level") ?: "info",
+                message = text("message") ?: return@mapNotNull null,
+                title = text("title"),
+                url = text("url"),
+                createdAt = (json.getValue("createdAt") as? Number)?.toLong(),
+                type = text("type"),
+                data = (json.getValue("data") as? JsonObject)?.map
+                    ?.filterValues { it is Number || it is Boolean || (it is String && it.length <= 200) }
+                    ?.entries?.take(20)?.associate { it.key to it.value }
+                    ?: emptyMap()
+            )
+        }.take(MAX_NOTICES)
+
+        return HostNotices(notices, manageUrl, websiteUrl, platformApiUrl)
+    }
+
+    fun close() = client.close()
+}

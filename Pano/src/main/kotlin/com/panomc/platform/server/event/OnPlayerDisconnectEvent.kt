@@ -27,6 +27,7 @@ class OnPlayerDisconnectEvent(
         databaseManager.serverDao.updatePlayerCountById(server.id, request.playerCount, sqlClient)
 
         panelRealtimeHub.notifyServerUpdated(server.id)
+        panelRealtimeHub.notifyServerPlayersUpdated(server.id)
 
         return null
     }

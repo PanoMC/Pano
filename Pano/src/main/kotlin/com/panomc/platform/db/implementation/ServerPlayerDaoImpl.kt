@@ -56,6 +56,18 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
+    override suspend fun getAllByServerId(serverId: Long, sqlClient: SqlClient): List<ServerPlayer> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `serverId` = ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(serverId))
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
     override suspend fun deleteByUsernameAndServerId(username: String, serverId: Long, sqlClient: SqlClient) {
         val query =
             "DELETE from `${getTablePrefix() + tableName}` WHERE `username` = ? AND `serverId` = ?"

@@ -3,11 +3,13 @@ package com.panomc.platform.route.api.panel.permission
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
+import com.panomc.platform.auth.PermissionNodeContext
 import com.panomc.platform.auth.panel.permission.ManagePermissionGroupsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionNode
 import com.panomc.platform.db.model.PermissionTrack
+import com.panomc.platform.error.InvalidData
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import io.vertx.core.json.JsonArray
@@ -54,6 +56,17 @@ class PanelPermissionSnapshotSaveAPI(
         // Ensure admin and default exist
         ensureGroup(groupsFromPayload, name = permissionManager.defaultGroupName, displayName = permissionManager.defaultGroupName, weight = 10)
 
+        // Every node's context is checked before anything is written. The inserts below happen
+        // after the tables are emptied, so a payload refused halfway through would take the
+        // existing permission grid with it.
+        val contexts = incomingNodes.map { el ->
+            val obj = el as? JsonObject ?: return@map JsonObject()
+
+            // Refused rather than dropped: a picker that quietly saved no scope would hand
+            // somebody the whole estate when they meant to grant two servers.
+            PermissionNodeContext.sanitize(obj.getValue("context")) ?: throw InvalidData()
+        }
+
         // Reset tables
         truncatePermissionTables(sqlClient)
 
@@ -79,15 +92,15 @@ class PanelPermissionSnapshotSaveAPI(
         }
 
         // Insert nodes (skip user->default group nodes if it's not false)
-        incomingNodes.forEach { el ->
-            val obj = el as? JsonObject ?: return@forEach
-             val holderTypeStr = obj.getString("holderType") ?: return@forEach
+        incomingNodes.forEachIndexed { index, el ->
+            val obj = el as? JsonObject ?: return@forEachIndexed
+             val holderTypeStr = obj.getString("holderType") ?: return@forEachIndexed
              val holderType = PermissionNode.Companion.HolderType.valueOf(holderTypeStr)
-            val holderId = obj.getLong("holderId") ?: return@forEach
-            val nodeStr = obj.getString("node") ?: return@forEach
+            val holderId = obj.getLong("holderId") ?: return@forEachIndexed
+            val nodeStr = obj.getString("node") ?: return@forEachIndexed
 
              if (holderType == PermissionNode.Companion.HolderType.USER && nodeStr == "group.${permissionManager.defaultGroupName}" && obj.getBoolean("active") ?: true) {
-                return@forEach
+                return@forEachIndexed
             }
 
             val mappedHolderId = if (holderType == PermissionNode.Companion.HolderType.GROUP) {
@@ -95,11 +108,11 @@ class PanelPermissionSnapshotSaveAPI(
             } else holderId
 
             if (holderType == PermissionNode.Companion.HolderType.GROUP && mappedHolderId == null) {
-                return@forEach
+                return@forEachIndexed
             }
 
             if (obj.getLong("expiresAt") != null && obj.getLong("expiresAt") < System.currentTimeMillis()) {
-                return@forEach
+                return@forEachIndexed
             }
 
             val permissionNode = PermissionNode(
@@ -107,7 +120,7 @@ class PanelPermissionSnapshotSaveAPI(
                 holderId = mappedHolderId ?: holderId,
                 node = nodeStr,
                 active = obj.getBoolean("active") ?: true,
-                context = obj.getJsonObject("context") ?: JsonObject(),
+                context = contexts[index],
                 expiresAt = obj.getLong("expiresAt"),
                 createdAt = obj.getLong("createdAt") ?: System.currentTimeMillis(),
                 updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()

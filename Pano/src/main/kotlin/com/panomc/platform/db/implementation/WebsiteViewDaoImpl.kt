@@ -44,7 +44,9 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
             .execute(Tuple.of(ipAddress, DateUtil.getTodayInMillis()))
             .coAwait()
 
-        return rows.toList()[0].getLong(0) == 1L
+        // `> 0`, not `== 1`: once two concurrent first visits had both inserted a row, `== 1` turned
+        // false for the rest of the day and every visit added another row, so visitors == views.
+        return rows.toList()[0].getLong(0) > 0L
     }
 
     override suspend fun add(websiteView: WebsiteView, sqlClient: SqlClient): Long {
@@ -68,7 +70,7 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
 
     override suspend fun increaseTimesByOne(ipAddress: String, sqlClient: SqlClient) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `times` = `times` + 1 WHERE `ipAddress` = ? AND `date` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `times` = `times` + 1 WHERE `ipAddress` = ? AND `date` = ? LIMIT 1"
 
         sqlClient
             .preparedQuery(query)
@@ -85,7 +87,7 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
         sqlClient: SqlClient
     ): List<WebsiteView> {
         val query =
-            "SELECT `id`, `times`, `date`, `ipAddress` FROM `${getTablePrefix() + tableName}` WHERE `date` > ?"
+            "SELECT `id`, `times`, `date`, `ipAddress` FROM `${getTablePrefix() + tableName}` WHERE `date` >= ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

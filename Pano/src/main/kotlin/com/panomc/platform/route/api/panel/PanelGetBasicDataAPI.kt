@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel
 
+import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.Main
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
@@ -22,7 +23,8 @@ class PanelGetBasicDataAPI(
     private val platformCodeManager: PlatformCodeManager,
     private val configManager: ConfigManager,
     private val updateManager: UpdateManager,
-    private val maintenanceModeManager: MaintenanceModeManager
+    private val maintenanceModeManager: MaintenanceModeManager,
+    private val permissionManager: PermissionManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/basicData", RouteType.GET))
 
@@ -43,7 +45,13 @@ class PanelGetBasicDataAPI(
 
 //        Since it's a panel API, it calls AuthProvider#hasAccessPanel method and these context fields are created
         val isAdmin = context.get<Boolean>("isAdmin") ?: false
-        val permissions = context.get<List<String>>("permissions") ?: listOf()
+        // What the panel draws its menus from: the nodes held globally plus the ones held for a
+        // single server. Without the second kind somebody given the console of one server had no
+        // Servers tab to reach it from; every request is still checked against its own server.
+        val permissions = (
+            (context.get<List<String>>("permissions") ?: listOf()) +
+                permissionManager.getGrantedNodes(authProvider.getUserIdFromRoutingContext(context), anyServer = true)
+            ).distinct()
         val panelTheme = databaseManager.panelConfigDao.byUserIdAndOption(userId, "panel_theme", sqlClient)?.value
 
         val result: MutableMap<String, Any?> = mutableMapOf(
@@ -62,6 +70,10 @@ class PanelGetBasicDataAPI(
             "notificationCount" to count,
             "connectedServerCount" to connectedServerCount,
             "acceptPluginAuth" to configManager.config.acceptPluginAuth,
+            // The "Link with the Pano Agent" dialog's switch (`managed-servers.accept-agent-links`,
+            // SM-77), flipped with `PUT /api/panel/servers/agent-link/toggle`.
+            "acceptAgentLinks" to configManager.config.effectiveManagedServers.acceptAgentLinks,
+            "usageMode" to configManager.config.effectiveUsageMode.name,
             "panelTheme" to panelTheme,
             "showDevModeAlert" to false,
             "currentVersion" to Main.VERSION
@@ -125,8 +137,8 @@ class PanelGetBasicDataAPI(
             result["platformServerMatchKeyTimeStarted"] = platformCodeManager.getTimeStarted()
             result["platformHostAddress"] = platformHostAddress
 
-            result["mainServer"] = mainServer
-            result["selectedServer"] = selectedServer
+            result["mainServer"] = mainServer?.toPublicJsonObject()
+            result["selectedServer"] = selectedServer?.toPublicJsonObject()
         }
 
         return Successful(result)

@@ -13,11 +13,14 @@ import io.vertx.ext.web.validation.builder.Parameters
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class GetPostDetailAPI(
     private val databaseManager: DatabaseManager
 ) : Api() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/posts/:url", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

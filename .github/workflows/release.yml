@@ -38,10 +38,90 @@ jobs:
     outputs:
       new_tag_version: ${{ steps.get_next_version.outputs.new_tag_version }}
 
-  build_and_release:
-    runs-on: ubuntu-latest
+  # The portable git pano-node downloads when Spigot's BuildTools needs one and the host has none
+  # (SM-67). Built from kernel.org sources by scripts/build-pano-git.sh: static musl in Alpine on
+  # Linux, system libraries only on macOS, each on a runner of its own architecture (the script
+  # refuses to name a binary after an arch it was not built on). The tarballs are attached to the
+  # release next to pano-node.jar; nodes find them through the GitHub release API. Cached per git
+  # version and script, so a release that changes neither does not rebuild git four times.
+  # Optional: a failed build only leaves that tarball out of the release (nodes then use the system
+  # git or the newest release that carries one), it never blocks the platform release.
+  build_git:
     needs: get_next_version
     if: ${{ needs.get_next_version.outputs.new_tag_version != '' }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: x64
+            runner: ubuntu-24.04
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - os: macos
+            arch: x64
+            runner: macos-15-intel
+          - os: macos
+            arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      PANO_GIT_VERSION: "2.55.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore a previous build of this git
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: pano-git-out
+          key: pano-git-${{ matrix.os }}-${{ matrix.arch }}-${{ env.PANO_GIT_VERSION }}-${{ hashFiles('scripts/build-pano-git.sh') }}
+
+      - name: Build (Linux, static musl in Alpine)
+        if: ${{ matrix.os == 'linux' && steps.cache.outputs.cache-hit != 'true' }}
+        run: |
+          mkdir -p pano-git-out
+          docker run --rm \
+            -v "$PWD/scripts:/scripts:ro" \
+            -v "$PWD/pano-git-out:/out" \
+            alpine:3.22 \
+            sh -c 'apk add --no-cache build-base linux-headers curl zlib-dev zlib-static file \
+              && sh /scripts/build-pano-git.sh linux ${{ matrix.arch }} ${{ env.PANO_GIT_VERSION }} /out \
+              && chown -R '"$(id -u):$(id -g)"' /out'
+
+      - name: Build (macOS, system libraries only)
+        if: ${{ matrix.os == 'macos' && steps.cache.outputs.cache-hit != 'true' }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+        run: |
+          sh scripts/build-pano-git.sh macos ${{ matrix.arch }} "$PANO_GIT_VERSION" pano-git-out
+
+      - name: Check the tarball against its checksum
+        run: |
+          cd pano-git-out
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -c pano-git-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha256
+          else
+            shasum -a 256 -c pano-git-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha256
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pano-git-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            pano-git-out/pano-git-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+            pano-git-out/pano-git-${{ matrix.os }}-${{ matrix.arch }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  build_and_release:
+    runs-on: ubuntu-latest
+    needs: [ get_next_version, build_git ]
+    if: ${{ !cancelled() && needs.get_next_version.result == 'success' && needs.get_next_version.outputs.new_tag_version != '' }}
     permissions:
       contents: write
       issues: write
@@ -86,6 +166,38 @@ jobs:
             -Pversion=${{ needs.get_next_version.outputs.new_tag_version }} \
             -PtimeStamp=${{ steps.time.outputs.time }}
 
+      # The release jar and its checksum for the smoke test and the pano image, which run after the
+      # release on exactly this jar instead of building a second one.
+      - name: Check the release jar against its checksum
+        run: |
+          cd build/libs
+          sha256sum -c "Pano-${{ needs.get_next_version.outputs.new_tag_version }}.jar.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pano-release-jar
+          path: |
+            build/libs/Pano-${{ needs.get_next_version.outputs.new_tag_version }}.jar
+            build/libs/Pano-${{ needs.get_next_version.outputs.new_tag_version }}.jar.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      # The four git tarballs build_git made, where .releaserc picks them up as release assets.
+      - name: Collect the portable git builds
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pano-git-*
+          path: build/pano-git
+          merge-multiple: true
+
+      - name: List the portable git builds
+        run: |
+          mkdir -p build/pano-git
+          ls -l build/pano-git
+          count=$(ls build/pano-git/pano-git-*.tar.gz 2>/dev/null | wc -l)
+          if [ "$count" -ne 4 ]; then echo "::warning::only $count of 4 portable git builds made it into this release"; fi
+
       - uses: oven-sh/setup-bun@v2
 
       - uses: actions/setup-node@v4
@@ -110,10 +222,57 @@ jobs:
         run: |
           npx semantic-release@24.2.6
 
-      # Append UI changelog to latest release with a Markdown separator
+      # semantic-release only opens a DRAFT without assets (.releaserc `draftRelease`): its own uploader retried
+      # uploads that had already landed, failed with `already_exists` and left a draft plus a tag that a rerun
+      # no-ops on. This step is idempotent, so "Re-run failed jobs" (which keeps get_next_version's output)
+      # finishes a half-done release: it creates the release if only the tag exists, re-uploads with --clobber
+      # and publishes only once every asset is there with its exact size.
+      - name: Upload the release assets and publish the release
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB }}
+          VERSION: ${{ needs.get_next_version.outputs.new_tag_version }}
+          PRERELEASE: ${{ steps.extract_branch.outputs.branch != 'main' }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          git fetch --tags --force -q
+          if [ "$(git rev-parse -q --verify "$tag^{commit}" || true)" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::tag $tag is missing or not on this commit"
+            exit 1
+          fi
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            echo "::warning::$tag has no release (semantic-release no-oped on a rerun), creating it"
+            gh release create "$tag" --verify-tag --draft --prerelease="$PRERELEASE" --title "$tag" \
+              --notes "Release $tag"
+          fi
+
+          shopt -s nullglob
+          assets=(build/libs/*.jar build/libs/*.jar.sha256 Node/build/libs/pano-node.jar \
+            Node/build/libs/pano-node.jar.sha256 build/pano-git/pano-git-*.tar.gz \
+            build/pano-git/pano-git-*.tar.gz.sha256 LICENSE)
+          for attempt in 1 2 3 4 5; do
+            gh release upload "$tag" "${assets[@]}" --clobber && break
+            if [ "$attempt" = 5 ]; then exit 1; fi
+            sleep $((attempt * 10))
+          done
+
+          uploaded=$(gh release view "$tag" --json assets -q '.assets[] | "\(.name) \(.size)"')
+          for file in "${assets[@]}"; do
+            if ! grep -qxF "$(basename "$file") $(stat -c %s "$file")" <<<"$uploaded"; then
+              echo "::error::$(basename "$file") is missing or truncated on $tag"
+              exit 1
+            fi
+          done
+
+          gh release edit "$tag" --draft=false --prerelease="$PRERELEASE"
+
+      # Append UI changelog to this run's release with a Markdown separator (once, so a rerun does not repeat it)
       - name: Append UI changelog to latest release
         if: success()
         uses: actions/github-script@v7
+        env:
+          VERSION: ${{ needs.get_next_version.outputs.new_tag_version }}
         with:
           script: |
             const fs = require('fs');
@@ -130,12 +289,17 @@ jobs:
             }
 
             const { owner, repo } = context.repo;
-            const { data: releases } = await github.rest.repos.listReleases({ owner, repo, per_page: 1 });
-            if (!releases.length) {
-              core.warning('No releases found to update.');
+            const tag = `v${process.env.VERSION}`;
+            const { data: releases } = await github.rest.repos.listReleases({ owner, repo, per_page: 20 });
+            const rel = releases.find((release) => release.tag_name === tag);
+            if (!rel) {
+              core.warning(`No release found for ${tag}.`);
               return;
             }
-            const rel = releases[0];
+            if ((rel.body || '').includes(extra)) {
+              core.info('UI changelog already appended, skipping.');
+              return;
+            }
 
             // Use a Markdown separator to FORCE paragraph break & block context reset.
             // Also add a non-breaking space paragraph to fully exit list contexts.
@@ -148,3 +312,224 @@ jobs:
               owner, repo, release_id: rel.id, body: newBody
             });
             core.info('Appended UI changelog with Markdown separator and spacing.');
+
+  # The same daemon as a container, for nodes deployed to a platform rather than installed on a
+  # host. It is a separate job so a registry outage can never fail the release that already
+  # published the jar.
+  publish_node_image:
+    runs-on: ubuntu-latest
+    needs: [ get_next_version, build_and_release ]
+    if: ${{ !cancelled() && needs.build_and_release.result == 'success' && needs.get_next_version.outputs.new_tag_version != '' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the node jar
+        run: |
+          ./gradlew :Node:shadowJar \
+            -Pversion=${{ needs.get_next_version.outputs.new_tag_version }} \
+            -PbuildType=${{ github.ref_name == 'main' && 'release' || github.ref_name }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `latest` follows the stable channel only: a prerelease tag moving it would hand every
+      # Coolify deployment that pinned no tag an alpha build of the daemon.
+      - name: Build and push ghcr.io/panomc/pano-node
+        uses: docker/build-push-action@v6
+        with:
+          context: Node
+          file: Node/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/panomc/pano-node:${{ needs.get_next_version.outputs.new_tag_version }}
+            ${{ github.ref_name == 'main' && 'ghcr.io/panomc/pano-node:latest' || '' }}
+
+  # Runtime base images, ghcr.io/panomc/pano:runtime-jre<N>: the JRE, tini, the launcher and
+  # Bun a Portal runs a Pano Instance with (the release itself lives in the instance's /data). 11 is Pano's
+  # minimum and always built; the agent picks the tag from the instance's Java setting. runtime-jre<N>
+  # moves with every release, runtime-jre<N>-<version> pins the one built with it. Tested (amd64) before
+  # the push. Same package as the full image below, so one visibility setting covers both.
+  runtime_images:
+    runs-on: ubuntu-latest
+    needs: [ get_next_version, build_and_release ]
+    if: ${{ !cancelled() && needs.build_and_release.result == 'success' && needs.get_next_version.outputs.new_tag_version != '' }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        jre: [ 11, 17, 21, 25 ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Test the runtime image (amd64)
+        run: bash docker/runtime/test.sh ${{ matrix.jre }}
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ghcr.io/panomc/pano:runtime-jre${{ matrix.jre }}
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/runtime
+          file: docker/runtime/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            JRE=${{ matrix.jre }}
+          push: true
+          cache-from: type=gha,scope=pano-runtime-jre${{ matrix.jre }}
+          cache-to: type=gha,mode=max,scope=pano-runtime-jre${{ matrix.jre }}
+          tags: |
+            ghcr.io/panomc/pano:runtime-jre${{ matrix.jre }}
+            ghcr.io/panomc/pano:runtime-jre${{ matrix.jre }}-${{ needs.get_next_version.outputs.new_tag_version }}
+
+  # Every release boots on the minimum JRE (11): the release jar on Temurin 11 against a MariaDB
+  # service, configured through the container env only (PANO_DB_*, no config.conf), then installed
+  # through the setup API and checked to serve on 8088. Other tests run on 17/21, so this is the only
+  # proof Java 11 still works; raising the minimum is an explicit decision, not a side effect.
+  smoke_jre11:
+    runs-on: ubuntu-latest
+    needs: [ get_next_version, build_and_release ]
+    if: ${{ !cancelled() && needs.build_and_release.result == 'success' && needs.get_next_version.outputs.new_tag_version != '' }}
+    permissions:
+      contents: read
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: smoke-root
+          MARIADB_DATABASE: pano
+          MARIADB_USER: pano
+          MARIADB_PASSWORD: smoke-pano
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PANO_VERSION: ${{ needs.get_next_version.outputs.new_tag_version }}
+      PANO_DB_HOST: 127.0.0.1
+      PANO_DB_PORT: "3306"
+      PANO_DB_NAME: pano
+      PANO_DB_USER: pano
+      PANO_DB_PASSWORD: smoke-pano
+      PANO_HTTP_PORT: "8088"
+      PANO_URL: http://127.0.0.1:8088
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pano-release-jar
+          path: smoke
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - name: Boot the release jar on Java 11
+        run: |
+          cd smoke
+          sha256sum -c "Pano-$PANO_VERSION.jar.sha256"
+          java -version
+          nohup java -XX:MaxRAMPercentage=75 -jar "Pano-$PANO_VERSION.jar" -nogui </dev/null >pano.log 2>&1 &
+          echo $! > pano.pid
+
+      - name: Install through the setup API and check it serves
+        run: bash scripts/smoke-install.sh
+
+      - name: Pano log
+        if: always()
+        run: |
+          [ -f smoke/pano.pid ] && kill "$(cat smoke/pano.pid)" 2>/dev/null || true
+          sleep 5
+          tail -n 300 smoke/pano.log || true
+
+  # ghcr.io/panomc/pano:<version> for self-hosters' Docker installs: the runtime-jre11 image
+  # built above plus the smoke-tested release jar, which docker/pano/pano-seed.sh copies into the /data
+  # volume on first start (and when the image changes). alpha/beta releases also move their channel tag;
+  # main releases move `latest`. Until the first stable release exists, `latest` (the compose/docs
+  # default) follows the most stable channel that has an image: beta releases move it, and alpha
+  # releases move it only while no `beta` image exists, so the documented install always resolves.
+  pano_image:
+    runs-on: ubuntu-latest
+    needs: [ get_next_version, runtime_images, smoke_jre11 ]
+    if: ${{ !cancelled() && needs.runtime_images.result == 'success' && needs.smoke_jre11.result == 'success' && needs.get_next_version.outputs.new_tag_version != '' }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PANO_VERSION: ${{ needs.get_next_version.outputs.new_tag_version }}
+      CHANNEL: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pano-release-jar
+          path: docker/pano/release
+
+      - name: Check the bundled jar
+        run: |
+          cd docker/pano/release
+          ls -l
+          sha256sum -c "Pano-$PANO_VERSION.jar.sha256"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pick the image tags
+        id: tags
+        run: |
+          bash docker/pano/image-tags-test.sh
+          bash docker/pano/image-tags.sh | tee -a "$GITHUB_OUTPUT"
+
+      - name: Build and push ghcr.io/panomc/pano
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/pano
+          file: docker/pano/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            RUNTIME=ghcr.io/panomc/pano:runtime-jre11-${{ env.PANO_VERSION }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}

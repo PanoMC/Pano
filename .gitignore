@@ -6,6 +6,7 @@ build
 
 config.json
 config.conf
+release-info.json
 
 /*.jar
 
@@ -28,6 +29,7 @@ Pano/themes
 Pano/plugins
 Pano/.temp
 Pano/src/main/resources/pano-updater.zip
+Pano/src/main/resources/pano-node.zip
 
 .kotlin
 
@@ -41,3 +43,5 @@ Pano/maintenance
 .console_history
 .config_history
 Pano/logs
+Pano/node-data
+node-data

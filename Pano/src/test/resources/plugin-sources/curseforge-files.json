@@ -1,0 +1,27 @@
+{
+  "data": [
+    {
+      "id": 5123456,
+      "displayName": "jei-1.21.1-fabric-19.21.0.247.jar",
+      "fileName": "jei-1.21.1-fabric-19.21.0.247.jar",
+      "releaseType": 1,
+      "fileDate": "2026-04-02T10:11:12.13Z",
+      "fileLength": 1234567,
+      "downloadUrl": "https://edge.forgecdn.net/files/5123/456/jei-1.21.1-fabric-19.21.0.247.jar",
+      "gameVersions": [ "1.21.1", "Fabric" ],
+      "hashes": [ { "value": "aa11bb22cc33", "algo": 1 }, { "value": "deadbeef", "algo": 2 } ]
+    },
+    {
+      "id": 5123457,
+      "displayName": "jei-1.20.1-forge-15.3.0.4.jar",
+      "fileName": "jei-1.20.1-forge-15.3.0.4.jar",
+      "releaseType": 2,
+      "fileDate": "2025-01-02T10:11:12.13Z",
+      "fileLength": 999,
+      "downloadUrl": null,
+      "gameVersions": [ "1.20.1", "Forge" ],
+      "hashes": []
+    }
+  ],
+  "pagination": { "index": 0, "pageSize": 2, "resultCount": 2, "totalCount": 2 }
+}

@@ -52,6 +52,9 @@ abstract class UserDao : Dao<User>(User::class.java) {
         sqlClient: SqlClient
     ): List<Long>
 
+    /** The earliest `registerDate`, or null when there are no users yet. */
+    abstract suspend fun getFirstRegisterDate(sqlClient: SqlClient): Long?
+
     abstract suspend fun countBeforeTime(
         time: Long,
         sqlClient: SqlClient

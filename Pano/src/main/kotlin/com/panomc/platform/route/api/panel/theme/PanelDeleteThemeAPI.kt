@@ -24,6 +24,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.coAwait
 import org.springframework.context.annotation.Lazy
 import java.io.File
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelDeleteThemeAPI(
@@ -34,6 +35,8 @@ class PanelDeleteThemeAPI(
     private val authProvider: AuthProvider,
     @param:Lazy private val router: Router
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/themes/:themeId", RouteType.DELETE))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

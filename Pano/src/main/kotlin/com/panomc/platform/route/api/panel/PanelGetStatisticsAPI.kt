@@ -99,21 +99,27 @@ class PanelGetStatisticsAPI(
         val previousPeriodStart = TimeUtil.getPreviousPeriodStart(period)
         val now = System.currentTimeMillis()
 
-        // Build list of day-buckets (midnight of each day) covering the current period
+        // Demo data is generated per day of the whole period; real data starts on the site's first day.
         val amountOfDays = if (period == DashboardPeriodType.WEEK) 7 else 30
+
+        // One bucket (local midnight) per day from the period start to today, but never before the
+        // site's first day: zero-filling the whole period made a site set up today look as if it had
+        // been running, idle, for weeks. The first registration is the setup admin, so it marks it.
+        val todayStart = TimeUtil.startOfDay(now)
+        val firstDay = databaseManager.userDao.getFirstRegisterDate(sqlClient)
+            ?.let { TimeUtil.startOfDay(it) }
+            ?.coerceAtMost(todayStart)
+            ?: todayStart
         val dayBuckets = mutableListOf<Long>()
         run {
             val calendar = Calendar.getInstance()
-            calendar.timeInMillis = now
-            calendar[Calendar.HOUR_OF_DAY] = 0
-            calendar[Calendar.MINUTE] = 0
-            calendar[Calendar.SECOND] = 0
-            calendar[Calendar.MILLISECOND] = 0
-            for (i in 0..amountOfDays) {
-                dayBuckets.add(0, calendar.timeInMillis)
-                calendar.add(Calendar.DAY_OF_YEAR, -1)
+            calendar.timeInMillis = maxOf(currentPeriodStart, firstDay)
+            while (calendar.timeInMillis <= todayStart) {
+                dayBuckets.add(calendar.timeInMillis)
+                calendar.add(Calendar.DAY_OF_YEAR, 1)
             }
         }
+        val bucketSet = dayBuckets.toSet()
 
         if (Main.IS_DEMO) {
             val calendar = Calendar.getInstance()
@@ -164,7 +170,9 @@ class PanelGetStatisticsAPI(
             result["previousRegisteredPlayerCount"] = runningTotal
         } else {
             val registerDateList = databaseManager.userDao.getRegisterDatesByPeriod(period, sqlClient)
-            val newRegisterData = registerDateList.toGroupGetCountAndDates().toMutableMap()
+            val newRegisterData = registerDateList.toGroupGetCountAndDates()
+                .filterKeys { it in bucketSet }
+                .toMutableMap()
             for (bucket in dayBuckets) {
                 newRegisterData.putIfAbsent(bucket, 0)
             }
@@ -176,23 +184,21 @@ class PanelGetStatisticsAPI(
             val websiteViewData =
                 databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlClient)
 
-            val viewsDateMap = mutableMapOf<Long, Long>()
-            val visitorDateMap = mutableMapOf<Long, Long>()
+            // Zero-filled like the other series, so all lines start on the same day. Visitors are
+            // distinct addresses, not rows: older installs can hold duplicate rows per IP and day.
+            val viewsDateMap = dayBuckets.associateWith { 0L }.toMutableMap()
+            val visitorIpsByDate = mutableMapOf<Long, MutableSet<String>>()
 
             websiteViewData.forEach { viewData ->
-                if (viewsDateMap.containsKey(viewData.date)) {
-                    viewsDateMap[viewData.date] =
-                        viewsDateMap[viewData.date]!!.plus(viewData.times)
-                } else {
-                    viewsDateMap[viewData.date] = viewData.times
+                if (viewData.date !in bucketSet) {
+                    return@forEach
                 }
 
-                if (visitorDateMap.containsKey(viewData.date)) {
-                    visitorDateMap[viewData.date] = visitorDateMap[viewData.date]!!.plus(1)
-                } else {
-                    visitorDateMap[viewData.date] = 1
-                }
+                viewsDateMap[viewData.date] = viewsDateMap.getValue(viewData.date) + viewData.times
+                visitorIpsByDate.getOrPut(viewData.date) { mutableSetOf() }.add(viewData.ipAddress)
             }
+
+            val visitorDateMap = dayBuckets.associateWith { (visitorIpsByDate[it]?.size ?: 0).toLong() }
             websiteActivityDataList["visitorData"] = visitorDateMap
             websiteActivityDataList["viewData"] = viewsDateMap
 
@@ -204,14 +210,15 @@ class PanelGetStatisticsAPI(
                 onlinePlayerData[bucket] = 0L
             }
             currentOnlineHistory.forEach { entry ->
-                onlinePlayerData[entry.date] = entry.maxCount
+                if (entry.date in bucketSet) {
+                    onlinePlayerData[entry.date] = entry.maxCount
+                }
             }
             // Ensure today's bucket reflects the freshest value even if the tracker hasn't
             // sampled recently (e.g. right after a server restart).
-            val todayBucket = TimeUtil.startOfDay(now)
-            val currentMax = onlinePlayerData[todayBucket] ?: 0L
+            val currentMax = onlinePlayerData[todayStart] ?: 0L
             if (onlinePlayerCount > currentMax) {
-                onlinePlayerData[todayBucket] = onlinePlayerCount
+                onlinePlayerData[todayStart] = onlinePlayerCount
             }
             websiteActivityDataList["onlinePlayerData"] = onlinePlayerData
 
@@ -219,7 +226,7 @@ class PanelGetStatisticsAPI(
             val totalAtPeriodStart = databaseManager.userDao.countBeforeTime(currentPeriodStart, sqlClient)
             val totalPlayerData = mutableMapOf<Long, Long>()
             var running = totalAtPeriodStart
-            for (bucket in dayBuckets.sorted()) {
+            for (bucket in dayBuckets) {
                 val added = (newRegisterData[bucket] ?: 0).toLong()
                 running += added
                 totalPlayerData[bucket] = running

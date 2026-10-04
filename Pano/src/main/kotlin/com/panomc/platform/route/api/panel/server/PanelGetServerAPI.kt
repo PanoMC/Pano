@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.server
 
 
+import com.panomc.platform.auth.panel.ServerVisibility
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
@@ -8,6 +9,7 @@ import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
+import com.panomc.platform.server.feature.ServerFeatureResolver
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.param
@@ -19,7 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 class PanelGetServerAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/servers/:id", RouteType.GET))
 
@@ -29,10 +32,10 @@ class PanelGetServerAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(ManageServersPermission(), context)
-
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
+
+        ServerVisibility.requireCanSee(authProvider, context, id)
 
         val sqlClient = getSqlClient()
 
@@ -45,7 +48,7 @@ class PanelGetServerAPI(
 
         return Successful(
             mapOf(
-                "server" to server,
+                "server" to serverFeatureResolver.toPublicJsonObject(server),
                 "requireEmailVerification" to requireEmailVerification
             )
         )

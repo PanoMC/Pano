@@ -15,12 +15,15 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelAddPostCategoryAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/post/categories", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

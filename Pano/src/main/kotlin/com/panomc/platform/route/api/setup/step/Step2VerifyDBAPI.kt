@@ -55,8 +55,13 @@ class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
             .setDatabase(data.getString("dbName"))
             .setUser(data.getString("username"))
 
-        if (!data.getString("password").isNullOrEmpty())
-            connectOptions.password = data.getString("password")
+        // An empty password keeps the env-seeded one the setup API never returned.
+        val password = setupManager.databasePasswordFor(
+            data.getString("host"), data.getString("dbName"), data.getString("username"), data.getString("password")
+        )
+
+        if (password.isNotEmpty())
+            connectOptions.password = password
 
         val poolOptions = PoolOptions()
             .setMaxSize(1)

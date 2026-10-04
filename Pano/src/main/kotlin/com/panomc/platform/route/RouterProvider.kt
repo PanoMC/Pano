@@ -8,7 +8,10 @@ import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.api.event.RouterEventListener
 import com.panomc.platform.maintenance.MaintenanceGateHandler
+import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.Route
+import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.RateLimitManager
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
@@ -84,6 +87,15 @@ class RouterProvider private constructor(
             .order(2)
             .handler(maintenanceGateHandler.create())
 
+        // Usage-mode gate: same order (2) but registered after the maintenance gate, so Vert.x runs
+        // it second — after maintenance has had its say, still above the panel proxy (4) and the
+        // theme proxy (5). In SERVERS mode it bounces theme page requests to /panel. API traffic is
+        // untouched for the same reason as above: @Endpoint handlers at order 1 never call next().
+        val usageModeGateHandler = applicationContext.getBean(UsageModeGateHandler::class.java)
+        router.route("/*")
+            .order(2)
+            .handler(usageModeGateHandler.create())
+
         val routerEventHandlers = PluginEventManager.getPanoEventListeners<RouterEventListener>()
 
         routerEventHandlers.forEach { eventHandler ->
@@ -112,8 +124,16 @@ class RouterProvider private constructor(
 
         uiManager.prepareUI(router)
 
-        // Order 6 sits right behind the theme proxy (5), so it only ever answers while no UI owns
-        // the wildcard route (boot, theme switch). See UIManager.uiUnavailableHandler for why 503/no-store.
+        // Order 6 sits right behind the theme proxy (5), so these only ever answer while no UI owns
+        // the wildcard route (boot, theme switch, or a SERVERS-mode install that runs no theme at
+        // all). Two handlers at the same order run in registration order: the servers-mode
+        // redirect gets first refusal and passes anything it does not claim to the 503.
+        // See UIManager.uiUnavailableHandler for why 503/no-store.
+        val serversModeRootHandler = applicationContext.getBean(ServersModeRootHandler::class.java)
+        router.route("/*")
+            .order(6)
+            .handler(serversModeRootHandler.create())
+
         router.route("/*")
             .order(6)
             .handler(UIManager.uiUnavailableHandler())
@@ -190,6 +210,11 @@ class RouterProvider private constructor(
                     routedRoute.handler(corsHandler)
                 }
 
+                // Ahead of validation, so a disabled endpoint answers 404 whatever the body says.
+                if (route.usageModes != UsageMode.ALL) {
+                    routedRoute.handler(usageModeGate(route.usageModes))
+                }
+
                 val validationHandler = route.getValidationHandler(schemaRepository)
 
                 if (validationHandler != null) {
@@ -206,6 +231,35 @@ class RouterProvider private constructor(
         }
 
         return vertxRoutes
+    }
+
+    /**
+     * 404 for a route that does not exist in the current usage mode ([Route.usageModes]), in the
+     * JSON shape every API error has. The mode is read per request.
+     */
+    private fun usageModeGate(modes: Set<UsageMode>): io.vertx.core.Handler<io.vertx.ext.web.RoutingContext> {
+        val configManager = applicationContext.getBean(ConfigManager::class.java)
+
+        return io.vertx.core.Handler { context ->
+            if (configManager.config.effectiveUsageMode in modes) {
+                context.next()
+
+                return@Handler
+            }
+
+            val response = context.response()
+
+            if (response.ended() || response.headWritten()) {
+                return@Handler
+            }
+
+            val notExists = NotExists()
+
+            response
+                .setStatusCode(notExists.getStatusCode())
+                .putHeader("content-type", "application/json; charset=utf-8")
+                .end(notExists.encode())
+        }
     }
 
     fun provide(): Router = router

@@ -229,8 +229,10 @@ class AuthProvider(
             cookie.sameSite = CookieSameSite.LAX
         }
 
-        // Before the fresh cookies, so a browser that (per a literal RFC 6265 reading) treats the
-        // legacy domain cookie and the host-only one as the same entry still ends up with the new one.
+        // Vert.x emits Set-Cookie sorted by (name, domain, path), so the fresh host-only cookie always
+        // precedes this Domain-scoped expiry. That is fine: browsers key a domain cookie separately
+        // from a host-only one of the same name (leading dot), so the expiry never touches the new
+        // cookie — it only removes the legacy copy.
         expireLegacyDomainCookies(response, authCookieNames)
 
         response.addCookie(authTokenCookie)
@@ -402,6 +404,19 @@ class AuthProvider(
         routingContext: RoutingContext
     ): Boolean {
         return hasPermission(AccessPanelPermission(), routingContext)
+    }
+
+    /**
+     * Whether [userId] may use the panel, answered without a session -- for the login API, which
+     * has to decide before it creates one. The same answer [hasAccessPanel] gives a signed-in
+     * request: an admin (`*`) always, anyone else by the ACCESS_PANEL node.
+     */
+    suspend fun hasAccessPanel(userId: Long): Boolean {
+        if (isUserAdmin(userId)) {
+            return true
+        }
+
+        return permissionManager.hasPermission(userId, AccessPanelPermission())
     }
 
     fun validateInput(
@@ -577,6 +592,51 @@ class AuthProvider(
 
     suspend fun requirePermission(permission: Permission, context: RoutingContext) {
         if (!hasPermission(permission, context)) {
+            throw NoPermission()
+        }
+    }
+
+    /**
+     * Same as [hasPermission], but scoped to a single server.
+     *
+     * Admins keep their bypass. Otherwise the permission is granted when the user holds the node
+     * globally or holds it with a context scoped to [serverId]. See [PermissionServerScope].
+     */
+    suspend fun hasPermission(permission: Permission, context: RoutingContext, serverId: Long): Boolean {
+        val userId = getUserIdFromRoutingContext(context)
+
+        val isAdmin = context.get<Boolean>("isAdmin")
+
+        if (isAdmin != null && isAdmin) {
+            return true
+        }
+
+        return permissionManager.hasPermission(userId, permission, serverId)
+    }
+
+    /** Same as [requirePermission], but scoped to a single server. */
+    suspend fun requirePermission(permission: Permission, context: RoutingContext, serverId: Long) {
+        if (!hasPermission(permission, context, serverId)) {
+            throw NoPermission()
+        }
+    }
+
+    /**
+     * Requires at least one of [permissions] globally.
+     *
+     * For endpoints that serve more than one audience — task progress is read both by the person
+     * who started an install and by whoever looks after the nodes — so neither has to be given a
+     * permission that says more than it means.
+     */
+    suspend fun requireAnyPermission(context: RoutingContext, vararg permissions: Permission) {
+        if (permissions.none { hasPermission(it, context) }) {
+            throw NoPermission()
+        }
+    }
+
+    /** Requires at least one of [permissions] for [serverId]. */
+    suspend fun requireAnyPermission(context: RoutingContext, serverId: Long, vararg permissions: Permission) {
+        if (permissions.none { hasPermission(it, context, serverId) }) {
             throw NoPermission()
         }
     }

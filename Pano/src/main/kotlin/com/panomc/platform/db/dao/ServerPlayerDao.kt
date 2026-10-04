@@ -10,6 +10,12 @@ abstract class ServerPlayerDao : Dao<ServerPlayer>(ServerPlayer::class.java) {
         sqlClient: SqlClient
     ): Long
 
+    /** The whole online roster of one server, as recorded by the join and quit events. */
+    abstract suspend fun getAllByServerId(
+        serverId: Long,
+        sqlClient: SqlClient
+    ): List<ServerPlayer>
+
     abstract suspend fun deleteByUsernameAndServerId(
         username: String,
         serverId: Long,

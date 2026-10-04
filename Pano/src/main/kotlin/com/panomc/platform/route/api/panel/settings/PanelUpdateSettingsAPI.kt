@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
+import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.error.*
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.maintenance.MaintenanceModeManager
@@ -20,6 +21,9 @@ import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
+import com.panomc.platform.ui.ThemeUiController
+import org.slf4j.Logger
+import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
@@ -43,6 +47,8 @@ class PanelUpdateSettingsAPI(
     private val serverManager: ServerManager,
     private val i18nManager: I18nManager,
     private val maintenanceModeManager: MaintenanceModeManager,
+    private val themeUiController: ThemeUiController,
+    private val logger: Logger,
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
 
@@ -99,9 +105,11 @@ class PanelUpdateSettingsAPI(
                             enumSchema(*ReleaseStage.entries.map { it.name }.toTypedArray())
                         )
                         .optionalProperty("locale", stringSchema())
+                        .optionalProperty("usageMode", enumSchema("WEBSITE", "SERVERS", "BOTH"))
                         .optionalProperty("allowUserLocaleSelection", booleanSchema())
                         .optionalProperty("developmentMode", booleanSchema())
                         .optionalProperty("telemetryEnabled", booleanSchema())
+                        .optionalProperty("nodeAutoUpdate", booleanSchema())
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("websiteUrl", stringSchema())
@@ -134,6 +142,8 @@ class PanelUpdateSettingsAPI(
                                 .requiredProperty("password", stringSchema())
                                 .requiredProperty("sender", stringSchema())
                                 .optionalProperty("authMethods", stringSchema())
+                                // Pano Host: true = use the instance's Pano Host mail again (the other fields are ignored).
+                                .optionalProperty("hostManaged", booleanSchema())
                         )
                         .optionalProperty(
                             // One nested object, like "email" above, so the maintenance card can
@@ -170,9 +180,12 @@ class PanelUpdateSettingsAPI(
         val releaseChannel =
             if (data.getString("releaseChannel") == null) null else ReleaseStage.valueOf(data.getString("releaseChannel"))
         val locale = data.getString("locale")
+        val usageMode =
+            if (data.getString("usageMode") == null) null else UsageMode.valueOf(data.getString("usageMode"))
         val allowUserLocaleSelection = data.getBoolean("allowUserLocaleSelection")
         val developmentMode = data.getBoolean("developmentMode")
         val telemetryEnabled = data.getBoolean("telemetryEnabled")
+        val nodeAutoUpdate = data.getBoolean("nodeAutoUpdate")
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
         val websiteUrl = data.getString("websiteUrl")
@@ -182,12 +195,16 @@ class PanelUpdateSettingsAPI(
         val serverGameVersion = data.getString("serverGameVersion")
         val keywords = context.request().getFormAttribute("keywords")?.split(",")
 
-        val httpPort = data.getInteger("httpPort")
-        val httpsPort = data.getInteger("httpsPort")
-        val sslMode = if (data.getString("sslMode") == null) null else PanoConfig.Companion.SslMode.valueOf(data.getString("sslMode"))
-        val sslCert = data.getString("sslCert")
-        val sslKey = data.getString("sslKey")
-        val redirectHttps = data.getBoolean("redirectHttps")
+        // Pano Host terminates TLS in front of the container and fixes the HTTP port by env: SSL and
+        // ports are not the customer's to change there, so a (stale) panel sending them is ignored.
+        val hostManagesSsl = HostedEnvConfig.current.isHosted
+
+        val httpPort = data.getInteger("httpPort")?.takeUnless { hostManagesSsl }
+        val httpsPort = data.getInteger("httpsPort")?.takeUnless { hostManagesSsl }
+        val sslMode = if (hostManagesSsl || data.getString("sslMode") == null) null else PanoConfig.Companion.SslMode.valueOf(data.getString("sslMode"))
+        val sslCert = data.getString("sslCert")?.takeUnless { hostManagesSsl }
+        val sslKey = data.getString("sslKey")?.takeUnless { hostManagesSsl }
+        val redirectHttps = data.getBoolean("redirectHttps")?.takeUnless { hostManagesSsl }
 
         val password = data.getString("password")
 
@@ -288,6 +305,28 @@ class PanelUpdateSettingsAPI(
             configManager.config.allowUserLocaleSelection = allowUserLocaleSelection
         }
 
+        if (usageMode != null && usageMode != configManager.config.effectiveUsageMode) {
+            configManager.config.usageMode = usageMode
+
+            // The gate reads the mode per request, so the redirects apply immediately. The theme
+            // *process* does not follow by itself, and it is the expensive half: a servers-only
+            // install has no website, so leaving a second Bun process running would waste a couple
+            // of hundred megabytes serving pages the gate redirects away from. Switching back has
+            // to start it again, or the site would stay dark until someone restarted Pano.
+            if (usageMode == UsageMode.SERVERS) {
+                themeUiController.stop()
+            } else {
+                // Best effort: an unlicensed premium theme must not turn a settings save into an
+                // error. The controller has already fallen back to vanilla in that case, and the
+                // themes page is where an operator fixes it.
+                try {
+                    themeUiController.start()
+                } catch (e: Exception) {
+                    logger.warn("Could not start the theme after the usage mode changed: ${e.message}")
+                }
+            }
+        }
+
         if (developmentMode != null && developmentMode != configManager.config.developmentMode) {
             configManager.config.developmentMode = developmentMode
 
@@ -303,6 +342,15 @@ class PanelUpdateSettingsAPI(
                 ?: PanoConfig.Companion.TelemetryConfig().also { configManager.config.telemetry = it }
 
             telemetryConfig.enabled = telemetryEnabled
+        }
+
+        if (nodeAutoUpdate != null) {
+            // Same missing-block case as telemetry above: a hand-deleted `managed-servers { }`
+            // deserialises to null, and switching this on or off is what brings it back.
+            val managedServers = configManager.config.managedServers
+                ?: PanoConfig.Companion.ManagedServersConfig().also { configManager.config.managedServers = it }
+
+            managedServers.nodeAutoUpdate = nodeAutoUpdate
         }
 
         if (websiteName != null) {
@@ -348,18 +396,79 @@ class PanelUpdateSettingsAPI(
 
         if (email != null) {
             val mailConfiguration = configManager.config.email
+            val hosted = HostedEnvConfig.current
+            val hostMail = hosted.isHosted && hosted.smtp != null
+            val enabled = email.getBoolean("enabled")
 
-            mailConfiguration.enabled = email.getBoolean("enabled")
+            if (hostMail) {
+                // Pano Host: `hostManaged` picks the mode. Without it, a save of the form (an older
+                // panel) means the customer's own SMTP and turning mail off keeps the current mode.
+                val toHost = email.getBoolean("hostManaged") ?: if (enabled) false else mailConfiguration.hostManaged
 
-            if (email.getBoolean("enabled")) {
-                mailConfiguration.sender = email.getString("sender")
-                mailConfiguration.hostname = email.getString("hostname")
-                mailConfiguration.port = email.getInteger("port")
-                mailConfiguration.username = email.getString("username")
-                mailConfiguration.password = email.getString("password")
-                mailConfiguration.ssl = email.getBoolean("ssl")
-                mailConfiguration.starttls = email.getString("starttls")
-                mailConfiguration.authMethods = email.getString("authMethods")
+                // The customer's sender name at the default's domain (empty or the default = the
+                // default), kept across boots. Pano Host's domain and server are never the panel's to
+                // change. Checked before anything changes, so a refusal leaves the config as it was.
+                val senderInput = if (toHost) email.getString("sender") else null
+                val hostSender = senderInput?.let { sender ->
+                    try {
+                        hosted.hostSender(sender)
+                    } catch (e: IllegalArgumentException) {
+                        throw InvalidData(extras = mapOf("field" to "sender", "reason" to e.message))
+                    }
+                }
+
+                mailConfiguration.enabled = enabled
+
+                if (toHost) {
+
+                    // Leaving own SMTP: keep a copy, so switching back loses nothing.
+                    if (!mailConfiguration.hostManaged) mailConfiguration.custom = mailConfiguration.customCopy()
+
+                    mailConfiguration.hostManaged = true
+                    if (senderInput != null) mailConfiguration.hostSender = hostSender
+
+                    hosted.apply(configManager.config)
+                } else {
+                    val custom = mailConfiguration.custom
+
+                    if (enabled) {
+                        val hostname = email.getString("hostname")
+                        val username = email.getString("username")
+                        // An empty password keeps the stored one of the same server and account (the
+                        // panel never receives it, so it cannot send it back).
+                        val password = email.getString("password").takeIf { it.isNotEmpty() }
+                            ?: custom?.takeIf { it.hostname == hostname && it.username == username }?.password
+                            ?: ""
+
+                        mailConfiguration.sender = email.getString("sender")
+                        mailConfiguration.hostname = hostname
+                        mailConfiguration.port = email.getInteger("port")
+                        mailConfiguration.username = username
+                        mailConfiguration.password = password
+                        mailConfiguration.ssl = email.getBoolean("ssl")
+                        mailConfiguration.starttls = email.getString("starttls")
+                        mailConfiguration.authMethods = email.getString("authMethods")
+                        mailConfiguration.custom = mailConfiguration.customCopy()
+                    } else if (mailConfiguration.hostManaged) {
+                        // Turned off while switching to own SMTP: its last settings become the active ones.
+                        custom?.let { mailConfiguration.restoreCustom(it) }
+                    }
+
+                    mailConfiguration.hostManaged = false
+                }
+            } else {
+                mailConfiguration.enabled = enabled
+
+                if (enabled) {
+                    mailConfiguration.sender = email.getString("sender")
+                    mailConfiguration.hostname = email.getString("hostname")
+                    mailConfiguration.port = email.getInteger("port")
+                    mailConfiguration.username = email.getString("username")
+                    mailConfiguration.password = email.getString("password")
+                    mailConfiguration.ssl = email.getBoolean("ssl")
+                    mailConfiguration.starttls = email.getString("starttls")
+                    mailConfiguration.authMethods = email.getString("authMethods")
+                }
             }
         }
 
@@ -492,7 +601,7 @@ class PanelUpdateSettingsAPI(
             }
         }
 
-        if (updatePeriod != null || releaseChannel != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || telemetryEnabled != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null || maintenance != null) {
+        if (updatePeriod != null || releaseChannel != null || usageMode != null || websiteName != null || websiteDescription != null || keywords != null || email != null || developmentMode != null || telemetryEnabled != null || nodeAutoUpdate != null || locale != null || allowUserLocaleSelection != null || httpPort != null || httpsPort != null || sslMode != null || sslCert != null || sslKey != null || redirectHttps != null || requireEmailVerification != null || passwordHashAlgorithm != null || maintenance != null) {
             configManager.saveConfig()
         }
 
@@ -516,4 +625,26 @@ class PanelUpdateSettingsAPI(
 
         return Successful()
     }
+}
+
+private fun PanoConfig.Companion.EmailConfig.customCopy() = PanoConfig.Companion.CustomSmtpConfig(
+    sender = sender,
+    hostname = hostname,
+    port = port,
+    username = username,
+    password = password,
+    ssl = ssl,
+    starttls = starttls,
+    authMethods = authMethods
+)
+
+private fun PanoConfig.Companion.EmailConfig.restoreCustom(custom: PanoConfig.Companion.CustomSmtpConfig) {
+    sender = custom.sender
+    hostname = custom.hostname
+    port = custom.port
+    username = custom.username
+    password = custom.password
+    ssl = custom.ssl
+    starttls = custom.starttls
+    authMethods = custom.authMethods
 }

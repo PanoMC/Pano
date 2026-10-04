@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.setup
 
+import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.UIManager
 import com.panomc.platform.UpdateManager
@@ -36,7 +37,8 @@ class FinishAPI(
     private val updateManager: UpdateManager,
     private val mariaDBManager: MariaDBManager,
     private val logger: Logger,
-    @get:Lazy private val i18nManager: I18nManager
+    @get:Lazy private val i18nManager: I18nManager,
+    @get:Lazy private val panoHostManager: PanoHostManager
 ) : SetupApi() {
     override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
 
@@ -118,6 +120,8 @@ class FinishAPI(
         databaseManager.panelActivityLogDao.add(InstalledPlatformLog(userId, username), sqlClient)
 
         setupManager.finishSetup()
+
+        panoHostManager.announceCapabilities()
 
         try {
             updateManager.checkUpdates(true)

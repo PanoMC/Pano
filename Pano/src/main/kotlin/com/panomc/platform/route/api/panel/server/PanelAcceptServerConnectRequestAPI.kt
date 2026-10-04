@@ -50,9 +50,12 @@ class PanelAcceptServerConnectRequestAPI(
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(id, sqlClient)
+        val server = databaseManager.serverDao.getById(id, sqlClient) ?: throw NotExists()
 
-        if (!exists) {
+        // Managed servers never ask: Pano created them on a node it already trusts and wrote them
+        // approved, so there is no request here to answer and accepting one would only re-stamp
+        // the acceptance time of a server that has been running for weeks.
+        if (!server.isPendingApproval) {
             throw NotExists()
         }
 

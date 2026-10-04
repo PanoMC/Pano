@@ -15,7 +15,19 @@ open class PanelActivityLog(
 ) : DBEntity() {
     init {
         if (type == null) {
-            type = this::class.simpleName!!.removeSuffix("Log").convertToSnakeCase().uppercase()
+            type = typeOf(this::class.java)
         }
+    }
+
+    companion object {
+        /**
+         * The `type` a log class writes, without having to construct one.
+         *
+         * Same derivation the constructor uses, pulled out so a caller that needs to *query* for
+         * a type — the per-server activity feed does — asks the class instead of repeating the
+         * string it produces.
+         */
+        fun typeOf(logClass: Class<out PanelActivityLog>): String =
+            logClass.simpleName.removeSuffix("Log").convertToSnakeCase().uppercase()
     }
 }

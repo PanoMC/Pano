@@ -87,6 +87,54 @@
       "join-community": "Join our community and start your adventure today!",
       "register-support": "If you have any questions or need help getting started, don't hesitate to contact our support team.",
       "see-you-ingame": "We're excited to have you on board. See you in-game!"
+    },
+    "server-alert": {
+      "subject": "{{websiteName}} — Server alert",
+      "preview": "Server alert",
+      "alert-label": "Server alert",
+      "alert-details": "Alert Details:",
+      "server": "Server:",
+      "node": "Node:",
+      "occurred-at": "Occurred at:",
+      "alert-kind": "Type:",
+      "open-in-panel": "Open in panel",
+      "server-alert-notice": "You are receiving this e-mail because alert notifications are enabled for your account. You can turn them off from the panel notification settings.",
+      "support-contact": "If you have any questions, please contact our support team.",
+      "kinds": {
+        "server-crashed": {
+          "title": "Server stopped unexpectedly",
+          "message": "\"{{serverName}}\" stopped on its own.",
+          "message-with-exit-code": "\"{{serverName}}\" stopped on its own (exit code {{exitCode}}).",
+          "reason": "Last console line: {{reason}}"
+        },
+        "node-offline": {
+          "title": "Node went offline",
+          "message": "Node \"{{nodeName}}\" stopped answering.",
+          "message-with-servers": "Node \"{{nodeName}}\" stopped answering; {{serverCount}} server(s) are out of reach."
+        },
+        "backup-failed": {
+          "title": "Backup failed",
+          "message": "A backup of \"{{serverName}}\" failed.",
+          "error": "Error: {{error}}"
+        },
+        "disk-low": {
+          "title": "Disk space is running out",
+          "message": "Node \"{{nodeName}}\" is {{percent}}% full."
+        },
+        "tps-low": {
+          "title": "Server is running slowly",
+          "message": "\"{{serverName}}\" has been running at {{tps}} TPS."
+        },
+        "schedule-failed": {
+          "title": "Schedule failed",
+          "message": "Schedule \"{{scheduleName}}\" on \"{{serverName}}\" failed.",
+          "error": "Error: {{error}}"
+        },
+        "plugin-updates": {
+          "title": "Plugin updates available",
+          "message": "{{count}} plugin(s) on \"{{serverName}}\" have a newer version: {{names}}."
+        }
+      }
     }
   },
   "maintenance": {

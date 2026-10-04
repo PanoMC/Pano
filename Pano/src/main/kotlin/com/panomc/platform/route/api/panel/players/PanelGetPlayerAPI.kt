@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
@@ -12,6 +13,7 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.BanUtil
+import com.panomc.platform.util.UsageMode
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters.optionalParam
@@ -26,7 +28,8 @@ import kotlin.math.ceil
 class PanelGetPlayerAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val configManager: ConfigManager
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username", RouteType.GET))
 
@@ -93,7 +96,11 @@ class PanelGetPlayerAPI(
         result["banHistoryTotalPage"] = banHistoryTotalPage
         result["banHistory"] = databaseManager.banHistoryDao.getAllByUserIdAndPage(user.id, banHistoryPage, sqlClient)
 
-        if (!authProvider.hasPermission(ManageTicketsPermission(), context)) {
+        // Tickets are a website feature; a SERVERS install lists none (their endpoints answer 404).
+        if (
+            configManager.config.effectiveUsageMode !in UsageMode.WITH_WEBSITE ||
+            !authProvider.hasPermission(ManageTicketsPermission(), context)
+        ) {
             return Successful(result)
         }
 

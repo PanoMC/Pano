@@ -1,0 +1,45 @@
+{
+  "abi": "any",
+  "arch": "x86",
+  "archive_type": "tar.gz",
+  "availability_type": "CA",
+  "build_date": "2021-07-22T23:13:47",
+  "certifications": [
+    "tck"
+  ],
+  "cpu_gen": [],
+  "crac_supported": false,
+  "crs_supported": false,
+  "distro_version": [
+    16,
+    32,
+    15,
+    0
+  ],
+  "download_url": "https://cdn.azul.com/zulu/bin/zulu16.32.15-ca-jre16.0.2-linux_x64.tar.gz",
+  "hw_bitness": 64,
+  "java_package_features": [
+    "headfull"
+  ],
+  "java_package_type": "jre",
+  "java_version": [
+    16,
+    0,
+    2
+  ],
+  "javafx_bundled": false,
+  "last_modified": "2026-08-27T12:26:28",
+  "latest": true,
+  "lib_c_type": "glibc",
+  "md5_hash": "45796ca70abbf998719166ec512844a3",
+  "name": "zulu16.32.15-ca-jre16.0.2-linux_x64.tar.gz",
+  "openjdk_build_number": 7,
+  "os": "linux",
+  "package_uuid": "f8268574-977d-4b40-94f8-5a8f5ba0d777",
+  "product": "zulu",
+  "release_status": "ga",
+  "release_type": "PSU",
+  "sha256_hash": "a256bcf7383957e022433d5421affceea98a032dc11763249f6944f836eadb73",
+  "size": 49665100,
+  "support_term": "sts"
+}

@@ -6,6 +6,7 @@ import com.panomc.platform.annotation.Migration
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.dao.*
 import com.panomc.platform.error.PlatformAlreadyInstalled
+import com.panomc.platform.hosted.HostedEnvConfig
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLBuilder
@@ -41,6 +42,16 @@ class DatabaseManager(
     @Lazy val tokenDao: TokenDao,
     @Lazy val notificationDao: NotificationDao,
     @Lazy val serverPlayerDao: ServerPlayerDao,
+    @Lazy val serverMetricDao: ServerMetricDao,
+    @Lazy val serverMetricDailyDao: ServerMetricDailyDao,
+    @Lazy val nodeDao: NodeDao,
+    @Lazy val serverTaskDao: ServerTaskDao,
+    @Lazy val serverBackupDao: ServerBackupDao,
+    @Lazy val serverScheduleDao: ServerScheduleDao,
+    @Lazy val serverScheduleTaskDao: ServerScheduleTaskDao,
+    @Lazy val serverAlertDao: ServerAlertDao,
+    @Lazy val serverPluginInstallDao: ServerPluginInstallDao,
+    @Lazy val nodePendingDeletionDao: NodePendingDeletionDao,
     @Lazy val resourceHashDao: ResourceHashDao,
     @Lazy val panelActivityLogDao: PanelActivityLogDao,
     @Lazy val localeDao: LocaleDao,
@@ -109,7 +120,7 @@ class DatabaseManager(
             connectOptions.password = databaseConfig.password
 
         val poolOptions = PoolOptions()
-            .setMaxSize(100)
+            .setMaxSize(HostedEnvConfig.current.dbPoolSize)
 
         sqlClient = MySQLBuilder.pool()
             .with(poolOptions)

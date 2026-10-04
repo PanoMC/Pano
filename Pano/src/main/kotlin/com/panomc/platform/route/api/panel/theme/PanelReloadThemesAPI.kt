@@ -10,6 +10,7 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelReloadThemesAPI(
@@ -17,6 +18,8 @@ class PanelReloadThemesAPI(
     private val uiManager: UIManager,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/themes", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null

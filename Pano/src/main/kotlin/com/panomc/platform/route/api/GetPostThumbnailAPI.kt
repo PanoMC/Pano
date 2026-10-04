@@ -15,9 +15,12 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.File
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class GetPostThumbnailAPI(private val configManager: ConfigManager) : Api() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/post/thumbnail/:filename", RouteType.GET))
 
     companion object {

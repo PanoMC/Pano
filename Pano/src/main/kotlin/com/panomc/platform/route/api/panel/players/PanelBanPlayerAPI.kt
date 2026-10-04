@@ -1,22 +1,10 @@
 package com.panomc.platform.route.api.panel.players
 
-
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.PermissionManager
-import com.panomc.platform.auth.panel.log.BannedPlayerLog
+import com.panomc.platform.auth.PlayerBanService
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
-import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.BanHistory
-import com.panomc.platform.error.*
-import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.templates.BannedMail
 import com.panomc.platform.model.*
-import com.panomc.platform.server.ServerManager
-import com.panomc.platform.server.message.BanPlayerMessage
-import com.panomc.platform.token.TokenProvider
-import com.panomc.platform.token.AuthenticationTokenType
-import com.panomc.platform.util.BanUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -29,11 +17,7 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 @Endpoint
 class PanelBanPlayerAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager,
-    private val mailManager: MailManager,
-    private val tokenProvider: TokenProvider,
-    private val serverManager: ServerManager,
-    private val permissionManager: PermissionManager
+    private val playerBanService: PlayerBanService
 ) : PanelApi() {
     override val paths = listOf(Path("/api/panel/players/:username/ban", RouteType.POST))
 
@@ -57,94 +41,15 @@ class PanelBanPlayerAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val username = parameters.pathParameter("username").string
-
-        val sendNotification = data.getBoolean("sendNotification") ?: false
-        val banMessage = data.getString("banMessage")
-        val duration = data.getLong("duration")
-
-        val sqlClient = getSqlClient()
-
-        if (!banMessage.isNullOrBlank() && banMessage.length > 255) {
-            throw BadRequest()
-        }
-
-        val exists = databaseManager.userDao.existsByUsername(username, sqlClient)
-
-        if (!exists) {
-            throw NotExists()
-        }
-
-        val userId =
-            databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
-        val authUserId = authProvider.getUserIdFromRoutingContext(context)
-
-        if (userId == authUserId) {
-            throw CantBanYourself()
-        }
-
-        val player = databaseManager.userDao.getById(userId, sqlClient)!!
-
-        if (BanUtil.isBanned(player)) {
-            throw AlreadyBanned()
-        }
-
-        val isUserAdmin = authProvider.isUserAdmin(userId)
-
-        if (isUserAdmin) {
-            val isAdmin = context.get<Boolean>("isAdmin") ?: false
-
-            if (!isAdmin) {
-                throw NoPermission()
-            }
-
-            val usersInAdminGroup = permissionManager.getUserIdsWithNode("*")
-
-            if (usersInAdminGroup.size == 1) {
-                throw LastAdmin()
-            }
-        }
-
-        val authUsername = databaseManager.userDao.getUsernameFromUserId(authUserId, sqlClient)!!
-
-        databaseManager.userDao.banPlayer(userId, banMessage, duration, sqlClient)
-        databaseManager.banHistoryDao.add(
-            BanHistory(
-                userId = userId,
-                reason = banMessage,
-                emailNotified = sendNotification,
-                bannedUntil = duration,
-                bannedBy = authUsername,
-                bannedBySystem = false,
-                source = "PANEL"
-            ), sqlClient
+        playerBanService.ban(
+            username = parameters.pathParameter("username").string,
+            issuerId = authProvider.getUserIdFromRoutingContext(context),
+            issuerIsAdmin = context.get<Boolean>("isAdmin") ?: false,
+            reason = data.getString("banMessage"),
+            bannedUntil = data.getLong("duration"),
+            sendNotification = data.getBoolean("sendNotification") ?: false,
+            sqlClient = getSqlClient()
         )
-
-        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
-
-        databaseManager.panelActivityLogDao.add(
-            BannedPlayerLog(
-                authUserId,
-                authUsername,
-                username,
-                banMessage ?: "unknown",
-                duration ?: 0L,
-                (duration ?: 0L) == 0L,
-                false
-            ), sqlClient
-        )
-
-        val serverPlayerList = databaseManager.serverPlayerDao.getByUsername(username, sqlClient)
-
-        serverPlayerList.forEach { serverPlayer ->
-            val server = serverManager.connectedServers.keys.firstOrNull { it.id == serverPlayer.serverId } ?: return@forEach
-
-            serverManager.sendMessage(BanPlayerMessage(username,  player.localeCode, banMessage, duration), server)
-        }
-
-        if (sendNotification) {
-            mailManager.sendMail(sqlClient, userId, BannedMail(player.username, banMessage, duration))
-        }
 
         return Successful()
     }

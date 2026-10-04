@@ -10,6 +10,15 @@ object HashUtil {
     fun InputStream.hash() =
         String.format("%064x", BigInteger(1, MessageDigest.getInstance("SHA-256").digest(IOUtils.toByteArray(this))))
 
+    private val SHA256_HEX = Regex("^[0-9a-fA-F]{64}$")
+
+    /**
+     * The hash out of a `sha256sum`-style file (`<hex>  <file name>`, or the bare hex), lowercased;
+     * null when the first token is not a SHA-256.
+     */
+    fun parseSha256File(body: String?): String? =
+        body?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.takeIf { SHA256_HEX.matches(it) }?.lowercase()
+
     fun verifyFileHash(file: File, expectedHash: String): Boolean {
         if (!file.exists() || !file.isFile) return false
 

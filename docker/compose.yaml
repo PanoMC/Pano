@@ -1,0 +1,44 @@
+# Pano with MariaDB, the self-host Docker install (docs mirror this file 1:1).
+#   echo "PANO_DB_PASSWORD=$(openssl rand -hex 24)" > .env
+#   docker compose up -d        # then open http://<server>:8088 and finish the setup wizard
+# PANO_TAG picks the image tag (latest, beta, alpha or a version such as 1.0.0), PANO_PORT the host port.
+# latest = newest stable release, or the most stable prerelease channel until 1.0.0 ships.
+name: pano
+
+services:
+  pano:
+    image: ghcr.io/panomc/pano:${PANO_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PANO_DB_HOST: db
+      PANO_DB_PORT: "3306"
+      PANO_DB_NAME: pano
+      PANO_DB_USER: pano
+      PANO_DB_PASSWORD: ${PANO_DB_PASSWORD:?set PANO_DB_PASSWORD in .env}
+    ports:
+      - "${PANO_PORT:-8088}:8088"
+    volumes:
+      - pano-data:/data
+
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: pano
+      MARIADB_USER: pano
+      MARIADB_PASSWORD: ${PANO_DB_PASSWORD:?set PANO_DB_PASSWORD in .env}
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - db-data:/var/lib/mysql
+
+volumes:
+  pano-data:
+  db-data:

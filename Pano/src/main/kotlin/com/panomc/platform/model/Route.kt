@@ -2,6 +2,7 @@ package com.panomc.platform.model
 
 import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.util.UsageMode
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
@@ -18,6 +19,15 @@ abstract class Route {
     }
 
     open val order = 1
+
+    /**
+     * The usage modes this route exists in. Anything narrower than [UsageMode.ALL] makes
+     * [com.panomc.platform.route.RouterProvider] put a gate in front of it that answers 404 while
+     * the install runs in another mode -- read per request, so switching the mode in the panel
+     * takes effect without a restart. The website's own features declare
+     * [UsageMode.WITH_WEBSITE]: a SERVERS install has no posts, tickets or themes to serve.
+     */
+    open val usageModes: Set<UsageMode> = UsageMode.ALL
 
     abstract val paths: List<Path>
 

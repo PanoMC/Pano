@@ -83,7 +83,7 @@ class WebsiteWebSocketAPI(
     }
 
     private fun onWebSocketOpen(socket: ServerWebSocket, userId: Long) {
-        panelRealtimeHub.register(socket, userId, canManageServers = false)
+        panelRealtimeHub.register(socket, userId, canManageServers = false, canManageNodes = false)
         try {
             socket.writeTextMessage(
                 JsonObject()

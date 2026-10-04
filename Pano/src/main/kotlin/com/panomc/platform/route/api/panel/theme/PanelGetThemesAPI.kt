@@ -21,6 +21,7 @@ import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import java.io.File
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelGetThemesAPI(
@@ -30,6 +31,8 @@ class PanelGetThemesAPI(
     private val updateManager: UpdateManager,
     private val licenseManager: LicenseManager
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/themes", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

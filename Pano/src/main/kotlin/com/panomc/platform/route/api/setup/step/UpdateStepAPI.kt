@@ -4,6 +4,7 @@ import com.panomc.platform.AppConstants.DEFAULT_LOCALES
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
+import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.mail.StartTLSOptions
@@ -30,6 +31,7 @@ class UpdateStepAPI(
                         .optionalProperty("step", intSchema())
 
                         .optionalProperty("locale", stringSchema())
+                        .optionalProperty("usageMode", enumSchema("WEBSITE", "SERVERS", "BOTH"))
 
                         .optionalProperty("websiteName", stringSchema())
                         .optionalProperty("websiteDescription", stringSchema())
@@ -80,6 +82,7 @@ class UpdateStepAPI(
         val step = data.getInteger("step")
 
         val locale = data.getString("locale")
+        val usageMode = data.getString("usageMode")
 
         val websiteName = data.getString("websiteName")
         val websiteDescription = data.getString("websiteDescription")
@@ -118,19 +121,33 @@ class UpdateStepAPI(
         if (clientStep == 0 && !locale.isNullOrEmpty() && DEFAULT_LOCALES.any { it.code == locale }) {
             configManager.config.locale = locale
 
+            if (!usageMode.isNullOrBlank()) {
+                configManager.config.usageMode = UsageMode.valueOf(usageMode)
+            }
+
             return true
         }
 
+        // In SERVERS mode the wizard hides the description field — there is no site to describe —
+        // so an absent/blank value is accepted and the name is stored in its place.
+        val isServersOnly = configManager.config.effectiveUsageMode == UsageMode.SERVERS
+
         if (clientStep == 1 &&
             !websiteName.isNullOrEmpty() &&
-            !websiteDescription.isNullOrEmpty() &&
+            (!websiteDescription.isNullOrEmpty() || isServersOnly) &&
             !websiteUrl.isNullOrEmpty()
         ) {
             configManager.config.websiteName = websiteName
-            configManager.config.websiteDescription = websiteDescription
+            configManager.config.websiteDescription =
+                if (websiteDescription.isNullOrBlank()) websiteName else websiteDescription
             configManager.config.websiteUrl = WebsiteUrlUtil.normalize(websiteUrl)
 
             configManager.saveConfig()
+            return true
+        }
+
+        // Env-managed database (Pano Host): nothing to store, the step only advances.
+        if (clientStep == 2 && setupManager.isDatabaseManaged()) {
             return true
         }
 
@@ -147,13 +164,20 @@ class UpdateStepAPI(
                 databaseOptions.type = dbType
             }
 
+            // Before host/name/username change: an empty password keeps an env-seeded one.
+            val newPassword = setupManager.databasePasswordFor(host, dbName, username, password)
             databaseOptions.host = host
             databaseOptions.name = dbName
             databaseOptions.username = username
-            databaseOptions.password = if (password.isNullOrEmpty()) "" else password
+            databaseOptions.password = newPassword
             databaseOptions.prefix = if (prefix.isNullOrEmpty()) "" else prefix
             configManager.saveConfig()
 
+            return true
+        }
+
+        // Env-managed mail relay (Pano Host): the env wins on every boot, so nothing is stored.
+        if (clientStep == 3 && setupManager.isMailManaged()) {
             return true
         }
 

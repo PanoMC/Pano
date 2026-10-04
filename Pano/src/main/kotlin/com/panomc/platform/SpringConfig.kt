@@ -2,19 +2,25 @@ package com.panomc.platform
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DBEntity
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.notification.NotificationType
 import com.panomc.platform.notification.NotificationTypeDeserializer
+import com.panomc.platform.node.NodeResourcesDeserializer
+import com.panomc.platform.node.dto.NodeResources
 import com.panomc.platform.notification.ServerSettingsDeserializer
 import com.panomc.platform.token.TokenType
 import com.panomc.platform.token.TokenTypeAdapter
 import com.panomc.platform.token.TokenTypeRegistry
 import com.panomc.platform.route.RouterProvider
+import com.panomc.platform.update.LastGoodReleaseStore
+import com.panomc.platform.update.ReleaseLookup
 import com.panomc.platform.util.deserializer.BooleanDeserializer
 import com.panomc.platform.util.deserializer.JsonObjectDeserializer
 import com.panomc.platform.util.deserializer.LenientListLongAdapterFactory
 import com.panomc.platform.util.deserializer.LenientListStringAdapterFactory
+import com.panomc.platform.util.deserializer.LenientMapStringAdapterFactory
 import de.triology.recaptchav2java.ReCaptcha
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpClient
@@ -98,6 +104,17 @@ open class SpringConfig {
     @Bean
     @Lazy
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+    open fun provideReleaseLookup(webClient: WebClient, configManager: ConfigManager): ReleaseLookup = ReleaseLookup(
+        webClient = webClient,
+        logger = logger,
+        store = LastGoodReleaseStore(LastGoodReleaseStore.defaultFile()),
+        panoApiUrl = { configManager.config.panoApiUrl },
+        updateSource = { configManager.config.effectiveUpdateSource }
+    )
+
+    @Bean
+    @Lazy
+    @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     open fun provideSchemeParser(vertx: Vertx): SchemaRepository =
         SchemaRepository.create(JsonSchemaOptions().setBaseUri("https://panomc.com").setDraft(Draft.DRAFT7))
 
@@ -169,12 +186,14 @@ open class SpringConfig {
 
         builder.registerTypeAdapterFactory(LenientListLongAdapterFactory())
         builder.registerTypeAdapterFactory(LenientListStringAdapterFactory())
+        builder.registerTypeAdapterFactory(LenientMapStringAdapterFactory())
         builder.registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
         builder.registerTypeAdapter(java.lang.Boolean::class.java, BooleanDeserializer())
         builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
         builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer())
         builder.registerTypeAdapter(TokenType::class.java, TokenTypeAdapter(tokenTypeRegistry))
         builder.registerTypeAdapter(Server.Companion.ServerSettings::class.java, ServerSettingsDeserializer())
+        builder.registerTypeAdapter(NodeResources::class.java, NodeResourcesDeserializer())
 
         val gson = builder.create()
 

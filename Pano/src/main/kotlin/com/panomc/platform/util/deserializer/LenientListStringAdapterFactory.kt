@@ -6,6 +6,7 @@ import com.google.gson.TypeAdapter
 import com.google.gson.TypeAdapterFactory
 import com.google.gson.reflect.TypeToken
 import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
 import java.lang.reflect.ParameterizedType
 
@@ -25,6 +26,15 @@ class LenientListStringAdapterFactory : TypeAdapterFactory {
             }
 
             override fun read(reader: JsonReader): T {
+                // A NULL column (row written by an older Pano before the migration backfill, or a
+                // hand-edited value) must not land as a real null inside a non-null Kotlin List:
+                // entities are allocated via Unsafe, so the field default never applies and the
+                // first `.contains` call would NPE. Read it as an empty list instead.
+                if (reader.peek() == JsonToken.NULL) {
+                    reader.nextNull()
+                    return emptyList<String>() as T
+                }
+
                 return try {
                     delegate.read(reader)
                 } catch (e: IllegalStateException) {

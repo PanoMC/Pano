@@ -13,12 +13,15 @@ import io.vertx.ext.web.validation.builder.Parameters.param
 import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class GetTicketMessagesAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : LoggedInApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/tickets/:id/messages", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

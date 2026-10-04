@@ -1,0 +1,161 @@
+package com.panomc.platform.hosted
+
+import io.vertx.core.Vertx
+import io.vertx.core.http.HttpServer
+import io.vertx.core.json.JsonObject
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+
+/**
+ * Stand-in for W3's `HostHandoffAPI` on an 18xxx port: Parsek envelopes, bearer instance secret,
+ * single-use tickets burnt on presentation, unknown body keys rejected.
+ */
+class FakeControlPlane(private val vertx: Vertx, val secret: String, private val prefix: String = "/api") {
+    data class Seen(val path: String, val authorization: String?, val body: JsonObject?)
+
+    val requests = CopyOnWriteArrayList<Seen>()
+    val tickets = ConcurrentHashMap<String, JsonObject>()
+    var ssoSupported: Boolean? = null
+    var notices = io.vertx.core.json.JsonArray()
+
+    /** `manageUrl` of the notice feed; null leaves it out (an older control plane). */
+    var manageUrl: String? = null
+
+    /** `websiteUrl` / `platformApiUrl` of the notice feed; null leaves them out (an older control plane). */
+    var websiteUrl: String? = null
+    var platformApiUrl: String? = null
+
+    /** Next N capability calls answer 503 (to exercise the retry loop). */
+    val failCapabilities = AtomicInteger(0)
+
+    /** Pre-W18 control plane: capabilities only accepts `{ssoSupported}`. */
+    var legacyCapabilities = false
+    var setupCompleted: Boolean? = null
+
+    /** Pre-W22 control plane: capabilities rejects `admins`. */
+    var legacyAdmins = false
+    var admins: List<String>? = null
+
+    /** `POST /host/instance/bootstrap` answer: status + `data` (ok) or error code. */
+    var bootstrapStatus = 404
+    var bootstrapData: JsonObject? = null
+    var bootstrapError = "NO_BOOTSTRAP"
+
+    /** Next N bootstrap calls answer 503. */
+    val failBootstrap = AtomicInteger(0)
+
+    /** Handover codes `/platform/authorize` accepts once → the platform row it answers with. */
+    val platformCodes = ConcurrentHashMap<String, JsonObject>()
+
+    private lateinit var server: HttpServer
+    var port = 0
+        private set
+
+    val baseUrl get() = "http://127.0.0.1:$port$prefix"
+
+    fun start(): FakeControlPlane {
+        val handler = { req: io.vertx.core.http.HttpServerRequest ->
+            req.body().onSuccess { buffer ->
+                val body = runCatching { buffer.toJsonObject() }.getOrNull()
+                val auth = req.getHeader("Authorization")
+                requests += Seen(req.path(), auth, body)
+
+                fun reply(status: Int, json: JsonObject) =
+                    req.response().setStatusCode(status).putHeader("content-type", "application/json").end(json.encode())
+
+                fun error(status: Int, code: String) = reply(status, JsonObject().put("result", "error").put("error", code))
+                fun ok(data: JsonObject) = reply(200, JsonObject().put("result", "ok").put("data", data))
+
+                when {
+                    req.path() == "$prefix/host/instance/notices" && req.method().name() == "GET" ->
+                        if (auth != "Bearer $secret") error(401, "INVALID_TOKEN") else ok(JsonObject().put("notices", notices).apply {
+                            manageUrl?.let { put("manageUrl", it) }
+                            websiteUrl?.let { put("websiteUrl", it) }
+                            platformApiUrl?.let { put("platformApiUrl", it) }
+                        })
+                    req.path() == "$prefix/platform/authorize" -> {
+                        val code = body?.getString("code")
+                        val version = body?.getString("version")
+                        if (auth != null || body?.fieldNames() != setOf("code", "version") || version == null || version.length !in 5..17) {
+                            error(400, "BAD_REQUEST")
+                        } else platformCodes.remove(code)?.let { ok(it) } ?: error(400, "INVALID_CODE")
+                    }
+                    req.path() !in setOf(
+                        "$prefix/host/sso/redeem",
+                        "$prefix/host/instance/capabilities",
+                        "$prefix/host/instance/bootstrap"
+                    ) -> error(404, "NOT_EXISTS")
+                    body == null -> error(400, "BAD_REQUEST")
+                    auth != "Bearer $secret" -> error(401, "INVALID_TOKEN")
+                    req.path().endsWith("/bootstrap") -> when {
+                        body.fieldNames().isNotEmpty() -> error(400, "BAD_REQUEST")
+                        failBootstrap.getAndDecrement() > 0 -> error(503, "UNAVAILABLE")
+                        bootstrapStatus == 200 -> ok(bootstrapData!!.copy())
+                        else -> error(bootstrapStatus, bootstrapError)
+                    }
+                    req.path().endsWith("/capabilities") -> {
+                        val allowed = when {
+                            legacyCapabilities -> setOf(setOf("ssoSupported"))
+                            legacyAdmins -> setOf(setOf("ssoSupported"), setOf("ssoSupported", "setupCompleted"))
+                            else -> setOf(
+                                setOf("ssoSupported"), setOf("ssoSupported", "setupCompleted"),
+                                setOf("ssoSupported", "admins"), setOf("ssoSupported", "setupCompleted", "admins")
+                            )
+                        }
+                        if (body.fieldNames() !in allowed) error(400, "BAD_REQUEST")
+                        else if (failCapabilities.getAndDecrement() > 0) error(503, "UNAVAILABLE")
+                        else {
+                            ssoSupported = body.getBoolean("ssoSupported")
+                            body.getBoolean("setupCompleted")?.let { setupCompleted = it }
+                            body.getJsonArray("admins")?.let { admins = it.map { a -> a.toString() } }
+                            ok(JsonObject().put("ssoSupported", ssoSupported).put("setupCompleted", setupCompleted == true))
+                        }
+                    }
+                    else -> {
+                        if (body.fieldNames() != setOf("ticket")) error(400, "BAD_REQUEST")
+                        else tickets.remove(body.getString("ticket"))?.let { ok(it) } ?: error(401, "INVALID_TOKEN")
+                    }
+                }
+            }
+            Unit
+        }
+
+        for (candidate in 18400..18499) {
+            val result = runCatching {
+                vertx.createHttpServer().requestHandler(handler).listen(candidate, "127.0.0.1")
+                    .toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS)
+            }
+            if (result.isSuccess) {
+                server = result.getOrThrow()
+                port = candidate
+                return this
+            }
+        }
+
+        error("no free 18xxx port")
+    }
+
+    fun issue(
+        ticket: String,
+        accountId: String,
+        email: String,
+        role: String = "owner",
+        workloadId: String = "w1",
+        adminUsername: String? = null
+    ) {
+        tickets[ticket] = JsonObject()
+            .put("accountId", accountId)
+            .put("email", email)
+            .put("username", email.substringBefore('@'))
+            .put("role", role)
+            .put("workloadId", workloadId)
+            .put("hostname", "shop.panomc.site")
+            .also { json -> adminUsername?.let { json.put("adminUsername", it) } }
+    }
+
+    fun stop() {
+        server.close().toCompletionStage().toCompletableFuture().get(5, TimeUnit.SECONDS)
+    }
+}

@@ -1,0 +1,41 @@
+{
+  "0b8d0d1a1e6e1b1a6d7c3a4c9c0a9f0f0e2b3c4d": {
+    "id": "5ecaFcKz",
+    "project_id": "hXiIvTyT",
+    "author_id": "JZA4dW8o",
+    "featured": false,
+    "name": "EssentialsX 2.21.2",
+    "version_number": "2.21.2",
+    "changelog": "Bug fixes.",
+    "date_published": "2025-03-26T19:26:15.171883Z",
+    "downloads": 143523,
+    "version_type": "release",
+    "status": "listed",
+    "files": [
+      {
+        "hashes": {
+          "sha1": "0b8d0d1a1e6e1b1a6d7c3a4c9c0a9f0f0e2b3c4d",
+          "sha512": "b6c2e0a0b1a1f2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b"
+        },
+        "url": "https://cdn.modrinth.com/data/hXiIvTyT/versions/5ecaFcKz/EssentialsX-2.21.2.jar",
+        "filename": "EssentialsX-2.21.2.jar",
+        "primary": true,
+        "size": 2129480,
+        "file_type": null
+      }
+    ],
+    "loaders": ["bukkit", "paper", "spigot"],
+    "game_versions": ["1.21.4", "1.21.5"]
+  },
+  "1f2e3d4c5b6a79880123456789abcdef01234567": {
+    "id": "Qt4lmnOP",
+    "project_id": "1u6JkXh5",
+    "name": "WorldEdit 7.3.9",
+    "version_number": "7.3.9",
+    "date_published": "2025-01-02T08:00:00Z",
+    "version_type": "beta",
+    "files": [],
+    "loaders": ["bukkit"],
+    "game_versions": ["1.21.4"]
+  }
+}

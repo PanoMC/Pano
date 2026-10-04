@@ -2,6 +2,7 @@
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.io.FileInputStream
+import java.security.MessageDigest
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
@@ -93,8 +94,17 @@ dependencies {
 
     implementation("com.typesafe:config:1.4.3")
 
+    // Cron parsing, validation and next-run calculation for server schedules. The node ships the
+    // same library so both sides agree on what an expression means, down to the DST edge cases.
+    implementation("com.cronutils:cron-utils:9.2.1")
+
     // https://mvnrepository.com/artifact/org.imgscalr/imgscalr-lib
     implementation("org.imgscalr:imgscalr-lib:4.2")
+
+    // WebP decoding for the server icon upload (ImageIO has no WebP reader of its own). Read-only,
+    // pure Java; registered explicitly in ServerIconImage because the fat jar does not merge
+    // META-INF/services files.
+    implementation("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
 
     // Let's Encrypt / ACME
     implementation("org.shredzone.acme4j:acme4j-client:3.5.0")
@@ -111,6 +121,10 @@ dependencies {
 
     // LuckPerms Migration support (H2 database — must use 2.1.x to read LP's format-2 files)
     implementation("com.h2database:h2:2.1.214")
+
+    // SSH client for bootstrapping a node on a remote host from the panel. Pure Java, so there
+    // is no dependency on an ssh binary being present on the machine Pano runs on.
+    implementation("com.hierynomus:sshj:0.39.0")
 
     // Password hashing
     implementation("de.mkammerer:argon2-jvm:2.11")
@@ -349,6 +363,46 @@ tasks {
 
         enabled = false
     }
+
+    // build/libs/Pano-<version>.jar.sha256, published next to the jar: the Pano Host control plane and
+    // the Portal agent refuse a release jar they cannot verify (sha256sum format, `sha256sum -c` works).
+    register("panoJarChecksum") {
+        dependsOn(shadowJar)
+        mustRunAfter("copyJar")
+
+        val jarFile = shadowJar.flatMap { it.archiveFile }
+        val checksumFile = jarFile.map { File(buildDir, it.asFile.name + ".sha256") }
+
+        inputs.file(jarFile)
+        outputs.file(checksumFile)
+
+        doLast {
+            val jar = jarFile.get().asFile
+            val digest = MessageDigest.getInstance("SHA-256")
+
+            jar.inputStream().use { stream ->
+                val buffer = ByteArray(1 shl 16)
+
+                while (true) {
+                    val read = stream.read(buffer)
+
+                    if (read <= 0) {
+                        break
+                    }
+
+                    digest.update(buffer, 0, read)
+                }
+            }
+
+            val out = checksumFile.get()
+            out.parentFile.mkdirs()
+            out.writeText(digest.digest().joinToString("") { "%02x".format(it) } + "  " + jar.name + "\n")
+        }
+    }
+
+    named("build") {
+        dependsOn("panoJarChecksum")
+    }
 }
 
 tasks.named<JavaExec>("run") {
@@ -420,9 +474,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     }
 }
 
-// Ensure Pano's processResources waits for the Updater zip to be produced and copied
+// Ensure Pano's processResources waits for the Updater and pano-node zips to be produced and copied
 tasks.named<ProcessResources>("processResources") {
     dependsOn(":Updater:copyUpdaterZip")
+    dependsOn(":Node:copyNodeZip")
 
     // Only depend on generateLicenses for build and buildDev tasks, not for run task
     if (!project.gradle.startParameter.taskNames.contains("run")) {

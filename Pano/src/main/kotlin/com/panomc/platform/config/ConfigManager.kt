@@ -2,6 +2,7 @@ package com.panomc.platform.config
 
 import com.panomc.platform.Main.Companion.IS_DEV
 import com.panomc.platform.annotation.Migration
+import com.panomc.platform.hosted.HostedEnvConfig
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
@@ -52,7 +53,25 @@ open class ConfigManager(
         }
 
         val json = JsonObject(configToPersist.toString())
-        configFile.writeText(HoconWriter.render(json, PanoConfig::class.java))
+        val text = HoconWriter.render(json, PanoConfig::class.java)
+        configFile.writeText(text)
+        lastWrittenText = text
+    }
+
+    // What saveConfig wrote last. The file listener polls on a worker thread, so a scan that read the file
+    // before a save can report that older content after it; reloading it would drop the save (seen on a
+    // first boot: a setup step PUT right after start was lost). A change is only reloaded when the file on
+    // disk is no longer what Pano itself wrote.
+    @Volatile
+    private var lastWrittenText: String? = null
+
+    /**
+     * Replaces the whole running config and writes it to config.conf (a restore). Going through here
+     * matters because Pano keeps the config in memory and writes it back on save.
+     */
+    fun replaceConfig(newConfig: JsonObject) {
+        updateConfig(newConfig)
+        saveConfig()
     }
 
     internal suspend fun init() {
@@ -60,6 +79,7 @@ open class ConfigManager(
             logger.warn("Config file not found, creating one...")
 
             updateConfig(JsonObject(defaultConfig.toString()))
+            applyEnv(creatingConfig = true)
             saveConfig()
             listenConfigFile()
 
@@ -67,7 +87,19 @@ open class ConfigManager(
         }
 
         try {
-            val configValues = configRetriever.config.coAwait()
+            val loaded = configRetriever.config.coAwait()
+
+            // A file with no `config-version` was not written by Pano: somebody made it by hand
+            // with the few keys they cared about (a port, a database). Every key it leaves out
+            // is filled from the defaults, or the missing sections are read as nulls and the
+            // boot dies on the first one it touches.
+            val configValues = if (loaded.containsKey("config-version")) {
+                loaded
+            } else {
+                logger.warn("The config file has no \"config-version\"; filling the keys it leaves out from the defaults.")
+
+                JsonObject(defaultConfig.toString()).mergeIn(loaded, true)
+            }
 
             updateConfig(configValues)
 
@@ -80,6 +112,7 @@ open class ConfigManager(
             logger.info("Saving & using default config!")
 
             updateConfig(JsonObject(defaultConfig.toString()))
+            applyEnv(creatingConfig = true)
             saveConfig()
             listenConfigFile()
 
@@ -90,11 +123,36 @@ open class ConfigManager(
 
         migrate()
 
+        if (applyEnv(creatingConfig = false)) {
+            saveConfig()
+        }
+
         listenConfigFile()
     }
 
     lateinit var config: PanoConfig
         private set
+
+    /** Replaceable in tests; the process environment otherwise. */
+    internal var envConfig: HostedEnvConfig = HostedEnvConfig.current
+
+    /**
+     * Writes container env (DB, SMTP, HTTP port, hosted trusted proxies) into [config]: every boot on
+     * Pano Host, only while creating the file elsewhere. Returns whether anything changed; logs key
+     * names only, never values.
+     */
+    internal fun applyEnv(creatingConfig: Boolean): Boolean {
+        if (!envConfig.shouldApply(creatingConfig)) return false
+
+        val changed = envConfig.apply(config, creatingConfig)
+
+        if (changed.isNotEmpty()) {
+            logger.info("Applied environment to config: ${changed.joinToString(", ")}")
+            configJsonObject = JsonObject(config.toString())
+        }
+
+        return changed.isNotEmpty()
+    }
 
     /** Values last read from disk (or defaults), before `--dev` runtime overrides to Pano dev hosts. */
     private var persistedPanoApiUrl: String = PanoConfig.PANO_API_URL_PRODUCTION
@@ -119,7 +177,10 @@ open class ConfigManager(
 
     private val options = ConfigRetrieverOptions().addStore(fileStore)
 
-    private val configRetriever = ConfigRetriever.create(vertx, options)
+    // Created on first use, not with the bean: a retriever scans its file from creation on, and on a first boot
+    // the file only exists once init() writes it (a slow container boot scanned before that and logged
+    // "Unable to read file at path 'config.conf'").
+    private val configRetriever by lazy { ConfigRetriever.create(vertx, options) }
 
     private fun migrate(
         configVersion: Int = configJsonObject.getInteger("config-version"),
@@ -158,6 +219,9 @@ open class ConfigManager(
         logger.info("Started to listen config file changes.")
 
         configRetriever.listen { change ->
+            val onDisk = runCatching { configFile.readText() }.getOrNull()
+            if (onDisk != null && onDisk == lastWrittenText) return@listen
+
             if (change.previousConfiguration.encode() != change.newConfiguration.encode()) {
                 logger.info("Config is updated, reloading...")
             }

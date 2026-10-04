@@ -6,6 +6,7 @@ import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InvalidToken
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerAuthProvider
+import com.panomc.platform.server.ServerManager
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
@@ -14,7 +15,8 @@ import io.vertx.json.schema.SchemaRepository
 class ServerDisconnectAPI(
     private val databaseManager: DatabaseManager,
     private val setupManager: SetupManager,
-    private val serverAuthProvider: ServerAuthProvider
+    private val serverAuthProvider: ServerAuthProvider,
+    private val serverManager: ServerManager
 ) : Api() {
     override val paths = listOf(Path("/api/server/disconnect", RouteType.POST))
 
@@ -57,7 +59,12 @@ class ServerDisconnectAPI(
 
         databaseManager.serverPlayerDao.deleteByServerId(serverId, sqlClient)
 
+        databaseManager.serverMetricDao.deleteByServerId(serverId, sqlClient)
+        databaseManager.serverMetricDailyDao.deleteByServerId(serverId, sqlClient)
+
         databaseManager.serverDao.deleteById(serverId, sqlClient)
+
+        serverManager.onServerDeleted(serverId)
 
         return Successful()
     }

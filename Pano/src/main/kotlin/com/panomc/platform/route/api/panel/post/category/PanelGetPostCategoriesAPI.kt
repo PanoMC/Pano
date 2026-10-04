@@ -17,12 +17,15 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import kotlin.math.ceil
+import com.panomc.platform.util.UsageMode
 
 @Endpoint
 class PanelGetPostCategoriesAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
+    override val usageModes = UsageMode.WITH_WEBSITE
+
     override val paths = listOf(Path("/api/panel/post/categories", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =

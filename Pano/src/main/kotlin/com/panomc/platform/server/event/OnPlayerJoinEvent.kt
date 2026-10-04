@@ -64,6 +64,7 @@ class OnPlayerJoinEvent(
         }
 
         panelRealtimeHub.notifyServerUpdated(server.id)
+        panelRealtimeHub.notifyServerPlayersUpdated(server.id)
 
         return null
     }

@@ -12,6 +12,7 @@ import com.panomc.platform.model.MaintenanceAccess
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
+import com.panomc.platform.node.ServerPluginStateService
 import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerAuthProvider
 import com.panomc.platform.server.ServerManager
@@ -31,7 +32,8 @@ class ServerConnectAPI(
     private val serverAuthProvider: ServerAuthProvider,
     private val serverManager: ServerManager,
     private val panelRealtimeHub: PanelRealtimeHub,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val serverPluginStateService: ServerPluginStateService
 ) : Api() {
     override val paths = listOf(Path("/api/server/connection", RouteType.GET))
 
@@ -69,6 +71,13 @@ class ServerConnectAPI(
         val webSocket = request.toWebSocket()
 
         webSocket.onSuccess {
+            // The plugin sends its first frames the instant the upgrade completes, and Vert.x drops
+            // a frame that arrives while no handler is set. Paused here, synchronously on the event
+            // loop, they queue until onConnectionEstablished has wired the handlers and resumes.
+            // Under load (a busy database, a compile on the same box) that gap was long enough to
+            // lose the plugin's settings request every time, and it reconnected in a loop.
+            it.pause()
+
             CoroutineScope(context.vertx().dispatcher()).launch {
                 onConnectionEstablished(context, it)
             }
@@ -97,7 +106,15 @@ class ServerConnectAPI(
 
         serverManager.onServerConnect(server, serverWebSocket)
 
+        // The node stops pinging this server's port now that something inside it can answer
+        // better (SM-52).
+        serverPluginStateService.push(server, true)
+
         panelRealtimeHub.notifyServerUpdated(server.id)
+
+        // A plugin always comes up with its console stream disabled, so the hub has to ask again
+        // for any panel that was already watching this server before it restarted.
+        panelRealtimeHub.onServerConnected(server.id)
 
         serverWebSocket.textMessageHandler {
             CoroutineScope(context.vertx().dispatcher()).launch {
@@ -110,6 +127,9 @@ class ServerConnectAPI(
                 onConnectionClosed(server, serverWebSocket)
             }
         }
+
+        // Only now: everything the plugin sent while this was being wired is delivered in order.
+        serverWebSocket.resume()
     }
 
     private suspend fun onConnectionClosed(server: Server, serverWebSocket: ServerWebSocket) {
@@ -123,6 +143,11 @@ class ServerConnectAPI(
         }
 
         serverManager.onServerDisconnect(server, serverWebSocket)
+
+        // And picks the pinging back up, which is the only player count left.
+        serverPluginStateService.push(server, false)
+
+        panelRealtimeHub.onServerDisconnected(server.id)
 
         if (serverExists) {
             panelRealtimeHub.notifyServerUpdated(server.id)

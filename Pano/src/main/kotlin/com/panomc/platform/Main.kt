@@ -11,10 +11,19 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.hosted.HostedAutoSetupRunner
+import com.panomc.platform.hosted.HostedEnvConfig
+import com.panomc.platform.hosted.PanoHostManager
+import com.panomc.platform.hosted.ContainerMode
+import com.panomc.platform.hosted.ProcessExit
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.route.RouterProvider
+import com.panomc.platform.node.LocalNodeManager
+import com.panomc.platform.node.NodeJarSync
+import com.panomc.platform.node.NodeManager
 import com.panomc.platform.server.ServerManager
+import com.panomc.platform.server.plugins.PluginUpdateSweeper
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.ssl.AcmeManager
 import com.panomc.platform.util.*
@@ -144,12 +153,18 @@ class Main : CoroutineVerticle() {
             // the same args (env marker prevents an infinite loop) and exits, so closing the
             // terminal/SSH session no longer kills the platform. GUI / -nogui is independent:
             // -bg alone still tries to open the Swing GUI, -bg -nogui stays headless.
-            if (bg && System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()) {
+            // In container mode the launcher owns the process (exit 75 = relaunch), so never detach.
+            val containerMode = ContainerMode.current.active
+            if (bg && containerMode) {
+                System.err.println("Ignoring -bg: Pano runs in container mode, the container launcher manages the process.")
+            }
+
+            if (bg && !containerMode && System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()) {
                 respawnDetachedAndExit(args)
                 return
             }
 
-            IS_BG = bg
+            IS_BG = bg && !containerMode
 
             if (!noGui) {
                 // Try GUI first; if it fails (headless or no display), do normal start.
@@ -186,7 +201,7 @@ class Main : CoroutineVerticle() {
                 if (!IS_BG) {
                     ConsoleInputReader.stop(true)
                 }
-                exitProcess(0)
+                processExit.exit()
             }
         }
 
@@ -199,6 +214,9 @@ class Main : CoroutineVerticle() {
         val commandManager = CommandManager()
 
         private val mainShutdownDeferred = CompletableDeferred<Unit>()
+
+        /** Exit code the main thread ends the JVM with (75 = container relaunch). */
+        val processExit = ProcessExit()
 
         fun signalMainShutdown() = mainShutdownDeferred.complete(Unit)
 
@@ -260,10 +278,15 @@ class Main : CoroutineVerticle() {
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
     private lateinit var acmeManager: AcmeManager
+    private lateinit var localNodeManager: LocalNodeManager
     private lateinit var databaseManager: DatabaseManager
     private val shutdownDeferred = CompletableDeferred<Unit>()
 
-    suspend fun shutdown(error: Boolean = false, exit: Boolean = true) {
+    /**
+     * Graceful shutdown. [exitCode] is what the JVM exits with afterwards (default 1 on [error], else 0);
+     * container mode passes [ContainerMode.EXIT_RESTART] so the launcher relaunches Pano.
+     */
+    suspend fun shutdown(error: Boolean = false, exit: Boolean = true, exitCode: Int = if (error) 1 else 0) {
         if (!isStopping.compareAndSet(false, true)) {
             // Wait for existing shutdown if requested
             try {
@@ -272,6 +295,7 @@ class Main : CoroutineVerticle() {
             return
         }
 
+        processExit.request(exitCode)
         logger.info("Gracefully shutting down Pano...")
 
         try {
@@ -292,7 +316,7 @@ class Main : CoroutineVerticle() {
             // we should manually exit after a delay if signal wasn't caught
             if (IS_GUI && exit) {
                 delay(1000)
-                exitProcess(if (error) 1 else 0)
+                processExit.exit()
             }
         }
     }
@@ -364,6 +388,16 @@ class Main : CoroutineVerticle() {
             uiManager.shutdown()
         }
 
+        // Only stops the daemon when the operator asked for that; by default the managed servers
+        // outlive a Pano restart.
+        if (::localNodeManager.isInitialized) {
+            try {
+                localNodeManager.shutdown()
+            } catch (e: Exception) {
+                logger.error("Failed to stop the local node", e)
+            }
+        }
+
         try {
             if (applicationContext.containsBean("mariaDBManager")) {
                 val mariaDBManager = applicationContext.getBean(MariaDBManager::class.java)
@@ -414,6 +448,12 @@ class Main : CoroutineVerticle() {
             initPlugins()
         }
 
+        syncHostedPanoUrls()
+
+        if (!isPlatformInstalled) {
+            isPlatformInstalled = runHostedAutoSetup()
+        }
+
         if (isPlatformInstalled) {
             initDatabaseManager()
 
@@ -421,11 +461,25 @@ class Main : CoroutineVerticle() {
 
             initServerManager()
 
+            initNodeManager()
+
+            initLocalNodeManager()
+
+            initPluginUpdateSweeper()
+
             initUpdateManager()
 
             initTelemetryManager()
 
+            initPanoHostManager()
+
             initOnlinePlayerTracker()
+
+            initServerMetricsRecorder()
+
+            initScheduleRunner()
+
+            initPanoBackupManager()
 
             initLicenseManager()
 
@@ -483,12 +537,74 @@ class Main : CoroutineVerticle() {
         telemetryManager.init()
     }
 
+    /**
+     * Pano Host first boot: finishes setup from the control plane's order-form answers (or prefills
+     * the installer) before the UI manager picks setup-ui or the panel/theme. True when setup is now done.
+     */
+    private suspend fun runHostedAutoSetup(): Boolean = try {
+        applicationContext.getBean(HostedAutoSetupRunner::class.java).run()
+    } catch (e: Throwable) {
+        if (e is VirtualMachineError) throw e
+        logger.error("Pano Host automatic setup failed, the installer runs: {}", e.javaClass.simpleName)
+        false
+    }
+
+    /**
+     * Pano Host only: takes the website and API addresses of this instance's environment before the
+     * installer or the panel start, so neither sends the owner to panomc.com from dev or local.
+     */
+    private suspend fun syncHostedPanoUrls() {
+        if (!HostedEnvConfig.current.isHosted) return
+
+        try {
+            applicationContext.getBean(PanoHostManager::class.java).syncPanoUrls()
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError) throw e
+            logger.warn("Pano Host: could not take the environment's addresses: {}", e.javaClass.simpleName)
+        }
+    }
+
+    /** Pano Host only: tells the control plane this instance supports panel SSO. */
+    private fun initPanoHostManager() {
+        val panoHostManager = applicationContext.getBean(PanoHostManager::class.java)
+
+        if (!panoHostManager.ssoEnabled) return
+
+        logger.info("Initializing Pano Host integration")
+
+        panoHostManager.announceCapabilities()
+    }
+
     private fun initOnlinePlayerTracker() {
         logger.info("Initializing online player tracker")
 
         val onlinePlayerTracker = applicationContext.getBean(OnlinePlayerTracker::class.java)
 
         onlinePlayerTracker.start()
+    }
+
+    private fun initServerMetricsRecorder() {
+        logger.info("Initializing server metrics recorder")
+
+        val serverMetricsRecorder =
+            applicationContext.getBean(com.panomc.platform.server.metrics.ServerMetricsRecorder::class.java)
+
+        serverMetricsRecorder.start()
+    }
+
+    private fun initScheduleRunner() {
+        logger.info("Initializing server schedule runner")
+
+        val scheduleRunner =
+            applicationContext.getBean(com.panomc.platform.server.schedule.ScheduleRunner::class.java)
+
+        scheduleRunner.start()
+    }
+
+    private fun initPanoBackupManager() {
+        logger.info("Initializing Pano Backup manager")
+
+        applicationContext.getBean(com.panomc.platform.backup.PanoBackupManager::class.java).start()
     }
 
     private fun initLicenseManager() {
@@ -618,6 +734,32 @@ class Main : CoroutineVerticle() {
         serverManager.init()
     }
 
+    private suspend fun initNodeManager() {
+        logger.info("Initializing node manager")
+
+        val nodeManager = applicationContext.getBean(NodeManager::class.java)
+
+        nodeManager.init()
+    }
+
+    private fun initPluginUpdateSweeper() {
+        logger.info("Initializing plugin update sweeper")
+
+        applicationContext.getBean(PluginUpdateSweeper::class.java).init()
+    }
+
+    private suspend fun initLocalNodeManager() {
+        logger.info("Initializing local node manager")
+
+        localNodeManager = applicationContext.getBean(LocalNodeManager::class.java)
+
+        localNodeManager.init()
+
+        // The daemon jar Pano hands to every node and Pano Agent has to be this release's, also on
+        // an install that runs no local node and right after Pano updated itself.
+        applicationContext.getBean(NodeJarSync::class.java).syncInBackground()
+    }
+
     private fun initRoutes() {
         logger.info("Initializing routes")
 
@@ -743,7 +885,15 @@ class Main : CoroutineVerticle() {
                     logWebServerReady("http", host, port)
                 }
             }.onFailure { result ->
-                val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}"
+                // A fresh install listens on 80, which an ordinary user may not bind: the reason
+                // alone ("Permission denied") does not say that the fix is one line of config.
+                val hint = if (port < 1024 && (result.message ?: "").contains("Permission denied", ignoreCase = true)) {
+                    " Ports below 1024 need root; set \"http-port\" under \"server\" in config.conf (for example 8088)."
+                } else {
+                    ""
+                }
+
+                val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}.$hint"
                 if (isSslEnabled) {
                     logger.warn(message)
                     UiConsole.markReady()

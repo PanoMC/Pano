@@ -17,6 +17,8 @@ import com.panomc.platform.util.Regexes
 import com.panomc.platform.util.TextUtil
 import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.core.http.Cookie
+import io.vertx.core.http.HttpMethod
+import java.security.MessageDigest
 import io.vertx.core.http.CookieSameSite
 import io.vertx.core.http.HttpServerRequest
 import io.vertx.core.http.HttpServerResponse
@@ -41,6 +43,8 @@ class AuthProvider(
     companion object {
         const val HEADER_PREFIX = "Bearer "
         private const val INSECURE_COOKIE_SUFFIX = "_http"
+
+        private val CSRF_SAFE_METHODS = setOf(HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS)
 
         /** Pending-session TTL: long enough for a slow 2FA challenge, short enough to limit replay. */
         private const val PENDING_SESSION_TTL_MS = 10L * 60L * 1000L
@@ -504,6 +508,27 @@ class AuthProvider(
             token
         } catch (exception: Exception) {
             null
+        }
+    }
+
+    /**
+     * Double-submit check for a request that changes something: the session cookie alone is not
+     * enough, the `X-CSRF-Token` header must repeat the CSRF cookie. A request that authenticates
+     * with an `Authorization` header (server-side rendering, API clients) carries no ambient
+     * credential and is exempt, as are the safe methods.
+     */
+    fun isCsrfSafe(routingContext: RoutingContext): Boolean {
+        val request = routingContext.request()
+
+        if (request.method() in CSRF_SAFE_METHODS || request.getHeader("Authorization") != null) {
+            return true
+        }
+
+        val header = request.getHeader(AppConstants.CSRF_HEADER)?.takeIf { it.isNotEmpty() } ?: return false
+        val cookies = parseCookies(request.getHeader("cookie") ?: "")
+
+        return listOf(getCsrfCookieName(true), getCsrfCookieName(false)).any { name ->
+            cookies[name]?.let { MessageDigest.isEqual(it.toByteArray(), header.toByteArray()) } == true
         }
     }
 

@@ -4,6 +4,7 @@ package com.panomc.platform.model
 import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.InvalidCsrfToken
 import com.panomc.platform.error.NoPermission
 import io.vertx.ext.web.RoutingContext
 
@@ -29,6 +30,10 @@ abstract class PanelApi : LoggedInApi() {
 
     override suspend fun onBeforeHandle(context: RoutingContext) {
         super.onBeforeHandle(context)
+
+        if (!authProvider.isCsrfSafe(context)) {
+            throw InvalidCsrfToken()
+        }
 
         if (!authProvider.hasAccessPanel(context)) {
             throw NoPermission()

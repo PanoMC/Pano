@@ -1,5 +1,6 @@
 package com.panomc.platform.db
 
+import com.panomc.platform.StartupFailure
 import com.panomc.platform.Main
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.annotation.Migration
@@ -130,13 +131,11 @@ class DatabaseManager(
 
         val pooledClient = sqlClient as Pool
 
-        pooledClient.connection.onFailure {
-            logger.error("Failed to connect database! Please check your configuration!")
-
-            it.printStackTrace()
-
-            System.exit(1)
-        }.coAwait().close().coAwait()
+        try {
+            pooledClient.connection.coAwait().close().coAwait()
+        } catch (e: Exception) {
+            throw StartupFailure("Failed to connect database! Please check your configuration!", e)
+        }
 
         return sqlClient
     }

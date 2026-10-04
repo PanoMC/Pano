@@ -189,7 +189,7 @@ class Main : CoroutineVerticle() {
                     ConsoleInputReader.stop(false)
                 }
 
-                logger.info("Pano is now stopped. Bye!")
+                logStopped()
 
                 // Final flush
                 System.out.flush()
@@ -219,6 +219,15 @@ class Main : CoroutineVerticle() {
         val processExit = ProcessExit()
 
         fun signalMainShutdown() = mainShutdownDeferred.complete(Unit)
+
+        private val stoppedLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        /** The goodbye line, once: both the verticle's stop() and the main thread reach it. */
+        private fun logStopped() {
+            if (stoppedLogged.compareAndSet(false, true)) {
+                logger.info("Pano is now stopped. Bye!")
+            }
+        }
 
         private val isStopping = java.util.concurrent.atomic.AtomicBoolean(false)
         fun isStopping() = isStopping.get()
@@ -358,6 +367,10 @@ class Main : CoroutineVerticle() {
             if (!isStopping()) {
                 runBlocking { shutdown(exit = false) }
             }
+
+            // Log4j's own shutdown hook is disabled (log4j2.properties): it ran next to this one
+            // and cut the log file off at "Gracefully shutting down". Close it once we are done.
+            org.apache.logging.log4j.LogManager.shutdown()
         })
     }
 
@@ -367,9 +380,33 @@ class Main : CoroutineVerticle() {
         )
         logger.info("Hello World!")
 
-        init()
+        hookShutdown()
 
-        startWebServer()
+        try {
+            init()
+
+            startWebServer()
+        } catch (e: Throwable) {
+            failStartup(e)
+        }
+    }
+
+    /**
+     * A boot step failed. Logged through the logger so the reason reaches `logs/latest.log` (a bare
+     * `System.exit` or an uncaught exception left it on stderr only), then an ordinary shutdown so
+     * whatever already started is stopped. The GUI window stays open for the owner to read it.
+     */
+    private fun failStartup(e: Throwable) {
+        if (e is StartupFailure) {
+            logger.error(e.message, e.cause)
+        } else {
+            logger.error("Pano could not start: ${e.message ?: e.toString()}", e)
+        }
+
+        // Off the verticle context: closing Vert.x from inside start() would wait on itself.
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            shutdown(error = true, exit = !IS_GUI)
+        }
     }
 
     override suspend fun stop() {
@@ -406,21 +443,18 @@ class Main : CoroutineVerticle() {
         } catch (_: Exception) {}
 
         ConsoleInputReader.stop(false)
+        logStopped()
+        // Last line of the console: nothing may follow the "close this window" hint.
         UiConsole.markStopped()
-        logger.info("Pano is now fully stopped. Bye!")
     }
 
     private suspend fun executeBlocking(unit: () -> Unit) {
         vertx.executeBlocking {
             unit.invoke()
-        }.onFailure {
-            it.printStackTrace()
         }.coAwait()
     }
 
     private suspend fun init() {
-        hookShutdown()
-
         executeBlocking {
             initDependencyInjection()
         }
@@ -768,7 +802,7 @@ class Main : CoroutineVerticle() {
             routerProvider.initialize()
             router = applicationContext.getBean(Router::class.java)
         } catch (e: Exception) {
-            e.printStackTrace()
+            throw StartupFailure("Failed to initialize routes.", e)
         }
     }
 
@@ -885,24 +919,15 @@ class Main : CoroutineVerticle() {
                     logWebServerReady("http", host, port)
                 }
             }.onFailure { result ->
-                // A fresh install listens on 80, which an ordinary user may not bind: the reason
-                // alone ("Permission denied") does not say that the fix is one line of config.
-                val hint = if (port < 1024 && (result.message ?: "").contains("Permission denied", ignoreCase = true)) {
-                    " Ports below 1024 need root; set \"http-port\" under \"server\" in config.conf (for example 8088)."
-                } else {
-                    ""
-                }
-
-                val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}.$hint"
+                // Stay up: a shutdown here closes the console (and the GUI window) before the owner
+                // can read why the port could not be taken.
+                val message = ListenFailure.message("http", host, port, result, OPERATING_SYSTEM, "http-port")
                 if (isSslEnabled) {
                     logger.warn(message)
-                    UiConsole.markReady()
                 } else {
                     logger.error(message)
-                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                        runBlocking { shutdown(true) }
-                    }
                 }
+                UiConsole.markReady()
             }
     }
 
@@ -920,7 +945,7 @@ class Main : CoroutineVerticle() {
         vertx.createHttpServer(options).requestHandler(handler).listen(port, host).onSuccess {
                 logWebServerReady("https", host, port)
             }.onFailure { result ->
-                logger.error("Failed to listen on https://$host:$port, reason: ${result.message ?: result.toString()}")
+                logger.error(ListenFailure.message("https", host, port, result, OPERATING_SYSTEM, "https-port"))
                 UiConsole.markReady()
             }
     }

@@ -263,9 +263,10 @@ class UIManager(
 
             logger.info("Done.")
         } catch (e: Exception) {
-            logger.error("Couldn't download Bun runtime: {}", e.message)
-            System.exit(1)
-            return
+            throw StartupFailure(
+                "Couldn't download Bun runtime: ${e.message ?: e.toString()}. " +
+                        "Check that this machine can reach $githubUrl, then start Pano again."
+            )
         }
 
         if (!tryRun(bunFilePath)) {
@@ -305,10 +306,7 @@ class UIManager(
         }.findFirst()
 
         if (!optionalZipFile.isPresent) {
-            logger.error("No file matching $id-*.zip was found!")
-
-            System.exit(1)
-            return Optional.empty()
+            throw StartupFailure("No file matching $id-*.zip was found!")
         }
 
         return optionalZipFile
@@ -1082,10 +1080,7 @@ class UIManager(
                     startUIBlocking(DEFAULT_THEME_ID)
                 }
             } catch (e: Exception) {
-                logger.error("Failed to start UI.", e)
-
-                System.exit(1)
-                return
+                throw e as? StartupFailure ?: StartupFailure("Failed to start UI.", e)
             }
         }
 

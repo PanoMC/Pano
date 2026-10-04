@@ -271,6 +271,9 @@ object UiConsole {
             override fun windowClosing(e: java.awt.event.WindowEvent?) {
                 // Run shutdown off the EDT so logs can still be painted
                 Thread({
+                    // Pano stopped on its own (a failed start keeps the window open to be read):
+                    // nothing is left to shut down, closing the window ends the process.
+                    val alreadyStopped = stopped
                     try {
                         if (!stopped) {
                             try {
@@ -284,6 +287,9 @@ object UiConsole {
                     } finally {
                         restoreSystemStreams()
                         SwingUtilities.invokeLater { f.dispose() }
+                        if (alreadyStopped) {
+                            com.panomc.platform.Main.processExit.exit()
+                        }
                     }
                 }, "UiConsole-close").start()
             }
@@ -474,7 +480,10 @@ object UiConsole {
         inputLockReason = "Pano is stopped"
         applyInputLockUI()
         SwingUtilities.invokeLater { inputField?.transferFocusUpCycle() }
-        println("\u001B[33mPano stopped. Commands are disabled. To close this window, click the window's Close (X) button.\u001B[0m")
+        // Only the GUI has a window to close; a terminal just gets its prompt back.
+        if (frame != null) {
+            println("\u001B[33mPano stopped. Commands are disabled. To close this window, click the window's Close (X) button.\u001B[0m")
+        }
     }
 
     private fun installSystemStreamsRedirect(teeToOriginal: Boolean) {

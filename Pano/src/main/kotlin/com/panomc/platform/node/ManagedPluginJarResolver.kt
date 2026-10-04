@@ -1,5 +1,7 @@
 package com.panomc.platform.node
 
+import com.panomc.platform.ReleaseStage
+import java.util.concurrent.ConcurrentHashMap
 import com.panomc.platform.server.MinecraftJavaVersions
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.server.ServerType
@@ -59,10 +61,23 @@ class ManagedPluginJarResolver(
      */
     private data class CacheEntry(val assets: Map<String, String>, val versions: Map<String, String>, val storedAt: Long)
 
-    private val releaseCache = AtomicReference<CacheEntry?>(null)
+    /** One lookup per release channel: an alpha install and a beta one do not share an answer. */
+    private val releaseCache = ConcurrentHashMap<ReleaseStage, CacheEntry>()
 
     /** Whether a background lookup for [latestVersionOrWarm] is already on its way. */
-    private val warming = AtomicBoolean(false)
+    private val warming: MutableSet<ReleaseStage> = ConcurrentHashMap.newKeySet()
+
+    /**
+     * The release channel a plugin for one server is taken from.
+     *
+     * A server that has no Pano plugin yet gets the channel this Pano itself follows: a beta Pano
+     * puts a beta plugin into the servers it creates, never an alpha one. A plugin that is already
+     * installed is updated within the channel it came from ([installedVersion] says which), so
+     * somebody who put an alpha build in by hand keeps getting alphas and nobody is moved to a less
+     * finished channel by an update.
+     */
+    fun channelFor(installedVersion: String?): ReleaseStage =
+        channelOf(installedVersion) ?: configManager.config.releaseChannel
 
     /**
      * The Pano plugin version an install for [type] would put in the server right now, without ever
@@ -74,32 +89,33 @@ class ManagedPluginJarResolver(
      * at all) is refreshed in the background, and until it lands the old answer — or null — is what
      * the caller gets: the Overview must never sit on api.github.com.
      */
-    fun latestVersionOrWarm(type: ServerType): String? {
+    fun latestVersionOrWarm(type: ServerType, installedVersion: String? = null): String? {
         val platform = platformOf(type) ?: return null
 
         if (localJarFor(platform, warn = false) != null) {
             return LOCAL_BUILD
         }
 
-        val entry = releaseCache.get()
+        val channel = channelFor(installedVersion)
+        val entry = releaseCache[channel]
 
         if (entry == null || System.currentTimeMillis() - entry.storedAt > VERSION_TTL_MS) {
-            warm()
+            warm(channel)
         }
 
         return entry?.versions?.get(platform)
     }
 
-    private fun warm() {
-        if (!warming.compareAndSet(false, true)) {
+    private fun warm(channel: ReleaseStage) {
+        if (!warming.add(channel)) {
             return
         }
 
         CoroutineScope(vertx.dispatcher()).launch {
             try {
-                cachedAssets()
+                cachedAssets(channel)
             } finally {
-                warming.set(false)
+                warming.remove(channel)
             }
         }
     }
@@ -111,14 +127,14 @@ class ManagedPluginJarResolver(
      * "the release could not be reached right now"; the caller tells those apart with
      * [platformOf] and reports the difference on the install task.
      */
-    suspend fun resolve(type: ServerType): String? {
+    suspend fun resolve(type: ServerType, installedVersion: String? = null): String? {
         val platform = platformOf(type) ?: return null
 
         // Relative on purpose: Pano does not know which address this particular node reaches it
         // on -- a LAN address, a tunnel, the public hostname -- and the node does.
         localJarFor(platform)?.let { return pluginJarPath(platform) }
 
-        return releaseAssetUrl(platform)
+        return releaseAssetUrl(platform, channelFor(installedVersion))
     }
 
     /**
@@ -153,8 +169,8 @@ class ManagedPluginJarResolver(
         return jar
     }
 
-    private suspend fun releaseAssetUrl(platform: String): String? {
-        val assets = cachedAssets() ?: return null
+    private suspend fun releaseAssetUrl(platform: String, channel: ReleaseStage): String? {
+        val assets = cachedAssets(channel) ?: return null
 
         val url = assets[platform]
 
@@ -166,36 +182,46 @@ class ManagedPluginJarResolver(
     }
 
     /**
-     * Asset download URLs of the newest plugin release, keyed by platform.
+     * Asset download URLs of the newest plugin release on [channel], keyed by platform.
      *
-     * Every channel rather than Pano's own: the plugin ships on prerelease channels, and asking for
-     * `stable` only would on a repository that has never cut a stable release answer nothing and
-     * managed servers would silently never get a plugin.
+     * The channel's own releases first. Only when it has none at all -- the plugin has never cut a
+     * stable release, so a stable Pano would find nothing and its servers would silently never get
+     * a plugin -- the next less finished channel is asked instead, and the log says so.
      */
-    private suspend fun cachedAssets(): Map<String, String>? {
-        releaseCache.get()?.let { entry ->
+    private suspend fun cachedAssets(channel: ReleaseStage): Map<String, String>? {
+        releaseCache[channel]?.let { entry ->
             if (System.currentTimeMillis() - entry.storedAt <= CACHE_TTL_MS) {
                 return entry.assets
             }
         }
 
-        val releases = try {
-            releaseLookup.lookup(ReleaseProduct.PANO_MC_PLUGIN, null)
-        } catch (e: Exception) {
-            logger.warn("Could not look up the $PLUGIN_REPO releases: ${e.message}")
+        for (candidate in listOf(channel) + fallbacksOf(channel)) {
+            val releases = try {
+                releaseLookup.lookup(ReleaseProduct.PANO_MC_PLUGIN, candidate)
+            } catch (e: Exception) {
+                logger.warn("Could not look up the $PLUGIN_REPO ${candidate.stage} releases: ${e.message}")
 
-            null
-        } ?: return null
+                return null
+            }
 
-        val newest = newestAssets(releases.releases)
+            val newest = newestAssets(releases.releases)
 
-        if (newest.assets.isEmpty()) {
-            return null
+            if (newest.assets.isEmpty()) {
+                continue
+            }
+
+            if (candidate != channel) {
+                logger.info(
+                    "$PLUGIN_REPO has no ${channel.stage} release yet; using its newest ${candidate.stage} release instead."
+                )
+            }
+
+            releaseCache[channel] = CacheEntry(newest.assets, newest.versions, System.currentTimeMillis())
+
+            return newest.assets
         }
 
-        releaseCache.set(CacheEntry(newest.assets, newest.versions, System.currentTimeMillis()))
-
-        return newest.assets
+        return null
     }
 
     companion object {
@@ -213,6 +239,31 @@ class ManagedPluginJarResolver(
 
         /** What a development jar reports as its version, and what [latestVersionOrWarm] says for one. */
         const val LOCAL_BUILD = "local-build"
+
+        private val STABLE_VERSION = Regex("""^\d+\.\d+\.\d+$""")
+
+        /**
+         * The channel a plugin version was released on (`1.0.0-alpha.66` -> alpha, `1.0.0-beta.7` ->
+         * beta, `1.0.0` -> release), or null when the version does not say: no plugin installed, or a
+         * development build.
+         */
+        fun channelOf(version: String?): ReleaseStage? {
+            val value = version?.trim()?.removePrefix("v")?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
+
+            return when {
+                value.contains("-alpha") -> ReleaseStage.ALPHA
+                value.contains("-beta") -> ReleaseStage.BETA
+                STABLE_VERSION.matches(value) -> ReleaseStage.RELEASE
+                else -> null
+            }
+        }
+
+        /** Where to look when [channel] has no release at all: only ever towards less finished. */
+        fun fallbacksOf(channel: ReleaseStage): List<ReleaseStage> = when (channel) {
+            ReleaseStage.RELEASE -> listOf(ReleaseStage.BETA, ReleaseStage.ALPHA)
+            ReleaseStage.BETA -> listOf(ReleaseStage.ALPHA)
+            ReleaseStage.ALPHA -> emptyList()
+        }
 
         /**
          * One release lookup: the asset URL per platform, and the version of the release they came from

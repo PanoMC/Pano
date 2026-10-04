@@ -69,7 +69,7 @@ class PanelGetServerDashboardAPI(
         // asked for its scan when the plugin cannot say, with a short deadline.
         result["panoPlugin"] = PanoPluginStatus(
             version = server.pluginVersion,
-            latestVersion = managedPluginJarResolver.latestVersionOrWarm(server.type)
+            latestVersion = managedPluginJarResolver.latestVersionOrWarm(server.type, server.pluginVersion)
         ).toJsonObject()
             // Which route `POST .../pano-plugin/update` would take right now (`node` or `plugin`), or
             // null when neither can, so the badge's button is only offered when it can work.

@@ -1,5 +1,6 @@
 package com.panomc.platform.node
 
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.server.ServerType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -141,5 +142,26 @@ class ManagedPluginJarResolverTest {
         assertTrue(ManagedPluginJarResolver.compareMinecraft("26.1.2", "26.1") > 0)
         assertEquals(0, ManagedPluginJarResolver.compareMinecraft("26.1.0", "26.1"))
         assertTrue(ManagedPluginJarResolver.compareMinecraft("1.9", "1.10") < 0)
+    }
+
+    @Test
+    fun `a plugin version names the channel it was released on`() {
+        assertEquals(ReleaseStage.ALPHA, ManagedPluginJarResolver.channelOf("1.0.0-alpha.66"))
+        assertEquals(ReleaseStage.BETA, ManagedPluginJarResolver.channelOf("v1.0.0-beta.7"))
+        assertEquals(ReleaseStage.RELEASE, ManagedPluginJarResolver.channelOf("1.2.3"))
+    }
+
+    @Test
+    fun `no plugin and a development build name no channel`() {
+        assertNull(ManagedPluginJarResolver.channelOf(null))
+        assertNull(ManagedPluginJarResolver.channelOf(""))
+        assertNull(ManagedPluginJarResolver.channelOf(ManagedPluginJarResolver.LOCAL_BUILD))
+    }
+
+    @Test
+    fun `a channel with no release falls back only towards less finished ones`() {
+        assertEquals(listOf(ReleaseStage.BETA, ReleaseStage.ALPHA), ManagedPluginJarResolver.fallbacksOf(ReleaseStage.RELEASE))
+        assertEquals(listOf(ReleaseStage.ALPHA), ManagedPluginJarResolver.fallbacksOf(ReleaseStage.BETA))
+        assertEquals(emptyList<ReleaseStage>(), ManagedPluginJarResolver.fallbacksOf(ReleaseStage.ALPHA))
     }
 }

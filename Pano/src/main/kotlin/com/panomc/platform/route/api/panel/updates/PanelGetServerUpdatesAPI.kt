@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.updates
 
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.Main
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -118,17 +119,24 @@ class PanelGetServerUpdatesAPI(
             .filter { ManagedPluginJarResolver.platformOf(it.type) != null }
             .filter { authProvider.hasPermission(ManageServerPluginsPermission(), context, it.id) }
 
-        val latestByType = mutableMapOf<ServerType, String?>()
+        // Per software and per release channel: each plugin is compared with the newest release of
+        // the channel it was installed from.
+        val latestByKey = mutableMapOf<Pair<ServerType, ReleaseStage>, String?>()
 
-        servers.map { it.type }.distinct().forEach { type ->
-            latestByType[type] = withTimeoutOrNull(LOOKUP_BUDGET_MS) { panoPluginJarProvider.latestVersion(type) }
-                ?: managedPluginJarResolver.latestVersionOrWarm(type)
+        servers.forEach { server ->
+            val key = server.type to managedPluginJarResolver.channelFor(server.pluginVersion)
+
+            if (key !in latestByKey) {
+                latestByKey[key] = withTimeoutOrNull(LOOKUP_BUDGET_MS) {
+                    panoPluginJarProvider.latestVersion(server.type, server.pluginVersion)
+                } ?: managedPluginJarResolver.latestVersionOrWarm(server.type, server.pluginVersion)
+            }
         }
 
         val pluginRows = JsonArray()
 
         servers.forEach { server ->
-            val latest = latestByType[server.type]
+            val latest = latestByKey[server.type to managedPluginJarResolver.channelFor(server.pluginVersion)]
             val mode = panoPluginUpdateService.modeFor(server)
             val pluginConnected = serverManager.isConnected(server.id)
             val reason = if (mode != null) null else PanoPluginUpdatePlan.refusalFor(

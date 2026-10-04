@@ -128,7 +128,7 @@ class ServerFeatureResolver(
         }
 
         val pluginConnected = serverManager.isConnected(server.id)
-        val latest = managedPluginJarResolver.latestVersionOrWarm(server.type)
+        val latest = managedPluginJarResolver.latestVersionOrWarm(server.type, server.pluginVersion)
 
         val mode = PanoPluginUpdatePlan.modeFor(
             managed = server.isManaged && server.nodeId != null && server.uuid != null,

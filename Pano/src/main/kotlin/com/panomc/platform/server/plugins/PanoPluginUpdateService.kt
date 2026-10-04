@@ -121,7 +121,7 @@ class PanoPluginUpdateService(
             )
         )
 
-        val latest = panoPluginJarProvider.latestVersion(server.type)
+        val latest = panoPluginJarProvider.latestVersion(server.type, server.pluginVersion)
 
         if (PanoPluginStatus.updateAvailable(server.pluginVersion, latest) == false) {
             return Attempt.Refused(PanoPluginUpdatePlan.REASON_UP_TO_DATE)
@@ -173,10 +173,10 @@ class PanoPluginUpdateService(
             val task = managedServerImportService.linkPlugin(server, node, userId, sqlClient, panoPluginUpdate = true)
                 ?: return Attempt.Refused(PanoPluginUpdatePlan.REASON_JAR_UNAVAILABLE)
 
-            return Attempt.Started(task, Mode.NODE, server.pluginVersion, panoPluginJarProvider.latestVersion(server.type))
+            return Attempt.Started(task, Mode.NODE, server.pluginVersion, panoPluginJarProvider.latestVersion(server.type, server.pluginVersion))
         }
 
-        val jar = panoPluginJarProvider.prepare(server.type)
+        val jar = panoPluginJarProvider.prepare(server.type, server.pluginVersion)
             ?: return Attempt.Refused(PanoPluginUpdatePlan.REASON_JAR_UNAVAILABLE)
 
         val task = openTask(server, nodeId, userId, jar, sqlClient)
@@ -214,7 +214,7 @@ class PanoPluginUpdateService(
      * token it already holds, and the checksum it verifies is of the very file that endpoint serves.
      */
     private suspend fun startOnPlugin(server: Server, userId: Long, sqlClient: SqlClient): Attempt {
-        val jar = panoPluginJarProvider.prepare(server.type)
+        val jar = panoPluginJarProvider.prepare(server.type, server.pluginVersion)
             ?: return Attempt.Refused(PanoPluginUpdatePlan.REASON_JAR_UNAVAILABLE)
 
         val task = openTask(server, null, userId, jar, sqlClient)

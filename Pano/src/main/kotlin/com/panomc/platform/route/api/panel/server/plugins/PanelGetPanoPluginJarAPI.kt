@@ -54,7 +54,7 @@ class PanelGetPanoPluginJarAPI(
             throw NotExists()
         }
 
-        val jar = panoPluginJarProvider.prepare(server.type)
+        val jar = panoPluginJarProvider.prepare(server.type, server.pluginVersion)
             ?: throw ServerCapabilityMissing(
                 extras = mapOf(
                     "feature" to PanelUpdatePanoPluginAPI.FEATURE,

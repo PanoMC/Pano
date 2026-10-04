@@ -64,7 +64,7 @@ class ServerPanoPluginJarAPI(
 
         val server = databaseManager.serverDao.getById(serverId, getSqlClient()) ?: return InvalidToken()
 
-        val jar = panoPluginJarProvider.prepare(server.type) ?: return NotExists()
+        val jar = panoPluginJarProvider.prepare(server.type, server.pluginVersion) ?: return NotExists()
 
         context.response()
             .putHeader("Content-Type", "application/java-archive")

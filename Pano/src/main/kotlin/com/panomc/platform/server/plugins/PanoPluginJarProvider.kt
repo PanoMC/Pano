@@ -87,19 +87,23 @@ class PanoPluginJarProvider(
      * admin just asked for an update and a few seconds of GitHub are better than an answer of
      * "unknown". Null when this software has no plugin or the release could not be reached.
      */
-    suspend fun latestVersion(type: ServerType): String? {
+    suspend fun latestVersion(type: ServerType, installedVersion: String? = null): String? {
         ManagedPluginJarResolver.platformOf(type) ?: return null
 
-        managedPluginJarResolver.latestVersionOrWarm(type)?.let { return it }
+        managedPluginJarResolver.latestVersionOrWarm(type, installedVersion)?.let { return it }
 
         // Fills the release cache the version is read from; the URL itself is not needed here.
-        managedPluginJarResolver.resolve(type) ?: return null
+        managedPluginJarResolver.resolve(type, installedVersion) ?: return null
 
-        return managedPluginJarResolver.latestVersionOrWarm(type)
+        return managedPluginJarResolver.latestVersionOrWarm(type, installedVersion)
     }
 
-    /** The jar an update of [type] would install, fetched and hashed, or null when there is none. */
-    suspend fun prepare(type: ServerType): PreparedJar? {
+    /**
+     * The jar an update of [type] would install, fetched and hashed, or null when there is none.
+     * [installedVersion] is the plugin the server runs now: the update stays on its release channel
+     * (see [ManagedPluginJarResolver.channelFor]).
+     */
+    suspend fun prepare(type: ServerType, installedVersion: String? = null): PreparedJar? {
         val platform = ManagedPluginJarResolver.platformOf(type) ?: return null
 
         managedPluginJarResolver.localJarFor(platform, warn = false)?.let { jar ->
@@ -112,7 +116,7 @@ class PanoPluginJarProvider(
             )
         }
 
-        val url = managedPluginJarResolver.resolve(type) ?: return null
+        val url = managedPluginJarResolver.resolve(type, installedVersion) ?: return null
 
         // The resolver answers with a path when a development directory appeared between the two
         // calls; that jar is the one it would install, so it is the one to describe.
@@ -122,7 +126,7 @@ class PanoPluginJarProvider(
             return describe(platform, jar, jar.name, ManagedPluginJarResolver.LOCAL_BUILD, url)
         }
 
-        val version = managedPluginJarResolver.latestVersionOrWarm(type)
+        val version = managedPluginJarResolver.latestVersionOrWarm(type, installedVersion)
         val fileName = assetFileName(url, platform, version)
 
         val cached = downloadLocks.computeIfAbsent(platform) { Mutex() }.withLock {

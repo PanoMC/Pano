@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.server.plugins
 
+import com.panomc.platform.node.ManagedPluginJarResolver
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServerPluginsPermission
@@ -36,6 +38,7 @@ class PanelUpdateAllPanoPluginsAPI(
     private val authProvider: AuthProvider,
     private val panoPluginUpdateService: PanoPluginUpdateService,
     private val panoPluginJarProvider: PanoPluginJarProvider,
+    private val managedPluginJarResolver: ManagedPluginJarResolver,
     private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
@@ -54,15 +57,23 @@ class PanelUpdateAllPanoPluginsAPI(
 
         // Looked up once per software, not once per server: a network of twenty Paper servers asks
         // GitHub (or its cache) one question.
-        val latestByType = mutableMapOf<ServerType, String?>()
+        // Per software and per release channel: a plugin is updated within the channel it was
+        // installed from, so two Paper servers on different channels have different "latest"s.
+        val latestByKey = mutableMapOf<Pair<ServerType, ReleaseStage>, String?>()
 
-        servers.map { it.type }.distinct().forEach { type ->
-            latestByType[type] = panoPluginJarProvider.latestVersion(type)
+        servers.forEach { server ->
+            val key = server.type to managedPluginJarResolver.channelFor(server.pluginVersion)
+
+            if (key !in latestByKey) {
+                latestByKey[key] = panoPluginJarProvider.latestVersion(server.type, server.pluginVersion)
+            }
         }
 
         val due = PanoPluginUpdatePlan.serversNeedingUpdate(
             servers.map { PanoPluginUpdatePlan.Candidate(it.id, it.type, it.pluginVersion) }
-        ) { type -> latestByType[type] }
+        ) { candidate ->
+            latestByKey[candidate.type to managedPluginJarResolver.channelFor(candidate.installedVersion)]
+        }
 
         val byId = servers.associateBy { it.id }
 

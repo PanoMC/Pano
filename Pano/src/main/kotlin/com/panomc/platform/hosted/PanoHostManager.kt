@@ -14,10 +14,13 @@ import com.panomc.platform.util.RegisterUtil
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.sqlclient.SqlClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.Logger
+import java.net.URI
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -43,6 +46,22 @@ class PanoHostManager(
     companion object {
         /** How often the local admin list is compared with the last announced one. */
         const val ADMIN_CHECK_INTERVAL_MS = 10 * 60 * 1000L
+
+        /** How long the boot waits for the control plane's website address before going on with the stored one. */
+        const val WEBSITE_URL_SYNC_TIMEOUT_MS = 5_000L
+
+        /**
+         * The website of the environment this instance lives in (`https://panomc.com`,
+         * `https://dev.panomc.com`, `https://local.panomc.com:3003`), taken from the control plane's
+         * [manageUrl]: its scheme, host and port. Null unless that is an http(s) URL with a host.
+         */
+        fun websiteOriginOf(manageUrl: String?): String? {
+            val uri = runCatching { URI(manageUrl?.trim() ?: return null) }.getOrNull() ?: return null
+            val scheme = uri.scheme?.lowercase()?.takeIf { it == "https" || it == "http" } ?: return null
+            val host = uri.host?.takeIf { it.isNotEmpty() && uri.userInfo == null } ?: return null
+
+            return "$scheme://$host" + (if (uri.port > 0) ":${uri.port}" else "")
+        }
     }
 
     private val env get() = HostedEnvConfig.current
@@ -60,6 +79,33 @@ class PanoHostManager(
     val ssoEnabled get() = client != null
 
     private val setupDone get() = configManager.config.setup.step == 5
+
+    /**
+     * Points `pano-website-url` at the website of this instance's environment, so the panel's store,
+     * add-on and account links (and the license issuer derived from it) go to dev.panomc.com or
+     * local.panomc.com:3003 instead of panomc.com there. Called at boot before the UIs start, which
+     * read the address once; an unreachable control plane keeps the stored one. True when it changed.
+     */
+    suspend fun syncPanoWebsiteUrl(): Boolean {
+        val client = client ?: return false
+
+        val website = try {
+            withTimeoutOrNull(WEBSITE_URL_SYNC_TIMEOUT_MS) { websiteOriginOf(client.noticeFeed().manageUrl) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            logger.warn("Pano Host: could not ask for the website address: {}", (e as? PanoHostClient.HostApiException)?.message ?: e.javaClass.simpleName)
+            null
+        } ?: return false
+
+        if (configManager.config.panoWebsiteUrl.trimEnd('/') == website) return false
+
+        logger.info("Pano website URL set to {} for this Pano Host environment", website)
+        configManager.config.panoWebsiteUrl = website
+        configManager.saveConfig()
+
+        return true
+    }
 
     /**
      * (Re)starts the announce loop; a newer call replaces a pending one. Once setup is done it also

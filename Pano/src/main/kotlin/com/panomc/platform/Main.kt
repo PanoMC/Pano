@@ -546,13 +546,15 @@ class Main : CoroutineVerticle() {
         false
     }
 
-    /** Pano Host only: tells the control plane this instance supports panel SSO. */
-    private fun initPanoHostManager() {
+    /** Pano Host only: takes the environment's website address and tells the control plane this instance supports panel SSO. */
+    private suspend fun initPanoHostManager() {
         val panoHostManager = applicationContext.getBean(PanoHostManager::class.java)
 
         if (!panoHostManager.ssoEnabled) return
 
         logger.info("Initializing Pano Host integration")
+
+        panoHostManager.syncPanoWebsiteUrl()
 
         panoHostManager.announceCapabilities()
     }

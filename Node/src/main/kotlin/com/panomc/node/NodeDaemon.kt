@@ -233,7 +233,9 @@ class NodeDaemon(
         platformUrls,
         buildToolsInstaller,
         javaService,
-        agentServer = { config.agentServerOrNull() }
+        agentServer = { config.agentServerOrNull() },
+        loaderInstaller = { loaderInstaller },
+        usesHostJava = { runtime.id == ProcessRuntime.ID }
     )
 
     // Takes the server's backups with it (SM-64): they live outside its directory so a reinstall

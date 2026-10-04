@@ -174,6 +174,11 @@ class PanelServerPlayerActionAPI(
         sqlClient: SqlClient
     ): String {
         val bannedUntil = body.getLong("duration")
+
+        // A ban that ended before it began kicks the player and lets them straight back in.
+        if (bannedUntil != null && bannedUntil <= System.currentTimeMillis()) {
+            throw BadRequest(extras = mapOf("field" to "duration", "message" to "The ban must end in the future."))
+        }
         val hasAccount = databaseManager.userDao.getUserIdFromUsername(target.username, sqlClient) != null
 
         if (!hasAccount) {

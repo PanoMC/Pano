@@ -9,7 +9,10 @@ import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.ServerCapabilityMissing
 import com.panomc.platform.model.*
+import com.panomc.platform.node.ManagedPluginJarResolver
+import com.panomc.platform.node.ManagedServerImportService
 import com.panomc.platform.node.NodeManager
+import com.panomc.platform.node.ServerPortAllocator
 import com.panomc.platform.node.ServerStartupLimits
 import com.panomc.platform.node.message.StartupSpec
 import com.panomc.platform.node.message.UpdateStartupMessage
@@ -42,6 +45,7 @@ class PanelUpdateServerStartupAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
     private val nodeManager: NodeManager,
+    private val managedServerImportService: ManagedServerImportService,
     private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
@@ -109,6 +113,17 @@ class PanelUpdateServerStartupAPI(
             throw BadRequest()
         }
 
+        // Only a port that is being changed is checked: a server keeps the one it has even when
+        // the node's range was narrowed around it afterwards.
+        val nodeId = server.nodeId
+
+        if (port != null && port != server.gamePort && nodeId != null) {
+            val others = databaseManager.serverDao.getAllByNodeId(nodeId, sqlClient).filter { it.id != id }
+
+            ServerPortAllocator.refusal(port, ServerPortAllocator.takenPorts(others), nodeManager.getPortRange(nodeId))
+                ?.let { reason -> throw BadRequest(extras = mapOf("field" to "port", "message" to reason)) }
+        }
+
         databaseManager.serverDao.updateStartupById(
             id = id,
             javaVersion = javaMajor,
@@ -122,7 +137,6 @@ class PanelUpdateServerStartupAPI(
         )
 
         val uuid = server.uuid
-        val nodeId = server.nodeId
 
         if (uuid != null && nodeId != null) {
             nodeManager.sendMessage(
@@ -143,6 +157,22 @@ class PanelUpdateServerStartupAPI(
         }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
+
+        // A server left without the Pano plugin because its Java was too old for it gets the
+        // plugin the moment that stops being true: the admin picked a newer Java to link it, and
+        // should not have to find a second button for the other half.
+        val wasTooOld = ManagedPluginJarResolver.javaTooOld(server.type, server.softwareVersion, server.javaVersion)
+        val isTooOld = ManagedPluginJarResolver.javaTooOld(server.type, server.softwareVersion, javaMajor)
+
+        if (wasTooOld && !isTooOld && nodeId != null && nodeManager.isConnected(nodeId)) {
+            val node = databaseManager.nodeDao.getById(nodeId, sqlClient)
+            val updated = databaseManager.serverDao.getById(id, sqlClient)
+
+            if (node != null && updated != null) {
+                managedServerImportService.linkPlugin(updated, node, userId, sqlClient)
+            }
+        }
+
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient) ?: throw NotExists()
 
         databaseManager.panelActivityLogDao.add(UpdatedServerStartupLog(userId, username, id), sqlClient)
@@ -164,7 +194,20 @@ class PanelUpdateServerStartupAPI(
         )
     }
 
-    private fun readJvmArgs(array: JsonArray?): List<String> = ServerStartupLimits.jvmArgs((array ?: JsonArray()).list)
+    private fun readJvmArgs(array: JsonArray?): List<String> {
+        val jvmArgs = ServerStartupLimits.jvmArgs((array ?: JsonArray()).list)
+
+        ServerStartupLimits.launchChangingJvmArg(jvmArgs)?.let { arg ->
+            throw BadRequest(
+                extras = mapOf(
+                    "field" to "jvmArgs",
+                    "message" to "\"$arg\" is not allowed in the JVM arguments: Pano chooses the jar that is started."
+                )
+            )
+        }
+
+        return jvmArgs
+    }
 
     companion object {
         private const val MIN_JAVA_MAJOR = 8

@@ -123,6 +123,17 @@ object MinecraftJavaVersions {
         }
     }
 
+    /**
+     * Whether [version] ships the old netty whose native (epoll) transport breaks on Java 9 and
+     * newer: every connection dies with "Unable to access address of buffer" and nobody can join.
+     * That is Minecraft before 1.12; from 1.12 on netty is new enough.
+     */
+    fun needsNioOnModernJava(version: String?): Boolean {
+        val parsed = parse(version) ?: return false
+
+        return parsed.first == 1 && !atLeast(parsed, 1, 12, 0)
+    }
+
     private fun parse(version: String?): Triple<Int, Int, Int>? {
         val cleaned = version?.trim()?.takeIf { it.isNotBlank() } ?: return null
 

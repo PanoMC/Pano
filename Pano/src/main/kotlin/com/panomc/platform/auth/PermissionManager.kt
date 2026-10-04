@@ -444,15 +444,19 @@ class PermissionManager(
 
     // List all nodes granted to user after resolving overrides/inheritance/weights.
     // [serverId] behaves like in [hasPermissionNode].
+    // [anyServer] also counts nodes scoped to a server, whichever server that is: "does this user
+    // hold the node anywhere". It is for telling the panel which sections to draw, never for
+    // deciding a request -- a request about a server is checked against that server.
     suspend fun getGrantedNodes(
         userId: Long,
-        serverId: Long? = null
+        serverId: Long? = null,
+        anyServer: Boolean = false
     ): Set<String> {
         val cache = getCache()
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
         val nodes = validNodes(cache)
             .filter { it.isPanoContextAllowed() } // active=true/false + pano context
-            .filter { PermissionServerScope.appliesTo(it.context, serverId) } // global + server scope
+            .filter { anyServer || PermissionServerScope.appliesTo(it.context, serverId) } // global + server scope
         val userGroups = resolveUserGroups(userId, cache, activeNodes)
 
         val userNodes = nodes.filter { it.holderType == HolderType.USER && it.holderId == userId }

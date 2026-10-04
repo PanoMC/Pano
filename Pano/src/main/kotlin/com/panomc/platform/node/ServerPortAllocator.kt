@@ -78,6 +78,21 @@ object ServerPortAllocator {
             allocate(count, taken, from = nodeRange.first, to = nodeRange.last)
         }
 
+    /**
+     * Why [port] cannot be given to a server on this node, or null when it can: outside the range
+     * the node announced, or already spoken for by one of the node's other servers ([taken]).
+     *
+     * A port somebody typed is refused rather than quietly swapped for another one -- the node
+     * would do the swapping, and the admin would find out from a console line.
+     */
+    fun refusal(port: Int, taken: Set<Int>, nodeRange: IntRange?): String? = when {
+        nodeRange != null && port !in nodeRange ->
+            "Port $port is outside this node's port range (${nodeRange.first}-${nodeRange.last})."
+
+        port in taken -> "Port $port is already used by another server on this node."
+        else -> null
+    }
+
     /** The refusal when [allocate] ran out, naming the node's range when that is what ran out. */
     fun noFreePortMessage(nodeRange: IntRange?): String =
         nodeRange?.let { "No free port is left in this node's port range (${it.first}-${it.last})." }

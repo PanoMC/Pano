@@ -94,7 +94,7 @@ class PanelCoolifyBootstrapNodeAPI(
         // Only http(s): the URL is pasted by hand and is about to receive an API token, so
         // anything else is a typo at best.
         if (!coolifyUrl.startsWith("http://") && !coolifyUrl.startsWith("https://")) {
-            throw BadRequest()
+            throw BadRequest(extras = mapOf("field" to "coolifyUrl", "message" to "The Coolify address must start with http:// or https://."))
         }
 
         val name = data.getString("name").trim().take(MAX_NAME_LENGTH)
@@ -106,8 +106,18 @@ class PanelCoolifyBootstrapNodeAPI(
         val image = data.getString("image")?.trim()?.ifEmpty { null }
         val imageTag = data.getString("imageTag")?.trim()?.ifEmpty { null }
 
-        if (name.isEmpty() || serverUuid.isEmpty() || projectUuid.isEmpty() || !PORT_RANGE.matches(portRange)) {
-            throw BadRequest()
+        // Named one by one: "bad request" for a form with a dozen fields says nothing about
+        // which of them to look at.
+        val missing = when {
+            name.isEmpty() -> "name"
+            serverUuid.isEmpty() -> "serverUuid"
+            projectUuid.isEmpty() -> "projectUuid"
+            !PORT_RANGE.matches(portRange) -> "portRange"
+            else -> null
+        }
+
+        if (missing != null) {
+            throw BadRequest(extras = mapOf("field" to missing, "message" to "\"$missing\" is missing or not valid."))
         }
 
         // Refused rather than sanitised: a registry reference somebody edited into something else
@@ -145,7 +155,7 @@ class PanelCoolifyBootstrapNodeAPI(
             // sentence to show now, and the task id to open the deployment that failed.
             throw CoolifyBootstrapFailed(extras = mapOf("message" to e.message, "taskId" to e.task.id))
         } catch (e: Exception) {
-            throw BadRequest()
+            throw BadRequest(extras = mapOf("message" to "Coolify could not be reached: ${e.message ?: e.javaClass.simpleName}"))
         }
 
         return Successful(mapOf("taskId" to task.id, "taskUuid" to task.uuid))

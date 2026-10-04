@@ -142,6 +142,30 @@ object ServerSoftwareUrls {
     fun bungeeCordReference(version: String): String =
         if (version.equals(BUNGEECORD_LATEST, ignoreCase = true)) BUNGEECORD_LAST_SUCCESSFUL else version
 
+    /** Forge's own index of the recommended and latest build per Minecraft version. */
+    const val FORGE_PROMOTIONS = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json"
+
+    private const val FORGE_MAVEN = "https://maven.minecraftforge.net"
+
+    /** Every NeoForge release, oldest first. */
+    const val NEOFORGE_VERSIONS = "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge"
+
+    private const val NEOFORGE_MAVEN = "https://maven.neoforged.net/releases"
+
+    fun forgeInstaller(gameVersion: String, forgeVersion: String): String? =
+        if (isSafeSegment(gameVersion) && isSafeSegment(forgeVersion)) {
+            "$FORGE_MAVEN/net/minecraftforge/forge/$gameVersion-$forgeVersion/forge-$gameVersion-$forgeVersion-installer.jar"
+        } else {
+            null
+        }
+
+    fun neoForgeInstaller(neoForgeVersion: String): String? =
+        if (isSafeSegment(neoForgeVersion)) {
+            "$NEOFORGE_MAVEN/net/neoforged/neoforge/$neoForgeVersion/neoforge-$neoForgeVersion-installer.jar"
+        } else {
+            null
+        }
+
     fun fabricGameVersions(): String = "$FABRIC_META_BASE/versions/game"
 
     fun fabricLoaderVersions(gameVersion: String): String? =

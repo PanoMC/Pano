@@ -244,9 +244,9 @@ class BackupService(
 
         archive.parentFile?.mkdirs()
 
-        ZipTool.archive(server.directory, if (wholeDirectory) listOf("") else roots, archive) { path ->
+        ZipTool.archive(server.directory, if (wholeDirectory) listOf("") else roots, archive, exclude = { path ->
             exclude.matches(path)
-        }
+        })
 
         reporter.running(taskId, uuid, KIND_BACKUP, HASH_PERCENT, "Checksumming")
 
@@ -501,20 +501,36 @@ class BackupService(
             ?.map { it.name }
             .orEmpty()
 
-        val target = File(serverBackupsDir(uuid), "pre-restore-${System.currentTimeMillis()}.zip")
+        val target = File(serverBackupsDir(uuid), "$SAFETY_COPY_PREFIX${System.currentTimeMillis()}.zip")
 
         target.parentFile?.mkdirs()
 
         if (worlds.isEmpty()) {
             // Still written, so a restore always leaves a marker of what it replaced.
-            ZipTool.archive(server.directory, listOf(""), target) { true }
+            ZipTool.archive(server.directory, listOf(""), target, exclude = { true })
+
+            pruneSafetyCopies(uuid)
 
             return target
         }
 
         ZipTool.archive(server.directory, worlds, target)
 
+        pruneSafetyCopies(uuid)
+
         return target
+    }
+
+    /**
+     * Keeps the newest [SAFETY_COPIES_KEPT] safety copies. Every restore writes one and nothing
+     * ever removed them, so a server restored often grew a pile nobody could see from the panel.
+     */
+    private fun pruneSafetyCopies(uuid: String) {
+        serverBackupsDir(uuid).listFiles().orEmpty()
+            .filter { it.isFile && it.name.startsWith(SAFETY_COPY_PREFIX) && it.name.endsWith(".zip") }
+            .sortedByDescending { it.lastModified() }
+            .drop(SAFETY_COPIES_KEPT)
+            .forEach { it.delete() }
     }
 
     private fun readAll(uuid: String): List<BackupMeta> {
@@ -567,6 +583,11 @@ class BackupService(
         .put("storedBytes", meta.storedBytes)
 
     companion object {
+        private const val SAFETY_COPY_PREFIX = "pre-restore-"
+
+        /** How many pre-restore safety copies a server keeps. */
+        private const val SAFETY_COPIES_KEPT = 3
+
         const val BACKUPS_DIRECTORY = "backups"
         const val REPOSITORY_DIRECTORY = "repo"
         const val ARCHIVE_SUFFIX = ".zip"

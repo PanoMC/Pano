@@ -128,9 +128,10 @@ download() {
     _target="$2"
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$_url" -o "$_target"
+        # A transfer that stalls (under 1 KB/s for a minute) is given up on, not waited out forever.
+        curl -fsSL --connect-timeout 20 --speed-limit 1024 --speed-time 60 "$_url" -o "$_target"
     elif command -v wget >/dev/null 2>&1; then
-        wget -q -O "$_target" "$_url"
+        wget -q --timeout=60 --tries=2 -O "$_target" "$_url"
     else
         die "Neither curl nor wget is installed."
     fi
@@ -141,9 +142,9 @@ download_optional() {
     _target="$2"
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$_url" -o "$_target" 2>/dev/null || return 1
+        curl -fsSL --connect-timeout 20 --speed-limit 1024 --speed-time 60 "$_url" -o "$_target" 2>/dev/null || return 1
     elif command -v wget >/dev/null 2>&1; then
-        wget -q -O "$_target" "$_url" 2>/dev/null || return 1
+        wget -q --timeout=60 --tries=2 -O "$_target" "$_url" 2>/dev/null || return 1
     else
         return 1
     fi

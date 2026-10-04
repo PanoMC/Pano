@@ -58,6 +58,12 @@ class ManagedPluginLinkService(
             return null
         }
 
+        // Same reasoning for the runtime: on a Java older than the plugin is compiled for it
+        // cannot load, so it is not put there to fail on every start.
+        if (ManagedPluginJarResolver.javaTooOld(server.type, server.softwareVersion, server.javaVersion)) {
+            return null
+        }
+
         val jarUrl = managedPluginJarResolver.resolve(server.type) ?: return null
         val targetDir = ManagedPluginJarResolver.targetDirOf(server.type)
         val configPath = ManagedPluginJarResolver.configPathOf(server.type) ?: return null
@@ -100,6 +106,11 @@ class ManagedPluginLinkService(
         !ManagedPluginJarResolver.supportsMinecraft(server.type, server.softwareVersion) ->
             "The Pano mod needs Minecraft ${ManagedPluginJarResolver.FABRIC_MIN_MINECRAFT} or newer on Fabric; " +
                 "this server runs ${server.softwareVersion} and is left unlinked so it can start"
+
+        ManagedPluginJarResolver.javaTooOld(server.type, server.softwareVersion, server.javaVersion) ->
+            "The Pano plugin needs Java ${ManagedPluginJarResolver.PLUGIN_MIN_JAVA} or newer; this server runs on an " +
+                "older Java and is left unlinked. Pick Java ${ManagedPluginJarResolver.PLUGIN_MIN_JAVA}+ under Startup " +
+                "to link it."
 
         else -> "The Pano plugin could not be downloaded; link this server with /pano connect"
     }

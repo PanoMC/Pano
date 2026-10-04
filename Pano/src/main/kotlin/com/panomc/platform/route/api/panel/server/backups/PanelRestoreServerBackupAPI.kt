@@ -72,8 +72,6 @@ class PanelRestoreServerBackupAPI(
             throw CurrentPasswordNotCorrect()
         }
 
-        val target = fileClient.resolve(id, sqlClient, ServerFeature.BACKUPS_RESTORE)
-
         val backup = (databaseManager.serverBackupDao.getByUuid(backupId, sqlClient)
             ?: backupId.toLongOrNull()?.let { databaseManager.serverBackupDao.getById(it, sqlClient) })
             ?: throw NotExists()
@@ -81,6 +79,20 @@ class PanelRestoreServerBackupAPI(
         if (backup.serverId != id) {
             throw NotExists()
         }
+
+        // A backup the node took lives in the node's store, and only the node can put it back --
+        // which it does on a stopped process. Asked while the server runs, the resolver would
+        // hand the restore to the plugin instead, which has never heard of that backup and
+        // answers "not found": said here, as what it is.
+        if (backup.nodeId != null) {
+            val server = databaseManager.serverDao.getById(id, sqlClient) ?: throw NotExists()
+
+            if (server.isManaged && !isStopped(server.processState)) {
+                throw FileOperationFailed(extras = mapOf("message" to "Stop the server before restoring a backup."))
+            }
+        }
+
+        val target = fileClient.resolve(id, sqlClient, ServerFeature.BACKUPS_RESTORE)
 
         if (backup.status != ServerBackupStatus.READY) {
             throw FileOperationFailed(extras = mapOf("message" to "That backup was never finished."))

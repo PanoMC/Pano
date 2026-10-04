@@ -120,9 +120,14 @@ class PanelSshBootstrapNodeAPI(
                 createdBy = userId
             )
         } catch (e: Exception) {
-            // The task row already carries the reason; the caller gets a plain refusal rather
-            // than an SSH library's exception text.
-            throw BadRequest()
+            // The task row already carries the reason; the caller gets a sentence it can show
+            // rather than an SSH library's exception text.
+            throw BadRequest(
+                extras = mapOf(
+                    "message" to "Could not open an SSH connection to $host:$port. Check the address and the port, " +
+                        "and that the host is reachable from Pano."
+                )
+            )
         }
 
         return Successful(

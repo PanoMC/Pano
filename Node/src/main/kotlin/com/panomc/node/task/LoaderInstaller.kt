@@ -161,13 +161,45 @@ class LoaderInstaller(
         return Result(null, "neoforge")
     }
 
+    /**
+     * Runs the installer at [url] in [directory] for a fresh install from the software catalog
+     * (Forge, NeoForge), where Pano has already resolved which installer that is.
+     *
+     * [extraArguments] are tried first and dropped when the installer refuses them: NeoForge's
+     * `--server-jar` (which writes the `server.jar` Pano starts) is an option older installers do
+     * not know, and an install that works without it is better than one that fails over a flag.
+     */
+    fun installFromUrl(
+        directory: File,
+        url: String,
+        minecraftVersion: String?,
+        label: String,
+        extraArguments: List<String> = emptyList(),
+        onProgress: (Int, String) -> Unit
+    ) {
+        if (extraArguments.isEmpty()) {
+            runInstaller(directory, url, minecraftVersion, label, onProgress)
+
+            return
+        }
+
+        try {
+            runInstaller(directory, url, minecraftVersion, label, onProgress, extraArguments)
+        } catch (exception: IllegalStateException) {
+            logger.warn("$label installer refused ${extraArguments.joinToString(" ")}; running it without.")
+
+            runInstaller(directory, url, minecraftVersion, label, onProgress)
+        }
+    }
+
     /** Downloads an installer jar and runs it with `--installServer`, then removes it. */
     private fun runInstaller(
         directory: File,
         url: String,
         minecraftVersion: String?,
         label: String,
-        onProgress: (Int, String) -> Unit
+        onProgress: (Int, String) -> Unit,
+        extraArguments: List<String> = emptyList()
     ) {
         onProgress(LOADER_START_PERCENT, "Downloading $label")
 
@@ -181,9 +213,11 @@ class LoaderInstaller(
             throw IllegalStateException("$label does not publish an installer at that version.")
         }
 
-        run(directory, installer, listOf("--installServer"), minecraftVersion, onProgress, label)
-
-        installer.delete()
+        try {
+            run(directory, installer, listOf("--installServer") + extraArguments, minecraftVersion, onProgress, label)
+        } finally {
+            installer.delete()
+        }
 
         // The installer writes its own log next to the jar; it is noise in a server directory.
         File(directory, "installer.jar.log").delete()

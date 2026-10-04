@@ -67,9 +67,14 @@ class PanelGetAllServerPlayersAPI(
         allowed
             .sortedWith(compareBy<Server> { displayName(it).lowercase() }.thenBy { it.id })
             .forEach { server ->
+                val rows = databaseManager.serverPlayerDao.getAllByServerId(server.id, sqlClient)
+
+                // The same account lookup the per-server roster does, so `panoUser` says one thing
+                // about a player wherever they are listed.
                 val roster = ServerRosterBuilder.build(
-                    databaseManager.serverPlayerDao.getAllByServerId(server.id, sqlClient),
-                    serverManager.getLatestMetrics(server.id)
+                    rows,
+                    serverManager.getLatestMetrics(server.id),
+                    ServerRosterBuilder.panoUsernames(rows.map { it.username }, databaseManager.userDao, sqlClient)
                 )
 
                 roster.forEach { player ->

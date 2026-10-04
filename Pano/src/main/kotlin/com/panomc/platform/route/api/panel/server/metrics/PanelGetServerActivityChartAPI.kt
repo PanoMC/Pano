@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.server.metrics
 
+import com.panomc.platform.auth.panel.ServerVisibility
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
@@ -48,7 +49,7 @@ class PanelGetServerActivityChartAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        authProvider.requirePermission(ManageServersPermission(), context, id)
+        ServerVisibility.requireCanSee(authProvider, context, id)
 
         // Anything but a period this platform knows is the week view rather than a 400: the filter
         // is a link in the panel's address bar, and a stale bookmark should draw a chart.

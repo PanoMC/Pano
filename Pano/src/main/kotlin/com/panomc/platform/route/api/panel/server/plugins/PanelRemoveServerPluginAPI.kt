@@ -74,7 +74,13 @@ class PanelRemoveServerPluginAPI(
         val directory = PluginLoaderMapping.targetDir(target.server.type)
         val path = "$directory/$filename"
 
-        fileClient.request(target, FileDeleteMessage(target.serverUuid, listOf(path)))
+        val payload = fileClient.request(target, FileDeleteMessage(target.serverUuid, listOf(path)))
+
+        // A file that was not there was not removed, and saying it was would log a removal that
+        // never happened.
+        if (payload.getInteger("removed", 1) == 0) {
+            throw NotExists()
+        }
 
         // The provenance goes with the file. Leaving it would claim a version this server has not
         // had since a moment ago, and would offer an update for it.

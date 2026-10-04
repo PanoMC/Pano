@@ -235,12 +235,16 @@ class PanelCreateServerAPI(
         // when it did: on a node in a container those are the only ports anybody outside can reach.
         val nodePortRange = nodeManager.getPortRange(nodeId)
 
+        val takenPorts = ServerPortAllocator.takenPorts(databaseManager.serverDao.getAllByNodeId(nodeId, sqlClient))
+
+        if (port != null) {
+            ServerPortAllocator.refusal(port, takenPorts, nodePortRange)?.let { reason ->
+                throw BadRequest(extras = mapOf("field" to "port", "message" to reason))
+            }
+        }
+
         val gamePort = port ?: ServerPortAllocator
-            .allocate(
-                1,
-                ServerPortAllocator.takenPorts(databaseManager.serverDao.getAllByNodeId(nodeId, sqlClient)),
-                nodePortRange
-            )
+            .allocate(1, takenPorts, nodePortRange)
             ?.firstOrNull()
             ?: throw BadRequest(extras = mapOf("message" to ServerPortAllocator.noFreePortMessage(nodePortRange)))
 
@@ -280,11 +284,17 @@ class PanelCreateServerAPI(
             settings = settings,
             properties = initialProperties(source, serverType, whitelist),
             inPlace = inPlace,
+            // The name the admin chose is what the panel shows: `name` is overwritten by whatever
+            // the server calls itself ("Paper", "Velocity") as soon as its plugin connects.
+            customName = name.take(MAX_CUSTOM_NAME_LENGTH),
             // What the admin typed, until the node answers with the path it actually resolved.
             directory = if (inPlace) folderPath else null
         )
 
         val serverId = databaseManager.serverDao.add(server, sqlClient)
+
+        // The insert does not carry the custom name; it is its own column with its own update.
+        databaseManager.serverDao.updateCustomNameById(serverId, server.customName, sqlClient)
 
         val stored = databaseManager.serverDao.getById(serverId, sqlClient) ?: throw NotExists()
 
@@ -432,7 +442,20 @@ class PanelCreateServerAPI(
         ServerCreateSource.FRESH -> throw BadRequest()
     }
 
-    private fun readJvmArgs(array: JsonArray?): List<String> = ServerStartupLimits.jvmArgs((array ?: JsonArray()).list)
+    private fun readJvmArgs(array: JsonArray?): List<String> {
+        val jvmArgs = ServerStartupLimits.jvmArgs((array ?: JsonArray()).list)
+
+        ServerStartupLimits.launchChangingJvmArg(jvmArgs)?.let { arg ->
+            throw BadRequest(
+                extras = mapOf(
+                    "field" to "jvmArgs",
+                    "message" to "\"$arg\" is not allowed in the JVM arguments: Pano chooses the jar that is started."
+                )
+            )
+        }
+
+        return jvmArgs
+    }
 
     companion object {
         /**
@@ -464,6 +487,9 @@ class PanelCreateServerAPI(
         private const val MAX_PATH_LENGTH = 4096
         private const val MIN_JAVA_MAJOR = 8
         private const val MAX_JAVA_MAJOR = 64
+        /** The bound the rename API keeps a custom name within. */
+        private const val MAX_CUSTOM_NAME_LENGTH = 64
+
         private const val MIN_MEMORY_MB = ServerStartupLimits.MIN_MEMORY_MB
         private const val MAX_MEMORY_MB = ServerStartupLimits.MAX_MEMORY_MB
         private const val MIN_PORT = 1

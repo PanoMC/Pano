@@ -154,6 +154,25 @@ object NodeJarBundle {
     val isBundled: Boolean by lazy { NodeJarBundle::class.java.classLoader.getResource(RESOURCE) != null }
 
     /** The bundled zip, or null on a build that has none (which no build task produces). */
+    /**
+     * What the bundle looks like right now -- its size and modification time -- or null when it
+     * cannot be told. A packaged Pano never changes under a running process; a development build
+     * does (the daemon is rebuilt while Pano runs), and a size remembered from before then is a
+     * `Content-Length` the download never reaches.
+     */
+    fun stamp(): String? = try {
+        val connection = NodeJarBundle::class.java.classLoader.getResource(RESOURCE)?.openConnection()
+
+        connection?.useCaches = false
+
+        connection?.let { "${it.contentLengthLong}:${it.lastModified}" }.also {
+            // A `jar:` connection holds its file open until its stream is closed.
+            runCatching { connection?.getInputStream()?.close() }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     fun open(): InputStream? =
         Thread.currentThread().contextClassLoader?.getResourceAsStream(RESOURCE)
             ?: NodeJarBundle::class.java.classLoader.getResourceAsStream(RESOURCE)

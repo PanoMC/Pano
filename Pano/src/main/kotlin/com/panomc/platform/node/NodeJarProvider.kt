@@ -33,6 +33,10 @@ class NodeJarProvider {
     data class Daemon(val size: Long, val sha256: String)
 
     private val cached = AtomicReference<Daemon?>()
+
+    /** [NodeJarBundle.stamp] of the bundle [cached] was computed from. */
+    @Volatile
+    private var cachedStamp: String? = null
     private val mutex = Mutex()
 
     /** Whether there is a daemon to hand out at all; only a hand-assembled Pano jar has none. */
@@ -45,14 +49,23 @@ class NodeJarProvider {
      * a burst of hellos at boot does not hash it once each.
      */
     suspend fun describe(): Daemon? {
-        cached.get()?.let { return it }
-
         if (!NodeJarBundle.isBundled) {
             return null
         }
 
+        // Remembered only for as long as the bundle is the one that was measured: a size from
+        // before a rebuild is a `Content-Length` the stream never fills, and a download that
+        // waits for the missing bytes forever.
+        val stamp = withContext(Dispatchers.IO) { NodeJarBundle.stamp() }
+
+        cached.get()?.takeIf { stamp == cachedStamp }?.let { return it }
+
         return mutex.withLock {
-            cached.get() ?: withContext(Dispatchers.IO) { digest() }?.also { cached.set(it) }
+            cached.get()?.takeIf { stamp == cachedStamp }
+                ?: withContext(Dispatchers.IO) { digest() }?.also {
+                    cached.set(it)
+                    cachedStamp = stamp
+                }
         }
     }
 

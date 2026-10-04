@@ -61,9 +61,18 @@ class PanelGetServerBackupsAPI(
 
         val backups = databaseManager.serverBackupDao.getAllByServerId(id, sqlClient)
 
+        // The name of whoever took each one: the row keeps an id, and an id is not something a
+        // person reading the list can do anything with.
+        val creatorIds = backups.map { it.createdBy }.filter { it > 0 }.distinct()
+        val creators = if (creatorIds.isEmpty()) {
+            emptyMap()
+        } else {
+            databaseManager.userDao.getUsernameByListOfId(creatorIds, sqlClient)
+        }
+
         return Successful(
             mapOf(
-                "backups" to backups.map { it.toPublicJsonObject() },
+                "backups" to backups.map { it.toPublicJsonObject().put("createdByUsername", creators[it.createdBy]) },
                 // Both shapes on purpose: `settings` is where the panel reads it from, and the
                 // flat key stays so a caller written against the first draft keeps working.
                 "settings" to mapOf(

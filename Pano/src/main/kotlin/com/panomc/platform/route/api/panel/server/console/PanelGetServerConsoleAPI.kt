@@ -174,7 +174,10 @@ class PanelGetServerConsoleAPI(
     private suspend fun firstPage(server: Server, buffer: ServerConsoleBuffer, limit: Int): History {
         val local = buffer.snapshot(limit)
 
-        if (local.size >= limit) {
+        // A full buffer is only the newest page while something is feeding it. With no console
+        // open the stream is off, the buffer stops where the last viewer left, and a page served
+        // from it is missing everything the server has printed since.
+        if (local.size >= limit && panelRealtimeHub.isConsoleStreaming(server.id)) {
             return History(local, true)
         }
 
@@ -182,6 +185,13 @@ class PanelGetServerConsoleAPI(
 
         if (source.lines.isEmpty()) {
             return History(local, source.hasMore || local.size >= limit)
+        }
+
+        // The merge puts the buffer after the source, which is right while the buffer is the
+        // newer of the two. A buffer nothing is feeding is the older one: the source alone is
+        // the newest page then.
+        if (!panelRealtimeHub.isConsoleStreaming(server.id)) {
+            return History(source.lines.takeLast(limit), source.hasMore || source.lines.size >= limit)
         }
 
         val merged = NodeConsoleHistory.merge(local, source.lines, limit)

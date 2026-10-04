@@ -885,7 +885,15 @@ class Main : CoroutineVerticle() {
                     logWebServerReady("http", host, port)
                 }
             }.onFailure { result ->
-                val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}"
+                // A fresh install listens on 80, which an ordinary user may not bind: the reason
+                // alone ("Permission denied") does not say that the fix is one line of config.
+                val hint = if (port < 1024 && (result.message ?: "").contains("Permission denied", ignoreCase = true)) {
+                    " Ports below 1024 need root; set \"http-port\" under \"server\" in config.conf (for example 8088)."
+                } else {
+                    ""
+                }
+
+                val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}.$hint"
                 if (isSslEnabled) {
                     logger.warn(message)
                     UiConsole.markReady()

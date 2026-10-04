@@ -36,6 +36,11 @@ object ServerInspection {
         val eulaAccepted: Boolean
     )
 
+    private const val GENERIC_BUKKIT = "bukkit"
+
+    /** `1.8.8`, `1.20.4`, `26.3` or `26.1.2` standing on its own in a file name. */
+    private val NAME_VERSION = Regex("""(?<![\d.])((?:1\.\d{1,2}|2[5-9]\.\d{1,2})(?:\.\d{1,2})?)(?![\d.]*\d\.)""")
+
     /** Names that give the software away, longest-matching first so `neoforge` beats `forge`. */
     private val NAME_HINTS = listOf(
         "neoforge" to "neoforge",
@@ -80,10 +85,11 @@ object ServerInspection {
 
         return Result(
             jar = jar,
-            software = manifestSoftware ?: nameSoftware ?: loaderSoftware(packLoader),
+            software = preferSpecific(manifestSoftware, nameSoftware) ?: loaderSoftware(packLoader),
             version = jar?.let { versionFromJar(File(directory, it)) }
                 ?: packVersion
-                ?: properties["version"],
+                ?: properties["version"]
+                ?: versionFromName(jar),
             port = properties["server-port"]?.toIntOrNull()?.takeIf { it in 1..65535 },
             javaMajor = null,
             eulaAccepted = isEulaAccepted(File(directory, "eula.txt"))
@@ -123,6 +129,25 @@ object ServerInspection {
 
         return softwareFromName(implementation ?: return null)
     }
+
+    /**
+     * The manifest's answer, unless it only says "bukkit" and the file name knows better.
+     *
+     * Every CraftBukkit descendant built before Paper renamed things carries
+     * `Implementation-Title: CraftBukkit`, so `spigot-1.8.8.jar` used to be imported as plain
+     * Bukkit. The manifest still wins whenever it names something specific.
+     */
+    fun preferSpecific(manifestSoftware: String?, nameSoftware: String?): String? =
+        if (manifestSoftware == GENERIC_BUKKIT && nameSoftware != null) nameSoftware else manifestSoftware ?: nameSoftware
+
+    /**
+     * The Minecraft version a jar's file name states (`spigot-1.8.8.jar`, `paper-1.20.4-499.jar`).
+     *
+     * The last resort: jars older than 1.14 have no `version.json`, and for those the name is the
+     * only place the version is written down at all.
+     */
+    fun versionFromName(jarName: String?): String? =
+        jarName?.let { NAME_VERSION.find(it)?.groupValues?.get(1) }
 
     /** The software a file or class name gives away, or null when the name says nothing. */
     fun softwareFromName(name: String?): String? {
@@ -186,11 +211,15 @@ object ServerInspection {
         val fromVersion = version?.trim()?.takeIf { it.isNotEmpty() }?.let { MinecraftJavaVersions.minimumFor(it) }
         val fromJar = jar?.let { JarJavaRequirement.of(it) }
 
+        // A jar compiled for Java 6 or 7 does not need Java 6: no such runtime can be had any
+        // more, and everything that old runs on 8. Asking for 6 only produced a failed download.
+        val jarFloor = fromJar?.coerceAtLeast(MinecraftJavaVersions.LEGACY_JAVA)
+
         if (fromVersion == null) {
-            return fromJar
+            return jarFloor
         }
 
-        return maxOf(fromVersion, fromJar ?: 0)
+        return maxOf(fromVersion, jarFloor ?: 0)
     }
 
     /** `fabric-loader` and friends, reduced to the software name Pano uses. */

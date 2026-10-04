@@ -1,5 +1,6 @@
 package com.panomc.node.server
 
+import com.panomc.node.task.ReinstallCarryOver
 import com.panomc.node.crypto.NodeKeys
 import com.panomc.node.net.PanoPluginDependency
 import com.panomc.node.net.PanoPluginSpec
@@ -134,7 +135,28 @@ class PanoPluginInstaller(
             throw exception
         }
 
+        removeOtherPanoJars(directory, target)
+
         return target
+    }
+
+    /**
+     * Removes any other build of the Pano plugin from [directory].
+     *
+     * An imported server often already carries one under its release name
+     * (`pano-spigot-1.2.3.jar`); with `pano.jar` beside it Bukkit refuses both as an "ambiguous
+     * plugin name" and the server never links. Only the plugin's own jar names are matched -- a
+     * `pano-plugin-something.jar` is somebody else's addon and stays.
+     */
+    private fun removeOtherPanoJars(directory: File, installed: File) {
+        directory.listFiles().orEmpty()
+            .filter { it.isFile && it.name != installed.name }
+            .filter { ReinstallCarryOver.isPanoPluginJar(it.name.removeSuffix(".disabled")) }
+            .forEach { stale ->
+                if (stale.delete()) {
+                    logger.info("Removed ${stale.name}: ${installed.name} replaces it.")
+                }
+            }
     }
 
     /** Downloads [uri] onto [part], or copies it for a `file:` url (see [copyJar]). */

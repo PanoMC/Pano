@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.server.metrics
 
+import com.panomc.platform.auth.panel.ServerVisibility
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
@@ -58,7 +59,7 @@ class PanelGetServerMetricsAPI(
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
 
-        authProvider.requirePermission(ManageServersPermission(), context, id)
+        ServerVisibility.requireCanSee(authProvider, context, id)
 
         val range = MetricsRange.fromId(parameters.queryParameter("range")?.string)
 

@@ -1,5 +1,6 @@
 package com.panomc.platform.node
 
+import com.panomc.platform.server.MinecraftJavaVersions
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.server.ServerType
 import com.panomc.platform.update.ReleaseInfo
@@ -304,6 +305,28 @@ class ManagedPluginJarResolver(
             val known = version?.trim()?.takeIf { it.isNotEmpty() } ?: return true
 
             return compareMinecraft(known, FABRIC_MIN_MINECRAFT) >= 0
+        }
+
+        /** The Java the Pano plugin is compiled for; older runtimes cannot load it at all. */
+        const val PLUGIN_MIN_JAVA = 11
+
+        /**
+         * Whether this server will run on a Java too old for the Pano plugin.
+         *
+         * The pinned runtime when there is one, otherwise the lowest Java its Minecraft version
+         * runs on -- which is what the node picks when the host has it. A 1.8 server lands on
+         * Java 8, where the plugin fails with `UnsupportedClassVersionError` on every start and
+         * the server never links; leaving the plugin out and saying so is the honest outcome.
+         * A type with no plugin at all is not "too old", it is a different sentence.
+         */
+        fun javaTooOld(type: ServerType, version: String?, pinnedJava: Int?): Boolean {
+            if (platformOf(type) == null) {
+                return false
+            }
+
+            val java = pinnedJava?.takeIf { it > 0 } ?: MinecraftJavaVersions.minimumFor(version)
+
+            return java < PLUGIN_MIN_JAVA
         }
 
         /**

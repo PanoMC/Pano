@@ -1,5 +1,6 @@
 package com.panomc.platform.server.event
 
+import com.panomc.platform.server.ServerType
 import com.panomc.platform.annotation.Event
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
@@ -29,7 +30,11 @@ class OnServerConnectEvent(
         server.port = request.port
         server.playerCount = request.playerCount
         server.maxPlayerCount = request.maxPlayerCount
-        server.type = request.serverType
+        // The plugin sees the Bukkit API, where a Purpur server answers as Paper. For a server
+        // Pano installed as Purpur the catalogue's answer is the more exact one, and stays.
+        if (!(server.isManaged && server.type == ServerType.PURPUR && request.serverType == ServerType.PAPER)) {
+            server.type = request.serverType
+        }
         server.version = request.serverVersion
         // Validate favicon format - only allow safe raster image data URLs (no SVG)
         server.favicon = ImageValidationUtil.sanitizeFaviconDataUrl(request.favicon) ?: ""

@@ -6,6 +6,7 @@ import com.panomc.node.console.ConsoleLevel
 import com.panomc.node.console.ConsoleLineParser
 import com.panomc.node.console.ConsoleLogWriter
 import com.panomc.node.console.ServerLogFollower
+import com.panomc.node.host.JavaRuntime
 import com.panomc.node.host.JavaRuntimeLocator
 import com.panomc.node.host.ProcessMetrics
 import com.panomc.node.java.JavaDownloads
@@ -672,6 +673,17 @@ class ServerProcess(
             throw IllegalStateException("Server jar ${spec.jar} is missing.")
         }
 
+        // A proxy binds what its own config says, not what Pano assigned; see ProxyPortConfig.
+        if (spec.isProxy) {
+            try {
+                ProxyPortConfig.apply(directory, spec.software, spec.port)?.let { file ->
+                    emit(ConsoleLevel.INFO, "Pano set this proxy's port to ${spec.port} in ${file.name}.")
+                }
+            } catch (exception: Exception) {
+                emit(ConsoleLevel.WARN, "Pano could not write port ${spec.port} into the proxy's config: ${exception.message}")
+            }
+        }
+
         // Read before anything is chosen, because it is the only statement of what this jar needs
         // that cannot be wrong: a proxy's version number says nothing about its class files, and
         // starting a Java 25 build on Java 21 is a crash loop rather than a failure.
@@ -696,7 +708,11 @@ class ServerProcess(
             downloads?.enabled == true
         )
 
-        if (decision == JavaNeed.Decision.DOWNLOAD && downloads != null) {
+        // In a container the image brings the Java; the host's runtimes are not what runs the
+        // server, so none is downloaded for it and none has to be installed here.
+        val containerised = runtime.id != ProcessRuntime.ID
+
+        if (decision == JavaNeed.Decision.DOWNLOAD && downloads != null && !containerised) {
             setState(ServerProcessState.STARTING, exitCode = null)
 
             emit(ConsoleLevel.INFO, "Java $needed is not installed on this host; Pano is downloading it before the start.")
@@ -721,9 +737,13 @@ class ServerProcess(
         // With downloads on, the major that was just fetched is the one to run: the ladder alone
         // would still prefer, say, an installed 26 for a server that asks for 25 only when 25 is
         // missing, and it no longer is.
-        val javaRuntime = javaLocator.exact(needed)?.takeIf { decision == JavaNeed.Decision.DOWNLOAD }
-            ?: choice?.runtime
-            ?: if (automatic) null else javaLocator.resolve(maxOf(spec.javaMajor, required ?: 0))
+        val javaRuntime = if (containerised) {
+            JavaRuntime(major = needed, path = "", vendor = null)
+        } else {
+            javaLocator.exact(needed)?.takeIf { decision == JavaNeed.Decision.DOWNLOAD }
+                ?: choice?.runtime
+                ?: if (automatic) null else javaLocator.resolve(maxOf(spec.javaMajor, required ?: 0))
+        }
 
         if (javaRuntime == null || (required != null && javaRuntime.major < required)) {
             refuseForJava(required, automatic, needed, downloads?.enabled == true, downloadError)
@@ -731,9 +751,31 @@ class ServerProcess(
             return
         }
 
+        // A pre-1.12 server on Java 9+ (picked so the Pano plugin can load, or because the host
+        // has nothing older) cannot accept a single connection through netty's native transport.
+        // The switch that fixes it is the server's own, and harmless on a Java it is not needed on.
+        if (!spec.isProxy && javaRuntime.major >= 9 && MinecraftJavaVersions.needsNioOnModernJava(spec.version)) {
+            try {
+                val propertiesFile = File(directory, "server.properties")
+
+                if (ServerProperties.read(propertiesFile)[NATIVE_TRANSPORT_KEY] != "false") {
+                    ServerProperties.merge(propertiesFile, mapOf(NATIVE_TRANSPORT_KEY to "false"))
+
+                    emit(
+                        ConsoleLevel.INFO,
+                        "Pano set $NATIVE_TRANSPORT_KEY=false: Minecraft ${spec.version} cannot accept players on " +
+                            "Java ${javaRuntime.major} with the native transport."
+                    )
+                }
+            } catch (exception: Exception) {
+                logger.warn("Could not set $NATIVE_TRANSPORT_KEY for server $uuid: ${exception.message}")
+            }
+        }
+
         logger.info(
-            "Starting server $uuid (${spec.name}) with Java ${javaRuntime.major} from ${javaRuntime.path}" +
-                (choice?.let { " -- ${it.reason}." } ?: ".") +
+            "Starting server $uuid (${spec.name}) with Java ${javaRuntime.major}" +
+                (if (containerised) " from its container image" else " from ${javaRuntime.path}") +
+                (choice?.takeIf { !containerised }?.let { " -- ${it.reason}." } ?: ".") +
                 (if (runtime.id != "PROCESS") " Runtime: ${runtime.id}." else "")
         )
 
@@ -1566,6 +1608,24 @@ class ServerProcess(
             return environment
         }
 
+        private const val NATIVE_TRANSPORT_KEY = "use-native-transport"
+
+        private val LAUNCH_CHANGING_FLAGS = setOf(
+            "-jar", "-cp", "-classpath", "--class-path", "-p", "--module-path", "-m", "--module",
+            "--upgrade-module-path", "-Xbootclasspath", "-Xbootclasspath/a", "-Xbootclasspath/p"
+        )
+
+        /**
+         * [args] without anything that would change what is launched: Pano refuses these when the
+         * settings are saved, and a spec written before it did (or by hand) must not start another
+         * jar either. A bare word would be read by `java` as the main class.
+         */
+        fun launchSafeJvmArgs(args: List<String>): List<String> = args.filter { arg ->
+            arg.isNotBlank() &&
+                arg.startsWith("-") &&
+                arg.substringBefore('=').substringBefore(':') !in LAUNCH_CHANGING_FLAGS
+        }
+
         /** Keeps jansi's colour escapes in a piped stdout; see [buildCommand]. */
         const val ANSI_PASSTHROUGH = "-Djansi.passthrough=true"
 
@@ -1585,7 +1645,7 @@ class ServerProcess(
             // so their console came out plain. Passthrough leaves the escapes in for
             // ConsoleLineParser; a server that does not use jansi never reads the property.
             command.add(ANSI_PASSTHROUGH)
-            command.addAll(spec.jvmArgs.filter { it.isNotBlank() })
+            command.addAll(launchSafeJvmArgs(spec.jvmArgs))
             command.add("-jar")
             command.add(jarName)
 

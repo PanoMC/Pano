@@ -240,7 +240,13 @@ class ServerScheduleService(
             return
         }
 
-        val uuid = server.uuid ?: return
+        // Only the node addresses a server by uuid. A server linked through the plugin has none,
+        // and returning here for it is why its schedules were never pushed and never ran.
+        if (runner == ServerFeatureSource.NODE && server.uuid == null) {
+            return
+        }
+
+        val uuid = server.uuid.orEmpty()
 
         val entries = listDetailed(server.id, sqlClient).map { detailed ->
             SyncScheduleEntry(

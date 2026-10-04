@@ -87,7 +87,19 @@ open class ConfigManager(
         }
 
         try {
-            val configValues = configRetriever.config.coAwait()
+            val loaded = configRetriever.config.coAwait()
+
+            // A file with no `config-version` was not written by Pano: somebody made it by hand
+            // with the few keys they cared about (a port, a database). Every key it leaves out
+            // is filled from the defaults, or the missing sections are read as nulls and the
+            // boot dies on the first one it touches.
+            val configValues = if (loaded.containsKey("config-version")) {
+                loaded
+            } else {
+                logger.warn("The config file has no \"config-version\"; filling the keys it leaves out from the defaults.")
+
+                JsonObject(defaultConfig.toString()).mergeIn(loaded, true)
+            }
 
             updateConfig(configValues)
 

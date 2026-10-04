@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.server.power
 
+import com.panomc.platform.error.FeatureUnavailable
+import com.panomc.platform.server.ServerProcessState
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.ServerPowerActionLog
@@ -124,6 +126,17 @@ class PanelServerPowerActionAPI(
             throw NodeOffline()
         }
 
+        // Nothing to stop or kill: said so, instead of a success and an activity row for an
+        // action that never happened. A restart of a stopped server is a start, and stays.
+        if ((action == ServerPowerAction.STOP || action == ServerPowerAction.KILL) && isNotRunning(server)) {
+            throw FeatureUnavailable(
+                extras = mapOf(
+                    "feature" to if (action == ServerPowerAction.STOP) "power.stop" else "power.kill",
+                    "reason" to "SERVER_STOPPED"
+                )
+            )
+        }
+
         val sent = nodeManager.sendMessage(
             nodeId,
             NodePowerMessage(
@@ -138,6 +151,11 @@ class PanelServerPowerActionAPI(
             throw NodeOffline()
         }
     }
+
+    private fun isNotRunning(server: Server): Boolean =
+        server.processState == null ||
+            server.processState == ServerProcessState.STOPPED ||
+            server.processState == ServerProcessState.CRASHED
 
     private fun sendToPlugin(server: Server, action: ServerPowerAction, username: String) {
         // Nothing on this side owns a linked server's process: there is no handle to start it with

@@ -97,6 +97,16 @@ class ServerFeatureResolver(
                 put("agent", agentInfo != null)
                 put("agentInfo", agentInfo)
                 put("panoPluginUpdate", panoPluginUpdateOf(server))
+                // Why a managed server has no Pano plugin when that is by design rather than a
+                // failure: the panel explains it instead of showing a server that is "offline".
+                put(
+                    "pluginUnsupportedReason",
+                    if (ManagedPluginJarResolver.javaTooOld(server.type, server.softwareVersion, server.javaVersion)) {
+                        "JAVA_TOO_OLD"
+                    } else {
+                        null
+                    }
+                )
                 put("nodeOutdated", nodeOutdatedOf(server))
                 put("daemonUpdate", nodeUpdateProgressStore.get(server.nodeId)?.toServerJsonObject())
             }

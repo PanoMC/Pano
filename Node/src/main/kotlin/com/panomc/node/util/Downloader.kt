@@ -1,5 +1,7 @@
 package com.panomc.node.util
 
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicBoolean
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -18,6 +20,11 @@ import java.time.Duration
 object Downloader {
     /** How long the daemon waits for the first byte before giving up on an upstream. */
     private val CONNECT_TIMEOUT = Duration.ofSeconds(30)
+
+    /** How long a download may receive nothing before it is given up on. */
+    private const val STALL_TIMEOUT_MS = 90_000L
+
+    private const val STALL_CHECK_MS = 5_000L
 
     private val client: HttpClient by lazy {
         HttpClient.newBuilder()
@@ -135,7 +142,36 @@ object Downloader {
             callback(Progress(copied, total, rate?.toLong()))
         }
 
-        response.body().use { input ->
+        // The request timeout ends at the response headers; a body that stops arriving -- a peer
+        // that promised more bytes than it sends -- would otherwise block this read forever, and
+        // an install or a daemon update would sit at its percentage with nothing in the log.
+        val body = response.body()
+        val lastReadAt = AtomicLong(System.currentTimeMillis())
+        val stalled = AtomicBoolean(false)
+
+        val watchdog = Thread {
+            try {
+                while (true) {
+                    Thread.sleep(STALL_CHECK_MS)
+
+                    if (System.currentTimeMillis() - lastReadAt.get() > STALL_TIMEOUT_MS) {
+                        stalled.set(true)
+
+                        runCatching { body.close() }
+
+                        break
+                    }
+                }
+            } catch (_: InterruptedException) {
+                // The download ended first.
+            }
+        }
+
+        watchdog.isDaemon = true
+        watchdog.start()
+
+        try {
+        body.use { input ->
             target.outputStream().buffered().use { output ->
                 val buffer = ByteArray(64 * 1024)
 
@@ -152,6 +188,8 @@ object Downloader {
 
                     val now = System.currentTimeMillis()
 
+                    lastReadAt.set(now)
+
                     if (bytesListener != null && now - bytesAt >= BYTES_INTERVAL_MS) {
                         reportBytes(now)
                     }
@@ -167,6 +205,19 @@ object Downloader {
                     }
                 }
             }
+        }
+        } catch (exception: java.io.IOException) {
+            if (stalled.get()) {
+                throw IllegalStateException("The download stalled: no data arrived for ${STALL_TIMEOUT_MS / 1000} seconds.")
+            }
+
+            throw exception
+        } finally {
+            watchdog.interrupt()
+        }
+
+        if (stalled.get()) {
+            throw IllegalStateException("The download stalled: no data arrived for ${STALL_TIMEOUT_MS / 1000} seconds.")
         }
 
         // The last reading, so the line ends on the whole size rather than the one a quarter

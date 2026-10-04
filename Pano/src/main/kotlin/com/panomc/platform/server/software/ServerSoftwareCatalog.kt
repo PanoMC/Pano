@@ -1,5 +1,6 @@
 package com.panomc.platform.server.software
 
+import com.panomc.platform.node.ManagedPluginJarResolver
 import com.panomc.platform.server.MinecraftJavaVersions
 import com.panomc.platform.server.ServerType
 import com.panomc.platform.server.software.dto.SoftwareBuildSpec
@@ -106,6 +107,8 @@ class ServerSoftwareCatalog(
                 ProviderKind.PAPER -> resolvePaper(provider, version)
                 ProviderKind.PURPUR -> resolvePurpur(version)
                 ProviderKind.FABRIC -> resolveFabric(version)
+                ProviderKind.FORGE -> resolveForge(version)
+                ProviderKind.NEOFORGE -> resolveNeoForge(version)
                 ProviderKind.SPIGOT_BUILDTOOLS -> resolveSpigot(version)
                 ProviderKind.BUNGEECORD_JENKINS -> resolveBungeeCord(version)
             }
@@ -117,7 +120,7 @@ class ServerSoftwareCatalog(
 
         // Spigot has no download at all -- it is compiled on the node -- so "nothing to install"
         // is now the absence of both a URL and a build to run.
-        if (resolution.downloadUrl == null && resolution.buildSpec == null) {
+        if (resolution.downloadUrl == null && resolution.buildSpec == null && resolution.installerUrl == null) {
             return null
         }
 
@@ -148,6 +151,8 @@ class ServerSoftwareCatalog(
                 ProviderKind.PAPER -> paperVersions(provider)
                 ProviderKind.PURPUR -> purpurVersions()
                 ProviderKind.FABRIC -> fabricVersions()
+                ProviderKind.FORGE -> forgeVersions()
+                ProviderKind.NEOFORGE -> neoForgeVersions()
                 ProviderKind.SPIGOT_BUILDTOOLS -> spigotVersions()
                 ProviderKind.BUNGEECORD_JENKINS -> bungeeCordVersions()
             }
@@ -305,6 +310,84 @@ class ServerSoftwareCatalog(
             version = version,
             downloadUrl = ServerSoftwareUrls.fabricServerJar(version, loaderVersion, installerVersion),
             build = loaderVersion
+        )
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Forge and NeoForge (their own installer, run on the node)
+    // ---------------------------------------------------------------------------------------
+
+    /** Forge's promoted build per Minecraft version: `recommended` when there is one, else `latest`. */
+    private suspend fun forgePromotions(): Map<String, String> {
+        val promos = getJsonObject(ServerSoftwareUrls.FORGE_PROMOTIONS)?.getJsonObject("promos") ?: return emptyMap()
+
+        val builds = LinkedHashMap<String, String>()
+
+        promos.fieldNames().forEach { key ->
+            val game = key.substringBeforeLast('-')
+            val build = promos.getString(key) ?: return@forEach
+
+            if (key.endsWith("-recommended") || game !in builds) {
+                builds[game] = build
+            }
+        }
+
+        return builds.filterKeys { launchableWithJar(it) }
+    }
+
+    private suspend fun forgeVersions(): List<String> =
+        SoftwareVersions.newestFirst(forgePromotions().keys.toList()).take(MAX_VERSIONS)
+
+    private suspend fun resolveForge(version: String): SoftwareResolution? {
+        val build = forgePromotions()[version] ?: return null
+
+        return SoftwareResolution(
+            id = ServerType.FORGE.name.lowercase(),
+            version = version,
+            downloadUrl = null,
+            installerUrl = ServerSoftwareUrls.forgeInstaller(version, build),
+            build = build
+        )
+    }
+
+    /**
+     * The newest NeoForge build per Minecraft version, a finished one ahead of a beta.
+     *
+     * NeoForge numbers its releases after the game: `21.1.255` is for Minecraft 1.21.1 and
+     * `20.4.x` for 1.20.4, and since the 2026 numbering `26.1.2.114` is for 26.1.2 and
+     * `26.3.0.48` for 26.3. Anything that does not read that way (the April Fools builds) is
+     * left out.
+     */
+    private suspend fun neoForgeBuilds(): Map<String, String> {
+        val versions = getJsonObject(ServerSoftwareUrls.NEOFORGE_VERSIONS)?.getJsonArray("versions") ?: return emptyMap()
+
+        val builds = LinkedHashMap<String, String>()
+
+        versions.mapNotNull { it as? String }.forEach { build ->
+            val game = neoForgeGameVersion(build) ?: return@forEach
+            val current = builds[game]
+
+            // Later in the list is newer; a beta never replaces a finished build.
+            if (current == null || !build.contains('-') || current.contains('-')) {
+                builds[game] = build
+            }
+        }
+
+        return builds.filterKeys { launchableWithJar(it) }
+    }
+
+    private suspend fun neoForgeVersions(): List<String> =
+        SoftwareVersions.newestFirst(neoForgeBuilds().keys.toList()).take(MAX_VERSIONS)
+
+    private suspend fun resolveNeoForge(version: String): SoftwareResolution? {
+        val build = neoForgeBuilds()[version] ?: return null
+
+        return SoftwareResolution(
+            id = ServerType.NEOFORGE.name.lowercase(),
+            version = version,
+            downloadUrl = null,
+            installerUrl = ServerSoftwareUrls.neoForgeInstaller(build),
+            build = build
         )
     }
 
@@ -535,6 +618,12 @@ class ServerSoftwareCatalog(
         PURPUR,
         FABRIC,
 
+        /** MinecraftForge: an installer the node runs, which writes the server into the folder. */
+        FORGE,
+
+        /** NeoForge: the same shape as Forge, from its own maven. */
+        NEOFORGE,
+
         /** SpigotMC: a revision list and a compile on the node, with no jar to download. */
         SPIGOT_BUILDTOOLS,
 
@@ -573,7 +662,33 @@ class ServerSoftwareCatalog(
         private const val REQUEST_TIMEOUT_MS = 10_000L
 
         /** Versions offered per software; older ones are behind "show all" in the wizard, later. */
-        private const val MAX_VERSIONS = 60
+        private const val MAX_VERSIONS = 120
+
+        /**
+         * The oldest Minecraft whose Forge/NeoForge install leaves a jar that starts with
+         * `java -jar`. Between 1.17 and 1.20.3 both launch through an `@args` file instead, which
+         * is not how the node starts a server, so those versions are not offered.
+         */
+        private const val LOADER_JAR_MIN_MINECRAFT = "1.20.4"
+
+        fun launchableWithJar(gameVersion: String): Boolean =
+            ManagedPluginJarResolver.compareMinecraft(gameVersion, LOADER_JAR_MIN_MINECRAFT) >= 0
+
+        /** `21.1.255` -> `1.21.1`, `21.0.167` -> `1.21`, `26.1.2.114` -> `26.1.2`, `26.3.0.48-beta` -> `26.3`. */
+        fun neoForgeGameVersion(build: String): String? {
+            val parts = build.substringBefore('-').split('.')
+            val numbers = parts.map { it.toIntOrNull() ?: return null }
+
+            return when {
+                numbers.size == 3 && numbers[0] in 20..25 ->
+                    if (numbers[1] == 0) "1.${numbers[0]}" else "1.${numbers[0]}.${numbers[1]}"
+
+                numbers.size == 4 && numbers[0] >= 26 ->
+                    if (numbers[2] == 0) "${numbers[0]}.${numbers[1]}" else "${numbers[0]}.${numbers[1]}.${numbers[2]}"
+
+                else -> null
+            }
+        }
 
         /** How many proxy versions are checked against the builds endpoint before giving up. */
         private const val PROXY_PROBE_LIMIT = 12
@@ -587,9 +702,8 @@ class ServerSoftwareCatalog(
         /** How long an HTML listing may be before it is treated as something other than a listing. */
         private const val MAX_TEXT_BODY = 4 * 1024 * 1024
 
-        // Forge, NeoForge and Quilt are still absent: each needs its own installer run on the
-        // node, which is its own ticket. The enum already knows those types so a server imported
-        // from disk can be labelled correctly.
+        // Quilt is still absent. Forge and NeoForge are installed by their own installer on the
+        // node and have no Pano plugin: such a server is managed but never linked.
         private val PROVIDERS = listOf(
             Provider("paper", "Paper", ProviderKind.PAPER, ServerType.PAPER, recommended = true),
             Provider("purpur", "Purpur", ProviderKind.PURPUR, ServerType.PURPUR),
@@ -598,6 +712,8 @@ class ServerSoftwareCatalog(
             // downloaded, which is a ten-minute first install and a git the host has to have.
             Provider("spigot", "Spigot", ProviderKind.SPIGOT_BUILDTOOLS, ServerType.SPIGOT, note = "build"),
             Provider("fabric", "Fabric", ProviderKind.FABRIC, ServerType.FABRIC),
+            Provider("forge", "Forge", ProviderKind.FORGE, ServerType.FORGE, note = "installer"),
+            Provider("neoforge", "NeoForge", ProviderKind.NEOFORGE, ServerType.NEOFORGE, note = "installer"),
             Provider("vanilla", "Vanilla", ProviderKind.VANILLA, ServerType.VANILLA),
             Provider("velocity", "Velocity", ProviderKind.PAPER, ServerType.VELOCITY),
             Provider(

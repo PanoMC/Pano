@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.server
 
+import com.panomc.platform.auth.panel.ServerVisibility
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServerBackupsPermission
@@ -45,10 +46,10 @@ class PanelGetServerDashboardAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(ManageServersPermission(), context)
-
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
+
+        ServerVisibility.requireCanSee(authProvider, context, id)
 
         val result = mutableMapOf<String, Any?>(
             "server" to null,

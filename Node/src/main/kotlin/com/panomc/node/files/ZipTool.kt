@@ -35,7 +35,19 @@ object ZipTool {
      * `plugins` still works and simply produces an archive without this server's credentials in
      * it — which is also what makes the same code safe to reuse for backups.
      */
-    fun archive(root: File, paths: List<String>, target: File, exclude: (String) -> Boolean = { false }): Long {
+    fun archive(
+        root: File,
+        paths: List<String>,
+        target: File,
+        /**
+         * Leading part of every entry's path that is left out of the archive (`"plugins/"`), so a
+         * selection zipped inside a folder unpacks next to itself instead of rebuilding the whole
+         * path from the server's root. Empty keeps the paths as they are, which is what a backup
+         * needs: it is restored onto the root.
+         */
+        stripPrefix: String = "",
+        exclude: (String) -> Boolean = { false }
+    ): Long {
         target.parentFile?.mkdirs()
 
         var entries = 0
@@ -65,14 +77,20 @@ object ZipTool {
                         throw IllegalStateException("This selection holds more than $MAX_ENTRIES files.")
                     }
 
+                    val entryName = relative.removePrefix(stripPrefix)
+
+                    if (entryName.isEmpty()) {
+                        return@inner
+                    }
+
                     if (file.isDirectory) {
-                        out.putNextEntry(ZipEntry("$relative/"))
+                        out.putNextEntry(ZipEntry("$entryName/"))
                         out.closeEntry()
 
                         return@inner
                     }
 
-                    out.putNextEntry(ZipEntry(relative))
+                    out.putNextEntry(ZipEntry(entryName))
 
                     written += copy(file.inputStream().buffered(), out)
 

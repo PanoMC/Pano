@@ -199,7 +199,13 @@ class ConsoleFileTailer(
         }
     }
 
-    private fun decode(bytes: ByteArray): String = String(bytes, Charsets.UTF_8).trimEnd('\r')
+    /**
+     * One line as text. A carriage return inside it is a terminal redrawing the line -- JLine
+     * erasing its `>` prompt before a proxy prints (`>\r \r18:43:55 [INFO] …`) -- and only what
+     * follows the last one is what the terminal would be showing.
+     */
+    private fun decode(bytes: ByteArray): String =
+        String(bytes, Charsets.UTF_8).trimEnd('\r').substringAfterLast('\r')
 
     companion object {
         /** Size at which `console.out` is rotated. */

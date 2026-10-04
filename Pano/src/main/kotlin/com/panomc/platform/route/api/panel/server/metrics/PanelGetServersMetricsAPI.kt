@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.server.metrics
 
+import com.panomc.platform.auth.panel.ServerVisibility
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
@@ -54,7 +55,6 @@ class PanelGetServersMetricsAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(ManageServersPermission(), context)
 
         val parameters = getParameters(context)
 
@@ -74,7 +74,11 @@ class PanelGetServersMetricsAPI(
 
         // The same set the servers modal lists, and the same one the panel is allowed to see: a
         // server whose connect request has not been accepted has no vitals to show.
-        val servers = databaseManager.serverDao.getAllByPermissionGranted(sqlClient)
+        val servers = ServerVisibility.visible(
+            authProvider,
+            context,
+            databaseManager.serverDao.getAllByPermissionGranted(sqlClient)
+        )
 
         val now = System.currentTimeMillis()
 

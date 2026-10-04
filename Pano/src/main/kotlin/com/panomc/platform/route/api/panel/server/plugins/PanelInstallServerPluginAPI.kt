@@ -15,6 +15,7 @@ import com.panomc.platform.node.ManagedServerFileClient
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.plugins.ManagedServerPluginService
 import com.panomc.platform.server.plugins.PluginFileNaming
+import com.panomc.platform.server.plugins.PluginCompatibility
 import com.panomc.platform.server.plugins.PluginLoaderMapping
 import com.panomc.platform.server.plugins.PluginSourceCatalog
 import com.panomc.platform.server.plugins.PluginSourceId
@@ -121,6 +122,19 @@ class PanelInstallServerPluginAPI(
             projectId = projectId,
             versionId = versionId
         ) ?: throw NotExists()
+
+        // A build for another loader cannot run here at all (a NeoForge jar on Paper), which is a
+        // different thing from a build for another Minecraft version -- that one is the admin's
+        // call and the list already marks it. Only the first is refused.
+        val serverLoaders = when (source) {
+            PluginSourceId.MODRINTH -> PluginLoaderMapping.modrinthLoaders(target.server.type)
+            PluginSourceId.CURSEFORGE -> PluginLoaderMapping.curseForgeLoaderNames(target.server.type)
+            PluginSourceId.HANGAR -> listOfNotNull(PluginLoaderMapping.hangarPlatform(target.server.type))
+        }
+
+        if (version.loaders.isNotEmpty() && !PluginCompatibility.matches(version.loaders, serverLoaders)) {
+            throw InvalidData(extras = mapOf("reason" to "INCOMPATIBLE_LOADER", "loaders" to version.loaders))
+        }
 
         val file = version.files.getOrNull(fileIndex) ?: throw NotExists()
 

@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.server
 
+import com.panomc.platform.auth.panel.ServerVisibility
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
@@ -21,11 +22,14 @@ class PanelGetConnectedServersAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(ManageServersPermission(), context)
 
         val sqlClient = getSqlClient()
 
-        val all = databaseManager.serverDao.getAllByPermissionGranted(sqlClient)
+        val all = ServerVisibility.visible(
+            authProvider,
+            context,
+            databaseManager.serverDao.getAllByPermissionGranted(sqlClient)
+        )
         val byId = all.associateBy { it.id }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)

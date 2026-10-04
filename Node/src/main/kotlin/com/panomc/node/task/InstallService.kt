@@ -52,7 +52,14 @@ class InstallService(
      */
     private val javaService: JavaRuntimeService? = null,
     /** The one directory an agent-mode daemon runs, or null for an ordinary node. */
-    private val agentServer: () -> String? = { null }
+    private val agentServer: () -> String? = { null },
+    /**
+     * Runs a loader's own installer (Forge, NeoForge) for a catalog install. A provider rather
+     * than the object, because the daemon builds it after this service.
+     */
+    private val loaderInstaller: () -> LoaderInstaller? = { null },
+    /** False when servers run in containers: the image brings the Java, so none is fetched here. */
+    private val usesHostJava: () -> Boolean = { true }
 ) {
     fun install(message: InstallServerMessage, reinstall: Boolean) {
         val taskId = message.taskId
@@ -161,7 +168,11 @@ class InstallService(
         // it is the only install where this host makes the jar.
         val buildSpec = spec.build?.takeIf { it.tool.equals(BuildSpec.BUILDTOOLS, ignoreCase = true) }
 
-        if (buildSpec == null && downloadUrl.isNullOrBlank()) {
+        // Forge and NeoForge arrive with an installer to run: neither a jar to download nor a
+        // build to compile, but the loader's own program writing the server into the directory.
+        val installerUrl = spec.installerUrl?.takeIf { it.isNotBlank() }
+
+        if (buildSpec == null && downloadUrl.isNullOrBlank() && installerUrl == null) {
             reporter.failed(taskId, uuid, kind, "Pano did not resolve a download for this version.")
 
             return
@@ -202,6 +213,35 @@ class InstallService(
                 onProgress = { percent, message -> reporter.running(taskId, uuid, kind, percent, message) },
                 onOutput = { percent, line -> reporter.output(taskId, uuid, kind, percent, line) }
             )
+        } else if (installerUrl != null) {
+            val installer = loaderInstaller()
+                ?: throw IllegalStateException("This node cannot run a ${spec.software} installer.")
+
+            val label = "${spec.software} ${spec.version}".trim()
+
+            installer.installFromUrl(
+                directory = workDirectory,
+                url = installerUrl,
+                minecraftVersion = spec.version,
+                label = label,
+                // NeoForge writes the `server.jar` Pano starts only when asked to.
+                extraArguments = if (spec.software.equals("neoforge", ignoreCase = true)) listOf("--server-jar") else emptyList()
+            ) { percent, message -> reporter.running(taskId, uuid, kind, percent, message) }
+
+            // Forge leaves its launcher as `forge-<version>-shim.jar`; Pano starts `server.jar`.
+            if (!jarFile.isFile) {
+                workDirectory.listFiles().orEmpty()
+                    .firstOrNull { it.isFile && it.name.endsWith("-shim.jar") }
+                    ?.renameTo(jarFile)
+            }
+
+            if (!jarFile.isFile) {
+                workDirectory.deleteRecursively()
+
+                reporter.failed(taskId, uuid, kind, "The $label installer left no server jar Pano can start.")
+
+                return
+            }
         } else {
             reporter.running(taskId, uuid, kind, DOWNLOAD_START_PERCENT, "Downloading ${spec.software} ${spec.version}")
 
@@ -455,7 +495,7 @@ class InstallService(
     ): String? {
         val service = javaService ?: return null
 
-        if (!service.enabled) {
+        if (!service.enabled || !usesHostJava()) {
             return null
         }
 

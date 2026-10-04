@@ -265,9 +265,20 @@ class FileService(
             return failure(ERROR_EXISTS)
         }
 
-        val written = ZipTool.archive(root, requested, archiveFile)
+        val written = ZipTool.archive(root, requested, archiveFile, stripPrefix = commonParent(requested))
 
         return success().put("size", written).put("archiveSize", archiveFile.length())
+    }
+
+    /**
+     * The folder every one of [paths] lives in, with a trailing slash, or "" when they do not
+     * share one. Entries are stored relative to it: zipping `plugins/Essentials` from inside
+     * `plugins` gives an archive that holds `Essentials/…`, not `plugins/Essentials/…`.
+     */
+    private fun commonParent(paths: List<String>): String {
+        val parents = paths.map { ServerFileDenylist.normalise(it).trimEnd('/').substringBeforeLast('/', "") }.distinct()
+
+        return parents.singleOrNull()?.takeIf { it.isNotEmpty() }?.let { "$it/" }.orEmpty()
     }
 
     private fun unarchive(root: File, path: String?, target: String?): JsonObject {

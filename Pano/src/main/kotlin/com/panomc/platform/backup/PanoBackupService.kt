@@ -6,6 +6,7 @@ import com.panomc.platform.archive.ArchiveSource
 import com.panomc.platform.archive.PanoArcEncryption
 import com.panomc.platform.archive.PanoArcException
 import com.panomc.platform.archive.PanoArcKeys
+import com.panomc.platform.archive.instance.ConfigRewriter
 import com.panomc.platform.archive.instance.InstanceArchiver
 import com.panomc.platform.archive.instance.InstanceLayout
 import com.panomc.platform.archive.instance.InstanceRestorer
@@ -49,6 +50,15 @@ interface PanoBackupHost {
 
     /** Called once a restore has been applied: the platform must restart to load the restored state. */
     suspend fun restoreApplied()
+
+    /** Called when a restore ends without being applied (rejected, failed or rolled back) with its stable code. */
+    suspend fun restoreFailed(code: String) {}
+
+    /**
+     * A target without a database of its own (setup mode before step 2) takes [database], the
+     * archive's: from then on [targetConfig] and [connect] use it. False = this host keeps its own.
+     */
+    fun adoptDatabase(database: JsonObject): Boolean = false
 }
 
 /**
@@ -115,8 +125,8 @@ data class PanoBackupJob(
 
 /**
  * Local Pano backups: create (plain or passphrase E2E), and restore in the archive-format.md
- * section 5 order — stage + verify first (a rejected archive changes nothing), then maintenance
- * mode on, a pre-restore safety archive, drop + import + file swap + config, and a restart. A
+ * section 5 order — stage + verify first (a rejected archive changes nothing), then a pre-restore
+ * safety archive, maintenance mode on, drop + import + file swap + config, and a restart. A
  * failure after the safety archive was taken restores that safety archive (rollback).
  *
  * One operation at a time: a second create or restore while one runs is [BUSY].
@@ -336,6 +346,23 @@ class PanoBackupService(
         passphrase: CharArray?,
         safetyArchive: Boolean,
         maintenance: Boolean
+    ): PanoBackupInfo? = try {
+        restoreStaged(source, passphrase, safetyArchive, maintenance)
+    } catch (e: Throwable) {
+        try {
+            host.restoreFailed(describe(e).first)
+        } catch (auditError: Throwable) {
+            logger.warn("Could not record the failed restore: ${auditError.message}")
+        }
+
+        throw e
+    }
+
+    private suspend fun restoreStaged(
+        source: File,
+        passphrase: CharArray?,
+        safetyArchive: Boolean,
+        maintenance: Boolean
     ): PanoBackupInfo? {
         val restorer = restorer()
         val keys = PanoArcKeys(passphrase = passphrase?.takeIf { it.isNotEmpty() })
@@ -344,20 +371,22 @@ class PanoBackupService(
         val staged = withContext(Dispatchers.IO) { source.inputStream().buffered(256 * 1024).use { restorer.stage(it, keys) } }
 
         try {
+            adoptArchivedDatabase(staged)
+
             // Opened before anything changes, so a bad target database fails with nothing touched.
             val connection = connect()
             var safety: PanoBackupInfo? = null
 
             try {
-                val previousMaintenance = if (maintenance) host.setMaintenance(true) else null
-
+                // Before maintenance mode goes on: the safety archive holds the config too, and
+                // one taken with the switch on left Pano in maintenance mode when it was restored.
                 safety = try {
                     if (safetyArchive) createLocked(null, PanoBackupTag.PRE_RESTORE, null) else null
                 } catch (e: Throwable) {
-                    previousMaintenance?.let { host.setMaintenance(it) }
-
                     throw PanoBackupException(SAFETY_BACKUP_FAILED, e.message, cause = e)
                 }
+
+                val previousMaintenance = if (maintenance) host.setMaintenance(true) else null
 
                 try {
                     restorer.apply(staged, connection) { host.applyConfig(forTarget(it)) }
@@ -398,6 +427,32 @@ class PanoBackupService(
 
             throw PanoBackupException(ROLLBACK_FAILED, error.message, cause = error)
         }
+    }
+
+    /**
+     * A target with no database configured restores into the archive's own: the same machine coming
+     * back from its backup needs nothing typed in. A target that has one keeps it.
+     */
+    private fun adoptArchivedDatabase(staged: InstanceRestorer.Staged) {
+        if (!host.targetConfig().getJsonObject("database")?.getString("host").isNullOrBlank()) {
+            return
+        }
+
+        val archived = staged.archivedDatabase
+
+        if (archived == null || archived.getString("host").isNullOrBlank()) {
+            throw PanoBackupException(DATABASE_REQUIRED, "Neither this Pano nor the archive has a database configured.")
+        }
+
+        if (!host.adoptDatabase(archived)) {
+            throw PanoBackupException(DATABASE_REQUIRED, "No database is configured.")
+        }
+
+        val database = staged.config.getJsonObject("database") ?: JsonObject().also { staged.config.put("database", it) }
+
+        ConfigRewriter.TARGET_DATABASE_KEYS.forEach { database.put(it, archived.getValue(it)) }
+
+        logger.info("No database is configured; restoring into the archive's own database.")
     }
 
     private fun restorer() = InstanceRestorer(
@@ -446,6 +501,7 @@ class PanoBackupService(
         const val ROLLBACK_FAILED = "ROLLBACK_FAILED"
         const val SAFETY_BACKUP_FAILED = "SAFETY_BACKUP_FAILED"
         const val DATABASE_CONNECTION_FAILED = "DATABASE_CONNECTION_FAILED"
+        const val DATABASE_REQUIRED = "DATABASE_REQUIRED"
         const val INTERNAL = "INTERNAL_ERROR"
 
         const val PHASE_ARCHIVING = "ARCHIVING"

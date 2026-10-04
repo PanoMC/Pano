@@ -15,13 +15,16 @@ class PanoBackupActionLog(
     userId: Long,
     username: String,
     action: String,
-    backupId: String? = null
+    backupId: String? = null,
+    /** The stable error code of an action that did not go through (a rejected or rolled back restore). */
+    error: String? = null
 ) : PanelActivityLog(
     userId = userId,
     details = JsonObject()
         .put("username", username)
         .put("action", action)
         .put("backupId", backupId ?: "")
+        .apply { error?.let { put("ok", false).put("error", it) } }
 ) {
     companion object {
         const val ACTION_CREATE = "CREATE"

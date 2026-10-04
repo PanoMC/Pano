@@ -292,7 +292,7 @@ class PanoBackupManager(
     }
 
     /** The running Pano ([panel]) or setup mode with an explicit target database. */
-    private inner class PlatformHost(private val databaseOverride: JsonObject?, private val panel: Boolean) : PanoBackupHost {
+    private inner class PlatformHost(@Volatile private var databaseOverride: JsonObject?, private val panel: Boolean) : PanoBackupHost {
         override val layout: InstanceLayout get() = InstanceLayout.current(configManager.config)
 
         override val panoVersion: String get() = Main.VERSION
@@ -301,6 +301,7 @@ class PanoBackupManager(
 
         override fun targetConfig(): JsonObject {
             val config = JsonObject(configManager.config.toString())
+            val databaseOverride = databaseOverride
 
             if (databaseOverride != null) {
                 val database = config.getJsonObject("database")?.copy() ?: JsonObject()
@@ -329,8 +330,32 @@ class PanoBackupManager(
 
         // A dedicated connection, never one of the shared pool's: the dumper and the importer
         // change session state (time zone, sql_mode, foreign_key_checks) that must not leak.
-        override suspend fun connect(): SqlConnection =
-            MySQLConnection.connect(vertx, connectOptions(targetConfig().getJsonObject("database") ?: JsonObject())).coAwait()
+        override suspend fun connect(): SqlConnection {
+            val options = connectOptions(targetConfig().getJsonObject("database") ?: JsonObject())
+
+            // The client throws this one inside its own context, where nobody is waiting: the connect
+            // future would never complete and the restore would hold the lock for good.
+            require(!options.host.isNullOrBlank()) { "No database host is configured." }
+
+            return MySQLConnection.connect(vertx, options).coAwait()
+        }
+
+        override fun adoptDatabase(database: JsonObject): Boolean {
+            // The running Pano always has its own; a portable database is managed by Pano itself.
+            if (panel || configManager.config.database.type == "portable") {
+                return false
+            }
+
+            databaseOverride = database.copy()
+
+            return true
+        }
+
+        override suspend fun restoreFailed(code: String) {
+            if (panel) {
+                audit.writeFailedRestore(code)
+            }
+        }
 
         override suspend fun setMaintenance(enabled: Boolean): Boolean {
             if (!panel) {

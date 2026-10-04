@@ -59,7 +59,9 @@ class InstanceRestorer(
         val manifest: ArchiveManifest,
         /** The archived config rewritten for this target. */
         val config: JsonObject,
-        val dump: SanitisedSqlImporter.Summary
+        val dump: SanitisedSqlImporter.Summary,
+        /** The archived config's own `database {…}`, for a target that has no database of its own yet. */
+        val archivedDatabase: JsonObject? = null
     ) {
         internal val root get() = File(directory, "archive")
         internal val backup get() = File(directory, "replaced")
@@ -129,7 +131,7 @@ class InstanceRestorer(
             val summary = dumpFile.inputStream().use { SanitisedSqlImporter(pano.dbPrefix).validateGzip(it) }
             val config = ConfigRewriter.rewrite(archivedConfig, targetConfig, hostedEmail)
 
-            return Staged(directory, manifest, config, summary)
+            return Staged(directory, manifest, config, summary, archivedConfig.getJsonObject("database")?.copy())
         } catch (e: Throwable) {
             deleteTree(directory)
 

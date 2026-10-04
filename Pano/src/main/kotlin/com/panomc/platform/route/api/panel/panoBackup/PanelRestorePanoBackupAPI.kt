@@ -24,7 +24,7 @@ import io.vertx.kotlin.coroutines.coAwait
 
 /**
  * Restores a local backup over this Pano (`POST /api/panel/pano-backups/:id/restore`): verified
- * first, then maintenance mode, a pre-restore safety backup, the restore itself and a restart.
+ * first, then a pre-restore safety backup, maintenance mode, the restore itself and a restart.
  * Re-authenticated with the admin's password; poll `GET /api/panel/pano-backups/job`.
  */
 @Endpoint
@@ -72,12 +72,14 @@ class PanelRestorePanoBackupAPI(
 
         val passphrase = PanoBackupRoutes.passphrase(body.getString("passphrase"))
 
+        val auditEntry = panoBackupAudit.restoreEntry(context, PanoBackupActionLog.ACTION_RESTORE, id)
+
         val job = PanoBackupRoutes.startJob {
             panoBackupManager.service.startRestore(store.archiveFile(id), passphrase, deleteSource = false)
         }
 
-        // Written into the restored database once the restore is applied (it replaces the log).
-        panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE, id)
+        // Written once the restore is applied (into the restored database) or has failed.
+        panoBackupAudit.deferRestore(auditEntry)
 
         return Successful(mapOf("job" to job.toJson()))
     }

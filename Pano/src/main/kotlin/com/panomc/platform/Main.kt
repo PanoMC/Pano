@@ -307,26 +307,36 @@ class Main : CoroutineVerticle() {
         processExit.request(exitCode)
         logger.info("Gracefully shutting down Pano...")
 
-        try {
-            withContext(Dispatchers.IO) {
+        // On its own scope: a caller on the Vert.x dispatcher (panel restart, restore) cannot be
+        // resumed once Vert.x is closed, and the exit below must still happen. It used to run in
+        // the caller, was cancelled right after the close, and in GUI mode the old process stayed
+        // alive behind every restart.
+        val stopping = CoroutineScope(Dispatchers.IO).launch {
+            try {
                 withTimeout(10000) {
                     Main.vertx.close().coAwait()
                 }
+            } catch (e: Exception) {
+                logger.warn("Vert.x shutdown reached timeout or failed: ${e.message}")
+            } finally {
+                shutdownDeferred.complete(Unit)
+
+                // This wakes up the main thread's await()
+                signalMainShutdown()
+
+                // If we are NOT in the main loop thread (e.g. GUI mode),
+                // we should manually exit after a delay if signal wasn't caught
+                if (IS_GUI && exit) {
+                    withContext(NonCancellable) { delay(1000) }
+                    processExit.exit()
+                }
             }
-        } catch (e: Exception) {
-            logger.warn("Vert.x shutdown reached timeout or failed: ${e.message}")
-        } finally {
-            shutdownDeferred.complete(Unit)
-            
-            // This wakes up the main thread's await()
-            signalMainShutdown()
-            
-            // If we are NOT in the main loop thread (e.g. GUI mode), 
-            // we should manually exit after a delay if signal wasn't caught
-            if (IS_GUI && exit) {
-                delay(1000)
-                processExit.exit()
-            }
+        }
+
+        try {
+            stopping.join()
+        } catch (_: CancellationException) {
+            // The caller's dispatcher went away with Vert.x; the shutdown itself carries on.
         }
     }
 

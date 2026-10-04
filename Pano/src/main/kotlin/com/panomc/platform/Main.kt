@@ -12,6 +12,7 @@ import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.hosted.HostedAutoSetupRunner
+import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.hosted.ContainerMode
 import com.panomc.platform.hosted.ProcessExit
@@ -447,6 +448,8 @@ class Main : CoroutineVerticle() {
             initPlugins()
         }
 
+        syncHostedPanoUrls()
+
         if (!isPlatformInstalled) {
             isPlatformInstalled = runHostedAutoSetup()
         }
@@ -546,15 +549,28 @@ class Main : CoroutineVerticle() {
         false
     }
 
-    /** Pano Host only: takes the environment's website address and tells the control plane this instance supports panel SSO. */
-    private suspend fun initPanoHostManager() {
+    /**
+     * Pano Host only: takes the website and API addresses of this instance's environment before the
+     * installer or the panel start, so neither sends the owner to panomc.com from dev or local.
+     */
+    private suspend fun syncHostedPanoUrls() {
+        if (!HostedEnvConfig.current.isHosted) return
+
+        try {
+            applicationContext.getBean(PanoHostManager::class.java).syncPanoUrls()
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError) throw e
+            logger.warn("Pano Host: could not take the environment's addresses: {}", e.javaClass.simpleName)
+        }
+    }
+
+    /** Pano Host only: tells the control plane this instance supports panel SSO. */
+    private fun initPanoHostManager() {
         val panoHostManager = applicationContext.getBean(PanoHostManager::class.java)
 
         if (!panoHostManager.ssoEnabled) return
 
         logger.info("Initializing Pano Host integration")
-
-        panoHostManager.syncPanoWebsiteUrl()
 
         panoHostManager.announceCapabilities()
     }

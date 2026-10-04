@@ -43,7 +43,13 @@ data class HostNotice(
 }
 
 /** One `GET /host/instance/notices` answer: the notices and the control plane's `manageUrl`, if any. */
-data class HostNotices(val notices: List<HostNotice>, val manageUrl: String? = null)
+data class HostNotices(
+    val notices: List<HostNotice>,
+    val manageUrl: String? = null,
+    /** This environment's website and panomc.com API (control planes older than 2026-10-04 send neither). */
+    val websiteUrl: String? = null,
+    val platformApiUrl: String? = null
+)
 
 /** Source of [HostNotice]s for this instance; implementations should cache and fail soft. */
 interface HostNoticeFeed {

@@ -302,7 +302,9 @@ class PanoHostClient(
     suspend fun noticeFeed(): HostNotices {
         val data = request(HttpMethod.GET, "/host/instance/notices", null)
         val manageUrl = data.getValue("manageUrl")?.toString()?.takeIf { it.isNotBlank() }
-        val array = data.getJsonArray("notices") ?: return HostNotices(emptyList(), manageUrl)
+        val websiteUrl = data.getValue("websiteUrl")?.toString()?.takeIf { it.isNotBlank() }
+        val platformApiUrl = data.getValue("platformApiUrl")?.toString()?.takeIf { it.isNotBlank() }
+        val array = data.getJsonArray("notices") ?: return HostNotices(emptyList(), manageUrl, websiteUrl, platformApiUrl)
 
         val notices = array.mapNotNull { raw ->
             val json = raw as? JsonObject ?: return@mapNotNull null
@@ -323,7 +325,7 @@ class PanoHostClient(
             )
         }.take(MAX_NOTICES)
 
-        return HostNotices(notices, manageUrl)
+        return HostNotices(notices, manageUrl, websiteUrl, platformApiUrl)
     }
 
     fun close() = client.close()

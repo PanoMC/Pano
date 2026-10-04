@@ -188,4 +188,18 @@ class PanoHostClientTest {
         plane.manageUrl = "https://dev.panomc.com/host/manage/instances/p-aaaaaaaaaa"
         assertEquals("https://dev.panomc.com/host/manage/instances/p-aaaaaaaaaa", client().noticeFeed().manageUrl)
     }
+
+    @Test
+    fun `the notice feed carries the environment's website and api when the control plane sends them`() = runBlocking {
+        val old = client().noticeFeed()
+        assertNull(old.websiteUrl)
+        assertNull(old.platformApiUrl)
+
+        plane.websiteUrl = "https://local.panomc.com:3003"
+        plane.platformApiUrl = "https://local-api.panomc.com/api"
+
+        val feed = client().noticeFeed()
+        assertEquals("https://local.panomc.com:3003", feed.websiteUrl)
+        assertEquals("https://local-api.panomc.com/api", feed.platformApiUrl)
+    }
 }

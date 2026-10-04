@@ -23,6 +23,10 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
     /** `manageUrl` of the notice feed; null leaves it out (an older control plane). */
     var manageUrl: String? = null
 
+    /** `websiteUrl` / `platformApiUrl` of the notice feed; null leaves them out (an older control plane). */
+    var websiteUrl: String? = null
+    var platformApiUrl: String? = null
+
     /** Next N capability calls answer 503 (to exercise the retry loop). */
     val failCapabilities = AtomicInteger(0)
 
@@ -66,7 +70,11 @@ class FakeControlPlane(private val vertx: Vertx, val secret: String, private val
 
                 when {
                     req.path() == "$prefix/host/instance/notices" && req.method().name() == "GET" ->
-                        if (auth != "Bearer $secret") error(401, "INVALID_TOKEN") else ok(JsonObject().put("notices", notices).apply { manageUrl?.let { put("manageUrl", it) } })
+                        if (auth != "Bearer $secret") error(401, "INVALID_TOKEN") else ok(JsonObject().put("notices", notices).apply {
+                            manageUrl?.let { put("manageUrl", it) }
+                            websiteUrl?.let { put("websiteUrl", it) }
+                            platformApiUrl?.let { put("platformApiUrl", it) }
+                        })
                     req.path() == "$prefix/platform/authorize" -> {
                         val code = body?.getString("code")
                         val version = body?.getString("version")

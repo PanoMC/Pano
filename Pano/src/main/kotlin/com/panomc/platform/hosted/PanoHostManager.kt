@@ -1,5 +1,6 @@
 package com.panomc.platform.hosted
 
+import com.panomc.platform.PanoApiManager
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.config.ConfigManager
@@ -47,16 +48,17 @@ class PanoHostManager(
         /** How often the local admin list is compared with the last announced one. */
         const val ADMIN_CHECK_INTERVAL_MS = 10 * 60 * 1000L
 
-        /** How long the boot waits for the control plane's website address before going on with the stored one. */
-        const val WEBSITE_URL_SYNC_TIMEOUT_MS = 5_000L
+        /** How long the boot waits for the control plane's website and API addresses before going on with the stored one. */
+        const val URL_SYNC_TIMEOUT_MS = 5_000L
 
         /**
          * The website of the environment this instance lives in (`https://panomc.com`,
          * `https://dev.panomc.com`, `https://local.panomc.com:3003`), taken from the control plane's
-         * [manageUrl]: its scheme, host and port. Null unless that is an http(s) URL with a host.
+         * `websiteUrl` or `manageUrl` ([url]): its scheme, host and port. Null unless that is an http(s)
+         * URL with a host.
          */
-        fun websiteOriginOf(manageUrl: String?): String? {
-            val uri = runCatching { URI(manageUrl?.trim() ?: return null) }.getOrNull() ?: return null
+        fun websiteOriginOf(url: String?): String? {
+            val uri = runCatching { URI(url?.trim() ?: return null) }.getOrNull() ?: return null
             val scheme = uri.scheme?.lowercase()?.takeIf { it == "https" || it == "http" } ?: return null
             val host = uri.host?.takeIf { it.isNotEmpty() && uri.userInfo == null } ?: return null
 
@@ -81,16 +83,18 @@ class PanoHostManager(
     private val setupDone get() = configManager.config.setup.step == 5
 
     /**
-     * Points `pano-website-url` at the website of this instance's environment, so the panel's store,
-     * add-on and account links (and the license issuer derived from it) go to dev.panomc.com or
-     * local.panomc.com:3003 instead of panomc.com there. Called at boot before the UIs start, which
-     * read the address once; an unreachable control plane keeps the stored one. True when it changed.
+     * Points `pano-website-url` and `pano-api-url` at the website and API of this instance's
+     * environment, so the panel's and the installer's store, add-on and account links (and the license
+     * issuer derived from the website) go to dev.panomc.com or local.panomc.com:3003 instead of
+     * panomc.com there. The API is only moved while no panomc.com account is connected: a stored
+     * token belongs to the API that issued it. Called at boot before the UIs start, which read both
+     * once; an unreachable control plane keeps the stored ones. True when something changed.
      */
-    suspend fun syncPanoWebsiteUrl(): Boolean {
+    suspend fun syncPanoUrls(): Boolean {
         val client = client ?: return false
 
-        val website = try {
-            withTimeoutOrNull(WEBSITE_URL_SYNC_TIMEOUT_MS) { websiteOriginOf(client.noticeFeed().manageUrl) }
+        val feed = try {
+            withTimeoutOrNull(URL_SYNC_TIMEOUT_MS) { client.noticeFeed() }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -98,13 +102,27 @@ class PanoHostManager(
             null
         } ?: return false
 
-        if (configManager.config.panoWebsiteUrl.trimEnd('/') == website) return false
+        val config = configManager.config
+        val website = websiteOriginOf(feed.websiteUrl) ?: websiteOriginOf(feed.manageUrl)
+        val api = feed.platformApiUrl?.let(PanoApiManager::normalizeApiUrl)
+            ?.takeIf { config.panoAccount.platformId.isBlank() && config.panoAccount.accessToken.isBlank() }
+        var changed = false
 
-        logger.info("Pano website URL set to {} for this Pano Host environment", website)
-        configManager.config.panoWebsiteUrl = website
-        configManager.saveConfig()
+        if (website != null && config.panoWebsiteUrl.trimEnd('/') != website) {
+            logger.info("Pano website URL set to {} for this Pano Host environment", website)
+            config.panoWebsiteUrl = website
+            changed = true
+        }
 
-        return true
+        if (api != null && config.panoApiUrl.trimEnd('/') != api) {
+            logger.info("Pano API URL set to {} for this Pano Host environment", api)
+            config.panoApiUrl = api
+            changed = true
+        }
+
+        if (changed) configManager.saveConfig()
+
+        return changed
     }
 
     /**

@@ -144,31 +144,55 @@ class MailManager(
     }
 
 
+    /**
+     * Kept with its exact JVM signature (and its `$default` bridge): shipped plugins link against it.
+     * Delegates to the [MailOptions] overload and ignores the result.
+     */
     suspend fun sendMail(sqlClient: SqlClient, userId: Long?, mail: Mail, email: String? = null) {
+        sendMail(sqlClient, userId, mail, MailOptions(email = email))
+    }
+
+    /**
+     * Sends [mail]; [options] override recipient, locale, subject, text, Reply-To and attachments.
+     * No default arguments on purpose (see the String overload).
+     *
+     * @throws IllegalArgumentException when the attachments violate the limits (before any SMTP work)
+     * @return [MailResult.DISABLED] when e-mail is turned off, [MailResult.SENT] otherwise; SMTP failures throw
+     */
+    suspend fun sendMail(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions): MailResult {
         val config = configManager.config
         val emailConfig = config.email
 
+        val attachments = MailOptions.validateAttachments(options.attachments)
+
         if (!emailConfig.enabled) {
-            return
+            return MailResult.DISABLED
         }
 
         val user = userId?.let { databaseManager.userDao.getById(it, sqlClient) }
 
-        val emailAddress =
-            email ?: user?.email
+        val emailAddress = MailOptions.resolveRecipient(options.email, user?.email)
             ?: throw NotExists()
-        val locale = user?.localeCode ?: config.locale
+        val locale = MailOptions.resolveLocale(options.locale, user?.localeCode, config.locale)
 
         val message = MailMessage()
 
         message.from = emailConfig.sender
-        message.subject = i18nManager.translate(
-            mail.subjectTranslationType,
-            locale,
-            mail.subject,
-            mapOf("websiteName" to config.websiteName)
+        message.subject = MailOptions.resolveSubject(
+            options.subject,
+            {
+                i18nManager.translate(
+                    mail.subjectTranslationType,
+                    locale,
+                    mail.subject,
+                    mapOf("websiteName" to config.websiteName)
+                )
+            },
+            config.websiteName
         )
         message.setTo(emailAddress)
+
+        MailOptions.sanitizeReplyTo(options.replyTo)?.let { message.addHeader("Reply-To", it) }
 
         val mailParameters =
             mail.generateParameters(SystemParameters(config.websiteName, config.websiteUrl), i18nManager, locale)
@@ -241,7 +265,21 @@ class MailManager(
         val template = mail.getTemplate(handlebars)
         message.html = template.apply(parameters)
 
+        MailOptions.sanitizeText(options.text)?.let { message.text = it }
+
+        if (attachments.isNotEmpty()) {
+            message.attachment = attachments.map {
+                MailAttachment.create()
+                    .setData(Buffer.buffer(it.data))
+                    .setName(it.name)
+                    .setContentType(it.contentType)
+                    .setDisposition("attachment")
+            }
+        }
+
         mailClient.sendMail(message).coAwait()
+
+        return MailResult.SENT
     }
 
     suspend fun validateConfig(config: JsonObject, sender: String) {

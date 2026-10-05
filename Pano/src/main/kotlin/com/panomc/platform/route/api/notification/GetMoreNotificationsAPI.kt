@@ -5,6 +5,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.notification.NotificationTypeRegistry
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.ext.web.validation.builder.Parameters
@@ -15,7 +16,8 @@ import io.vertx.json.schema.common.dsl.Schemas
 @Endpoint
 class GetMoreNotificationsAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val notificationTypeRegistry: NotificationTypeRegistry
 ) : LoggedInApi() {
     override val paths = listOf(Path("/api/notifications/:id/more", RouteType.GET))
 
@@ -47,6 +49,7 @@ class GetMoreNotificationsAPI(
                 mapOf(
                     "id" to notification.id,
                     "type" to notification.type.getName(),
+                    "pluginId" to notificationTypeRegistry.ownerOf(notification.type.getName()),
                     "details" to notification.details.map,
                     "status" to notification.status,
                     "isPersonal" to (notification.userId == userId),

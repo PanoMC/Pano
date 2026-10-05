@@ -167,6 +167,16 @@ via rollup, zipped into resources). Key points:
   RS256 JWT from panomc.com; the plugin verifies it with an embedded public key. See `PanoPlugin`'s
   `getLicenseManager()`/`verifyLicense()` docs.
 
+- **Plugin notification types**: declare one `@NotificationDefinition data class XxxNotification(...) :
+  PanelUserNotificationType()` (or `UserNotificationType`) per type in the plugin package; the host's
+  `NotificationTypeRegistry` registers it on plugin load (name = class name without `Notification`, upper
+  snake case, e.g. `MARKET_ORDER_REVIEW`) and removes it on unload. Names are global: a name equal to a core
+  type or another plugin's type is rejected (logged at error), so prefix them. Send with the existing
+  `NotificationManager` methods; text key `notifications.<TYPE>` in the plugin locale files (served to UIs as
+  `plugins.<pluginId>.notifications.<TYPE>`); optional payload `href` (site-relative path) makes the row
+  clickable, optional `faIcon`. Notification list endpoints emit `pluginId` next to `type` (`null` for core
+  types); a stored row of an unloaded type resolves to `UnknownNotificationType` and stays deletable.
+
 ### Events
 `PluginEventManager` dispatches to `PanoEventListener` interfaces (`RouterEventListener`,
 `AuthEventListener`, `PlayerEventListener`, `SetupEventListener`, …). Implement one and annotate

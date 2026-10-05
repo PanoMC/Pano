@@ -7,6 +7,7 @@ import com.panomc.platform.db.DBEntity
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.notification.NotificationType
 import com.panomc.platform.notification.NotificationTypeDeserializer
+import com.panomc.platform.notification.NotificationTypeRegistry
 import com.panomc.platform.node.NodeResourcesDeserializer
 import com.panomc.platform.node.dto.NodeResources
 import com.panomc.platform.notification.ServerSettingsDeserializer
@@ -181,7 +182,7 @@ open class SpringConfig {
 
     @Bean
     @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-    open fun gson(tokenTypeRegistry: TokenTypeRegistry): Gson {
+    open fun gson(tokenTypeRegistry: TokenTypeRegistry, notificationTypeRegistry: NotificationTypeRegistry): Gson {
         val builder = GsonBuilder()
 
         builder.registerTypeAdapterFactory(LenientListLongAdapterFactory())
@@ -190,7 +191,7 @@ open class SpringConfig {
         builder.registerTypeAdapter(Boolean::class.java, BooleanDeserializer())
         builder.registerTypeAdapter(java.lang.Boolean::class.java, BooleanDeserializer())
         builder.registerTypeAdapter(JsonObject::class.java, JsonObjectDeserializer())
-        builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer())
+        builder.registerTypeAdapter(NotificationType::class.java, NotificationTypeDeserializer(notificationTypeRegistry))
         builder.registerTypeAdapter(TokenType::class.java, TokenTypeAdapter(tokenTypeRegistry))
         builder.registerTypeAdapter(Server.Companion.ServerSettings::class.java, ServerSettingsDeserializer())
         builder.registerTypeAdapter(NodeResources::class.java, NodeResourcesDeserializer())

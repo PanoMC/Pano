@@ -1,7 +1,8 @@
 package com.panomc.platform
 
 import com.panomc.platform.api.PanoPlugin
-import com.panomc.platform.util.FileResourceUtil.getResource
+import com.panomc.platform.util.FileResourceUtil.getOwnResourceStream
+import com.panomc.platform.util.PluginDevUtil
 import com.panomc.platform.util.HashUtil.hash
 import org.pf4j.PluginState
 import java.util.concurrent.ConcurrentHashMap
@@ -27,18 +28,25 @@ class PluginUiManager {
     internal fun getRegisteredPlugin(plugin: PanoPlugin) = pluginUiRegisterList[plugin]
 
     internal fun initializePlugin(plugin: PanoPlugin) {
-        calculatePluginUiHash(plugin)
+        calculatePluginUiHash(plugin, plugin.javaClass.classLoader)
     }
 
     internal fun unRegisterPlugin(plugin: PanoPlugin) {
         pluginUiRegisterList.remove(plugin)
     }
 
-    private fun calculatePluginUiHash(plugin: PanoPlugin) {
-        val pluginUiZipFile = plugin.getResource("plugin-ui.zip")
+    internal fun calculatePluginUiHash(
+        plugin: PanoPlugin,
+        classLoader: ClassLoader,
+        isDevelopment: Boolean = Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT,
+        hasUiSourceDir: (String) -> Boolean = { PluginDevUtil.getPluginResourceDir(it, "plugin-ui") != null }
+    ) {
+        val pluginUiZipFile = classLoader.getOwnResourceStream("plugin-ui.zip")
 
         if (pluginUiZipFile == null) {
-            if (Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT) {
+            // The dev hash is only for plugins that really have a UI source dir (a Kotlin-only plugin
+            // must not advertise a UI it does not have).
+            if (isDevelopment && hasUiSourceDir(plugin.pluginId)) {
                 pluginUiRegisterList[plugin] = "dev-build"
             }
             return

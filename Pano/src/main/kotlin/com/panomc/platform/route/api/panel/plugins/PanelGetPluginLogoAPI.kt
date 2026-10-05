@@ -53,13 +53,13 @@ class PanelGetPluginLogoAPI(
         val requestedHash = parameters.queryParameter("hash")?.string
 
         // If logo is not configured or file not found in plugin resources, send default
-        if (logoFileName == null || pluginWrapper.getResource(logoFileName) == null) {
+        if (logoFileName == null || pluginWrapper.getResource(logoFileName).also { it?.close() } == null) {
             sendDefault(context, requestedHash)
             return null
         }
 
         val mimeType = MimeTypeUtil.getMimeTypeFromFileName(logoFileName)
-        val actualHash = pluginWrapper.getResource(logoFileName)?.hash() ?: run {
+        val actualHash = pluginWrapper.getResource(logoFileName)?.use { it.hash() } ?: run {
             // Should be covered by if check above, but for safety
             sendDefault(context, requestedHash)
             return null

@@ -16,6 +16,7 @@ import com.panomc.platform.util.HashUtil.hash
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import org.pf4j.PluginDescriptor
 
 @Endpoint
 class GetSiteInfoAPI(
@@ -30,6 +31,15 @@ class GetSiteInfoAPI(
 
     // panel-ui blocks on this during SSR, with no user cookie — the panel will not boot without it.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
+    companion object {
+        // dependencies (optional ones included) let the UI loader finish a dependency's onLoad before its dependents'.
+        internal fun pluginInfo(descriptor: PluginDescriptor?, uiHash: String) = mapOf(
+            "version" to descriptor?.version,
+            "uiHash" to uiHash,
+            "dependencies" to (descriptor?.dependencies?.map { d -> d.pluginId } ?: emptyList<String>())
+        )
+    }
 
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
 
@@ -89,10 +99,7 @@ class GetSiteInfoAPI(
         response["faviconHash"] = faviconHash
 
         response["plugins"] = pluginUiManager.getActiveRegisteredPlugins(pluginManager).associate {
-            it.first.pluginId to mapOf(
-                "version" to pluginManager.getPlugin(it.first.pluginId)?.descriptor?.version,
-                "uiHash" to it.second
-            )
+            it.first.pluginId to pluginInfo(pluginManager.getPlugin(it.first.pluginId)?.descriptor, it.second)
         }
 
         response["emailEnabled"] = config.email.enabled

@@ -5,10 +5,13 @@ import com.panomc.platform.api.event.EventListener
 import com.panomc.platform.api.event.PanoEventListener
 import com.panomc.platform.api.event.PluginEventListener
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 class PluginEventManager {
     companion object {
-        private val eventListeners = mutableMapOf<PanoPlugin, MutableList<EventListener>>()
+        // Read on event-loop threads while plugins start/stop on worker threads: must not throw CME.
+        private val eventListeners = ConcurrentHashMap<PanoPlugin, CopyOnWriteArrayList<EventListener>>()
 
         fun getEventListeners() = eventListeners.toMap()
 
@@ -25,7 +28,7 @@ class PluginEventManager {
             eventListeners[plugin] = pluginBeanContext
                 .getBeansWithAnnotation(com.panomc.platform.api.annotation.EventListener::class.java)
                 .map { it.value as EventListener }
-                .toMutableList()
+                .let { CopyOnWriteArrayList(it) }
         }
     }
 
@@ -34,8 +37,12 @@ class PluginEventManager {
     }
 
     fun register(plugin: PanoPlugin, eventListener: EventListener) {
-        if (eventListeners[plugin]!!.none { it::class == eventListener::class }) {
-            eventListeners[plugin]!!.add(eventListener)
+        val listeners = eventListeners[plugin]!!
+
+        synchronized(listeners) {
+            if (listeners.none { it::class == eventListener::class }) {
+                listeners.add(eventListener)
+            }
         }
     }
 

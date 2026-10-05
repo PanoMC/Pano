@@ -14,6 +14,7 @@ import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.mail.SMTPException
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.handler.HttpException
 import io.vertx.ext.web.validation.*
 import io.vertx.ext.web.validation.ValidationHandler.REQUEST_CONTEXT_KEY
 import io.vertx.json.schema.SchemaRepository
@@ -77,6 +78,16 @@ abstract class Api : Route() {
 
             val failure = context.failure()
 
+            // A handler that called context.fail(statusCode) (e.g. the body handler on an over-limit
+            // body) leaves no failure object; answer that status instead of a 500.
+            val statusOnly = statusOnlyResult(context.statusCode(), failure)
+
+            if (statusOnly != null) {
+                sendResult(statusOnly, context)
+
+                return@launch
+            }
+
             if (
                 failure is BadRequestException ||
                 failure is ParameterProcessorException ||
@@ -108,6 +119,21 @@ abstract class Api : Route() {
             }
 
             sendResult(failure, context)
+        }
+    }
+
+    private fun statusOnlyResult(statusCode: Int, failure: Throwable?): Result? {
+        val status = when {
+            failure == null -> statusCode
+            failure is HttpException -> failure.statusCode
+            else -> return null
+        }
+
+        return when {
+            status == 413 -> PayloadTooLarge()
+            status in 400..499 -> BadRequest()
+            status >= 500 -> InternalServerError()
+            else -> null
         }
     }
 
@@ -208,3 +234,9 @@ abstract class Api : Route() {
         const val BEFORE_HANDLE_DONE = "pano.api.beforeHandleDone"
     }
 }
+
+/** The request body is bigger than the route's body limit (HTTP 413, error code PAYLOAD_TOO_LARGE). */
+class PayloadTooLarge(
+    statusMessage: String = "",
+    extras: Map<String, Any?> = mapOf()
+) : Error(413, statusMessage, extras)

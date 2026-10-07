@@ -46,6 +46,83 @@ class AuthProvider(
 
         private val CSRF_SAFE_METHODS = setOf(HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS)
 
+        internal fun parseCookies(cookieHeader: String): Map<String, String> {
+            val cookies = mutableMapOf<String, String>()
+
+            try {
+                val cookiePairs = cookieHeader.split(";")
+                for (cookiePair in cookiePairs) {
+                    val parts = cookiePair.trim().split("=", limit = 2)
+                    if (parts.size == 2) {
+                        cookies[parts[0]] = parts[1]
+                    }
+                }
+            } catch (_: Exception) {
+            }
+
+            return cookies
+        }
+
+        /** The token of an `Authorization: Bearer <token>` header, or null when there is none. */
+        internal fun bearerToken(authorizationHeader: String?): String? {
+            if (authorizationHeader == null || !authorizationHeader.contains(HEADER_PREFIX)) {
+                return null
+            }
+
+            val splitHeader = authorizationHeader.split(HEADER_PREFIX)
+
+            if (splitHeader.size != 2) {
+                return null
+            }
+
+            return splitHeader.last()
+        }
+
+        private fun jwtCookieName(secureVariant: Boolean): String =
+            AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME + if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
+
+        private fun csrfCookieName(secureVariant: Boolean): String =
+            AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME + if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
+
+        /**
+         * The CSRF decision, free of any request object so it can be tested directly.
+         *
+         * The session cookie always wins over an `Authorization` header in [getTokenFromRoutingContext],
+         * so a header only means "no ambient credential" when no session cookie came along. A request is
+         * exempt only when it carries no session cookie and a Bearer token that [isTokenValid] accepts;
+         * a browser attaches the cookie by itself, so a forged cross-site request can never meet both
+         * conditions. Anything else, including a cookie session with a stray `Authorization` header,
+         * must repeat the CSRF cookie in the `X-CSRF-Token` header.
+         */
+        internal fun isCsrfSafe(
+            method: HttpMethod,
+            cookieHeader: String?,
+            authorizationHeader: String?,
+            csrfHeader: String?,
+            isTokenValid: (String) -> Boolean
+        ): Boolean {
+            if (method in CSRF_SAFE_METHODS) {
+                return true
+            }
+
+            val cookies = parseCookies(cookieHeader ?: "")
+            val hasSessionCookie = cookies[jwtCookieName(true)] != null || cookies[jwtCookieName(false)] != null
+
+            if (!hasSessionCookie) {
+                val token = bearerToken(authorizationHeader)?.takeIf { it.isNotBlank() }
+
+                if (token != null && isTokenValid(token)) {
+                    return true
+                }
+            }
+
+            val header = csrfHeader?.takeIf { it.isNotEmpty() } ?: return false
+
+            return listOf(csrfCookieName(true), csrfCookieName(false)).any { name ->
+                cookies[name]?.let { MessageDigest.isEqual(it.toByteArray(), header.toByteArray()) } == true
+            }
+        }
+
         /** Pending-session TTL: long enough for a slow 2FA challenge, short enough to limit replay. */
         private const val PENDING_SESSION_TTL_MS = 10L * 60L * 1000L
     }
@@ -392,7 +469,7 @@ class AuthProvider(
             ?: request.getHeader("X-Real-IP")
             ?: request.remoteAddress().host()
     }
-    
+
     suspend fun isLoggedIn(
         routingContext: RoutingContext
     ): Boolean {
@@ -462,23 +539,6 @@ class AuthProvider(
         return jwt.subject.toLong()
     }
 
-    private fun parseCookies(cookieHeader: String): Map<String, String> {
-        val cookies = mutableMapOf<String, String>()
-
-        try {
-            val cookiePairs = cookieHeader.split(";")
-            for (cookiePair in cookiePairs) {
-                val parts = cookiePair.trim().split("=", limit = 2)
-                if (parts.size == 2) {
-                    cookies[parts[0]] = parts[1]
-                }
-            }
-        } catch (_: Exception) {
-        }
-
-        return cookies
-    }
-
     fun getTokenFromRoutingContext(routingContext: RoutingContext): String? {
         val request = routingContext.request()
         val cookieHeader = request.getHeader("cookie") ?: ""
@@ -490,45 +550,30 @@ class AuthProvider(
             return jwtCookie
         }
 
-        val authorizationHeader = request.getHeader("Authorization") ?: return null
-
-        if (!authorizationHeader.contains(HEADER_PREFIX)) {
-            return null
-        }
-
-        val splitHeader = authorizationHeader.split(HEADER_PREFIX)
-
-        if (splitHeader.size != 2) {
-            return null
-        }
-
-        return try {
-            val token = splitHeader.last()
-
-            token
-        } catch (exception: Exception) {
-            null
-        }
+        return bearerToken(request.getHeader("Authorization"))
     }
 
     /**
      * Double-submit check for a request that changes something: the session cookie alone is not
-     * enough, the `X-CSRF-Token` header must repeat the CSRF cookie. A request that authenticates
-     * with an `Authorization` header (server-side rendering, API clients) carries no ambient
-     * credential and is exempt, as are the safe methods.
+     * enough, the `X-CSRF-Token` header must repeat the CSRF cookie. Only a request authenticated by
+     * a valid Bearer token and no session cookie (server-side rendering, API clients) carries no
+     * ambient credential and is exempt, as are the safe methods. See the companion [isCsrfSafe].
      */
     fun isCsrfSafe(routingContext: RoutingContext): Boolean {
         val request = routingContext.request()
 
-        if (request.method() in CSRF_SAFE_METHODS || request.getHeader("Authorization") != null) {
-            return true
-        }
-
-        val header = request.getHeader(AppConstants.CSRF_HEADER)?.takeIf { it.isNotEmpty() } ?: return false
-        val cookies = parseCookies(request.getHeader("cookie") ?: "")
-
-        return listOf(getCsrfCookieName(true), getCsrfCookieName(false)).any { name ->
-            cookies[name]?.let { MessageDigest.isEqual(it.toByteArray(), header.toByteArray()) } == true
+        return isCsrfSafe(
+            request.method(),
+            request.getHeader("cookie"),
+            request.getHeader("Authorization"),
+            request.getHeader(AppConstants.CSRF_HEADER)
+        ) { token ->
+            try {
+                tokenProvider.parseToken(token)
+                true
+            } catch (_: Exception) {
+                false
+            }
         }
     }
 
@@ -546,15 +591,9 @@ class AuthProvider(
             getMaintenanceSkipCookieName(false)
         )
 
-    private fun getJwtCookieName(secureVariant: Boolean): String {
-        val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
-        return AppConstants.COOKIE_PREFIX + AppConstants.JWT_COOKIE_NAME + suffix
-    }
+    private fun getJwtCookieName(secureVariant: Boolean): String = jwtCookieName(secureVariant)
 
-    private fun getCsrfCookieName(secureVariant: Boolean): String {
-        val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX
-        return AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME + suffix
-    }
+    private fun getCsrfCookieName(secureVariant: Boolean): String = csrfCookieName(secureVariant)
 
     private fun getMaintenanceSkipCookieName(secureVariant: Boolean): String {
         val suffix = if (secureVariant) "" else INSECURE_COOKIE_SUFFIX

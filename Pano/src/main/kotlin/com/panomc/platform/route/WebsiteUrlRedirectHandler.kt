@@ -2,6 +2,7 @@ package com.panomc.platform.route
 
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.setup.SetupManager
+import com.panomc.platform.util.TrustedProxyIpResolver
 import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpServerRequest
@@ -94,12 +95,13 @@ class WebsiteUrlRedirectHandler(
     }
 
     private fun resolveClientIp(request: HttpServerRequest): String? {
-        val forwardedFor = firstHeaderValue(request, "X-Forwarded-For")
-        val realIp = request.getHeader("X-Real-IP")?.trim()
+        val trustedProxies = try {
+            configManager.config.server.trustedProxies
+        } catch (_: Throwable) {
+            emptyList()
+        }
 
-        return forwardedFor?.takeIf { it.isNotEmpty() }
-            ?: realIp?.takeIf { it.isNotEmpty() }
-            ?: request.remoteAddress()?.host()
+        return TrustedProxyIpResolver.resolveClientIp(request, trustedProxies)
     }
 
     private fun firstHeaderValue(request: HttpServerRequest, header: String) = request.getHeader(header)

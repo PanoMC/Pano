@@ -10,9 +10,11 @@ import io.vertx.core.http.HttpServerRequest
  * header is honoured only when the peer is listed in `server.trusted-proxies`, and then only its
  * rightmost untrusted hop — `.first()` is attacker-controlled.
  *
- * [com.panomc.platform.auth.AuthProvider.getRemoteIP] and [RateLimitManager.getClientIp] keep their
- * looser semantics on purpose (six other call sites); this stricter derivation is maintenance-mode
- * only, and both of its consumers share this implementation so they can never drift apart.
+ * [resolve] is the strict derivation maintenance mode uses: only peers listed in
+ * `server.trusted-proxies` count as proxies. [resolveClientIp] is the one derivation for every other
+ * caller (login IP, sessions, visitor counting, rate limiting, the UI proxy): the same rule, except
+ * that a loopback or private-network peer (a local nginx, a Docker bridge) is trusted without
+ * configuration. Both honour only the rightmost untrusted `X-Forwarded-For` hop, never `.first()`.
  */
 object TrustedProxyIpResolver {
 
@@ -58,7 +60,114 @@ object TrustedProxyIpResolver {
             return false
         }
 
-        return trustedProxies.any { normalizeIp(it)?.equals(ip, ignoreCase = true) == true }
+        return trustedProxies.any { entry ->
+            val normalized = normalizeIp(entry)
+
+            if (normalized != null && normalized.contains('/')) {
+                matchesCidr(ip, normalized)
+            } else {
+                normalized?.equals(ip, ignoreCase = true) == true
+            }
+        }
+    }
+
+    /**
+     * Loopback, RFC 1918, carrier-grade NAT (100.64/10), link-local and IPv6 unique-local peers.
+     * A peer like that is a reverse proxy on the same host or network, never a browser on the open
+     * internet, so it may declare the client address without being listed.
+     */
+    fun isPrivateOrLoopback(ip: String): Boolean {
+        val normalized = normalizeIp(ip) ?: return false
+        val mapped = normalized.removePrefix("::ffff:")
+
+        return normalized == "localhost" || WebsiteUrlUtil.isNonPublicHost(mapped) && WebsiteUrlUtil.isIpLiteral(mapped)
+    }
+
+    /** A peer whose forwarded-client-address headers are believed. */
+    fun isTrustedPeer(socketPeer: String, trustedProxies: List<String>): Boolean =
+        isTrustedProxy(socketPeer, trustedProxies) || isPrivateOrLoopback(socketPeer)
+
+    /**
+     * THE client address, used everywhere an address is stored, counted or limited.
+     *
+     * The socket peer is the answer unless it is a trusted peer ([isTrustedPeer]); then the rightmost
+     * `X-Forwarded-For` hop that is not itself a configured proxy wins (every proxy appends the
+     * address it saw, so the leftmost values are whatever the client wrote), then `X-Real-IP`. A
+     * hop that is not an IP literal is never believed and drops back to the socket peer. Returns
+     * `"unknown"` only when the request has no socket peer at all.
+     */
+    fun resolveClientIp(request: HttpServerRequest, trustedProxies: List<String>): String =
+        resolveClientIp(
+            request.remoteAddress()?.host(),
+            request.getHeader("X-Forwarded-For"),
+            request.getHeader("X-Real-IP"),
+            trustedProxies
+        )
+
+    fun resolveClientIp(
+        socketPeerRaw: String?,
+        forwardedFor: String?,
+        realIp: String?,
+        trustedProxies: List<String>
+    ): String {
+        val socketPeer = normalizeIp(socketPeerRaw) ?: return "unknown"
+
+        if (!isTrustedPeer(socketPeer, trustedProxies)) {
+            return socketPeer
+        }
+
+        if (!forwardedFor.isNullOrBlank()) {
+            val hops = forwardedFor.split(",").map { normalizeIp(it) }
+
+            for (hop in hops.reversed()) {
+                if (hop == null || !WebsiteUrlUtil.isIpLiteral(hop)) {
+                    return socketPeer
+                }
+
+                if (!isTrustedProxy(hop, trustedProxies)) {
+                    return hop
+                }
+            }
+        }
+
+        normalizeIp(realIp)?.takeIf { WebsiteUrlUtil.isIpLiteral(it) }?.let { return it }
+
+        return socketPeer
+    }
+
+    private fun matchesCidr(ip: String, cidr: String): Boolean {
+        return try {
+            val network = cidr.substringBefore('/')
+            val prefix = cidr.substringAfter('/').toInt()
+
+            if (!WebsiteUrlUtil.isIpLiteral(ip) || !WebsiteUrlUtil.isIpLiteral(network)) {
+                return false
+            }
+
+            val address = java.net.InetAddress.getByName(ip).address
+            val base = java.net.InetAddress.getByName(network).address
+
+            if (address.size != base.size || prefix < 0 || prefix > base.size * 8) {
+                return false
+            }
+
+            val fullBytes = prefix / 8
+            val remainingBits = prefix % 8
+
+            for (i in 0 until fullBytes) {
+                if (address[i] != base[i]) return false
+            }
+
+            if (remainingBits == 0) {
+                true
+            } else {
+                val mask = (0xFF shl (8 - remainingBits)) and 0xFF
+
+                (address[fullBytes].toInt() and mask) == (base[fullBytes].toInt() and mask)
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun rightmostUntrustedForwardedHop(

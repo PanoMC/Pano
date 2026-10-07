@@ -15,6 +15,7 @@ import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.Regexes
 import com.panomc.platform.util.TextUtil
+import com.panomc.platform.util.TrustedProxyIpResolver
 import com.panomc.platform.util.WebsiteUrlUtil
 import io.vertx.core.http.Cookie
 import io.vertx.core.http.HttpMethod
@@ -464,10 +465,14 @@ class AuthProvider(
     }
 
     fun getRemoteIP(routingContext: RoutingContext): String {
-        val request = routingContext.request()
-        return request.getHeader("X-Forwarded-For")?.split(",")?.first()?.trim()
-            ?: request.getHeader("X-Real-IP")
-            ?: request.remoteAddress().host()
+        return TrustedProxyIpResolver.resolveClientIp(routingContext.request(), trustedProxies())
+    }
+
+    private fun trustedProxies(): List<String> = try {
+        configManager.config.server.trustedProxies
+    } catch (_: Throwable) {
+        // Config not loaded yet (or the block was hand-deleted): treat every request as direct.
+        emptyList()
     }
 
     suspend fun isLoggedIn(

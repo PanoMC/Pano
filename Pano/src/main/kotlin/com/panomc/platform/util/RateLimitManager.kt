@@ -35,6 +35,19 @@ class RateLimitManager(
         private const val HEADER_LIMIT = "X-RateLimit-Limit"
         private const val HEADER_REMAINING = "X-RateLimit-Remaining"
         private const val HEADER_RETRY_AFTER = "Retry-After"
+
+        /**
+         * The "someone on the box" exemption: the socket peer itself is loopback and nothing claims to be
+         * forwarding. A forwarded address, even `127.0.0.1`, never buys it, because the exemption is read
+         * from the socket and not from the resolved client address.
+         */
+        internal fun isDirectLoopback(socketPeer: String?, hasForwardingHeader: Boolean): Boolean {
+            if (hasForwardingHeader) return false
+
+            val peer = TrustedProxyIpResolver.normalizeIp(socketPeer) ?: return false
+
+            return WebsiteUrlRedirectHandler.isLoopbackIp(peer.removePrefix("::ffff:"))
+        }
     }
 
     enum class Tier(
@@ -110,23 +123,9 @@ class RateLimitManager(
         }
     }
 
-    fun getClientIp(context: RoutingContext): String {
-        val forwarded = context.request().getHeader("X-Forwarded-For")
-        if (forwarded != null) {
-            return forwarded.split(",").first().trim()
-        }
-
-        val realIp = context.request().getHeader("X-Real-IP")
-        if (realIp != null) {
-            return realIp.trim()
-        }
-
-        return context.request().remoteAddress()?.host() ?: "unknown"
-    }
-
-    private fun isLocalhost(ip: String): Boolean {
-        return ip == "127.0.0.1" || ip == "::1" || ip == "0:0:0:0:0:0:0:1" || ip == "0.0.0.0" || ip == "localhost"
-    }
+    /** The shared resolution ([TrustedProxyIpResolver.resolveClientIp]): a forwarded address only from a trusted peer. */
+    fun getClientIp(context: RoutingContext): String =
+        TrustedProxyIpResolver.resolveClientIp(context.request(), trustedProxies())
 
     fun isAllowed(clientIp: String, tier: Tier): Boolean {
         val limiter = limiters[tier]!!
@@ -169,8 +168,9 @@ class RateLimitManager(
 
             val clientIp = getClientIp(context)
 
-            // Skip rate limiting for localhost requests
-            if (isLocalhost(clientIp)) {
+            // Skip rate limiting only for a direct loopback connection (the operator on the box, a local
+            // MC plugin); never for a client address that merely claims to be localhost.
+            if (isDirectLoopback(context.request().remoteAddress()?.host(), TrustedProxyIpResolver.hasForwardingHeader(context.request()))) {
                 context.next()
                 return@Handler
             }

@@ -1106,7 +1106,7 @@ class UIManager(
     private fun upstreamRetryInterceptor(uiId: String) = UpstreamRetryInterceptor(logger, uiId)
 
     /** See [ForwardedProtoInterceptor]: the UIs read `X-Forwarded-Proto` to learn their scheme. */
-    private val forwardedProtoInterceptor = ForwardedProtoInterceptor()
+    private val forwardedProtoInterceptor = ForwardedProtoInterceptor { configManager.config.server.trustedProxies }
 
     /**
      * Response-side cache policy stamped onto everything the UI reverse-proxies serve. The

@@ -420,11 +420,12 @@ data class PanoConfig(
 
             @ConfigComment(
                 "Reverse proxies allowed to declare the real client IP via X-Forwarded-For.",
-                "The header is honoured ONLY when the connecting socket peer is listed here;",
-                "otherwise the socket peer address itself is used as the client IP.",
-                "An empty list means every connection is treated as direct — no header is trusted.",
-                "Example: [\"127.0.0.1\", \"::1\"]",
-                "Currently consumed by maintenance mode (login IP bans and rate limiting)."
+                "The header is honoured ONLY when the connecting socket peer is listed here (single",
+                "addresses or CIDR ranges) or is a loopback / private-network address (a local nginx",
+                "or Docker proxy); otherwise the socket peer address itself is the client IP.",
+                "List a public proxy (e.g. Cloudflare ranges) here so its hop is skipped.",
+                "Maintenance mode trusts only the addresses listed here.",
+                "Example: [\"127.0.0.1\", \"::1\", \"173.245.48.0/20\"]"
             )
             @SerializedName("trusted-proxies") var trustedProxies: List<String> = emptyList()
         )

@@ -321,12 +321,15 @@ object UiConsole {
      *
      * [onCreated] gets the window before it is shown (on the event dispatch thread), so another thread
      * can end the question with [ConfirmDialog.close]; the result is then false and its caller ignores it.
+     * [stillNeeded] is asked on the event dispatch thread before anything is built; when it says no (the
+     * question was answered elsewhere while the display was slow) no window is built and the result is false.
      */
     fun confirmBeforeStart(
         title: String,
         header: String,
         message: String,
         question: String,
+        stillNeeded: () -> Boolean = { true },
         onCreated: (ConfirmDialog) -> Unit = {}
     ): Boolean {
         var answer = false
@@ -334,6 +337,8 @@ object UiConsole {
 
         SwingUtilities.invokeAndWait {
             try {
+                if (!stillNeeded()) return@invokeAndWait
+
                 val confirm = ConfirmDialog(title, header, message, question)
                 onCreated(confirm)
                 confirm.dialog.isVisible = true

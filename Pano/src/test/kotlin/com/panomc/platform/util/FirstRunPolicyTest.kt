@@ -247,6 +247,7 @@ class FirstRunPolicyTest {
         assertTrue(FirstRunPolicy.answerInEitherPlaceLine().contains("first answer counts"))
         assertTrue(FirstRunPolicy.answerInEitherPlaceLine().contains(FirstRunPolicy.skipHintLine()))
         assertEquals("Answered in the Pano window.", FirstRunPolicy.answeredInWindowLine())
+        assertTrue(FirstRunPolicy.terminalClosedLine().contains("Pano window"))
     }
 
     @Test

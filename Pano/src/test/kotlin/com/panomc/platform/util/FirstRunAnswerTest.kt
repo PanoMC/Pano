@@ -75,7 +75,10 @@ class FirstRunAnswerTest {
 
     // ---- the non-blocking line ----
 
-    /** An input that hands out only what a test has put in, never blocks, and counts the bytes read from it. */
+    /**
+     * An input that hands out only what a test has put in, never blocks, and counts the reads made on it.
+     * Like a terminal in line mode, a bulk read returns at most one line.
+     */
     private class FakeInput : InputStream() {
         private val data = ArrayDeque<Int>()
         var reads = 0
@@ -91,7 +94,76 @@ class FirstRunAnswerTest {
             return data.removeFirst()
         }
 
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            check(data.isNotEmpty()) { "a read with nothing available would block" }
+            reads++
+
+            var n = 0
+
+            while (n < len && data.isNotEmpty()) {
+                val next = data.removeFirst()
+                b[off + n++] = next.toByte()
+
+                if (next == 10) break
+            }
+
+            return n
+        }
+
         val left: Int get() = data.size
+    }
+
+    /**
+     * A Windows console as the JDK sees it: `available()` counts the key presses waiting in the console's
+     * queue; a one-byte read makes the console take the whole line out of that queue and return only its
+     * first character (the rest is kept by the console, invisible to `available()`); a bulk read returns
+     * the whole line.
+     */
+    private class WindowsConsoleInput : InputStream() {
+        private val queue = ArrayDeque<Int>()
+        private val kept = ArrayDeque<Int>()
+
+        fun type(text: String) = text.toByteArray().forEach { queue.addLast(it.toInt() and 0xff) }
+
+        override fun available(): Int = queue.size
+
+        private fun takeLine() {
+            while (queue.isNotEmpty()) {
+                val b = queue.removeFirst()
+                kept.addLast(b)
+
+                if (b == 10) break
+            }
+        }
+
+        override fun read(): Int {
+            if (kept.isEmpty()) takeLine()
+
+            return kept.removeFirst()
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (kept.isEmpty()) takeLine()
+
+            var n = 0
+
+            while (n < len && kept.isNotEmpty()) b[off + n++] = kept.removeFirst().toByte()
+
+            return n
+        }
+    }
+
+    @Test
+    fun `a line is complete on the first Enter on a Windows console`() {
+        val input = WindowsConsoleInput()
+        val line = PolledLine(input)
+
+        assertEquals(PolledLine.Result.Pending, line.poll())
+
+        input.type("y\r\n")
+
+        assertEquals(PolledLine.Result.Line("y"), line.poll())
+        assertEquals(PolledLine.Result.Pending, line.poll())
     }
 
     @Test
@@ -134,16 +206,16 @@ class FirstRunAnswerTest {
     }
 
     @Test
-    fun `nothing after the newline is taken, it stays for the next reader`() {
+    fun `nothing after the newline is taken, it stays for the next reader on a terminal`() {
         val input = FakeInput().apply { type("y\nhelp\n") }
 
         assertEquals(PolledLine.Result.Line("y"), PolledLine(input).poll())
         assertEquals(5, input.left)
-        assertEquals(2, input.reads)
+        assertEquals(1, input.reads)
     }
 
     @Test
-    fun `non-ASCII text survives the byte by byte read`() {
+    fun `non-ASCII text survives the read`() {
         val input = FakeInput().apply { type("evet ğ\n") }
 
         assertEquals(PolledLine.Result.Line("evet ğ"), PolledLine(input).poll())
@@ -156,6 +228,7 @@ class FirstRunAnswerTest {
             PolledLine(object : InputStream() {
                 override fun available() = 1
                 override fun read() = -1
+                override fun read(b: ByteArray, off: Int, len: Int) = -1
             }).poll()
         )
         assertEquals(PolledLine.Result.EndOfInput, PolledLine(FakeInput().apply { broken = true }).poll())

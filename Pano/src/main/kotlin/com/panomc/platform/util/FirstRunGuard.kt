@@ -215,6 +215,9 @@ object FirstRunPolicy {
     /** Printed in the terminal when the dialog was answered first. */
     fun answeredInWindowLine(): String = "Answered in the Pano window."
 
+    /** Printed in the terminal when its input ended while the window can still be answered. */
+    fun terminalClosedLine(): String = "The terminal is closed. Waiting for your answer in the Pano window."
+
     /** The line printed instead of a question when nobody can answer. */
     fun continueWithoutAskingLine(): String =
         "No terminal is attached to answer, so Pano continues. To skip this check, pass $SKIP_FLAG or set $SKIP_ENV=1."
@@ -328,14 +331,30 @@ object FirstRunGuard {
      *
      * The terminal is read without blocking ([PolledLine] over the raw descriptor, polled every
      * [POLL_MS]), so when the dialog answers no thread stays inside a read of standard input to swallow
-     * the first console command. Terminal modes are not touched.
+     * the first console command. Terminal modes are not touched. The question is printed through the
+     * console (standard output), the stream the "is a terminal" check looked at, not through standard
+     * error, which may be redirected.
+     *
+     * A closed terminal (end of input, Ctrl+D) is not an answer while the window can still be answered:
+     * the terminal is dropped and the window decides. It counts as a no only when the window is gone
+     * without an answer (it could not be shown).
      */
     private fun askInBoth(dir: File, warning: List<String>): Boolean {
+        val console = System.console()
         val first = FirstAnswer()
         val dialogRef = AtomicReference<UiConsole.ConfirmDialog?>(null)
 
-        warning.forEach { System.err.println(it) }
-        System.err.println(FirstRunPolicy.answerInEitherPlaceLine())
+        fun say(line: String) {
+            if (console != null) {
+                console.printf("%s%n", line)
+                console.flush()
+            } else {
+                System.err.println(line)
+            }
+        }
+
+        warning.forEach { say(it) }
+        say(FirstRunPolicy.answerInEitherPlaceLine())
 
         // The window is shown by a thread of its own: it blocks until the window is gone.
         val dialogThread = thread(name = "FirstRunDialog", isDaemon = true) {
@@ -344,11 +363,13 @@ object FirstRunGuard {
                     title = "Pano - directory is not empty",
                     header = "Warning",
                     message = (warning + FirstRunPolicy.skipHintLine()).joinToString("\n"),
-                    question = FirstRunPolicy.QUESTION
+                    question = FirstRunPolicy.QUESTION,
+                    // The terminal may have answered while the display was still starting up.
+                    stillNeeded = { first.answer == null }
                 ) { shown ->
                     dialogRef.set(shown)
 
-                    // The terminal may have answered before the window existed.
+                    // ... or while the window was being built.
                     if (first.answer != null) shown.close()
                 }
 
@@ -358,18 +379,39 @@ object FirstRunGuard {
             }
         }
 
-        System.err.print(FirstRunPolicy.terminalPrompt())
-        System.err.flush()
+        val prompt = FirstRunPolicy.terminalPrompt()
+
+        if (console != null) {
+            console.printf("%s", prompt)
+            console.flush()
+        } else {
+            System.err.print(prompt)
+            System.err.flush()
+        }
 
         val line = PolledLine(FileInputStream(FileDescriptor.`in`))
+        var terminalOpen = true
 
         while (first.answer == null) {
-            when (val result = line.poll()) {
-                is PolledLine.Result.Line -> first.offer(FirstRunPolicy.parseAnswer(result.text), AnswerSource.TERMINAL)
+            if (terminalOpen) {
+                when (val result = line.poll()) {
+                    is PolledLine.Result.Line -> first.offer(FirstRunPolicy.parseAnswer(result.text), AnswerSource.TERMINAL)
 
-                PolledLine.Result.EndOfInput -> first.offer(false, AnswerSource.TERMINAL)
+                    PolledLine.Result.EndOfInput -> {
+                        terminalOpen = false
+                        say("")
+                        say(FirstRunPolicy.terminalClosedLine())
+                    }
 
-                PolledLine.Result.Pending -> first.await(POLL_MS)
+                    PolledLine.Result.Pending -> first.await(POLL_MS)
+                }
+            } else {
+                first.await(POLL_MS)
+            }
+
+            // Nobody can answer any more: the terminal is gone and the window ended without an answer.
+            if (!terminalOpen && first.answer == null && !dialogThread.isAlive) {
+                first.offer(false, AnswerSource.TERMINAL)
             }
         }
 
@@ -377,13 +419,16 @@ object FirstRunGuard {
 
         if (answer.source == AnswerSource.TERMINAL) {
             // The answer was typed here; take the window down (on the event dispatch thread) and wait for it,
-            // so it is gone before the console window opens.
+            // so it is gone before the console window opens. After a yes the wait has no limit: boot goes on
+            // into Swing next, and building two windows at once breaks the look and feel (on a slow display
+            // the window may not even exist yet; it is then never built). After a no the process ends anyway.
             dialogRef.get()?.close()
-            dialogThread.join(DIALOG_CLOSE_WAIT_MS)
+
+            if (answer.yes) dialogThread.join() else dialogThread.join(DIALOG_CLOSE_WAIT_MS)
         } else {
             // The prompt line is still open on the terminal; end it so the terminal does not look stuck.
-            System.err.println()
-            System.err.println(FirstRunPolicy.answeredInWindowLine())
+            say("")
+            say(FirstRunPolicy.answeredInWindowLine())
         }
 
         return answer.yes

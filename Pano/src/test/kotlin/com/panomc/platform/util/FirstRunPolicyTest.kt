@@ -83,7 +83,7 @@ class FirstRunPolicyTest {
         val entries = FirstRunPolicy.foreignEntries(dir, "Pano.jar")
 
         assertEquals(
-            Decision.Ask(entries, viaGui = false),
+            Decision.Ask(entries, viaGui = true),
             FirstRunPolicy.decide(false, FirstRunPolicy.hasRunBefore(dir), entries, gui = true, interactive = true)
         )
     }
@@ -232,8 +232,8 @@ class FirstRunPolicyTest {
     }
 
     @Test
-    fun `an attached terminal asks even when a GUI is available, the dialog is for starts without one`() {
-        assertEquals(Decision.Ask(entries, viaGui = false), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = true))
+    fun `a start with the GUI asks in the dialog, with or without a terminal`() {
+        assertEquals(Decision.Ask(entries, viaGui = true), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = true))
         assertEquals(Decision.Ask(entries, viaGui = true), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = false))
     }
 

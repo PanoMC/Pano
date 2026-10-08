@@ -146,7 +146,7 @@ object FirstRunPolicy {
         /** Start without a word. */
         object Proceed : Decision()
 
-        /** Ask first; [viaGui] picks the dialog, which is only for starts without a terminal to answer in. */
+        /** Ask first; [viaGui] picks the dialog, which a start with the GUI always uses, before the console opens. */
         data class Ask(val entries: List<String>, val viaGui: Boolean) : Decision()
 
         /** Nobody can answer: print the warning and start. */
@@ -161,8 +161,8 @@ object FirstRunPolicy {
         interactive: Boolean
     ): Decision = when {
         skipRequested || hasRunBefore || entries.isEmpty() -> Decision.Proceed
-        interactive -> Decision.Ask(entries, viaGui = false)
         gui -> Decision.Ask(entries, viaGui = true)
+        interactive -> Decision.Ask(entries, viaGui = false)
         else -> Decision.WarnAndContinue(entries)
     }
 
@@ -209,7 +209,7 @@ object FirstRunGuard {
     /**
      * Returns when Pano may start. Ends the process with exit code 1 when the answer is no.
      *
-     * @param gui the Swing console is going to open, so the question is a dialog when no terminal can be asked
+     * @param gui the Swing console is going to open, so the question is a dialog shown before it
      * @param alreadyHandled nothing to ask: a container (its data directory is a managed volume) or the
      *   detached copy of a `-bg` start whose launching process has already asked
      */

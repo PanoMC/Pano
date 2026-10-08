@@ -159,7 +159,19 @@ class Main : CoroutineVerticle() {
                 System.err.println("Ignoring -bg: Pano runs in container mode, the container launcher manages the process.")
             }
 
-            if (bg && !containerMode && System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()) {
+            val isBgChild = !System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()
+
+            // First thing that can touch the disk: until this returns, nothing of Pano's own exists in
+            // the working directory (no logs, no config, no GUI files), so a "no" leaves it untouched.
+            // Whoever launches asks, so the -bg parent does and its detached copy does not; a container's
+            // data directory is a managed volume that is never asked about.
+            FirstRunGuard.confirmOrExit(
+                args = args,
+                gui = !noGui && UiConsole.isGuiAvailable(),
+                alreadyHandled = containerMode || isBgChild
+            )
+
+            if (bg && !containerMode && !isBgChild) {
                 respawnDetachedAndExit(args)
                 return
             }
@@ -211,7 +223,9 @@ class Main : CoroutineVerticle() {
 
         lateinit var applicationContext: AnnotationConfigApplicationContext
 
-        val commandManager = CommandManager()
+        // Lazy: building it creates a logger, and Log4j opens logs/latest.log as soon as it exists,
+        // which must not happen while the class loads (the first-run question comes before that).
+        val commandManager by lazy { CommandManager() }
 
         private val mainShutdownDeferred = CompletableDeferred<Unit>()
 

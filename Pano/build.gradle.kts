@@ -408,6 +408,8 @@ tasks {
 tasks.named<JavaExec>("run") {
     standardInput = System.`in`
     environment("EnvironmentType", "DEVELOPMENT")
+    // The working directory is the Pano/ source folder, never "empty"; skip the first-run question there
+    environment("PANO_ALLOW_NON_EMPTY_DIR", "1")
     environment("PanoVersion", version)
     environment("PanoBuildType", buildType)
     pluginsDir?.let { systemProperty("pf4j.pluginsDir", it.absolutePath) }

@@ -13,6 +13,7 @@ import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.plaf.UIResource
 import javax.swing.plaf.basic.BasicButtonUI
+import javax.swing.plaf.basic.BasicTextAreaUI
 import javax.swing.plaf.basic.BasicTextFieldUI
 import javax.swing.text.AttributeSet
 import javax.swing.text.SimpleAttributeSet
@@ -308,6 +309,37 @@ object UiConsole {
             override fun removeUpdate(e: DocumentEvent?) = updateSendEnabled()
             override fun changedUpdate(e: DocumentEvent?) = updateSendEnabled()
         })
+    }
+
+    /**
+     * Modal yes / no question shown before the console window exists (the first-run confirmation).
+     * Nothing is read from or written to disk, and it paints from the console palette like the
+     * command row, so the desktop theme does not change how it looks. Blocks until answered; closing
+     * the window, Esc and N answer no, Y answers yes, Enter presses the focused button (No at first).
+     *
+     * Call from any thread but the event dispatch thread. Throws when no window can be opened.
+     */
+    fun confirmBeforeStart(title: String, header: String, message: String, question: String): Boolean {
+        System.setProperty("awt.useSystemAAFontSettings", "on")
+        System.setProperty("swing.aatext", "true")
+
+        var answer = false
+        var failure: Throwable? = null
+
+        SwingUtilities.invokeAndWait {
+            try {
+                val confirm = ConfirmDialog(title, header, message, question)
+                confirm.dialog.isVisible = true
+                answer = confirm.answer
+                confirm.dialog.dispose()
+            } catch (t: Throwable) {
+                failure = t
+            }
+        }
+
+        failure?.let { throw it }
+
+        return answer
     }
 
     /** Call when your app is fully ready: unlocks input and focuses the field. */
@@ -774,6 +806,123 @@ object UiConsole {
         override fun paintFocus(g: Graphics, b: AbstractButton, viewRect: Rectangle, textRect: Rectangle, iconRect: Rectangle) {}
 
         override fun paintButtonPressed(g: Graphics, b: AbstractButton) {}
+    }
+
+    // ---------- Confirmation dialog ----------
+
+    /** The window behind [confirmBeforeStart]: dark, with a No button focused first. [answer] is false until Yes is chosen. */
+    class ConfirmDialog(title: String, header: String, message: String, question: String) {
+        @Volatile
+        var answer = false
+            private set
+
+        val dialog = JDialog(null as Frame?, title, true)
+
+        private val yesBtn = ConsoleButton("Continue")
+        private val noBtn = ConsoleButton("Exit")
+
+        init {
+            val promptYellow = Color(0xF5, 0xD7, 0x42)
+            val sans = Font(Font.DIALOG, Font.PLAIN, 13)
+
+            val headerLabel = JLabel(header).apply {
+                foreground = promptYellow
+                font = Font(Font.DIALOG, Font.BOLD, 15)
+                border = BorderFactory.createEmptyBorder(0, 0, 10, 0)
+            }
+
+            val text = JTextArea(message).apply {
+                setUI(BasicTextAreaUI())
+                isEditable = false
+                isFocusable = false
+                isOpaque = false
+                lineWrap = true
+                wrapStyleWord = true
+                foreground = fg
+                font = pickMonospaceFont().deriveFont(13f)
+                border = BorderFactory.createEmptyBorder()
+                columns = 56
+            }
+
+            val questionLabel = JLabel(question).apply {
+                foreground = fg
+                font = sans.deriveFont(Font.BOLD)
+                border = BorderFactory.createEmptyBorder(14, 0, 0, 0)
+            }
+
+            val buttons = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
+                isOpaque = false
+                border = BorderFactory.createEmptyBorder(12, 0, 0, 0)
+                add(noBtn)
+                add(yesBtn)
+            }
+
+            listOf(yesBtn, noBtn).forEach { b ->
+                // The shared button paints no focus; the dialog is keyboard-first, so it outlines the focused one.
+                b.isBorderPainted = true
+                val idle = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(buttonBg, 1), BorderFactory.createEmptyBorder(5, 11, 5, 11)
+                )
+                val focused = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Color(0x569cd6), 1), BorderFactory.createEmptyBorder(5, 11, 5, 11)
+                )
+                b.border = idle
+                b.addFocusListener(object : java.awt.event.FocusAdapter() {
+                    override fun focusGained(e: java.awt.event.FocusEvent?) { b.border = focused }
+                    override fun focusLost(e: java.awt.event.FocusEvent?) { b.border = idle }
+                })
+            }
+
+            val body = JPanel(BorderLayout()).apply {
+                background = bg
+                isOpaque = true
+                border = BorderFactory.createEmptyBorder(18, 20, 16, 20)
+                add(headerLabel, BorderLayout.NORTH)
+                add(text, BorderLayout.CENTER)
+                add(JPanel(BorderLayout()).apply {
+                    isOpaque = false
+                    add(questionLabel, BorderLayout.NORTH)
+                    add(buttons, BorderLayout.CENTER)
+                }, BorderLayout.SOUTH)
+            }
+
+            dialog.contentPane = body
+            dialog.defaultCloseOperation = WindowConstants.DO_NOTHING_ON_CLOSE
+            dialog.isAlwaysOnTop = true
+
+            javaClass.getResource("/logo.png")?.let { dialog.setIconImage(ImageIcon(it).image) }
+
+            yesBtn.addActionListener { choose(true) }
+            noBtn.addActionListener { choose(false) }
+
+            dialog.addWindowListener(object : java.awt.event.WindowAdapter() {
+                override fun windowClosing(e: java.awt.event.WindowEvent?) = choose(false)
+                override fun windowOpened(e: java.awt.event.WindowEvent?) {
+                    noBtn.requestFocusInWindow()
+                }
+            })
+
+            bindKey("ESCAPE") { choose(false) }
+            bindKey("N") { choose(false) }
+            bindKey("Y") { choose(true) }
+            bindKey("ENTER") { choose(dialog.focusOwner === yesBtn) }
+
+            dialog.pack()
+            dialog.setLocationRelativeTo(null)
+        }
+
+        private fun choose(yes: Boolean) {
+            answer = yes
+            dialog.isVisible = false
+        }
+
+        private fun bindKey(key: String, action: () -> Unit) {
+            val root = dialog.rootPane
+            root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key), "confirm-$key")
+            root.actionMap.put("confirm-$key", object : AbstractAction() {
+                override fun actionPerformed(e: java.awt.event.ActionEvent?) = action()
+            })
+        }
     }
 
     // ---------- Icon helpers ----------

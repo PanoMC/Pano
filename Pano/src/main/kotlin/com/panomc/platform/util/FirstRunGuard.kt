@@ -174,10 +174,13 @@ object FirstRunPolicy {
         hasRunBefore: Boolean,
         entries: List<String>,
         gui: Boolean,
-        interactive: Boolean
+        interactive: Boolean,
+        pollableTerminal: Boolean = true
     ): Decision = when {
         skipRequested || hasRunBefore || entries.isEmpty() -> Decision.Proceed
-        gui && interactive -> Decision.Ask(entries, Channel.BOTH)
+        // The two-place question polls the terminal; a Windows console cannot be polled reliably, so a
+        // GUI start there asks in the dialog alone.
+        gui && interactive && pollableTerminal -> Decision.Ask(entries, Channel.BOTH)
         gui -> Decision.Ask(entries, Channel.DIALOG)
         interactive -> Decision.Ask(entries, Channel.TERMINAL)
         else -> Decision.WarnAndContinue(entries)
@@ -267,7 +270,8 @@ object FirstRunGuard {
         }
 
         val interactive = isTerminalInteractive()
-        var decision = FirstRunPolicy.decide(false, false, entries, gui, interactive)
+        val windows = System.getProperty("os.name").lowercase().startsWith("windows")
+        var decision = FirstRunPolicy.decide(false, false, entries, gui, interactive, pollableTerminal = !windows)
         val warning = FirstRunPolicy.warningLines(dir, entries)
         var warningPrinted = false
 

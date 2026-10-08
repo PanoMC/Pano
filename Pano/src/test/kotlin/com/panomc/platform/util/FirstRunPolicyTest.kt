@@ -293,4 +293,18 @@ class FirstRunPolicyTest {
         assertEquals(6, lines.size)
         assertEquals("It contains 1 entry:", FirstRunPolicy.warningLines(File("/x"), listOf("a"))[2])
     }
+
+    @Test
+    fun `a GUI start from a terminal that cannot be polled asks in the dialog alone`() {
+        val entries = listOf("notes.txt")
+
+        assertEquals(
+            Decision.Ask(entries, FirstRunPolicy.Channel.DIALOG),
+            FirstRunPolicy.decide(false, false, entries, gui = true, interactive = true, pollableTerminal = false)
+        )
+        assertEquals(
+            Decision.Ask(entries, FirstRunPolicy.Channel.TERMINAL),
+            FirstRunPolicy.decide(false, false, entries, gui = false, interactive = true, pollableTerminal = false)
+        )
+    }
 }

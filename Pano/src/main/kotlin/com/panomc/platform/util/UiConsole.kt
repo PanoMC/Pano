@@ -320,9 +320,6 @@ object UiConsole {
      * Call from any thread but the event dispatch thread. Throws when no window can be opened.
      */
     fun confirmBeforeStart(title: String, header: String, message: String, question: String): Boolean {
-        System.setProperty("awt.useSystemAAFontSettings", "on")
-        System.setProperty("swing.aatext", "true")
-
         var answer = false
         var failure: Throwable? = null
 
@@ -771,7 +768,8 @@ object UiConsole {
             background = buttonBg
             foreground = fg
             border = BorderFactory.createEmptyBorder(6, 12, 6, 12)
-            font = Font(Font.DIALOG, Font.BOLD, 12)
+            // The look and feel's own control font, regular weight; Dialog 12 where it has none.
+            font = UIManager.getFont("Button.font")?.deriveFont(Font.PLAIN) ?: Font(Font.DIALOG, Font.PLAIN, 12)
         }
     }
 
@@ -797,7 +795,9 @@ object UiConsole {
         override fun paintText(g: Graphics, c: JComponent, textRect: Rectangle, text: String) {
             val b = c as AbstractButton
             val g2 = g as Graphics2D
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            // The desktop's own text settings (ClearType, LCD), as BasicButtonUI would have used them.
+            (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints") as? Map<*, *>)
+                ?.let { g2.addRenderingHints(it) }
             g2.font = b.font
             g2.color = if (b.model.isEnabled) fg else buttonDisabledFg
             g2.drawString(text, textRect.x, textRect.y + g2.fontMetrics.ascent)
@@ -810,13 +810,35 @@ object UiConsole {
 
     // ---------- Confirmation dialog ----------
 
+    /**
+     * The wrapped, read-only message of the confirmation window. A text area that is packed before it
+     * has a width reports the height of its unwrapped lines, and the wrapped text then needs more rows
+     * than it was given (the end of the message is cut off, there is no scroll pane). So it is given
+     * its preferred width first, which makes its preferred height the wrapped one.
+     */
+    internal fun messageArea(message: String): JTextArea = JTextArea(message).apply {
+        setUI(BasicTextAreaUI())
+        isEditable = false
+        isFocusable = false
+        isOpaque = false
+        lineWrap = true
+        wrapStyleWord = true
+        foreground = fg
+        font = pickMonospaceFont().deriveFont(13f)
+        border = BorderFactory.createEmptyBorder()
+        columns = 56
+
+        setSize(Dimension(preferredSize.width, Short.MAX_VALUE.toInt()))
+    }
+
     /** The window behind [confirmBeforeStart]: dark, with a No button focused first. [answer] is false until Yes is chosen. */
     class ConfirmDialog(title: String, header: String, message: String, question: String) {
         @Volatile
         var answer = false
             private set
 
-        val dialog = JDialog(null as Frame?, title, true)
+        // Unowned (a null Frame would get Swing's hidden shared owner, and with it no taskbar button).
+        val dialog = JDialog(null as Window?, title, Dialog.ModalityType.APPLICATION_MODAL)
 
         private val yesBtn = ConsoleButton("Continue")
         private val noBtn = ConsoleButton("Exit")
@@ -831,18 +853,7 @@ object UiConsole {
                 border = BorderFactory.createEmptyBorder(0, 0, 10, 0)
             }
 
-            val text = JTextArea(message).apply {
-                setUI(BasicTextAreaUI())
-                isEditable = false
-                isFocusable = false
-                isOpaque = false
-                lineWrap = true
-                wrapStyleWord = true
-                foreground = fg
-                font = pickMonospaceFont().deriveFont(13f)
-                border = BorderFactory.createEmptyBorder()
-                columns = 56
-            }
+            val text = messageArea(message)
 
             val questionLabel = JLabel(question).apply {
                 foreground = fg
@@ -890,7 +901,7 @@ object UiConsole {
             dialog.defaultCloseOperation = WindowConstants.DO_NOTHING_ON_CLOSE
             dialog.isAlwaysOnTop = true
 
-            javaClass.getResource("/logo.png")?.let { dialog.setIconImage(ImageIcon(it).image) }
+            applyAppIcon(dialog, "/logo.png")
 
             yesBtn.addActionListener { choose(true) }
             noBtn.addActionListener { choose(false) }
@@ -929,10 +940,10 @@ object UiConsole {
 
     /**
      * Loads /logo.png (or any given resourcePath) and sets:
-     *  - frame icon images at multiple sizes
+     *  - window icon images at multiple sizes
      *  - Taskbar/Dock icon (Java 9+ Taskbar API)
      */
-    private fun applyAppIcon(f: JFrame, resourcePath: String) {
+    private fun applyAppIcon(f: Window, resourcePath: String) {
         val url = javaClass.getResource(resourcePath) ?: return
         val baseImg = ImageIcon(url).image ?: return
 
@@ -942,7 +953,7 @@ object UiConsole {
         try {
             f.iconImages = images
         } catch (_: Exception) {
-            f.iconImage = baseImg
+            f.setIconImage(baseImg)
         }
 
         try {

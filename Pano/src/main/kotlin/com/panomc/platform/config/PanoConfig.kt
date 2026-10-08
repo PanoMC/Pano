@@ -423,9 +423,12 @@ data class PanoConfig(
                 "The header is honoured ONLY when the connecting socket peer is listed here (single",
                 "addresses or CIDR ranges) or is a loopback / private-network address (a local nginx",
                 "or Docker proxy); otherwise the socket peer address itself is the client IP.",
-                "List a public proxy (e.g. Cloudflare ranges) here so its hop is skipped.",
+                "List a public proxy here so its hop is skipped; behind Cloudflare add the word \"cloudflare\"",
+                "(its published ranges). Without it every visitor looks like the Cloudflare edge address.",
+                "Loopback and private-network peers are always trusted and cannot be switched off, so",
+                "behind a NAT or a container bridge that hides real client addresses the header is believed.",
                 "Maintenance mode trusts only the addresses listed here.",
-                "Example: [\"127.0.0.1\", \"::1\", \"173.245.48.0/20\"]"
+                "Example: [\"127.0.0.1\", \"::1\", \"cloudflare\", \"203.0.113.0/24\"]"
             )
             @SerializedName("trusted-proxies") var trustedProxies: List<String> = emptyList()
         )

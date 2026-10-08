@@ -11,7 +11,9 @@ import java.io.PrintStream
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import javax.swing.plaf.UIResource
 import javax.swing.plaf.basic.BasicButtonUI
+import javax.swing.plaf.basic.BasicTextFieldUI
 import javax.swing.text.AttributeSet
 import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
@@ -24,7 +26,8 @@ import javax.swing.text.StyledDocument
  *  - Command input with placeholder/prompt and lock states
  *  - Ctrl+C stops the app (window stays), prints guidance
  *  - System.out/err redirected (optional tee)
- *  - Uses system Look&Feel for native window chrome
+ *  - Uses system Look&Feel for the scroll bar and tooltips; the command row (field + Send button)
+ *    paints itself from the palette below and never depends on the system theme
  *  - Loads app icon from classpath resource: /logo.png
  */
 object UiConsole {
@@ -62,6 +65,13 @@ object UiConsole {
     private val borderTop = Color(0x2a2a2a)
     private val placeholderColor = Color(0x8a8a8a)
     private val caretDisabled = Color(0x5a5a5a)
+    private val fieldDisabledFg = Color(0x6e6e6e)
+    private val selectionBg = Color(0x264f78)
+    private val selectionFg = Color(0xffffff)
+    private val buttonBg = Color(0x2d2d30)
+    private val buttonHoverBg = Color(0x3a3d41)
+    private val buttonPressedBg = Color(0x45494e)
+    private val buttonDisabledFg = Color(0x808080)
 
     private val placeholderText = "Enter command here..."
 
@@ -151,28 +161,7 @@ object UiConsole {
         val scroll = JScrollPane(pane).apply { border = BorderFactory.createEmptyBorder() }
 
         // Input area
-        val input = object : JTextField() {
-            override fun paintComponent(g: Graphics) {
-                super.paintComponent(g)
-                if (text.isEmpty()) {
-                    val g2 = g as Graphics2D
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                    g2.color = placeholderColor
-                    val fm = g2.fontMetrics
-                    val x = insets.left
-                    val y = (height + fm.ascent - fm.descent) / 2
-                    g2.drawString(placeholderText, x, y)
-                }
-            }
-        }.apply {
-            background = fieldBg
-            foreground = fg
-            caretColor = caretDisabled
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, borderTop),
-                BorderFactory.createEmptyBorder(6, 8, 6, 8)
-            )
-            font = pickMonospaceFont().deriveFont(14f)
+        val input = ConsoleTextField().apply {
             // 1) Don't take focus on startup
             isFocusable = false
             isRequestFocusEnabled = false
@@ -220,16 +209,8 @@ object UiConsole {
             }
         })
 
-        // 2) Keep "Send" button always dark
-        val send = JButton("Send").apply {
-            background = Color(0x2d2d30)
-            foreground = fg
-            border = BorderFactory.createEmptyBorder(6, 12, 6, 12)
-            isFocusPainted = false
-            isOpaque = true
-            isContentAreaFilled = true
-            // Use Basic UI to minimize LAF disabled-gray painting
-            setUI(BasicButtonUI())
+        // 2) "Send" button always dark (ConsoleButton paints itself, see below)
+        val send = ConsoleButton("Send").apply {
             addActionListener { submitCommand() }
         }
 
@@ -424,12 +405,6 @@ object UiConsole {
 
         val enabled = inputEnabled && !stopped && textOk
         btn.isEnabled = enabled
-        // 2) Arka plan koyu kalmaya devam etsin
-        btn.background = Color(0x2d2d30)
-        // Keep it readable even when disabled
-        btn.foreground = fg
-        btn.isOpaque = true
-        btn.isContentAreaFilled = true
     }
 
     private fun applyInputLockUI() {
@@ -702,6 +677,103 @@ object UiConsole {
         val avail = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames.toSet()
         val chosen = candidates.firstOrNull { it in avail } ?: "Monospaced"
         return Font(chosen, Font.PLAIN, 14)
+    }
+
+    // ---------- Command row components ----------
+
+    /**
+     * Command field that takes every colour, border and font from the console palette.
+     *
+     * The system Look&Feel is not trusted here: GTK (Synth) paints the field from the desktop theme
+     * (white box, light text on light), so the field installs the plain Basic delegate and sets every
+     * property the delegate would otherwise read from UIManager. [updateUI] re-applies all of it, so
+     * a later Look&Feel switch cannot bring the system theme back.
+     */
+    private class ConsoleTextField : JTextField() {
+
+        override fun updateUI() {
+            setUI(BasicTextFieldUI())
+
+            isOpaque = true
+            background = fieldBg
+            foreground = fg
+            disabledTextColor = fieldDisabledFg
+            selectionColor = selectionBg
+            selectedTextColor = selectionFg
+            // The caret colour follows focus / lock state, keep it once we have set it
+            if (caretColor == null || caretColor is UIResource) caretColor = caretDisabled
+            caret?.blinkRate = 500
+            margin = Insets(0, 0, 0, 0)
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, borderTop),
+                BorderFactory.createEmptyBorder(6, 8, 6, 8)
+            )
+            font = pickMonospaceFont().deriveFont(14f)
+        }
+
+        override fun paintComponent(g: Graphics) {
+            super.paintComponent(g)
+            if (text.isEmpty()) {
+                val g2 = g as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.color = placeholderColor
+                val fm = g2.fontMetrics
+                val x = insets.left
+                val y = (height + fm.ascent - fm.descent) / 2
+                g2.drawString(placeholderText, x, y)
+            }
+        }
+    }
+
+    /** Send button that paints its own background and text from the console palette. */
+    private class ConsoleButton(text: String) : JButton(text) {
+
+        override fun updateUI() {
+            setUI(ConsoleButtonUI())
+
+            isOpaque = true
+            isContentAreaFilled = true
+            isFocusPainted = false
+            isBorderPainted = false
+            isRolloverEnabled = true
+            background = buttonBg
+            foreground = fg
+            border = BorderFactory.createEmptyBorder(6, 12, 6, 12)
+            font = Font(Font.DIALOG, Font.BOLD, 12)
+        }
+    }
+
+    /**
+     * Basic delegate with the system colours removed: the fill depends on the button state, the text
+     * is the palette foreground (dimmed but readable when disabled), nothing is drawn for focus or
+     * the pressed state beyond the fill.
+     */
+    private class ConsoleButtonUI : BasicButtonUI() {
+
+        override fun update(g: Graphics, c: JComponent) {
+            val model = (c as AbstractButton).model
+            g.color = when {
+                !model.isEnabled -> buttonBg
+                model.isArmed && model.isPressed -> buttonPressedBg
+                model.isRollover -> buttonHoverBg
+                else -> buttonBg
+            }
+            g.fillRect(0, 0, c.width, c.height)
+            paint(g, c)
+        }
+
+        override fun paintText(g: Graphics, c: JComponent, textRect: Rectangle, text: String) {
+            val b = c as AbstractButton
+            val g2 = g as Graphics2D
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g2.font = b.font
+            g2.color = if (b.model.isEnabled) fg else buttonDisabledFg
+            g2.drawString(text, textRect.x, textRect.y + g2.fontMetrics.ascent)
+        }
+
+        override fun paintFocus(g: Graphics, b: AbstractButton, viewRect: Rectangle, textRect: Rectangle, iconRect: Rectangle) {}
+
+        override fun paintButtonPressed(g: Graphics, b: AbstractButton) {}
     }
 
     // ---------- Icon helpers ----------

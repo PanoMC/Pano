@@ -3,6 +3,7 @@ package com.panomc.platform.util
 import com.panomc.platform.hosted.ContainerMode
 import java.io.Console
 import java.io.File
+import java.nio.file.Files
 import java.util.Locale
 import kotlin.system.exitProcess
 
@@ -24,31 +25,28 @@ object FirstRunPolicy {
     const val QUESTION = "Continue?"
 
     /**
-     * Paths (relative to the working directory) that only a Pano that has started there leaves behind.
-     * Any one of them means Pano has run in this directory before, so it is never asked about again.
-     * `config.conf` is not listed: its location can be moved with `-Dpano.configFile`, see [hasRunBefore].
-     * `plugins` is not listed either: an operator may put plugin jars there before the first start.
+     * Paths (relative to the working directory) that nothing but a Pano that has started there leaves
+     * behind. Any one of them means Pano has run in this directory before, so it is never asked about
+     * again. Generic folder names are deliberately absent (`logs`, `libraries`, `themes`,
+     * `certificates`, `file-uploads`, `.temp`, `data/db`): a Minecraft server, a database or any other
+     * application has them too, and this is the folder an operator picks by mistake. `config.conf` is
+     * not listed either: its location can be moved with `-Dpano.configFile`, see [hasRunBefore]; and
+     * `plugins`, because an operator may put plugin jars there before the first start.
      */
     val RUN_MARKERS = listOf(
-        "logs",
         ".console_history",
         ".config_history",
-        ".temp",
-        "libraries",
-        "themes",
         "setup-ui",
         "panel-ui",
-        "file-uploads",
-        "certificates",
         "node-data",
-        "data/db",
         "pano-updater.jar"
     )
 
     /**
      * Files that sit in a fresh install's directory without being anything else's: what the release
      * ships next to the Pano jar (`pano-node.jar`, the checksum files, `LICENSE`), compared without
-     * regard to case. The Pano jar itself is passed in separately because it can be named anything.
+     * regard to case, plus what a volume or a launcher script puts next to it (`lost+found`, `start.sh`).
+     * The Pano jar itself is passed in separately because it can be named anything.
      * Hidden files are NOT ignored in general (a `.git` or `.env` says the directory belongs to
      * something else); only the junk file managers and operating systems leave in every folder is.
      */
@@ -60,7 +58,16 @@ object FirstRunPolicy {
         ".localized",
         ".directory",
         "thumbs.db",
-        "desktop.ini"
+        "desktop.ini",
+        "lost+found",
+        "system volume information",
+        "\$recycle.bin",
+        "start.sh",
+        "start.bat",
+        "start.cmd",
+        "run.sh",
+        "run.bat",
+        "run.cmd"
     )
 
     private val IGNORED_PREFIXES = listOf("._", ".trash-", ".fuse_hidden")
@@ -103,13 +110,26 @@ object FirstRunPolicy {
 
     /**
      * What is in [dir] besides the ignored files: names sorted case-insensitively, folders with a
-     * trailing `/`. Empty when [dir] cannot be listed.
+     * trailing `/`. Empty when [dir] cannot be listed. A symlink that resolves to [runningJar] is
+     * ignored too: a start through `Pano.jar -> Pano-1.0.0.jar` reports the target as the jar.
      */
-    fun foreignEntries(dir: File, runningJarName: String?): List<String> =
-        (dir.listFiles() ?: emptyArray())
-            .filterNot { isIgnored(it.name, runningJarName) }
+    fun foreignEntries(dir: File, runningJarName: String?, runningJar: File? = null): List<String> {
+        val jarPath = runningJar?.let { canonicalOrNull(it) }
+
+        return (dir.listFiles() ?: emptyArray())
+            .filterNot {
+                isIgnored(it.name, runningJarName) ||
+                        (jarPath != null && Files.isSymbolicLink(it.toPath()) && canonicalOrNull(it) == jarPath)
+            }
             .map { if (it.isDirectory) it.name + "/" else it.name }
             .sortedWith(String.CASE_INSENSITIVE_ORDER)
+    }
+
+    private fun canonicalOrNull(file: File): String? = try {
+        file.canonicalPath
+    } catch (_: Exception) {
+        null
+    }
 
     /** `y` or `yes` in any case, surrounding spaces ignored. Empty, anything else and EOF (null) are no. */
     fun parseAnswer(line: String?): Boolean =
@@ -126,7 +146,7 @@ object FirstRunPolicy {
         /** Start without a word. */
         object Proceed : Decision()
 
-        /** Ask first; [viaGui] picks the dialog over the terminal. */
+        /** Ask first; [viaGui] picks the dialog, which is only for starts without a terminal to answer in. */
         data class Ask(val entries: List<String>, val viaGui: Boolean) : Decision()
 
         /** Nobody can answer: print the warning and start. */
@@ -141,8 +161,8 @@ object FirstRunPolicy {
         interactive: Boolean
     ): Decision = when {
         skipRequested || hasRunBefore || entries.isEmpty() -> Decision.Proceed
-        gui -> Decision.Ask(entries, viaGui = true)
         interactive -> Decision.Ask(entries, viaGui = false)
+        gui -> Decision.Ask(entries, viaGui = true)
         else -> Decision.WarnAndContinue(entries)
     }
 
@@ -165,6 +185,12 @@ object FirstRunPolicy {
         return lines
     }
 
+    /** Tells whoever looks at the terminal (or the service log) how to get past the question without answering it. */
+    fun skipHintLine(): String = "To skip this question, pass $SKIP_FLAG or set $SKIP_ENV=1."
+
+    /** Printed to stderr while the dialog is open: a dialog nobody sees would otherwise be a silent hang. */
+    fun waitingInDialogLine(): String = "Waiting for your answer in the Pano window. ${skipHintLine()}"
+
     /** The line printed instead of a question when nobody can answer. */
     fun continueWithoutAskingLine(): String =
         "No terminal is attached to answer, so Pano continues. To skip this check, pass $SKIP_FLAG or set $SKIP_ENV=1."
@@ -183,7 +209,7 @@ object FirstRunGuard {
     /**
      * Returns when Pano may start. Ends the process with exit code 1 when the answer is no.
      *
-     * @param gui the Swing console is going to open, so the question is a dialog
+     * @param gui the Swing console is going to open, so the question is a dialog when no terminal can be asked
      * @param alreadyHandled nothing to ask: a container (its data directory is a managed volume) or the
      *   detached copy of a `-bg` start whose launching process has already asked
      */
@@ -199,7 +225,9 @@ object FirstRunGuard {
 
             if (FirstRunPolicy.hasRunBefore(dir, configFile)) return
 
-            FirstRunPolicy.foreignEntries(dir, ContainerMode.detectRunningJar()?.name)
+            val runningJar = ContainerMode.detectRunningJar()
+
+            FirstRunPolicy.foreignEntries(dir, runningJar?.name, runningJar)
         } catch (_: Exception) {
             // A directory that cannot be read is no reason to refuse to start.
             return
@@ -208,9 +236,16 @@ object FirstRunGuard {
         val interactive = isTerminalInteractive()
         var decision = FirstRunPolicy.decide(false, false, entries, gui, interactive)
         val warning = FirstRunPolicy.warningLines(dir, entries)
+        var warningPrinted = false
 
         if (decision is FirstRunPolicy.Decision.Ask && decision.viaGui) {
-            val answer = askInDialog(warning)
+            // The dialog may open where nobody looks (a service's desktop, another workspace), and no log
+            // exists yet: say on stderr what is going on and how to get past it.
+            warning.forEach { System.err.println(it) }
+            warningPrinted = true
+            System.err.println(FirstRunPolicy.waitingInDialogLine())
+
+            val answer = askInDialog(warning + FirstRunPolicy.skipHintLine())
 
             if (answer != null) {
                 if (!answer) abort(dir)
@@ -223,7 +258,7 @@ object FirstRunGuard {
 
         when (decision) {
             is FirstRunPolicy.Decision.WarnAndContinue -> {
-                warning.forEach { System.err.println(it) }
+                if (!warningPrinted) warning.forEach { System.err.println(it) }
                 System.err.println(FirstRunPolicy.continueWithoutAskingLine())
             }
 
@@ -255,6 +290,7 @@ object FirstRunGuard {
         val console = System.console() ?: return false
 
         warning.forEach { console.printf("%s%n", it) }
+        console.printf("%s%n", FirstRunPolicy.skipHintLine())
 
         return FirstRunPolicy.parseAnswer(console.readLine("%s", FirstRunPolicy.terminalPrompt()))
     }

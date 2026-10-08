@@ -65,6 +65,30 @@ class FirstRunPolicyTest {
     }
 
     @Test
+    fun `a Minecraft server folder is not a run, whatever folders it shares with Pano`() {
+        mkdir("logs")
+        mkdir("libraries")
+        mkdir("plugins")
+        mkdir("world")
+        mkdir("themes")
+        mkdir("certificates")
+        mkdir("file-uploads")
+        mkdir(".temp")
+        mkdir("data/db")
+        touch("server.properties")
+        touch("paper.jar")
+
+        assertFalse(FirstRunPolicy.hasRunBefore(dir))
+
+        val entries = FirstRunPolicy.foreignEntries(dir, "Pano.jar")
+
+        assertEquals(
+            Decision.Ask(entries, viaGui = false),
+            FirstRunPolicy.decide(false, FirstRunPolicy.hasRunBefore(dir), entries, gui = true, interactive = true)
+        )
+    }
+
+    @Test
     fun `a plugins folder alone is not a run, an operator may fill it before the first start`() {
         mkdir("plugins")
 
@@ -79,6 +103,29 @@ class FirstRunPolicyTest {
 
         assertEquals(emptyList<String>(), FirstRunPolicy.foreignEntries(dir, "totally-custom-name.jar"))
         assertEquals(listOf("totally-custom-name.jar"), FirstRunPolicy.foreignEntries(dir, "Pano-1.0.0.jar"))
+    }
+
+    @Test
+    fun `a symlink to the running jar is not something else`() {
+        val real = File(dir, "real/Pano-1.0.0.jar").also { it.parentFile.mkdirs(); it.writeText("x") }
+        val install = File(dir, "install").also { it.mkdirs() }
+
+        java.nio.file.Files.createSymbolicLink(File(install, "Pano.jar").toPath(), real.toPath())
+        java.nio.file.Files.createSymbolicLink(File(install, "other.jar").toPath(), File(dir, "real/elsewhere.jar").toPath())
+
+        assertEquals(listOf("other.jar"), FirstRunPolicy.foreignEntries(install, real.name, real))
+    }
+
+    @Test
+    fun `volume and launcher leftovers are ignored`() {
+        mkdir("lost+found")
+        mkdir("System Volume Information")
+        mkdir("\$RECYCLE.BIN")
+        touch("start.sh")
+        touch("Start.bat")
+        touch("run.cmd")
+
+        assertEquals(emptyList<String>(), FirstRunPolicy.foreignEntries(dir, null))
     }
 
     @Test
@@ -185,9 +232,18 @@ class FirstRunPolicyTest {
     }
 
     @Test
-    fun `the GUI asks in a dialog even when a terminal is attached`() {
-        assertEquals(Decision.Ask(entries, viaGui = true), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = true))
+    fun `an attached terminal asks even when a GUI is available, the dialog is for starts without one`() {
+        assertEquals(Decision.Ask(entries, viaGui = false), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = true))
         assertEquals(Decision.Ask(entries, viaGui = true), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = false))
+    }
+
+    @Test
+    fun `the waiting line names the way past the question`() {
+        assertEquals(
+            "To skip this question, pass --allow-non-empty-dir or set PANO_ALLOW_NON_EMPTY_DIR=1.",
+            FirstRunPolicy.skipHintLine()
+        )
+        assertTrue(FirstRunPolicy.waitingInDialogLine().contains(FirstRunPolicy.skipHintLine()))
     }
 
     @Test

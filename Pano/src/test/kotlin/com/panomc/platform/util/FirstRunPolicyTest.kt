@@ -1,5 +1,6 @@
 package com.panomc.platform.util
 
+import com.panomc.platform.util.FirstRunPolicy.Channel
 import com.panomc.platform.util.FirstRunPolicy.Decision
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -83,7 +84,7 @@ class FirstRunPolicyTest {
         val entries = FirstRunPolicy.foreignEntries(dir, "Pano.jar")
 
         assertEquals(
-            Decision.Ask(entries, viaGui = true),
+            Decision.Ask(entries, Channel.BOTH),
             FirstRunPolicy.decide(false, FirstRunPolicy.hasRunBefore(dir), entries, gui = true, interactive = true)
         )
     }
@@ -232,9 +233,20 @@ class FirstRunPolicyTest {
     }
 
     @Test
-    fun `a start with the GUI asks in the dialog, with or without a terminal`() {
-        assertEquals(Decision.Ask(entries, viaGui = true), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = true))
-        assertEquals(Decision.Ask(entries, viaGui = true), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = false))
+    fun `a start with the GUI and no terminal asks in the dialog only`() {
+        assertEquals(Decision.Ask(entries, Channel.DIALOG), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = false))
+    }
+
+    @Test
+    fun `a start with the GUI from a terminal asks in both places`() {
+        assertEquals(Decision.Ask(entries, Channel.BOTH), FirstRunPolicy.decide(false, false, entries, gui = true, interactive = true))
+    }
+
+    @Test
+    fun `the lines around the two-place question say where to answer`() {
+        assertTrue(FirstRunPolicy.answerInEitherPlaceLine().contains("first answer counts"))
+        assertTrue(FirstRunPolicy.answerInEitherPlaceLine().contains(FirstRunPolicy.skipHintLine()))
+        assertEquals("Answered in the Pano window.", FirstRunPolicy.answeredInWindowLine())
     }
 
     @Test
@@ -248,7 +260,7 @@ class FirstRunPolicyTest {
 
     @Test
     fun `without a GUI a terminal asks`() {
-        assertEquals(Decision.Ask(entries, viaGui = false), FirstRunPolicy.decide(false, false, entries, gui = false, interactive = true))
+        assertEquals(Decision.Ask(entries, Channel.TERMINAL), FirstRunPolicy.decide(false, false, entries, gui = false, interactive = true))
     }
 
     @Test

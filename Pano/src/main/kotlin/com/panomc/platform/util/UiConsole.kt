@@ -318,14 +318,24 @@ object UiConsole {
      * the window, Esc and N answer no, Y answers yes, Enter presses the focused button (No at first).
      *
      * Call from any thread but the event dispatch thread. Throws when no window can be opened.
+     *
+     * [onCreated] gets the window before it is shown (on the event dispatch thread), so another thread
+     * can end the question with [ConfirmDialog.close]; the result is then false and its caller ignores it.
      */
-    fun confirmBeforeStart(title: String, header: String, message: String, question: String): Boolean {
+    fun confirmBeforeStart(
+        title: String,
+        header: String,
+        message: String,
+        question: String,
+        onCreated: (ConfirmDialog) -> Unit = {}
+    ): Boolean {
         var answer = false
         var failure: Throwable? = null
 
         SwingUtilities.invokeAndWait {
             try {
                 val confirm = ConfirmDialog(title, header, message, question)
+                onCreated(confirm)
                 confirm.dialog.isVisible = true
                 answer = confirm.answer
                 confirm.dialog.dispose()
@@ -925,6 +935,15 @@ object UiConsole {
         private fun choose(yes: Boolean) {
             answer = yes
             dialog.isVisible = false
+        }
+
+        /**
+         * Hides the window without an answer, from any thread: the hiding runs on the event dispatch thread,
+         * where [confirmBeforeStart] then disposes it. Safe to call before the window is shown (it then never
+         * stays up) and more than once.
+         */
+        fun close() {
+            SwingUtilities.invokeLater { dialog.isVisible = false }
         }
 
         private fun bindKey(key: String, action: () -> Unit) {

@@ -94,7 +94,7 @@ they drive both versioning and the generated changelog.
 `com.panomc.platform.Main` is a Vert.x `CoroutineVerticle` annotated `@Boot`. `main()` handles
 CLI flags (`-nogui`, `-bg` background respawn, `--dev`, `--demo`, `--allow-non-empty-dir`) and deploys the verticle.
 `FirstRunGuard` runs first in `main()`, before any file exists: in a non-empty directory where Pano has never run it asks
-(GUI dialog or terminal `Continue? [y/N]`), warns and continues without a terminal; `--allow-non-empty-dir` /
+(GUI dialog, terminal `Continue? [y/N]`, or both at once when the GUI is started from a terminal: first answer wins, the terminal is polled, never blocked on), warns and continues without a terminal; `--allow-non-empty-dir` /
 `PANO_ALLOW_NON_EMPTY_DIR=1` skip it. Nothing before it may create `logs/` (Log4j does so on the first logger).
 `Main.init()` is the canonical startup order: DI → config → setup check → MariaDB → plugin
 manager + plugins → (if installed) database/i18n/server/update/license managers → UI manager →

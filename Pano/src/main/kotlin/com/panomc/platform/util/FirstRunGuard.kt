@@ -3,8 +3,12 @@ package com.panomc.platform.util
 import com.panomc.platform.hosted.ContainerMode
 import java.io.Console
 import java.io.File
+import java.io.FileDescriptor
+import java.io.FileInputStream
 import java.nio.file.Files
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 import kotlin.system.exitProcess
 
 /**
@@ -142,12 +146,24 @@ object FirstRunPolicy {
     fun isInteractive(hasConsole: Boolean, isTerminal: Boolean? = null): Boolean =
         hasConsole && (isTerminal ?: true)
 
+    /** Where a question is asked. */
+    enum class Channel {
+        /** Only the dialog, before the console window: a start with the GUI and no terminal. */
+        DIALOG,
+
+        /** Only the terminal: no GUI. */
+        TERMINAL,
+
+        /** Both at once, the first answer counts: a start with the GUI from an interactive terminal. */
+        BOTH
+    }
+
     sealed class Decision {
         /** Start without a word. */
         object Proceed : Decision()
 
-        /** Ask first; [viaGui] picks the dialog, which a start with the GUI always uses, before the console opens. */
-        data class Ask(val entries: List<String>, val viaGui: Boolean) : Decision()
+        /** Ask first, in [channel]. */
+        data class Ask(val entries: List<String>, val channel: Channel) : Decision()
 
         /** Nobody can answer: print the warning and start. */
         data class WarnAndContinue(val entries: List<String>) : Decision()
@@ -161,8 +177,9 @@ object FirstRunPolicy {
         interactive: Boolean
     ): Decision = when {
         skipRequested || hasRunBefore || entries.isEmpty() -> Decision.Proceed
-        gui -> Decision.Ask(entries, viaGui = true)
-        interactive -> Decision.Ask(entries, viaGui = false)
+        gui && interactive -> Decision.Ask(entries, Channel.BOTH)
+        gui -> Decision.Ask(entries, Channel.DIALOG)
+        interactive -> Decision.Ask(entries, Channel.TERMINAL)
         else -> Decision.WarnAndContinue(entries)
     }
 
@@ -191,6 +208,13 @@ object FirstRunPolicy {
     /** Printed to stderr while the dialog is open: a dialog nobody sees would otherwise be a silent hang. */
     fun waitingInDialogLine(): String = "Waiting for your answer in the Pano window. ${skipHintLine()}"
 
+    /** Printed above the terminal question while the dialog is open too. */
+    fun answerInEitherPlaceLine(): String =
+        "Answer here or in the Pano window, the first answer counts. ${skipHintLine()}"
+
+    /** Printed in the terminal when the dialog was answered first. */
+    fun answeredInWindowLine(): String = "Answered in the Pano window."
+
     /** The line printed instead of a question when nobody can answer. */
     fun continueWithoutAskingLine(): String =
         "No terminal is attached to answer, so Pano continues. To skip this check, pass $SKIP_FLAG or set $SKIP_ENV=1."
@@ -205,6 +229,12 @@ object FirstRunPolicy {
  * of no leaves the directory exactly as it was.
  */
 object FirstRunGuard {
+
+    /** How often the terminal is looked at while the dialog is open too. */
+    private const val POLL_MS = 40L
+
+    /** How long a terminal answer waits for the dialog to disappear. */
+    private const val DIALOG_CLOSE_WAIT_MS = 3000L
 
     /**
      * Returns when Pano may start. Ends the process with exit code 1 when the answer is no.
@@ -238,7 +268,13 @@ object FirstRunGuard {
         val warning = FirstRunPolicy.warningLines(dir, entries)
         var warningPrinted = false
 
-        if (decision is FirstRunPolicy.Decision.Ask && decision.viaGui) {
+        if (decision is FirstRunPolicy.Decision.Ask && decision.channel == FirstRunPolicy.Channel.BOTH) {
+            if (askInBoth(dir, warning)) return
+
+            abort(dir)
+        }
+
+        if (decision is FirstRunPolicy.Decision.Ask && decision.channel == FirstRunPolicy.Channel.DIALOG) {
             // The dialog may open where nobody looks (a service's desktop, another workspace), and no log
             // exists yet: say on stderr what is going on and how to get past it.
             warning.forEach { System.err.println(it) }
@@ -283,6 +319,74 @@ object FirstRunGuard {
         )
     } catch (_: Throwable) {
         null
+    }
+
+    /**
+     * The dialog and the terminal ask at the same time; the first answer wins and the other side is
+     * ended: a terminal answer closes the dialog, a dialog answer stops the terminal's polling and says so.
+     * Returns whether Pano may start.
+     *
+     * The terminal is read without blocking ([PolledLine] over the raw descriptor, polled every
+     * [POLL_MS]), so when the dialog answers no thread stays inside a read of standard input to swallow
+     * the first console command. Terminal modes are not touched.
+     */
+    private fun askInBoth(dir: File, warning: List<String>): Boolean {
+        val first = FirstAnswer()
+        val dialogRef = AtomicReference<UiConsole.ConfirmDialog?>(null)
+
+        warning.forEach { System.err.println(it) }
+        System.err.println(FirstRunPolicy.answerInEitherPlaceLine())
+
+        // The window is shown by a thread of its own: it blocks until the window is gone.
+        val dialogThread = thread(name = "FirstRunDialog", isDaemon = true) {
+            try {
+                val yes = UiConsole.confirmBeforeStart(
+                    title = "Pano - directory is not empty",
+                    header = "Warning",
+                    message = (warning + FirstRunPolicy.skipHintLine()).joinToString("\n"),
+                    question = FirstRunPolicy.QUESTION
+                ) { shown ->
+                    dialogRef.set(shown)
+
+                    // The terminal may have answered before the window existed.
+                    if (first.answer != null) shown.close()
+                }
+
+                first.offer(yes, AnswerSource.DIALOG)
+            } catch (_: Throwable) {
+                // No window could be shown (a display that does not answer): the terminal alone decides.
+            }
+        }
+
+        System.err.print(FirstRunPolicy.terminalPrompt())
+        System.err.flush()
+
+        val line = PolledLine(FileInputStream(FileDescriptor.`in`))
+
+        while (first.answer == null) {
+            when (val result = line.poll()) {
+                is PolledLine.Result.Line -> first.offer(FirstRunPolicy.parseAnswer(result.text), AnswerSource.TERMINAL)
+
+                PolledLine.Result.EndOfInput -> first.offer(false, AnswerSource.TERMINAL)
+
+                PolledLine.Result.Pending -> first.await(POLL_MS)
+            }
+        }
+
+        val answer = first.answer!!
+
+        if (answer.source == AnswerSource.TERMINAL) {
+            // The answer was typed here; take the window down (on the event dispatch thread) and wait for it,
+            // so it is gone before the console window opens.
+            dialogRef.get()?.close()
+            dialogThread.join(DIALOG_CLOSE_WAIT_MS)
+        } else {
+            // The prompt line is still open on the terminal; end it so the terminal does not look stuck.
+            System.err.println()
+            System.err.println(FirstRunPolicy.answeredInWindowLine())
+        }
+
+        return answer.yes
     }
 
     /** Anything but y / yes, and a closed input, is a no. */

@@ -38,11 +38,22 @@ class ForwardedProtoInterceptor(
             headers.set(X_FORWARDED_FOR, clientIp)
         }
 
+        CLIENT_ADDRESS_HEADERS.forEach { name ->
+            if (headers.contains(name)) {
+                if (clientIp != "unknown") headers.set(name, clientIp) else headers.remove(name)
+            }
+        }
+
+        headers.remove(FORWARDED)
+
         return context.sendRequest()
     }
 
     companion object {
         const val X_FORWARDED_PROTO = "X-Forwarded-Proto"
         const val X_FORWARDED_FOR = "X-Forwarded-For"
+        const val FORWARDED = "Forwarded"
+
+        private val CLIENT_ADDRESS_HEADERS = listOf("CF-Connecting-IP", "True-Client-IP", "X-Real-IP")
     }
 }

@@ -84,7 +84,7 @@ class MailManagerSignatureTest {
 
     @Test
     fun `exactly the two sendMail overloads plus the default bridge exist`() {
-        val names = manager.declaredMethods.filter { it.name.startsWith("sendMail") }
+        val names = manager.declaredMethods.filter { it.name.startsWith("sendMail") && !it.name.contains("\$lambda") }
 
         assertEquals(3, names.size, names.joinToString { it.toString() })
     }

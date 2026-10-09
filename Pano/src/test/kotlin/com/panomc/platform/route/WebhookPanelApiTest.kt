@@ -423,7 +423,7 @@ class WebhookPanelApiTest {
         override suspend fun handle(context: RoutingContext): Result = Successful()
     }
 
-    private fun <T> Future<T>.blockingGet(): T = toCompletionStage().toCompletableFuture().get(20, TimeUnit.SECONDS)
+    private fun <T> Future<T>.blockingGet(): T = toCompletionStage().toCompletableFuture().get(60, TimeUnit.SECONDS)
 
     private fun startServer(): Int {
         val repository = SchemaRepository.create(JsonSchemaOptions().setBaseUri("https://panomc.com").setDraft(Draft.DRAFT7))

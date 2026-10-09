@@ -399,6 +399,10 @@
     "code": "PLUGIN_DENIED_LOGIN",
     "status": 403
   },
+  "com.panomc.platform.error.PluginApiLevelUnsupported": {
+    "code": "PLUGIN_API_LEVEL_UNSUPPORTED",
+    "status": 400
+  },
   "com.panomc.platform.error.PluginUpToDate": {
     "code": "PLUGIN_UP_TO_DATE",
     "status": 400

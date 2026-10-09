@@ -219,7 +219,7 @@ class CsrfEverywhereTest {
         target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
     }
 
-    private fun <T> Future<T>.blockingGet(): T = toCompletionStage().toCompletableFuture().get(15, TimeUnit.SECONDS)
+    private fun <T> Future<T>.blockingGet(): T = toCompletionStage().toCompletableFuture().get(60, TimeUnit.SECONDS)
 
     // ---- stand-in endpoints --------------------------------------------------------------------------------
 

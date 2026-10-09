@@ -186,12 +186,11 @@ class ErrorEnvelopeTest {
         val port = vertx.createHttpServer().requestHandler(router).listen(0, "127.0.0.1").blockingGet().actualPort()
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
 
-        return client.request(HttpMethod.GET, port, "127.0.0.1", "/fail")
+        return com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.GET, port, "127.0.0.1", "/fail")
             .compose { it.send() }
             .compose { response ->
                 response.body().map { response.statusCode() to JsonObject(it.toString(Charsets.UTF_8)) }
-            }
-            .blockingGet()
+            } }.blockingGet()
     }
 
     @Test

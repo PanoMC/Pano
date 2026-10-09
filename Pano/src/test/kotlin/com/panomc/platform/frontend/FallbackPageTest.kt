@@ -132,7 +132,7 @@ class FallbackPageTest {
     ): Answer {
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
 
-        return client.request(method, port, "127.0.0.1", path)
+        return com.panomc.platform.TestHttp.onLoop(vertx) { client.request(method, port, "127.0.0.1", path)
             .compose { request ->
                 headers.forEach { (name, value) -> request.putHeader(name, value) }
 
@@ -146,8 +146,7 @@ class FallbackPageTest {
                         buffer.toString()
                     )
                 }
-            }
-            .blockingGet()
+            } }.blockingGet()
     }
 
     private fun get(path: String, headers: Map<String, String> = emptyMap()) = send(HttpMethod.GET, path, null, headers)

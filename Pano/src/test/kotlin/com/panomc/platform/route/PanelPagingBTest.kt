@@ -322,12 +322,11 @@ class PanelPagingBTest {
             val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
             val url = route.replace(":id", "7") + query
 
-            return client.request(HttpMethod.GET, port, "127.0.0.1", url)
+            return com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.GET, port, "127.0.0.1", url)
                 .compose { it.send() }
                 .compose { response ->
                     response.body().map { response.statusCode() to JsonObject(it.toString(Charsets.UTF_8)) }
-                }
-                .blockingGet()
+                } }.blockingGet()
         } finally {
             vertx.close().toCompletionStage().toCompletableFuture().get(15, TimeUnit.SECONDS)
 

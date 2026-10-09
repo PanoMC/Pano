@@ -124,7 +124,7 @@ class AccessPlaneHandlerTest {
     }
 
     private fun get(path: String, headers: Map<String, String> = emptyMap()): Response =
-        client.request(HttpMethod.GET, port, "127.0.0.1", path)
+        com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.GET, port, "127.0.0.1", path)
             .compose { request ->
                 headers.forEach { (name, value) -> request.putHeader(name, value) }
 
@@ -138,8 +138,7 @@ class AccessPlaneHandlerTest {
                         body.toString()
                     )
                 }
-            }
-            .blockingGet()
+            } }.blockingGet()
 
     private fun createKey(name: String = "site") = runBlocking { service.create(name, 1L, sqlClient) }
 
@@ -235,13 +234,12 @@ class AccessPlaneHandlerTest {
         val restarted = FrontendKeyService(dao)
         val restartedPort = startServer(restarted)
 
-        val response = client.request(HttpMethod.GET, restartedPort, "127.0.0.1", "/api/v1/posts")
+        val response = com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.GET, restartedPort, "127.0.0.1", "/api/v1/posts")
             .compose { request ->
                 request.putHeader(FrontendKeyService.HEADER, key.key)
 
                 request.send()
-            }
-            .blockingGet()
+            } }.blockingGet()
 
         assertEquals(200, response.statusCode())
     }

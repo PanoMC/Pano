@@ -240,7 +240,7 @@ class SiteSessionTest {
     }
 
     private fun call(method: HttpMethod, path: String, headers: Map<String, String> = emptyMap()): Response =
-        client.also { com.panomc.platform.HangDiagnostics.inFlight = "$method $path $headers on 127.0.0.1:$port" }.request(method, port, "127.0.0.1", path)
+        com.panomc.platform.TestHttp.onLoop(vertx) { client.also { com.panomc.platform.HangDiagnostics.inFlight = "$method $path $headers on 127.0.0.1:$port" }.request(method, port, "127.0.0.1", path)
             .compose { request ->
                 headers.forEach { (name, value) -> request.putHeader(name, value) }
 
@@ -250,8 +250,7 @@ class SiteSessionTest {
                 response.body().map { body ->
                     Response(response.statusCode(), response.headers().map { it.key to it.value }, body.toString())
                 }
-            }
-            .blockingGet()
+            } }.blockingGet()
 
     private fun createStoredKey() = runBlocking { keys.create("site", 1L, sqlClient) }.key
 

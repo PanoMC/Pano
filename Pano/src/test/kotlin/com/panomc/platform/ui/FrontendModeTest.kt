@@ -615,7 +615,7 @@ class FrontendModeTest {
     }
 
     private fun get(path: String, headers: Map<String, String> = emptyMap()): Response =
-        client.request(HttpMethod.GET, panoPort, "127.0.0.1", path)
+        com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.GET, panoPort, "127.0.0.1", path)
             .compose { request ->
                 headers.forEach { (name, value) -> request.putHeader(name, value) }
 
@@ -625,8 +625,7 @@ class FrontendModeTest {
                 response.body().map { body ->
                     Response(response.statusCode(), response.headers().associate { it.key.lowercase() to it.value }, body.toString())
                 }
-            }
-            .blockingGet()
+            } }.blockingGet()
 
     private fun zip(vararg files: Pair<String, String>): File {
         val file = File.createTempFile("app", ".zip", dir)

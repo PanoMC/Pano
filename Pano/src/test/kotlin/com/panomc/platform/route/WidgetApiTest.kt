@@ -236,7 +236,7 @@ class WidgetApiTest {
     private fun get(port: Int, path: String, headers: Map<String, String> = emptyMap()): Reply {
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
 
-        return client.request(HttpMethod.GET, port, "127.0.0.1", path).compose { request ->
+        return com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.GET, port, "127.0.0.1", path).compose { request ->
             headers.forEach { (k, v) -> request.putHeader(k, v) }
             request.send()
         }.compose { response ->
@@ -247,7 +247,7 @@ class WidgetApiTest {
                     it.toString()
                 )
             }
-        }.blockingGet()
+        } }.blockingGet()
     }
 
     private fun assertNotFoundEnvelope(reply: Reply, what: String) {

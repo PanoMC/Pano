@@ -47,7 +47,7 @@ class ForwardedProtoInterceptorTest {
         extraHeaders: Map<String, String> = emptyMap()
     ): String {
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
-        return client.request(HttpMethod.GET, port, "127.0.0.1", "/")
+        return com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.GET, port, "127.0.0.1", "/")
             .compose { req ->
                 if (forwardedProto != null) req.putHeader("X-Forwarded-Proto", forwardedProto)
                 if (forwardedFor != null) req.putHeader("X-Forwarded-For", forwardedFor)
@@ -55,8 +55,7 @@ class ForwardedProtoInterceptorTest {
                 extraHeaders.forEach { (name, value) -> req.putHeader(name, value) }
                 req.send()
             }
-            .compose { it.body() }
-            .blockingGet()
+            .compose { it.body() } }.blockingGet()
             .toString()
     }
 

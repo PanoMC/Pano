@@ -81,12 +81,11 @@ class RawBodyRouteTest {
     private fun post(port: Int, contentType: String?, body: ByteArray): Pair<Int, JsonObject> {
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
 
-        return client.request(HttpMethod.POST, port, "127.0.0.1", "/hook").compose { request ->
+        return com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.POST, port, "127.0.0.1", "/hook").compose { request ->
             if (contentType != null) request.putHeader("content-type", contentType)
 
             request.send(Buffer.buffer(body))
-        }.compose { response -> response.body().map { response.statusCode() to JsonObject(it.toString()) } }
-            .blockingGet()
+        }.compose { response -> response.body().map { response.statusCode() to JsonObject(it.toString()) } } }.blockingGet()
     }
 
     private fun assertBytesIdentical(contentType: String?, body: ByteArray) {

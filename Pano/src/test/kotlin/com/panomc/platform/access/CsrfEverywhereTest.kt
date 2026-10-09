@@ -219,7 +219,7 @@ class CsrfEverywhereTest {
         target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
     }
 
-    private fun <T> Future<T>.blockingGet(): T = com.panomc.platform.HangDiagnostics.await(this, 60L)
+    private fun <T> Future<T>.blockingGet(): T = com.panomc.platform.HangDiagnostics.await(this, 15L)
 
     // ---- stand-in endpoints --------------------------------------------------------------------------------
 
@@ -392,7 +392,7 @@ class CsrfEverywhereTest {
     private val csrfCookie = AppConstants.COOKIE_PREFIX + AppConstants.CSRF_TOKEN_COOKIE_NAME
 
     private fun call(method: HttpMethod, path: String, headers: Map<String, String> = emptyMap(), body: String? = null): Response =
-        client.also { com.panomc.platform.HangDiagnostics.inFlight = "$method $path $headers on 127.0.0.1:$port" }.request(method, port, "127.0.0.1", "/api/v1$path")
+        com.panomc.platform.TestHttp.onLoop(vertx) { client.also { com.panomc.platform.HangDiagnostics.inFlight = "$method $path $headers on 127.0.0.1:$port" }.request(method, port, "127.0.0.1", "/api/v1$path")
             .compose { request ->
                 headers.forEach { (name, value) -> request.putHeader(name, value) }
 
@@ -402,8 +402,7 @@ class CsrfEverywhereTest {
                 response.body().map { buffer ->
                     Response(response.statusCode(), response.headers().map { it.key to it.value }, buffer.toString())
                 }
-            }
-            .blockingGet()
+            } }.blockingGet()
 
     private fun post(path: String, headers: Map<String, String> = emptyMap()) = call(HttpMethod.POST, path, headers)
 

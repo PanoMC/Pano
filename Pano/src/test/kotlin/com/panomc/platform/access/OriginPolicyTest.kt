@@ -416,7 +416,7 @@ class OriginPolicyTest {
     }
 
     private fun request(method: HttpMethod, path: String, headers: Map<String, String> = emptyMap()): Response =
-        client.request(method, port, "127.0.0.1", path)
+        com.panomc.platform.TestHttp.onLoop(vertx) { client.request(method, port, "127.0.0.1", path)
             .compose { request ->
                 headers.forEach { (name, value) -> request.putHeader(name, value) }
 
@@ -430,8 +430,7 @@ class OriginPolicyTest {
                         body.toString()
                     )
                 }
-            }
-            .blockingGet()
+            } }.blockingGet()
 
     private fun preflight(origin: String, path: String = "/api/plugins/pano-plugin-market/cart/items", method: String = "POST") =
         request(

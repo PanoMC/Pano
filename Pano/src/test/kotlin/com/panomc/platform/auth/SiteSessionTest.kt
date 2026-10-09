@@ -176,7 +176,7 @@ class SiteSessionTest {
         target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
     }
 
-    private fun <T> Future<T>.blockingGet(): T = toCompletionStage().toCompletableFuture().get(15, TimeUnit.SECONDS)
+    private fun <T> Future<T>.blockingGet(): T = com.panomc.platform.HangDiagnostics.await(this, 15L)
 
     private fun launchOn(context: RoutingContext, block: suspend () -> Unit) {
         CoroutineScope(vertx.dispatcher()).launch {
@@ -240,7 +240,7 @@ class SiteSessionTest {
     }
 
     private fun call(method: HttpMethod, path: String, headers: Map<String, String> = emptyMap()): Response =
-        client.request(method, port, "127.0.0.1", path)
+        client.also { com.panomc.platform.HangDiagnostics.inFlight = "$method $path $headers on 127.0.0.1:$port" }.request(method, port, "127.0.0.1", path)
             .compose { request ->
                 headers.forEach { (name, value) -> request.putHeader(name, value) }
 

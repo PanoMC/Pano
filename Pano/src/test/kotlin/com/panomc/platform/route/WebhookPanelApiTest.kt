@@ -423,7 +423,7 @@ class WebhookPanelApiTest {
         override suspend fun handle(context: RoutingContext): Result = Successful()
     }
 
-    private fun <T> Future<T>.blockingGet(): T = toCompletionStage().toCompletableFuture().get(60, TimeUnit.SECONDS)
+    private fun <T> Future<T>.blockingGet(): T = com.panomc.platform.HangDiagnostics.await(this, 60L)
 
     private fun startServer(): Int {
         val repository = SchemaRepository.create(JsonSchemaOptions().setBaseUri("https://panomc.com").setDraft(Draft.DRAFT7))
@@ -464,6 +464,8 @@ class WebhookPanelApiTest {
 
     private fun call(method: HttpMethod, path: String, body: JsonObject? = null): Answer {
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
+
+        com.panomc.platform.HangDiagnostics.inFlight = "$method $path body=${body?.encode()} on 127.0.0.1:$port"
 
         try {
             return client.request(method, port, "127.0.0.1", "/api/v1/panel$path")

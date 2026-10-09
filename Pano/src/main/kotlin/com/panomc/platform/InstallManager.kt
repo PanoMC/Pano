@@ -12,12 +12,15 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.ResourceHash
 import com.panomc.platform.error.FailedToInstallResource
+import com.panomc.platform.gate.InstallApiLevel
+import com.panomc.platform.gate.Verdict
 import com.panomc.platform.error.FailedToInstallSystemResource
 import com.panomc.platform.error.InvalidResourceFile
 import com.panomc.platform.license.findLicenseRequiredInCauseChain
 import com.panomc.platform.model.Error as DomainError
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Route
+import com.panomc.platform.ui.FrontendMode
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.HashUtil.computeStableFileFingerprint
@@ -111,12 +114,21 @@ class InstallManager(
                 val pluginId = pluginMetadata.pluginId
                 val version = pluginMetadata.version
 
+                // Gate 1 at install time: refuse before the installed version is unloaded or any file is moved.
+                InstallApiLevel.requireCompatiblePlugin(pluginId, pluginMetadata.apiLevel)
+
                 var fromVersion: String? = null
 
                 if (isInstalled(pluginId, type)) {
                     val existingPlugin = pluginManager.getPlugin(pluginId)
                     fromVersion = existingPlugin.descriptor.version
                     val originalPath = existingPlugin.pluginPath.toAbsolutePath().normalize()
+
+                    // An installed copy the gate holds disabled is replaceable like any other (that is how it gets
+                    // updated). It comes back enabled, except when the admin had switched it off himself before:
+                    // that one is loaded and stays disabled, and can be enabled now that it is compatible.
+                    val keepDisabled = pluginManager.verdictOf(pluginId) != Verdict.OK &&
+                        pluginManager.isDisabledByAdmin(pluginId)
 
                     unloadPluginForInstall(pluginId)
 
@@ -147,10 +159,24 @@ class InstallManager(
                     try {
                         val state = vertx.executeBlocking<PluginState?> {
                             pluginManager.loadPlugin(originalPath)
-                            pluginManager.enablePlugin(pluginId)
-                            pluginManager.startPlugin(pluginId)
+
+                            val updatedState = if (keepDisabled) {
+                                pluginManager.getPlugin(pluginId)?.pluginState
+                            } else {
+                                pluginManager.enablePlugin(pluginId)
+                                pluginManager.startPlugin(pluginId)
+                            }
+
+                            // Plugins that were held back only by this one (it was refused) start again, in order.
+                            pluginManager.liftHolds()
+
+                            updatedState
                         }.coAwait()
-                        if (state != PluginState.STARTED) {
+                        if (keepDisabled) {
+                            if (state != PluginState.DISABLED) {
+                                throw pluginStartFailure(pluginId, "update")
+                            }
+                        } else if (state != PluginState.STARTED) {
                             throw pluginStartFailure(pluginId, "update")
                         }
                     } catch (e: Throwable) {
@@ -181,7 +207,11 @@ class InstallManager(
                     val state = vertx.executeBlocking<PluginState?> {
                         pluginManager.loadPlugin(resourceFile.toPath())
                         pluginManager.enablePlugin(pluginId)
-                        pluginManager.startPlugin(pluginId)
+                        val installedState = pluginManager.startPlugin(pluginId)
+
+                        pluginManager.liftHolds()
+
+                        installedState
                     }.coAwait()
                     if (state != PluginState.STARTED) {
                         val failure = pluginStartFailure(pluginId, "install")
@@ -355,7 +385,8 @@ class InstallManager(
                         System.currentTimeMillis(),
                         InstalledBy.USER,
                         manifest.premium,
-                        manifest.fileFingerprint
+                        manifest.fileFingerprint,
+                        manifest.apiLevel
                     )
 
                     manifestFile.writeText(parsedInstalledTheme.encode())
@@ -363,6 +394,15 @@ class InstallManager(
                     tempThemeFolder.deleteRecursively()
 
                     throw InvalidResourceFile(extras = mapOf("message" to e.message))
+                }
+
+                try {
+                    // Gate 1 at install time: nothing is written to themes/ for a theme this Pano cannot run.
+                    InstallApiLevel.requireCompatibleTheme(parsedInstalledTheme.id, parsedInstalledTheme.apiLevel)
+                } catch (e: Throwable) {
+                    tempThemeFolder.deleteRecursively()
+
+                    throw e
                 }
 
                 val themeId = parsedInstalledTheme.id.lowercase()
@@ -375,6 +415,12 @@ class InstallManager(
                 }
 
                 val config = configManager.config
+
+                // The configured theme that the gate replaces with the bundled one for serving: once a compatible
+                // package of it is installed it is served again, without the admin selecting it a second time.
+                val heldBack = config.currentTheme.equals(themeId, ignoreCase = true) &&
+                    uiManager.activeTheme != themeId &&
+                    uiManager.themeVerdict(themeId) != Verdict.OK
 
                 var fromVersion: String? = null
 
@@ -418,6 +464,8 @@ class InstallManager(
                     if (uiManager.activeTheme == themeId && config.initUi) {
                         uiManager.startUI(themeId)
                         uiManager.activateThemeUI(router, uiManager.activeTheme)
+                    } else if (heldBack && config.initUi) {
+                        serveConfiguredTheme(themeId)
                     }
                 } catch (e: Throwable) {
                     if (fromVersion != null && themeBackupFolder.exists()) {
@@ -631,10 +679,31 @@ class InstallManager(
             pluginManager.loadPlugin(loadPath)
             pluginManager.enablePlugin(pluginId)
             val state = pluginManager.startPlugin(pluginId)
-            if (state != PluginState.STARTED) {
+            // The old copy may be one the gate holds disabled: it is restored as it was, not started.
+            if (state != PluginState.STARTED && pluginManager.verdictOf(pluginId) == Verdict.OK) {
                 throw IllegalStateException("Restored plugin did not reach STARTED (state=$state)")
             }
         }.coAwait()
+    }
+
+    /**
+     * The configured theme [themeId] was held back by the API level gate (the bundled theme served in its place) and
+     * has just been replaced by a compatible package: start it first, then swap the route, as the theme switch does.
+     * When no theme is bound to the site (another front-end mode, servers-only) only the choice is taken over.
+     */
+    private suspend fun serveConfiguredTheme(themeId: String) {
+        if (uiManager.frontendMode != FrontendMode.THEME || !uiManager.activatedUIList.containsKey(Route.Type.THEME_UI)) {
+            uiManager.resumeConfiguredTheme(themeId)
+
+            return
+        }
+
+        val previous = uiManager.activeTheme
+
+        uiManager.startUI(themeId)
+        uiManager.stopUI(previous)
+        uiManager.disableUIOnRoute(router, Route.Type.THEME_UI)
+        uiManager.activateThemeUI(router, themeId)
     }
 
     private suspend fun unloadPluginForInstall(pluginId: String) {

@@ -6,8 +6,8 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 
@@ -16,7 +16,7 @@ class PanelMarkNotificationAsReadAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/notifications/:id/read", RouteType.POST))
+    override val paths = listOf(Path("/notifications/:id/read", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

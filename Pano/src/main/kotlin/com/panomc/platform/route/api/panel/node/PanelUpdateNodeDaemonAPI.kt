@@ -10,19 +10,19 @@ import com.panomc.platform.model.*
 import com.panomc.platform.node.NodeDaemonUpdateService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * Updates the daemon on one node (`POST /api/panel/nodes/:id/update`).
+ * Updates the daemon on one node (`POST /api/v1/panel/nodes/:id/update`).
  *
  * Until now a remote node could be installed and never upgraded: `SELF_UPDATE` existed on both
  * sides and nothing in Pano ever sent it, so the only way to move a node onto a newer protocol was
  * to SSH in and replace the jar by hand. This is the missing half — Pano already serves its own
- * daemon at `GET /api/node/pano-node.jar`, so the update is the node being told to fetch the jar
+ * daemon at `GET /api/v1/node/pano-node.jar`, so the update is the node being told to fetch the jar
  * that is by construction the one this Pano speaks to.
  *
  * The URL is relative. Pano does not know which address this node reaches it on — a tunnel, a LAN
@@ -45,7 +45,7 @@ class PanelUpdateNodeDaemonAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/:id/update", RouteType.POST))
+    override val paths = listOf(Path("/nodes/:id/update", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

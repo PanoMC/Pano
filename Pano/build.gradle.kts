@@ -15,6 +15,8 @@ val handlebarsVersion: String by project
 val log4jVersion = "2.25.0"
 val appMainClass = "com.panomc.platform.Main"
 val pf4jVersion: String by project
+val panoApiLevel: String by project
+val panoMinApiLevel: String by project
 val pluginsDir: File? by rootProject.extra
 
 plugins {
@@ -28,6 +30,18 @@ plugins {
 group = "com.panomc"
 version =
     (if (project.hasProperty("version") && project.findProperty("version") != "unspecified") project.findProperty("version") else "local-build")!!
+
+// The extension contract level (doc 04 section 7): a classpath resource ApiLevel.kt reads, and manifest attributes
+// of the Pano jar. Both come from gradle.properties, so there is one place to raise the number.
+require(panoMinApiLevel.toInt() in 1..panoApiLevel.toInt()) {
+    "panoMinApiLevel ($panoMinApiLevel) must be between 1 and panoApiLevel ($panoApiLevel)"
+}
+
+val generateApiLevel by tasks.registering(WriteProperties::class) {
+    destinationFile.set(layout.buildDirectory.file("generated/api-level/pano-api-level.properties"))
+    property("current", panoApiLevel.toInt())
+    property("min", panoMinApiLevel.toInt())
+}
 
 val buildType = project.findProperty("buildType") as String? ?: "alpha"
 val timeStamp: String by project
@@ -343,6 +357,8 @@ tasks {
 
             attrMap["VERSION"] = version.toString()
             attrMap["BUILD_TYPE"] = buildType
+            attrMap["API_LEVEL"] = panoApiLevel
+            attrMap["MIN_API_LEVEL"] = panoMinApiLevel
             // JDK 22+ restricted native methods (JNI): avoids warnings when launching with java -jar
             // See https://openjdk.org/jeps/472 — ignored by older JVMs
             attrMap["Enable-Native-Access"] = "ALL-UNNAMED"
@@ -400,8 +416,25 @@ tasks {
         }
     }
 
+    // build/libs/pano-api-level.json, published next to the jar: the Pano side (the update plan) and the store read the
+    // level a release implements without downloading it. The numbers are the ones in gradle.properties.
+    register("panoApiLevelJson") {
+        val out = File(buildDir, "pano-api-level.json")
+        val current = panoApiLevel.toInt()
+        val min = panoMinApiLevel.toInt()
+
+        inputs.property("apiLevel", current)
+        inputs.property("minApiLevel", min)
+        outputs.file(out)
+
+        doLast {
+            out.parentFile.mkdirs()
+            out.writeText("{\"apiLevel\":$current,\"minApiLevel\":$min}\n")
+        }
+    }
+
     named("build") {
-        dependsOn("panoJarChecksum")
+        dependsOn("panoJarChecksum", "panoApiLevelJson")
     }
 }
 
@@ -478,6 +511,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 // Ensure Pano's processResources waits for the Updater and pano-node zips to be produced and copied
 tasks.named<ProcessResources>("processResources") {
+    from(generateApiLevel)
     dependsOn(":Updater:copyUpdaterZip")
     dependsOn(":Node:copyNodeZip")
 
@@ -673,6 +707,9 @@ fun parseLicenseFromPom(pomContent: String, groupId: String, artifactId: String,
 // classes compile to needs 21+ to run.
 tasks.named<Test>("test") {
     useJUnitPlatform()
+    // Main.STAGE reads the build type from the jar manifest, or from this variable when there is none (a run
+    // from classes). Tests that start a plugin through the real PluginManager need a stage.
+    environment("PanoBuildType", buildType)
     javaLauncher.set(
         javaToolchains.launcherFor {
             languageVersion.set(JavaLanguageVersion.of(21))

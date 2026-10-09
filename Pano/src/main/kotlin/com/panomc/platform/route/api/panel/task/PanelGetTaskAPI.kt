@@ -9,8 +9,8 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
@@ -28,7 +28,7 @@ class PanelGetTaskAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/tasks/:id", RouteType.GET))
+    override val paths = listOf(Path("/tasks/:id", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

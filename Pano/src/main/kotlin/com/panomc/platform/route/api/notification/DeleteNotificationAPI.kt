@@ -6,17 +6,25 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class DeleteNotificationAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/notifications/:id", RouteType.DELETE))
+    override val paths = listOf(Path("/notifications/:id", RouteType.DELETE))
+
+    override val doc = EndpointDoc(
+        summary = "Deletes one notification of the signed-in user; an unknown or foreign id is ignored.",
+        tag = "notifications",
+        response = objectSchema()
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

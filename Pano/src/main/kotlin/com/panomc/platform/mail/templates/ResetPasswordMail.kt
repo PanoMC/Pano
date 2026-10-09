@@ -14,12 +14,16 @@ class ResetPasswordMail(private val token: String, private val resetCode: String
         i18nManager: I18nManager,
         locale: String,
     ) = ResetPasswordMailParameters(
-        "${systemParameters.websiteUrl}/renew-password?token=$token",
+        resetLink(systemParameters),
         resetCode,
         getTranslations(
             i18nManager, locale, "mail.reset-password", mapOf("reset-password-expires" to mapOf("minutes" to 30))
         )
     )
+
+    /** Where the visitor sets a new password: target `auth.renew-password` of the front-end URL map. */
+    internal fun resetLink(systemParameters: MailManager.Companion.SystemParameters) =
+        systemParameters.linkTo("auth.renew-password", mapOf("token" to token), "/renew-password?token=$token")
 
     companion object {
         data class ResetPasswordMailParameters(

@@ -6,4 +6,4 @@ import com.panomc.platform.model.Error
 class InvalidCsrfToken(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(403, statusMessage, extras)
+) : Error("INVALID_CSRF_TOKEN", 403, statusMessage, extras)

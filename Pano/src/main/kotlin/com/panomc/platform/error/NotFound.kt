@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class NotFound(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(404, statusMessage, extras)
+) : Error("NOT_FOUND", 404, statusMessage, extras)

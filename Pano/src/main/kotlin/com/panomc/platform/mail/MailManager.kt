@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import com.panomc.platform.AppConstants.DEFAULT_WEBSITE_LOGO_FILE
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.frontend.FrontendUrlMap
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.InvalidData
 import com.panomc.platform.error.NotExists
@@ -34,7 +35,8 @@ class MailManager(
     private val logger: Logger,
     private val gson: Gson,
     private val vertx: Vertx,
-    private val i18nManager: I18nManager
+    private val i18nManager: I18nManager,
+    private val frontendUrlMap: FrontendUrlMap? = null
 ) {
     // Handlebars instance for rendering mail templates
     private val handlebars by lazy { Handlebars() }
@@ -55,8 +57,14 @@ class MailManager(
         
         data class SystemParameters(
             val websiteName: String,
-            val websiteUrl: String
-        )
+            val websiteUrl: String,
+            /** Absolute URL of a front-end page (doc 05 section 10.1), or null when nothing serves it; the default knows no targets. */
+            val frontendUrl: (target: String, params: Map<String, String>) -> String? = { _, _ -> null }
+        ) {
+            /** [frontendUrl] with [legacyPath] (appended to [websiteUrl]) for the day a target is unknown. */
+            fun linkTo(target: String, params: Map<String, String>, legacyPath: String): String =
+                frontendUrl(target, params) ?: (websiteUrl + legacyPath)
+        }
     }
 
     /**
@@ -195,7 +203,16 @@ class MailManager(
         MailOptions.sanitizeReplyTo(options.replyTo)?.let { message.addHeader("Reply-To", it) }
 
         val mailParameters =
-            mail.generateParameters(SystemParameters(config.websiteName, config.websiteUrl), i18nManager, locale)
+            mail.generateParameters(
+                SystemParameters(
+                    config.websiteName,
+                    config.websiteUrl,
+                    frontendUrlMap?.let { map -> { target, params -> map.url(target, params) } }
+                        ?: { _, _ -> null }
+                ),
+                i18nManager,
+                locale
+            )
 
         // Setup cache directory
         val cacheDir = File(config.fileUploadsFolder + File.separator + CACHE_FOLDER_NAME)

@@ -12,4 +12,4 @@ import com.panomc.platform.model.Error
 class BadCursor(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("BAD_CURSOR", 400, statusMessage, extras)

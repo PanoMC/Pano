@@ -22,7 +22,7 @@ import org.slf4j.Logger
 import java.io.File
 
 /**
- * The node half of a download (`PUT /api/node/transfer/:ticket`).
+ * The node half of a download (`PUT /api/v1/node/transfer/:ticket`).
  *
  * The node opens this with the file as the request body, and the body is piped directly into the
  * browser response that has been parked on this ticket since the person clicked download. Nothing
@@ -38,7 +38,7 @@ class NodeTransferUploadAPI(
     private val transferTicketStore: TransferTicketStore,
     private val logger: Logger
 ) : Api() {
-    override val paths = listOf(Path("/api/node/transfer/:ticket", RouteType.PUT))
+    override val paths = listOf(Path("/node/transfer/:ticket", RouteType.PUT))
 
     // Authenticates with a node token, never a user JWT.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

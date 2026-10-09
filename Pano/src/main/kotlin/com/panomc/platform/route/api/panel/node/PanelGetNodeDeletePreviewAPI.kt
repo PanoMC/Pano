@@ -10,14 +10,14 @@ import com.panomc.platform.node.NodeManager
 import com.panomc.platform.node.NodeProtocol
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * What deleting a node would take with it (`GET /api/panel/nodes/:id/delete-preview`, SM-64).
+ * What deleting a node would take with it (`GET /api/v1/panel/nodes/:id/delete-preview`, SM-64).
  *
  * `{ online, uninstallSupported, servers: [{ id, name }], backupCount, backupBytes, javaRuntimes }`
  * — `javaRuntimes` is the number of runtimes the node downloaded itself (the ones an uninstall
@@ -33,7 +33,7 @@ class PanelGetNodeDeletePreviewAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/:id/delete-preview", RouteType.GET))
+    override val paths = listOf(Path("/nodes/:id/delete-preview", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

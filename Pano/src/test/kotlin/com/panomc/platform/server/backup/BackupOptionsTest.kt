@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test
 
 class BackupOptionsTest {
     private fun field(block: () -> Unit): Any? =
-        JsonObject(assertThrows(InvalidData::class.java) { block() }.encode(emptyMap())).getValue("field")
+        JsonObject(assertThrows(InvalidData::class.java) { block() }.encode(emptyMap())).getJsonObject("error").getJsonObject("details")?.getValue("field")
 
     @Test
     fun `absent means a full zip of everything with the default excludes`() {

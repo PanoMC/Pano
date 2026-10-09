@@ -13,6 +13,7 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaRepository
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -142,8 +143,8 @@ class RawBodyRouteTest {
         val (status, json) = post(serve(), "application/json", ByteArray(1_048_576 + 1) { 'a'.code.toByte() })
 
         assertEquals(413, status)
-        assertEquals("error", json.getString("result"))
-        assertEquals("PAYLOAD_TOO_LARGE", json.getString("error"))
+        assertFalse(json.containsKey("result"))
+        assertEquals("PAYLOAD_TOO_LARGE", json.getJsonObject("error").getString("code"))
         assertTrue(unhandled.isEmpty(), "unhandled: $unhandled")
     }
 

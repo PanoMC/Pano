@@ -21,6 +21,7 @@ import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
+import com.panomc.platform.ui.FrontendMode
 import com.panomc.platform.ui.ThemeUiController
 import org.slf4j.Logger
 import com.panomc.platform.util.UsageMode
@@ -29,8 +30,8 @@ import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import org.imgscalr.Scalr
@@ -50,7 +51,7 @@ class PanelUpdateSettingsAPI(
     private val themeUiController: ThemeUiController,
     private val logger: Logger,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
+    override val paths = listOf(Path("/settings", RouteType.PUT))
 
     private val defaultWebsiteUploadPath = "website"
 
@@ -333,6 +334,16 @@ class PanelUpdateSettingsAPI(
             // If development mode is toggled, clear any previous dismissals so they reappear for all users
             val option = "dismissed_dev_mode_alert"
             databaseManager.panelConfigDao.deleteByOption(option, sqlClient)
+
+            // A saved theme dev server starts proxying when the switch goes on and stops when it goes off, without a
+            // restart. Best effort, like the usage mode switch: the settings save itself must not fail on it.
+            if (shouldReapplyFrontend(true, configManager.config.effectiveFrontend.parsedMode, configManager.config.effectiveUsageMode)) {
+                try {
+                    themeUiController.apply(FrontendMode.THEME)
+                } catch (e: Exception) {
+                    logger.warn("Could not re-apply the front-end after Development Mode changed: ${e.message}")
+                }
+            }
         }
 
         if (telemetryEnabled != null) {
@@ -648,3 +659,7 @@ private fun PanoConfig.Companion.EmailConfig.restoreCustom(custom: PanoConfig.Co
     starttls = custom.starttls
     authMethods = custom.authMethods
 }
+
+/** Item 2 of CX-06: only a theme-mode front-end has a dev server to start or stop, and a servers-only install has no site. */
+internal fun shouldReapplyFrontend(developmentModeChanged: Boolean, mode: FrontendMode, usageMode: UsageMode): Boolean =
+    developmentModeChanged && mode == FrontendMode.THEME && usageMode != UsageMode.SERVERS

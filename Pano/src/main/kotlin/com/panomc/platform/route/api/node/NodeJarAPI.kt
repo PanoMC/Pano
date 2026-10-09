@@ -18,8 +18,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The node daemon itself (`GET /api/node/pano-node.jar`), and the same bytes as the Pano Agent
- * (`GET /api/node/pano-agent.jar`, SM-74): the agent is this jar saved as `pano-agent.jar` in a
+ * The node daemon itself (`GET /api/v1/node/pano-node.jar`), and the same bytes as the Pano Agent
+ * (`GET /api/v1/node/pano-agent.jar`, SM-74): the agent is this jar saved as `pano-agent.jar` in a
  * server's folder, and it is served under that name so a browser download or `curl -O` lands it
  * with the name that makes it an agent.
  *
@@ -32,7 +32,7 @@ import kotlinx.coroutines.withContext
  * Streamed in chunks off the event loop, each one written before the next is read, so a burst of
  * nodes updating at once costs a buffer each rather than a copy of the jar each.
  *
- * Public and unauthenticated, at the same trust level as `GET /api/node/install.sh`: the jar is a
+ * Public and unauthenticated, at the same trust level as `GET /api/v1/node/install.sh`: the jar is a
  * published artifact, not a secret, and it grants nothing on its own — a node still has to pair
  * with a code or a bootstrap token before Pano will talk to it. Whoever downloads it can verify
  * what they got against [NodeJarChecksumAPI].
@@ -45,8 +45,8 @@ class NodeJarAPI(
     private val nodeJarProvider: NodeJarProvider
 ) : Api() {
     override val paths = listOf(
-        Path("/api/node/${LocalNodeJarLocator.JAR_NAME}", RouteType.GET),
-        Path("/api/node/${LocalNodeJarLocator.AGENT_JAR_NAME}", RouteType.GET)
+        Path("/node/${LocalNodeJarLocator.JAR_NAME}", RouteType.GET),
+        Path("/node/${LocalNodeJarLocator.AGENT_JAR_NAME}", RouteType.GET)
     )
 
     // Setting a node up is exactly the kind of work an operator does *during* maintenance.

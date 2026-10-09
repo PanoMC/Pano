@@ -20,7 +20,7 @@ import com.panomc.platform.util.UsageMode
 
 /**
  * Updates the Pano plugin on every server that has a newer one waiting
- * (`POST /api/panel/servers/pano-plugin/update-all`).
+ * (`POST /api/v1/panel/servers/pano-plugin/update-all`).
  *
  * "Every server" means every accepted server whose running version is known and older than the
  * newest build for its software — [PanoPluginUpdatePlan.needsUpdate]'s definite yes, never a
@@ -43,7 +43,7 @@ class PanelUpdateAllPanoPluginsAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/pano-plugin/update-all", RouteType.POST))
+    override val paths = listOf(Path("/servers/pano-plugin/update-all", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

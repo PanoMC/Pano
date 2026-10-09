@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class RegisterInvalidUsername(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("REGISTER_INVALID_USERNAME", 422, statusMessage, extras)

@@ -27,8 +27,8 @@ import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.kotlin.coroutines.coAwait
@@ -37,7 +37,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
- * `POST /api/panel/servers/:id/plugins/upload` — a plugin or mod jar from the admin's computer,
+ * `POST /api/v1/panel/servers/:id/plugins/upload` — a plugin or mod jar from the admin's computer,
  * dropped into the server's `plugins` (or, for a mod loader, `mods`) directory.
  *
  * The same three hops as [com.panomc.platform.route.api.panel.server.files.PanelUploadServerFileAPI]
@@ -61,7 +61,7 @@ class PanelUploadServerPluginAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/plugins/upload", RouteType.POST))
+    override val paths = listOf(Path("/servers/:id/plugins/upload", RouteType.POST))
 
     override fun bodyHandler(): Handler<RoutingContext> =
         BodyHandler.create()

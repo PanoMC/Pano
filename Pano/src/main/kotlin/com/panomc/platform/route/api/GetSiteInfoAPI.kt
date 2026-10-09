@@ -11,12 +11,21 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.route.api.panel.theme.PanelUpdateThemeHomeAPI.Companion.HOME_PAGE
 import com.panomc.platform.route.api.panel.theme.PanelUpdateThemeSettingsAPI.Companion.THEME_SETTINGS
+import com.panomc.platform.ui.ThemeCompatibility
 import com.panomc.platform.util.HashUtil.hash
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import org.pf4j.PluginDescriptor
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
+import io.vertx.json.schema.common.dsl.Schemas.enumSchema
+import com.panomc.platform.schema.CoreSchemas
 
 @Endpoint
 class GetSiteInfoAPI(
@@ -27,7 +36,43 @@ class GetSiteInfoAPI(
     private val uiManager: UIManager,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/siteInfo", RouteType.GET))
+    override val paths = listOf(Path("/site-info", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "What a front-end needs to boot: language, site texts, mode, plugins and theme settings.",
+        tag = "site",
+        response = objectSchema()
+            .optionalProperty("userLocaleCode", stringSchema().nullable())
+            .optionalProperty("locales", arraySchema().items(CoreSchemas.locale))
+            .requiredProperty("locale", stringSchema())
+            .requiredProperty("platformLocale", stringSchema())
+            .requiredProperty("allowUserLocaleSelection", booleanSchema())
+            .requiredProperty("developmentMode", booleanSchema())
+            .requiredProperty("usageMode", enumSchema("WEBSITE", "SERVERS", "BOTH"))
+            .requiredProperty("websiteName", stringSchema())
+            .requiredProperty("websiteDescription", stringSchema())
+            .requiredProperty("ipAddress", stringSchema())
+            .requiredProperty("websiteUrl", stringSchema())
+            .requiredProperty("hasRegisterAgreement", booleanSchema())
+            .requiredProperty("supportEmail", stringSchema())
+            .requiredProperty("keywords", arraySchema().items(stringSchema()))
+            .requiredProperty("panoVersion", stringSchema())
+            .requiredProperty("websiteLogoHash", stringSchema())
+            .requiredProperty("faviconHash", stringSchema())
+            .requiredProperty(
+                "plugins",
+                objectSchema().additionalProperties(
+                    objectSchema()
+                        .requiredProperty("version", stringSchema().nullable())
+                        .requiredProperty("uiHash", stringSchema())
+                        .requiredProperty("dependencies", arraySchema().items(stringSchema()))
+                )
+            )
+            .requiredProperty("emailEnabled", booleanSchema())
+            .requiredProperty("isDemo", booleanSchema())
+            .requiredProperty("themeSettings", objectSchema())
+            .requiredProperty("homePage", stringSchema().nullable())
+    )
 
     // panel-ui blocks on this during SSR, with no user cookie — the panel will not boot without it.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
@@ -118,6 +163,13 @@ class GetSiteInfoAPI(
         }
 
         response["themeSettings"] = themeSettings
+
+        // The admin's home page pick for the active theme ("store", "custom:/rules") or null = the theme's
+        // own default. Its own property: saving the theme settings replaces that whole object (doc 01 section 9).
+        response["homePage"] = ThemeCompatibility.homeValueFor(
+            databaseManager.systemPropertyDao.getByOption(HOME_PAGE, sqlClient)?.value,
+            uiManager.activeTheme
+        )
 
         return Successful(response)
     }

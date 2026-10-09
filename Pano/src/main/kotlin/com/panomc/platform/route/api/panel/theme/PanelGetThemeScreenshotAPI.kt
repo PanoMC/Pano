@@ -14,9 +14,9 @@ import com.panomc.platform.util.MimeTypeUtil
 import com.panomc.platform.util.PlaceholderUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
@@ -28,7 +28,7 @@ class PanelGetThemeScreenshotAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/themes/:themeId/screenshots/*", RouteType.GET))
+    override val paths = listOf(Path("/themes/:themeId/screenshots/*", RouteType.GET))
 
     companion object {
         private const val CACHE_TTL_SECONDS = 7 * 24 * 60 * 60 // 1 week

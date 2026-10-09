@@ -9,18 +9,16 @@ import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.BannedIpListFilter
 import com.panomc.platform.error.NotExists
-import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.PlayerStatus
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
-import kotlin.math.ceil
 
 @Endpoint
 class PanelGetPlayersAPI(
@@ -28,10 +26,10 @@ class PanelGetPlayersAPI(
     private val databaseManager: DatabaseManager,
     private val permissionManager: PermissionManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/players", RouteType.GET))
+    override val paths = listOf(Path("/players", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
+        Paging.params(ValidationHandlerBuilder.create(schemaRepository))
             .queryParameter(
                 optionalParam(
                     "status",
@@ -41,7 +39,6 @@ class PanelGetPlayersAPI(
             )
             .queryParameter(optionalParam("view", stringSchema()))
             .queryParameter(optionalParam("permissionGroup", stringSchema()))
-            .queryParameter(optionalParam("page", numberSchema()))
             .queryParameter(optionalParam("search", stringSchema()))
             .queryParameter(optionalParam("ipBanStatus", stringSchema()))
             .build()
@@ -58,7 +55,7 @@ class PanelGetPlayersAPI(
         val view = PlayersView.entries.find {
             it.name == parameters.queryParameter("view")?.string
         } ?: PlayersView.PLAYERS
-        val page = parameters.queryParameter("page")?.long ?: 1L
+        val page = Paging.request(context)
         val permissionGroupName = parameters.queryParameter("permissionGroup")?.string
         val search = parameters.queryParameter("search")?.string?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -111,14 +108,7 @@ class PanelGetPlayersAPI(
             } else
                 databaseManager.userDao.countByStatus(playerStatus, sqlClient)
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
-
-        if (totalPage < 1)
-            totalPage = 1
-
-        if (page !in 1..totalPage) {
-            throw PageNotFound()
-        }
+        Paging.requireInRange(page, count)
 
         val userList =
             if (userIdsWithGroup != null) {
@@ -126,34 +116,31 @@ class PanelGetPlayersAPI(
                     if (search != null) {
                         databaseManager.userDao.getByPageExcludingIdsAndSearch(
                             userIdsWithGroup,
-                            page,
-                            10,
+                            page.number.toLong(),
+                            page.size,
                             search,
                             sqlClient
                         )
                     } else {
-                        databaseManager.userDao.getByPageExcludingIds(userIdsWithGroup, page, 10, sqlClient)
+                        databaseManager.userDao.getByPageExcludingIds(userIdsWithGroup, page.number.toLong(), page.size, sqlClient)
                     }
                 } else {
                     if (search != null) {
-                        databaseManager.userDao.getByIdsPageAndSearch(userIdsWithGroup, page, 10, search, sqlClient)
+                        databaseManager.userDao.getByIdsPageAndSearch(userIdsWithGroup, page.number.toLong(), page.size, search, sqlClient)
                     } else {
-                        databaseManager.userDao.getByIdsPage(userIdsWithGroup, page, 10, sqlClient)
+                        databaseManager.userDao.getByIdsPage(userIdsWithGroup, page.number.toLong(), page.size, sqlClient)
                     }
                 }
             } else if (search != null) {
-                databaseManager.userDao.getAllByPageAndStatusAndSearch(page, playerStatus, search, sqlClient)
+                databaseManager.userDao.getAllByPageAndStatusAndSearch(playerStatus, search, page.limit, page.offset, sqlClient)
             } else
-                databaseManager.userDao.getAllByPageAndStatus(page, playerStatus, sqlClient)
+                databaseManager.userDao.getAllByPageAndStatus(playerStatus, page.limit, page.offset, sqlClient)
 
-        val result = mutableMapOf<String, Any?>(
-            "playerCount" to count,
-            "totalPage" to totalPage,
-            "permissionGroup" to if (permissionGroupName != null) permissionManager.getPermissionGroupByName(permissionGroupName) else null
-        )
+        val permissionGroup =
+            if (permissionGroupName != null) permissionManager.getPermissionGroupByName(permissionGroupName) else null
 
         if (userList.isEmpty()) {
-            return Successful(result)
+            return Successful(payload(listOf(), count, page, permissionGroup))
         }
 
         val userIdList = userList.map { it.id }
@@ -161,7 +148,7 @@ class PanelGetPlayersAPI(
         val userIdTicketCountMap = databaseManager.ticketDao.countByUserIdList(userIdList, sqlClient)
         val usernameInGameMap = databaseManager.serverPlayerDao.existsByUsernameList(usernameList, sqlClient)
 
-        result["players"] = userList.map {
+        val players = userList.map {
             val user = JsonObject.mapFrom(it)
 
             user.put("isBanned", BanUtil.isBanned(it))
@@ -180,11 +167,11 @@ class PanelGetPlayersAPI(
             user
         }
 
-        return Successful(result)
+        return Successful(payload(players, count, page, permissionGroup))
     }
 
     private suspend fun getBanHistoryResult(
-        page: Long,
+        page: PageRequest,
         search: String?,
         sqlClient: io.vertx.sqlclient.SqlClient
     ): Result {
@@ -194,30 +181,16 @@ class PanelGetPlayersAPI(
             databaseManager.banHistoryDao.count(sqlClient)
         }
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
-
-        if (totalPage < 1) {
-            totalPage = 1
-        }
-
-        if (page !in 1..totalPage) {
-            throw PageNotFound()
-        }
-
-        val result = mutableMapOf<String, Any?>(
-            "playerCount" to count,
-            "totalPage" to totalPage,
-            "permissionGroup" to null
-        )
+        Paging.requireInRange(page, count)
 
         val banHistoryList = if (search != null) {
-            databaseManager.banHistoryDao.getAllByPageAndSearch(page, search, sqlClient)
+            databaseManager.banHistoryDao.getAllByPageAndSearch(search, page.limit, page.offset, sqlClient)
         } else {
-            databaseManager.banHistoryDao.getAllByPage(page, sqlClient)
+            databaseManager.banHistoryDao.getAllByPage(page.limit, page.offset, sqlClient)
         }
 
         if (banHistoryList.isEmpty()) {
-            return Successful(result)
+            return Successful(payload(listOf(), count, page, null))
         }
 
         val usersById = databaseManager.userDao
@@ -227,7 +200,7 @@ class PanelGetPlayersAPI(
         val usernameInGameMap = databaseManager.serverPlayerDao
             .existsByUsernameList(usersById.values.map { it.username }, sqlClient)
 
-        result["players"] = banHistoryList.map { banHistory ->
+        val players = banHistoryList.map { banHistory ->
             val user = usersById[banHistory.userId]
             val username = user?.username ?: "deleted-user-${banHistory.userId}"
 
@@ -265,11 +238,11 @@ class PanelGetPlayersAPI(
             playerData
         }
 
-        return Successful(result)
+        return Successful(payload(players, count, page, null))
     }
 
     private suspend fun getIpBanResult(
-        page: Long,
+        page: PageRequest,
         search: String?,
         listFilter: BannedIpListFilter,
         sqlClient: io.vertx.sqlclient.SqlClient
@@ -281,35 +254,22 @@ class PanelGetPlayersAPI(
             databaseManager.bannedIpDao.countByListFilter(listFilter, nowMs, sqlClient)
         }
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
-
-        if (totalPage < 1) {
-            totalPage = 1
-        }
-
-        if (page !in 1..totalPage) {
-            throw PageNotFound()
-        }
-
-        val result = mutableMapOf<String, Any?>(
-            "playerCount" to count,
-            "totalPage" to totalPage,
-            "permissionGroup" to null
-        )
+        Paging.requireInRange(page, count)
 
         val bannedIpList = if (search != null) {
             databaseManager.bannedIpDao.getAllByPageAndListFilterAndSearch(
-                page,
                 search,
                 listFilter,
                 nowMs,
+                page.limit,
+                page.offset,
                 sqlClient
             )
         } else {
-            databaseManager.bannedIpDao.getAllByPageAndListFilter(page, listFilter, nowMs, sqlClient)
+            databaseManager.bannedIpDao.getAllByPageAndListFilter(listFilter, nowMs, page.limit, page.offset, sqlClient)
         }
 
-        result["players"] = bannedIpList.map { bannedIp ->
+        val players = bannedIpList.map { bannedIp ->
             JsonObject()
                 .put("id", bannedIp.id)
                 .put("ip", bannedIp.ip)
@@ -322,12 +282,22 @@ class PanelGetPlayersAPI(
                 .put("updatedAt", bannedIp.updatedAt)
         }
 
-        return Successful(result)
+        return Successful(payload(players, count, page, null))
     }
 
     private enum class PlayersView {
         PLAYERS,
         BANS,
         IP_BANS
+    }
+
+    companion object {
+        /** The whole response body: `{ items, page }` plus the `permissionGroup` filter (null when none). */
+        fun payload(
+            players: List<Any?>,
+            count: Long,
+            page: PageRequest,
+            permissionGroup: Any?
+        ): Map<String, Any?> = Paging.response(players, count, page, mapOf("permissionGroup" to permissionGroup))
     }
 }

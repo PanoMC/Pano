@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class CantUpdateAdminPermission(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(401, statusMessage, extras)
+) : Error("CANT_UPDATE_ADMIN_PERMISSION", 401, statusMessage, extras)

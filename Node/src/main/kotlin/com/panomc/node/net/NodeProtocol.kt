@@ -24,8 +24,11 @@ object NodeProtocol {
      * `inPlace` and `directory` on every hello server and on `IMPORT_RESULT`, `IN_PLACE_UNSUPPORTED`
      * for a reinstall of such a server; agent mode (`agent`, `agentServer` on the hello) with its
      * `AGENT_SINGLE_SERVER` refusals. Pano sends `IN_PLACE` only to a node that announced at least 5.
+     *
+     * 6 (cutover): the machine protocol lives under `/api/v1/node` ([NodePaths]) and every Pano reply
+     * is the `{ "error": { "code" } }` envelope; no fallback to the old paths.
      */
-    const val VERSION = 5
+    const val VERSION = 6
 
     /**
      * Feature flags announced in `NODE_HELLO.capabilities`, for what a protocol number alone

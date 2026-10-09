@@ -19,7 +19,8 @@ abstract class LocaleDao : Dao<Locale>(Locale::class.java) {
     ): List<Locale>
 
     abstract suspend fun getAllByPage(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Locale>
 

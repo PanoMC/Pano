@@ -35,7 +35,7 @@ class ServerConnectAPI(
     private val authProvider: AuthProvider,
     private val serverPluginStateService: ServerPluginStateService
 ) : Api() {
-    override val paths = listOf(Path("/api/server/connection", RouteType.GET))
+    override val paths = listOf(Path("/server/connection", RouteType.GET))
 
     // Authenticates with a server token, never a user JWT, so a user-permission bypass could never
     // succeed here — the Minecraft plugin needs a hard exemption.

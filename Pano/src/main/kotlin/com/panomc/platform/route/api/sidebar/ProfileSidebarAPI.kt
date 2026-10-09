@@ -7,6 +7,11 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 
 @Endpoint
 class ProfileSidebarAPI(
@@ -15,7 +20,16 @@ class ProfileSidebarAPI(
     private val permissionManager: PermissionManager
 ) :
     LoggedInApi() {
-    override val paths = listOf(Path("/api/sidebars/profile", RouteType.GET))
+    override val paths = listOf(Path("/sidebars/profile", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The signed-in user's own profile sidebar.",
+        tag = "sidebars",
+        response = objectSchema()
+            .requiredProperty("lastActivityTime", intSchema())
+            .requiredProperty("inGame", booleanSchema())
+            .requiredProperty("permissionGroupName", stringSchema().nullable())
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

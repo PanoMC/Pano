@@ -1,5 +1,6 @@
 package com.panomc.node.agent
 
+import com.panomc.node.net.NodePaths
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -15,10 +16,10 @@ import java.time.Duration
  */
 object AgentAddress {
     /** What Pano serves next to the agent's jar; only a Pano that knows agents has the route. */
-    const val PROBE_PATH = "/api/node/pano-agent.jar.sha256"
+    const val PROBE_PATH = NodePaths.AGENT_JAR_CHECKSUM
 
     /** The node jar's checksum, which Panos from before the agent already served. */
-    const val NODE_PROBE_PATH = "/api/node/pano-node.jar.sha256"
+    const val NODE_PROBE_PATH = NodePaths.NODE_JAR_CHECKSUM
 
     val DEFAULT_TIMEOUT: Duration = Duration.ofSeconds(10)
 
@@ -83,7 +84,7 @@ object AgentAddress {
     }
 
     /**
-     * Asks [url] whether it is a Pano that takes agents: `GET <url>/api/node/pano-agent.jar.sha256`.
+     * Asks [url] whether it is a Pano that takes agents: `GET <url>/api/v1/node/pano-agent.jar.sha256`.
      *
      * - 200 with a checksum: yes.
      * - Pano's own JSON 404 on that route: yes -- a Pano with agents that serves no jar of its own
@@ -173,12 +174,8 @@ object AgentAddress {
 
     private fun isChecksum(body: String): Boolean = Regex("^[0-9a-fA-F]{64}(\\s|$)").containsMatchIn(body.trim())
 
-    /** Pano's error body: `{"result":"error","error":"NOT_EXISTS"}`. */
-    private fun isPanoError(body: String): Boolean {
-        val compact = body.replace(Regex("\\s"), "")
-
-        return compact.startsWith("{") && compact.contains("\"result\":\"error\"") && compact.contains("\"error\":\"NOT_EXISTS\"")
-    }
+    /** Pano's error body: `{"error":{"code":"NOT_EXISTS"}}`. */
+    private fun isPanoError(body: String): Boolean = NodePaths.errorCode(body) == "NOT_EXISTS"
 
     private fun describe(exception: Exception, timeout: Duration): String {
         val chain = generateSequence(exception as Throwable) { it.cause }.take(16).toList()

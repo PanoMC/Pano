@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class LoginUserIsBanned(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("LOGIN_USER_IS_BANNED", 422, statusMessage, extras)

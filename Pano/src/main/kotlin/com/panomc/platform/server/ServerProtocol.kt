@@ -17,5 +17,5 @@ object ServerProtocol {
      * Version spoken by the current plugin: announces `protocolVersion`, `pluginVersion` and a
      * capability list on connect.
      */
-    const val CURRENT_PROTOCOL_VERSION = 2
+    const val CURRENT_PROTOCOL_VERSION = 3
 }

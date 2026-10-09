@@ -12,4 +12,4 @@ import com.panomc.platform.model.Error
 class FileOperationFailed(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("FILE_OPERATION_FAILED", 400, statusMessage, extras)

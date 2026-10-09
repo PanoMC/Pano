@@ -8,10 +8,41 @@ import com.panomc.platform.model.*
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
+import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.json.schema.common.dsl.Schemas.enumSchema
 
 @Endpoint
 class HomeSidebarAPI(private val configManager: ConfigManager, private val databaseManager: DatabaseManager) : Api() {
-    override val paths = listOf(Path("/api/sidebars/home", RouteType.GET))
+    override val paths = listOf(Path("/sidebars/home", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The home page sidebar: server address, main server status and the newest members.",
+        tag = "sidebars",
+        response = objectSchema()
+            .requiredProperty("ipAddress", stringSchema())
+            .requiredProperty("serverGameVersion", stringSchema())
+            .requiredProperty(
+                "mainServer",
+                objectSchema()
+                    .requiredProperty("playerCount", intSchema())
+                    .requiredProperty("maxPlayerCount", intSchema())
+                    .requiredProperty("status", enumSchema("ONLINE", "OFFLINE"))
+                    .nullable()
+            )
+            .requiredProperty(
+                "lastRegisteredUsers",
+                arraySchema().items(
+                    objectSchema()
+                        .requiredProperty("username", stringSchema())
+                        .requiredProperty("registerDate", intSchema())
+                        .requiredProperty("lastActivityTime", intSchema())
+                )
+            )
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

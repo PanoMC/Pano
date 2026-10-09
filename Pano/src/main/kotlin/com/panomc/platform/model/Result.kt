@@ -11,15 +11,6 @@ interface Result {
     fun getStatusMessage(): String
 
     companion object {
-        fun Map<String, Any?>.encode(): String {
-            val response = mutableMapOf<String, Any?>(
-                "result" to "ok"
-            )
-
-            response.putAll(this)
-
-            return JsonObject(response).encode()
-
-        }
+        fun Map<String, Any?>.encode(): String = JsonObject(this).encode()
     }
 }

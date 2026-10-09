@@ -11,6 +11,8 @@ import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.ResetPasswordTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class SendResetPasswordEmailAPI(
@@ -19,7 +21,14 @@ class SendResetPasswordEmailAPI(
     private val authProvider: AuthProvider,
     private val tokenProvider: TokenProvider
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/profile/resetPassword", RouteType.POST))
+    override val paths = listOf(Path("/profile/reset-password", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Mails the signed-in user a password reset link.",
+        tag = "profile",
+        response = objectSchema(),
+        errors = listOf(CantResetPasswordWait5Minutes::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

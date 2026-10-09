@@ -12,8 +12,8 @@ import com.panomc.platform.model.*
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
@@ -35,7 +35,7 @@ class PanelRefreshPluginTiersAPI(
     private val pluginManager: PluginManager,
     private val entitlementManager: EntitlementManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/plugins/:pluginId/license/tiers/refresh", RouteType.POST))
+    override val paths = listOf(Path("/addons/:pluginId/license/tiers/refresh", RouteType.POST))
 
     override fun isAllowedInDemo(method: HttpMethod): Boolean {
         return false

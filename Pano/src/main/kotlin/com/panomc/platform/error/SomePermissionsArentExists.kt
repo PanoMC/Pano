@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class SomePermissionsArentExists(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(404, statusMessage, extras)
+) : Error("SOME_PERMISSIONS_ARENT_EXISTS", 404, statusMessage, extras)

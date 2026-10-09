@@ -18,7 +18,7 @@ class ServerDisconnectAPI(
     private val serverAuthProvider: ServerAuthProvider,
     private val serverManager: ServerManager
 ) : Api() {
-    override val paths = listOf(Path("/api/server/disconnect", RouteType.POST))
+    override val paths = listOf(Path("/server/disconnect", RouteType.POST))
 
     // Minecraft plugin surface — see ServerConnectAPI.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

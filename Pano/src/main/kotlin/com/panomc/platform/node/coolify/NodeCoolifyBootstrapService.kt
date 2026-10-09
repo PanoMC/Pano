@@ -512,6 +512,9 @@ class NodeCoolifyBootstrapService(
 
         private fun port(value: String): Int? = value.trim().toIntOrNull()?.takeIf { it in 1..65535 }
 
+        /** The versioned API prefix of the Coolify server (outbound; Pano's own prefix lives in ApiPaths). */
+        private const val COOLIFY_API_PATH = "api/v1"
+
         /**
          * Turns what somebody pasted into the base of an API call.
          *
@@ -519,9 +522,9 @@ class NodeCoolifyBootstrapService(
          * end because that is what the documentation shows. Both work.
          */
         fun apiUrl(baseUrl: String, path: String): String {
-            val trimmed = baseUrl.trim().trimEnd('/').removeSuffix("/api/v1").trimEnd('/')
+            val trimmed = baseUrl.trim().trimEnd('/').removeSuffix("/$COOLIFY_API_PATH").trimEnd('/')
 
-            return "$trimmed/api/v1$path"
+            return "$trimmed/$COOLIFY_API_PATH$path"
         }
     }
 }

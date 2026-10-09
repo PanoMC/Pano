@@ -6,8 +6,8 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.kotlin.coroutines.coAwait
@@ -18,7 +18,7 @@ import org.slf4j.Logger
 
 @Endpoint
 class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/steps/2/verify", RouteType.POST))
+    override val paths = listOf(Path("/setup/steps/2/verify", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

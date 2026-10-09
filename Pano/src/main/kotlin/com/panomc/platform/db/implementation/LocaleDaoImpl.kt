@@ -89,15 +89,16 @@ class LocaleDaoImpl : LocaleDao() {
     }
 
     override suspend fun getAllByPage(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Locale> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.of(limit, offset))
             .coAwait()
 
         return rows.toEntities()
@@ -197,7 +198,7 @@ class LocaleDaoImpl : LocaleDao() {
             )
             .coAwait()
 
-        return rows.toList()[0].getLong(0)
+        return rows.firstOrNull()?.getLong(0)
     }
 
     override suspend fun existsByCode(

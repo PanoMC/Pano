@@ -18,7 +18,7 @@ class PanelGetMaintenancePageAPI(
     private val authProvider: AuthProvider,
     private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/maintenance/page", RouteType.GET))
+    override val paths = listOf(Path("/maintenance/page", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

@@ -127,7 +127,7 @@ class WebsiteUrlRedirectHandler(
             if (websiteUrl.isBlank()) return RedirectDecision.PASS
             if (!setupDone) return RedirectDecision.PASS
 
-            if (path.startsWith("/api/")) return RedirectDecision.PASS
+            if (ApiPaths.isApi(path)) return RedirectDecision.PASS
             if (path.startsWith("/.well-known/acme-challenge/")) return RedirectDecision.PASS
 
             // WebSocket upgrades and EventSource streams can't follow 307s usefully.

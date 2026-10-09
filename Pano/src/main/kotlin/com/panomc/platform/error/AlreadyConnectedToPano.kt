@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class AlreadyConnectedToPano(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("ALREADY_CONNECTED_TO_PANO", 400, statusMessage, extras)

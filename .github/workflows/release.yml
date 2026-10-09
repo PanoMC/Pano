@@ -179,6 +179,7 @@ jobs:
           path: |
             build/libs/Pano-${{ needs.get_next_version.outputs.new_tag_version }}.jar
             build/libs/Pano-${{ needs.get_next_version.outputs.new_tag_version }}.jar.sha256
+            build/libs/pano-api-level.json
           if-no-files-found: error
           retention-days: 7
 
@@ -248,7 +249,7 @@ jobs:
           fi
 
           shopt -s nullglob
-          assets=(build/libs/*.jar build/libs/*.jar.sha256 Node/build/libs/pano-node.jar \
+          assets=(build/libs/*.jar build/libs/*.jar.sha256 build/libs/pano-api-level.json Node/build/libs/pano-node.jar \
             Node/build/libs/pano-node.jar.sha256 build/pano-git/pano-git-*.tar.gz \
             build/pano-git/pano-git-*.tar.gz.sha256 LICENSE)
           for attempt in 1 2 3 4 5; do

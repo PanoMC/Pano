@@ -1,0 +1,638 @@
+{
+  "com.panomc.platform.access.FrontendKeyLimitReached": {
+    "code": "FRONTEND_KEY_LIMIT_REACHED",
+    "status": 400
+  },
+  "com.panomc.platform.access.InvalidClientIp": {
+    "code": "INVALID_CLIENT_IP",
+    "status": 400
+  },
+  "com.panomc.platform.access.InvalidFrontendKey": {
+    "code": "INVALID_FRONTEND_KEY",
+    "status": 401
+  },
+  "com.panomc.platform.access.InvalidWsTicket": {
+    "code": "INVALID_WS_TICKET",
+    "status": 401
+  },
+  "com.panomc.platform.access.OriginDifferentSite": {
+    "code": "ORIGIN_DIFFERENT_SITE",
+    "status": 400
+  },
+  "com.panomc.platform.access.OriginLimitReached": {
+    "code": "ORIGIN_LIMIT_REACHED",
+    "status": 400
+  },
+  "com.panomc.platform.access.OriginNotAllowed": {
+    "code": "ORIGIN_NOT_ALLOWED",
+    "status": 403
+  },
+  "com.panomc.platform.access.PreflightNotAllowed": {
+    "code": "ORIGIN_NOT_ALLOWED",
+    "status": 403
+  },
+  "com.panomc.platform.auth.SiteTokenNotAllowed": {
+    "code": "SITE_TOKEN_NOT_ALLOWED",
+    "status": 403
+  },
+  "com.panomc.platform.error.AlreadyBanned": {
+    "code": "ALREADY_BANNED",
+    "status": 422
+  },
+  "com.panomc.platform.error.AlreadyConnectedToPano": {
+    "code": "ALREADY_CONNECTED_TO_PANO",
+    "status": 400
+  },
+  "com.panomc.platform.error.AlreadyIpBanned": {
+    "code": "ALREADY_IP_BANNED",
+    "status": 422
+  },
+  "com.panomc.platform.error.BadCursor": {
+    "code": "BAD_CURSOR",
+    "status": 400
+  },
+  "com.panomc.platform.error.BadQuery": {
+    "code": "BAD_QUERY",
+    "status": 400
+  },
+  "com.panomc.platform.error.BadRequest": {
+    "code": "BAD_REQUEST",
+    "status": 400
+  },
+  "com.panomc.platform.error.CantBanYourself": {
+    "code": "CANT_BAN_YOURSELF",
+    "status": 401
+  },
+  "com.panomc.platform.error.CantChangeEmailWait15Minutes": {
+    "code": "CANT_CHANGE_EMAIL_WAIT15MINUTES",
+    "status": 422
+  },
+  "com.panomc.platform.error.CantDeleteAdminPermission": {
+    "code": "CANT_DELETE_ADMIN_PERMISSION",
+    "status": 401
+  },
+  "com.panomc.platform.error.CantDeleteYourself": {
+    "code": "CANT_DELETE_YOURSELF",
+    "status": 422
+  },
+  "com.panomc.platform.error.CantResetPasswordWait5Minutes": {
+    "code": "CANT_RESET_PASSWORD_WAIT5MINUTES",
+    "status": 422
+  },
+  "com.panomc.platform.error.CantUpdateAdminPermission": {
+    "code": "CANT_UPDATE_ADMIN_PERMISSION",
+    "status": 401
+  },
+  "com.panomc.platform.error.CantUpdatePermGroupYourself": {
+    "code": "CANT_UPDATE_PERM_GROUP_YOURSELF",
+    "status": 401
+  },
+  "com.panomc.platform.error.CategoryNotExists": {
+    "code": "CATEGORY_NOT_EXISTS",
+    "status": 404
+  },
+  "com.panomc.platform.error.CommandDenied": {
+    "code": "COMMAND_DENIED",
+    "status": 403
+  },
+  "com.panomc.platform.error.CoolifyBootstrapFailed": {
+    "code": "COOLIFY_BOOTSTRAP_FAILED",
+    "status": 400
+  },
+  "com.panomc.platform.error.CurrentPasswordNotCorrect": {
+    "code": "CURRENT_PASSWORD_NOT_CORRECT",
+    "status": 422
+  },
+  "com.panomc.platform.error.DbInstallFailed": {
+    "code": "DB_INSTALL_FAILED",
+    "status": 500
+  },
+  "com.panomc.platform.error.DisabledForDemo": {
+    "code": "DISABLED_FOR_DEMO",
+    "status": 401
+  },
+  "com.panomc.platform.error.EmailAlreadyVerified": {
+    "code": "EMAIL_ALREADY_VERIFIED",
+    "status": 422
+  },
+  "com.panomc.platform.error.FailedToInstallResource": {
+    "code": "FAILED_TO_INSTALL_RESOURCE",
+    "status": 500
+  },
+  "com.panomc.platform.error.FailedToInstallSystemResource": {
+    "code": "FAILED_TO_INSTALL_SYSTEM_RESOURCE",
+    "status": 400
+  },
+  "com.panomc.platform.error.FailedToUpdatePlatform": {
+    "code": "FAILED_TO_UPDATE_PLATFORM",
+    "status": 500
+  },
+  "com.panomc.platform.error.FailedToUpdateResource": {
+    "code": "FAILED_TO_UPDATE_RESOURCE",
+    "status": 500
+  },
+  "com.panomc.platform.error.FaviconExceedsSize": {
+    "code": "FAVICON_EXCEEDS_SIZE",
+    "status": 422
+  },
+  "com.panomc.platform.error.FaviconWrongContentType": {
+    "code": "FAVICON_WRONG_CONTENT_TYPE",
+    "status": 422
+  },
+  "com.panomc.platform.error.FeatureUnavailable": {
+    "code": "FEATURE_UNAVAILABLE",
+    "status": 409
+  },
+  "com.panomc.platform.error.FileOperationFailed": {
+    "code": "FILE_OPERATION_FAILED",
+    "status": 400
+  },
+  "com.panomc.platform.error.FileTooLarge": {
+    "code": "FILE_TOO_LARGE",
+    "status": 400
+  },
+  "com.panomc.platform.error.InPlaceUnsupported": {
+    "code": "IN_PLACE_UNSUPPORTED",
+    "status": 409
+  },
+  "com.panomc.platform.error.InstallationRequired": {
+    "code": "INSTALLATION_REQUIRED",
+    "status": 401
+  },
+  "com.panomc.platform.error.InternalServerError": {
+    "code": "INTERNAL_SERVER_ERROR",
+    "status": 500
+  },
+  "com.panomc.platform.error.InvalidCsrfToken": {
+    "code": "INVALID_CSRF_TOKEN",
+    "status": 403
+  },
+  "com.panomc.platform.error.InvalidData": {
+    "code": "INVALID_DATA",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidDateFnsCode": {
+    "code": "INVALID_DATE_FNS_CODE",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidEmail": {
+    "code": "INVALID_EMAIL",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidFaviconFormat": {
+    "code": "INVALID_FAVICON_FORMAT",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidFields": {
+    "code": "INVALID_FIELDS",
+    "status": 400
+  },
+  "com.panomc.platform.error.InvalidIpAddress": {
+    "code": "INVALID_IP_ADDRESS",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidLink": {
+    "code": "INVALID_LINK",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidLocaleCode": {
+    "code": "INVALID_LOCALE_CODE",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidLocaleDerivative": {
+    "code": "INVALID_LOCALE_DERIVATIVE",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidLocaleName": {
+    "code": "INVALID_LOCALE_NAME",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidNodePairingCode": {
+    "code": "INVALID_NODE_PAIRING_CODE",
+    "status": 400
+  },
+  "com.panomc.platform.error.InvalidPlatformCode": {
+    "code": "INVALID_PLATFORM_CODE",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidPlatformUpdateFile": {
+    "code": "INVALID_PLATFORM_UPDATE_FILE",
+    "status": 500
+  },
+  "com.panomc.platform.error.InvalidPublicKey": {
+    "code": "INVALID_PUBLIC_KEY",
+    "status": 422
+  },
+  "com.panomc.platform.error.InvalidResourceFile": {
+    "code": "INVALID_RESOURCE_FILE",
+    "status": 400
+  },
+  "com.panomc.platform.error.InvalidToken": {
+    "code": "INVALID_TOKEN",
+    "status": 401
+  },
+  "com.panomc.platform.error.IpIsBanned": {
+    "code": "IP_IS_BANNED",
+    "status": 422
+  },
+  "com.panomc.platform.error.KeepIncompatible": {
+    "code": "KEEP_INCOMPATIBLE",
+    "status": 400
+  },
+  "com.panomc.platform.error.LastAdmin": {
+    "code": "LAST_ADMIN",
+    "status": 422
+  },
+  "com.panomc.platform.error.LinkCodeRequired": {
+    "code": "LINK_CODE_REQUIRED",
+    "status": 403
+  },
+  "com.panomc.platform.error.LocalNodeJavaMissing": {
+    "code": "LOCAL_NODE_JAVA_MISSING",
+    "status": 400
+  },
+  "com.panomc.platform.error.LoginEmailNotVerified": {
+    "code": "LOGIN_EMAIL_NOT_VERIFIED",
+    "status": 422
+  },
+  "com.panomc.platform.error.LoginIsInvalid": {
+    "code": "LOGIN_IS_INVALID",
+    "status": 422
+  },
+  "com.panomc.platform.error.LoginUserIsBanned": {
+    "code": "LOGIN_USER_IS_BANNED",
+    "status": 422
+  },
+  "com.panomc.platform.error.MaintenanceModeEnabled": {
+    "code": "MAINTENANCE_MODE_ENABLED",
+    "status": 503
+  },
+  "com.panomc.platform.error.MessageCantBeEmpty": {
+    "code": "MESSAGE_CANT_BE_EMPTY",
+    "status": 422
+  },
+  "com.panomc.platform.error.NeedPermission": {
+    "code": "NEED_PERMISSION",
+    "status": 401
+  },
+  "com.panomc.platform.error.NetworkRoleConflict": {
+    "code": "NETWORK_ROLE_CONFLICT",
+    "status": 400
+  },
+  "com.panomc.platform.error.NewEmailExists": {
+    "code": "NEW_EMAIL_EXISTS",
+    "status": 422
+  },
+  "com.panomc.platform.error.NewPasswordEmpty": {
+    "code": "NEW_PASSWORD_EMPTY",
+    "status": 422
+  },
+  "com.panomc.platform.error.NewPasswordRepeatDoesntMatch": {
+    "code": "NEW_PASSWORD_REPEAT_DOESNT_MATCH",
+    "status": 422
+  },
+  "com.panomc.platform.error.NewPasswordTooLong": {
+    "code": "NEW_PASSWORD_TOO_LONG",
+    "status": 422
+  },
+  "com.panomc.platform.error.NewPasswordTooShort": {
+    "code": "NEW_PASSWORD_TOO_SHORT",
+    "status": 422
+  },
+  "com.panomc.platform.error.NoPanelAccess": {
+    "code": "NO_PANEL_ACCESS",
+    "status": 403
+  },
+  "com.panomc.platform.error.NoPermission": {
+    "code": "NO_PERMISSION",
+    "status": 403
+  },
+  "com.panomc.platform.error.NoPermissionToUpdateAdminPermGroup": {
+    "code": "NO_PERMISSION_TO_UPDATE_ADMIN_PERM_GROUP",
+    "status": 403
+  },
+  "com.panomc.platform.error.NoPermissionToUpdateAdminUser": {
+    "code": "NO_PERMISSION_TO_UPDATE_ADMIN_USER",
+    "status": 403
+  },
+  "com.panomc.platform.error.NodeOffline": {
+    "code": "NODE_OFFLINE",
+    "status": 409
+  },
+  "com.panomc.platform.error.NodeOutdated": {
+    "code": "NODE_OUTDATED",
+    "status": 409
+  },
+  "com.panomc.platform.error.NodeUninstallFailed": {
+    "code": "NODE_UNINSTALL_FAILED",
+    "status": 409
+  },
+  "com.panomc.platform.error.NotBanned": {
+    "code": "NOT_BANNED",
+    "status": 422
+  },
+  "com.panomc.platform.error.NotExists": {
+    "code": "NOT_EXISTS",
+    "status": 404
+  },
+  "com.panomc.platform.error.NotFound": {
+    "code": "NOT_FOUND",
+    "status": 404
+  },
+  "com.panomc.platform.error.NotLoggedIn": {
+    "code": "NOT_LOGGED_IN",
+    "status": 401
+  },
+  "com.panomc.platform.error.PageNotFound": {
+    "code": "PAGE_NOT_FOUND",
+    "status": 404
+  },
+  "com.panomc.platform.error.PanoBackupBusy": {
+    "code": "PANO_BACKUP_BUSY",
+    "status": 409
+  },
+  "com.panomc.platform.error.PanoBackupRestoring": {
+    "code": "PANO_BACKUP_RESTORING",
+    "status": 503
+  },
+  "com.panomc.platform.error.PanoConnectFailed": {
+    "code": "PANO_CONNECT_FAILED",
+    "status": 400
+  },
+  "com.panomc.platform.error.PanoDisconnectFailed": {
+    "code": "PANO_DISCONNECT_FAILED",
+    "status": 500
+  },
+  "com.panomc.platform.error.PanoHostError": {
+    "code": "PANO_HOST_ERROR",
+    "status": 400
+  },
+  "com.panomc.platform.error.PanoNotConnected": {
+    "code": "PANO_NOT_CONNECTED",
+    "status": 400
+  },
+  "com.panomc.platform.error.PasswordEmpty": {
+    "code": "PASSWORD_EMPTY",
+    "status": 422
+  },
+  "com.panomc.platform.error.PasswordTooLong": {
+    "code": "PASSWORD_TOO_LONG",
+    "status": 422
+  },
+  "com.panomc.platform.error.PasswordTooShort": {
+    "code": "PASSWORD_TOO_SHORT",
+    "status": 422
+  },
+  "com.panomc.platform.error.PathDenied": {
+    "code": "PATH_DENIED",
+    "status": 400
+  },
+  "com.panomc.platform.error.PermGroupNotExists": {
+    "code": "PERM_GROUP_NOT_EXISTS",
+    "status": 404
+  },
+  "com.panomc.platform.error.PlatformAlreadyInstalled": {
+    "code": "PLATFORM_ALREADY_INSTALLED",
+    "status": 422
+  },
+  "com.panomc.platform.error.PluginDeniedLogin": {
+    "code": "PLUGIN_DENIED_LOGIN",
+    "status": 403
+  },
+  "com.panomc.platform.error.PluginUpToDate": {
+    "code": "PLUGIN_UP_TO_DATE",
+    "status": 400
+  },
+  "com.panomc.platform.error.PortableDbNotSupportedOs": {
+    "code": "PORTABLE_DB_NOT_SUPPORTED_OS",
+    "status": 500
+  },
+  "com.panomc.platform.error.PostNotFound": {
+    "code": "POST_NOT_FOUND",
+    "status": 404
+  },
+  "com.panomc.platform.error.PostThumbnailExceedsSize": {
+    "code": "POST_THUMBNAIL_EXCEEDS_SIZE",
+    "status": 422
+  },
+  "com.panomc.platform.error.PostThumbnailWrongContentType": {
+    "code": "POST_THUMBNAIL_WRONG_CONTENT_TYPE",
+    "status": 422
+  },
+  "com.panomc.platform.error.RateLimitExceeded": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "status": 429
+  },
+  "com.panomc.platform.error.RateLimited": {
+    "code": "RATE_LIMITED",
+    "status": 429
+  },
+  "com.panomc.platform.error.ReadFailed": {
+    "code": "READ_FAILED",
+    "status": 500
+  },
+  "com.panomc.platform.error.RegisterEmailEmpty": {
+    "code": "REGISTER_EMAIL_EMPTY",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterEmailNotAvailable": {
+    "code": "REGISTER_EMAIL_NOT_AVAILABLE",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterEmailRequired": {
+    "code": "REGISTER_EMAIL_REQUIRED",
+    "status": 403
+  },
+  "com.panomc.platform.error.RegisterInvalidEmail": {
+    "code": "REGISTER_INVALID_EMAIL",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterInvalidUsername": {
+    "code": "REGISTER_INVALID_USERNAME",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterLinkCodeInvalid": {
+    "code": "REGISTER_LINK_CODE_INVALID",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterNotAcceptedAgreement": {
+    "code": "REGISTER_NOT_ACCEPTED_AGREEMENT",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterPasswordAndPasswordRepeatNotSame": {
+    "code": "REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterUsernameEmpty": {
+    "code": "REGISTER_USERNAME_EMPTY",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterUsernameNotAvailable": {
+    "code": "REGISTER_USERNAME_NOT_AVAILABLE",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterUsernameTooLong": {
+    "code": "REGISTER_USERNAME_TOO_LONG",
+    "status": 422
+  },
+  "com.panomc.platform.error.RegisterUsernameTooShort": {
+    "code": "REGISTER_USERNAME_TOO_SHORT",
+    "status": 422
+  },
+  "com.panomc.platform.error.ServerCapabilityMissing": {
+    "code": "SERVER_CAPABILITY_MISSING",
+    "status": 400
+  },
+  "com.panomc.platform.error.ServerInstallFailed": {
+    "code": "SERVER_INSTALL_FAILED",
+    "status": 409
+  },
+  "com.panomc.platform.error.ServerNoStdin": {
+    "code": "SERVER_NO_STDIN",
+    "status": 409
+  },
+  "com.panomc.platform.error.ServerOffline": {
+    "code": "SERVER_OFFLINE",
+    "status": 409
+  },
+  "com.panomc.platform.error.SomePermissionsArentExists": {
+    "code": "SOME_PERMISSIONS_ARENT_EXISTS",
+    "status": 404
+  },
+  "com.panomc.platform.error.SomeTicketsArentExists": {
+    "code": "SOME_TICKETS_ARENT_EXISTS",
+    "status": 404
+  },
+  "com.panomc.platform.error.SomeUsersArentExists": {
+    "code": "SOME_USERS_ARENT_EXISTS",
+    "status": 404
+  },
+  "com.panomc.platform.error.ThemeLicenseRequired": {
+    "code": "THEME_LICENSE_REQUIRED",
+    "status": 400
+  },
+  "com.panomc.platform.error.TicketIsClosed": {
+    "code": "TICKET_IS_CLOSED",
+    "status": 422
+  },
+  "com.panomc.platform.error.TitleCantBeEmpty": {
+    "code": "TITLE_CANT_BE_EMPTY",
+    "status": 422
+  },
+  "com.panomc.platform.error.TransferExpired": {
+    "code": "TRANSFER_EXPIRED",
+    "status": 409
+  },
+  "com.panomc.platform.error.Unauthorized": {
+    "code": "UNAUTHORIZED",
+    "status": 403
+  },
+  "com.panomc.platform.error.UsernameRequired": {
+    "code": "USERNAME_REQUIRED",
+    "status": 403
+  },
+  "com.panomc.platform.error.WebsiteLogoExceedsSize": {
+    "code": "WEBSITE_LOGO_EXCEEDS_SIZE",
+    "status": 422
+  },
+  "com.panomc.platform.error.WebsiteLogoWrongContentType": {
+    "code": "WEBSITE_LOGO_WRONG_CONTENT_TYPE",
+    "status": 422
+  },
+  "com.panomc.platform.frontend.FrontendDescriptorInvalid": {
+    "code": "FRONTEND_DESCRIPTOR_INVALID",
+    "status": 400
+  },
+  "com.panomc.platform.frontend.FrontendDescriptorUnreachable": {
+    "code": "FRONTEND_DESCRIPTOR_UNREACHABLE",
+    "status": 400
+  },
+  "com.panomc.platform.frontend.FrontendSettingInvalid": {
+    "code": "FRONTEND_SETTING_INVALID",
+    "status": 400
+  },
+  "com.panomc.platform.frontend.FrontendSettingsNoSchema": {
+    "code": "FRONTEND_SETTINGS_NO_SCHEMA",
+    "status": 409
+  },
+  "com.panomc.platform.frontend.FrontendSettingsSchemaInvalid": {
+    "code": "FRONTEND_SETTINGS_SCHEMA_INVALID",
+    "status": 400
+  },
+  "com.panomc.platform.model.PayloadTooLarge": {
+    "code": "PAYLOAD_TOO_LARGE",
+    "status": 413
+  },
+  "com.panomc.platform.route.api.panel.theme.PanelUpdateThemeHomeAPI$InvalidHomePage": {
+    "code": "INVALID_HOME_PAGE",
+    "status": 400
+  },
+  "com.panomc.platform.ui.CustomAppActive": {
+    "code": "CUSTOM_APP_ACTIVE",
+    "status": 409
+  },
+  "com.panomc.platform.ui.CustomAppApiLevel": {
+    "code": "CUSTOM_APP_API_LEVEL",
+    "status": 400
+  },
+  "com.panomc.platform.ui.CustomAppIdTaken": {
+    "code": "CUSTOM_APP_ID_TAKEN",
+    "status": 409
+  },
+  "com.panomc.platform.ui.CustomAppInvalidManifest": {
+    "code": "CUSTOM_APP_INVALID_MANIFEST",
+    "status": 400
+  },
+  "com.panomc.platform.ui.CustomAppNoEntry": {
+    "code": "CUSTOM_APP_NO_ENTRY",
+    "status": 400
+  },
+  "com.panomc.platform.ui.DescriptorHostNotAllowed": {
+    "code": "DESCRIPTOR_HOST_NOT_ALLOWED",
+    "status": 400
+  },
+  "com.panomc.platform.ui.FrontendStartFailed": {
+    "code": "FRONTEND_START_FAILED",
+    "status": 500
+  },
+  "com.panomc.platform.ui.ThemeApiLevelUnsupported": {
+    "code": "THEME_API_LEVEL_UNSUPPORTED",
+    "status": 400
+  },
+  "com.panomc.platform.ui.UpstreamInvalidUrl": {
+    "code": "UPSTREAM_INVALID_URL",
+    "status": 400
+  },
+  "com.panomc.platform.ui.UpstreamIsPano": {
+    "code": "UPSTREAM_IS_PANO",
+    "status": 400
+  },
+  "com.panomc.platform.ui.UpstreamUnreachable": {
+    "code": "UPSTREAM_UNREACHABLE",
+    "status": 400
+  },
+  "com.panomc.platform.webhook.WebhookHeadersInvalid": {
+    "code": "WEBHOOK_HEADERS_INVALID",
+    "status": 400
+  },
+  "com.panomc.platform.webhook.WebhookInFlight": {
+    "code": "WEBHOOK_IN_FLIGHT",
+    "status": 409
+  },
+  "com.panomc.platform.webhook.WebhookLimit": {
+    "code": "WEBHOOK_LIMIT",
+    "status": 400
+  },
+  "com.panomc.platform.webhook.WebhookNotFound": {
+    "code": "WEBHOOK_NOT_FOUND",
+    "status": 404
+  },
+  "com.panomc.platform.webhook.WebhookUnknownEvent": {
+    "code": "WEBHOOK_UNKNOWN_EVENT",
+    "status": 400
+  },
+  "com.panomc.platform.webhook.WebhookUrlRefused": {
+    "code": "WEBHOOK_URL_REFUSED",
+    "status": 400
+  }
+}

@@ -25,7 +25,7 @@ class PanelGetDashboardAPI(
     private val licenseManager: LicenseManager,
     private val configManager: ConfigManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/dashboard", RouteType.GET))
+    override val paths = listOf(Path("/dashboard", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

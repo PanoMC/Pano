@@ -6,4 +6,4 @@ import com.panomc.platform.model.Error
 class PanoBackupRestoring(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(503, statusMessage, extras)
+) : Error("PANO_BACKUP_RESTORING", 503, statusMessage, extras)

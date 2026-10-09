@@ -5,7 +5,8 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.error.CategoryNotExists
-import com.panomc.platform.error.PageNotFound
+import com.panomc.platform.model.PageRequest
+import com.panomc.platform.model.Paging
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import io.vertx.ext.web.validation.RequestParameters
@@ -15,8 +16,7 @@ import util.StringUtil
 
 @Service
 class GetPostsService(private val databaseManager: DatabaseManager) {
-    suspend fun handle(parameters: RequestParameters, sqlClient: SqlClient): Result {
-        val page = parameters.queryParameter("page")?.long ?: 1
+    suspend fun handle(parameters: RequestParameters, page: PageRequest, sqlClient: SqlClient): Result {
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
         var postCategory: PostCategory? = null
@@ -40,22 +40,15 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
         else
             databaseManager.postDao.countOfPublished(sqlClient)
 
-        var totalPage = kotlin.math.ceil(count.toDouble() / 5).toLong()
-
-        if (totalPage < 1)
-            totalPage = 1
-
-        if (page > totalPage || page < 1) {
-            throw PageNotFound()
-        }
+        Paging.requireInRange(page, count)
 
         val posts = if (postCategory != null)
-            databaseManager.postDao.getPublishedListByPageAndCategoryId(postCategory.id, page, sqlClient)
+            databaseManager.postDao.getPublishedListByCategoryId(postCategory.id, page.limit, page.offset, sqlClient)
         else
-            databaseManager.postDao.getPublishedListByPage(page, sqlClient)
+            databaseManager.postDao.getPublishedList(page.limit, page.offset, sqlClient)
 
         if (posts.isEmpty()) {
-            return prepareResult(postCategory, posts, mapOf(), mapOf(), count, totalPage)
+            return Successful(payload(postCategory, posts, mapOf(), mapOf(), count, page))
         }
 
         val userIdList = posts.distinctBy { it.writerUserId }.map { it.writerUserId }.filter { it != -1L }
@@ -63,33 +56,35 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
         val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
         if (postCategory != null) {
-            return prepareResult(postCategory, posts, usernameList, mapOf(), count, totalPage)
+            return Successful(payload(postCategory, posts, usernameList, mapOf(), count, page))
         }
 
         val categoryIdList =
             posts.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
-            return prepareResult(null, posts, usernameList, mapOf(), count, totalPage)
+            return Successful(payload(null, posts, usernameList, mapOf(), count, page))
         }
 
         val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlClient)
 
-        return prepareResult(null, posts, usernameList, categories, count, totalPage)
+        return Successful(payload(null, posts, usernameList, categories, count, page))
     }
 
-    private val prepareResult: (
-        PostCategory?,
-        List<Post>,
-        Map<Long, String>,
-        Map<Long, PostCategory>,
-        Long,
-        Long
-    ) -> Successful = { postCategory, posts, usernameList, categories, count, totalPage ->
-        val postsDataList = mutableListOf<Map<String, Any?>>()
+    companion object {
+        /** Posts per page when the client sends no `pageSize` (as before the page shape). */
+        const val DEFAULT_PAGE_SIZE = 5
 
-        posts.forEach { post ->
-            postsDataList.add(
+        /** The whole response body: `{ items, page }` plus the `category` when the list is filtered. */
+        fun payload(
+            postCategory: PostCategory?,
+            posts: List<Post>,
+            usernameList: Map<Long, String>,
+            categories: Map<Long, PostCategory>,
+            count: Long,
+            page: PageRequest
+        ): Map<String, Any?> {
+            val items = posts.map { post ->
                 mapOf(
                     "id" to post.id,
                     "title" to post.title,
@@ -110,19 +105,14 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
                     "views" to post.views,
                     "url" to post.url
                 )
+            }
+
+            return Paging.response(
+                items,
+                count,
+                page,
+                if (postCategory != null) mapOf("category" to postCategory) else mapOf()
             )
         }
-
-        val data = mutableMapOf<String, Any?>(
-            "posts" to postsDataList,
-            "postCount" to count,
-            "totalPage" to totalPage
-        )
-
-        if (postCategory != null) {
-            data["category"] = postCategory
-        }
-
-        Successful(data)
     }
 }

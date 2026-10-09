@@ -8,15 +8,15 @@ import com.panomc.platform.model.*
 import com.panomc.platform.node.ssh.NodeSshBootstrapService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
 
 /**
  * Accepts a host key and lets the install run
- * (`POST /api/panel/nodes/ssh-bootstrap/:taskId/confirm`).
+ * (`POST /api/v1/panel/nodes/ssh-bootstrap/:taskId/confirm`).
  *
  * Only the person who started the bootstrap can confirm it, because they are the only one who was
  * shown the fingerprint; another admin confirming a fingerprint they never saw would turn the
@@ -32,7 +32,7 @@ class PanelConfirmSshBootstrapNodeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/ssh-bootstrap/:taskId/confirm", RouteType.POST))
+    override val paths = listOf(Path("/nodes/ssh-bootstrap/:taskId/confirm", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

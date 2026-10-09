@@ -13,7 +13,7 @@ class PanelGetRefreshKeyAPI(
     private val platformCodeManager: PlatformCodeManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/platformAuth/refreshKey", RouteType.GET))
+    override val paths = listOf(Path("/platformAuth/refreshKey", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

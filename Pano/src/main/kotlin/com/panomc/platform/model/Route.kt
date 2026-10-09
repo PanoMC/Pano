@@ -2,16 +2,19 @@ package com.panomc.platform.model
 
 import com.panomc.platform.Main.Companion.applicationContext
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.route.Mount
+import com.panomc.platform.route.Namespace
 import com.panomc.platform.util.UsageMode
 import io.vertx.core.Handler
-import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import java.io.File
-import java.net.URI
+
+/** Whether a route accepts browser mutations from a foreign origin; see [Route.browserAccess]. */
+enum class BrowserAccess { SAME_SITE, ANY_ORIGIN }
 
 abstract class Route {
     private val configManager by lazy {
@@ -29,62 +32,26 @@ abstract class Route {
      */
     open val usageModes: Set<UsageMode> = UsageMode.ALL
 
+    /**
+     * How [paths] are mounted: [Mount.API] puts them under `/api/v1` (see
+     * [com.panomc.platform.route.ApiPaths]), [Mount.ROOT] serves them verbatim (templates).
+     */
+    open val mount: Mount = Mount.ROOT
+
+    /** Which API namespace [paths] are relative to; [Namespace.PANEL] adds `/panel` after `/api/v1`. */
+    open val namespace: Namespace = Namespace.SITE
+
+    /**
+     * Who may POST (or PUT, PATCH, DELETE) to this route from a browser page of another origin (doc 05 §4).
+     * [BrowserAccess.SAME_SITE] (the default): an unsafe request whose `Origin` is foreign is refused with
+     * `403 ORIGIN_NOT_ALLOWED` unless it carries a front-end key. [BrowserAccess.ANY_ORIGIN] is for third-party
+     * posts (a payment return or notify route, an OAuth `form_post` callback) and lifts that one gate.
+     */
+    open val browserAccess: BrowserAccess = BrowserAccess.SAME_SITE
+
     abstract val paths: List<Path>
 
     abstract fun getHandler(): Handler<RoutingContext>
-
-    open val allowedSchemes = setOf("http", "https")
-    open val allowedHosts = setOf("localhost", "127.0.0.1", "0.0.0.0")
-
-    open val allowedHeaders = setOf(
-        "x-requested-with",
-        "Access-Control-Allow-Origin",
-        "origin",
-        "Content-Type",
-        "accept",
-        "X-PINGARUNER",
-        "x-csrf-token"
-    )
-
-    open val allowedMethods = setOf<HttpMethod>(
-        HttpMethod.GET,
-        HttpMethod.POST,
-        HttpMethod.OPTIONS,
-        HttpMethod.DELETE,
-        HttpMethod.PATCH,
-        HttpMethod.PUT
-    )
-
-    open fun corsHandler(): Handler<RoutingContext>? = Handler { ctx ->
-        val origin = ctx.request().getHeader("Origin")
-        if (origin != null) {
-            try {
-                val uri = URI(origin)
-                // Check the scheme and host
-                if (uri.scheme in allowedSchemes && uri.host in allowedHosts) {
-                    // If the origin is allowed, add it to the response header
-                    ctx.response().putHeader("Access-Control-Allow-Origin", "*")
-                }
-            } catch (e: Exception) {
-                // If the URI cannot be parsed, do not add any header.
-            }
-        }
-
-        // Add the allowed methods to the header:
-        val methodsAsString = allowedMethods.joinToString(",") { it.name() }
-        ctx.response().putHeader("Access-Control-Allow-Methods", methodsAsString)
-
-        // Add the allowed headers to the header:
-        val headersAsString = allowedHeaders.joinToString(",")
-        ctx.response().putHeader("Access-Control-Allow-Headers", headersAsString)
-
-        // If it's a Preflight (OPTIONS) request, end the response immediately:
-        if (ctx.request().method() == HttpMethod.OPTIONS) {
-            ctx.response().end()
-        } else {
-            ctx.next()
-        }
-    }
 
     open fun bodyHandler(): Handler<RoutingContext>? = BodyHandler.create()
         .setDeleteUploadedFilesOnEnd(true)

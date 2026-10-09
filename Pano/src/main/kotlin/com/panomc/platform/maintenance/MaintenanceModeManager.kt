@@ -9,10 +9,13 @@ import com.panomc.platform.auth.panel.log.MaintenanceModeBannedIpLog
 import com.panomc.platform.auth.panel.log.MaintenanceModeUnbannedIpLog
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.frontend.CoreFrontendTargets
+import com.panomc.platform.frontend.FrontendUrlMap
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.route.ApiPaths
 import com.panomc.platform.route.WebsiteUrlRedirectHandler
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.TrustedProxyIpResolver
@@ -60,15 +63,16 @@ class MaintenanceModeManager(
     private val authProvider: AuthProvider,
     private val permissionManager: PermissionManager,
     private val databaseManager: DatabaseManager,
-    private val i18nManager: I18nManager
+    private val i18nManager: I18nManager,
+    private val frontendUrlMap: FrontendUrlMap
 ) {
     companion object {
         /** Per-request memoisation key so the gate and `Api.checkMaintenance` never both pay. */
         const val CTX_ACCESS_KEY = "maintenance.access"
 
-        const val LOGIN_PATH = "/api/maintenance/login"
-        const val SKIP_PATH = "/api/maintenance/skip"
-        const val EXIT_PATH = "/api/maintenance/exit"
+        const val LOGIN_PATH = "/maintenance/login"
+        const val SKIP_PATH = "/maintenance/skip"
+        const val EXIT_PATH = "/maintenance/exit"
 
         const val LOGIN_USERNAME_FIELD = "usernameOrEmail"
         const val LOGIN_PASSWORD_FIELD = "password"
@@ -102,7 +106,7 @@ class MaintenanceModeManager(
          * changes, so installations composed from the previous template regenerate on boot instead
          * of serving a stale page forever.
          */
-        private const val TEMPLATE_VERSION_MARKER = "<!--PANO_TEMPLATE:2-->"
+        private const val TEMPLATE_VERSION_MARKER = "<!--PANO_TEMPLATE:3-->"
 
         /** Same placeholder the themes use in `footer.been-created-with`. */
         private const val PANO_PLACEHOLDER = "{pano}"
@@ -294,8 +298,6 @@ class MaintenanceModeManager(
 
     /** Callers must pass `context.normalizedPath()`; route matching uses the normalized form. */
     fun classify(normalizedPath: String, method: HttpMethod): PathClass = when {
-        normalizedPath.startsWith("/panel/api/") -> PathClass.INFRASTRUCTURE
-
         // Only the ACME HTTP-01 challenge is exempt, and only for the methods AcmeManager's order-0
         // route actually answers. The rest of /.well-known/ (security.txt, change-password,
         // appspecific/*) is an ordinary page: exempting the whole prefix handed it to the order-5
@@ -303,7 +305,7 @@ class MaintenanceModeManager(
         normalizedPath.startsWith("/.well-known/acme-challenge/") &&
                 (method == HttpMethod.GET || method == HttpMethod.HEAD) -> PathClass.INFRASTRUCTURE
 
-        normalizedPath.startsWith("/api/") -> PathClass.UNMATCHED_API
+        ApiPaths.isApi(normalizedPath) -> PathClass.UNMATCHED_API
         normalizedPath == "/panel" || normalizedPath.startsWith("/panel/") -> PathClass.PANEL
         else -> PathClass.PAGE
     }
@@ -395,12 +397,31 @@ class MaintenanceModeManager(
         val maintenance = settings()
 
         if (maintenance.showLoginButton) {
-            return setOf(DEFAULT_LOGIN_LOCATION)
+            return setOf(defaultLoginLocation())
         }
 
         // Hiding the button hides the button — it does not move the door. Only an address the
         // admin actually typed replaces /login; anonymous /panel traffic is redirected here.
-        return setOf(normalizePath(maintenance.customLoginUrl) ?: DEFAULT_LOGIN_LOCATION)
+        return setOf(normalizePath(maintenance.customLoginUrl) ?: defaultLoginLocation())
+    }
+
+    /**
+     * Where the site's own login page is (target `auth.login` of the front-end URL map, doc 05 section 10.1):
+     * `/login` unless the theme renamed it or the admin moved it. A login page that Pano itself serves
+     * (`/_pano/...`) or another site is not a place this gate can stand in front of, so `/login` stays then.
+     */
+    fun defaultLoginLocation(): String {
+        val path = try {
+            frontendUrlMap.routePath(CoreFrontendTargets.AUTH_LOGIN)
+        } catch (e: Exception) {
+            null
+        }
+
+        if (path == null || path.startsWith(FrontendUrlMap.FALLBACK_PREFIX)) {
+            return DEFAULT_LOGIN_LOCATION
+        }
+
+        return normalizePath(path) ?: DEFAULT_LOGIN_LOCATION
     }
 
     /** The URL the "Log in" button points at, or null when the button is turned off. */
@@ -409,7 +430,7 @@ class MaintenanceModeManager(
             return null
         }
 
-        return DEFAULT_LOGIN_LOCATION
+        return defaultLoginLocation()
     }
 
     fun isLoginLocation(normalizedPath: String): Boolean {
@@ -449,9 +470,7 @@ class MaintenanceModeManager(
 
         val lowered = path.lowercase()
 
-        if (lowered == "/api" || lowered.startsWith("/api/") ||
-            lowered == "/panel/api" || lowered.startsWith("/panel/api/")
-        ) {
+        if (ApiPaths.isApi(lowered)) {
             return null
         }
 
@@ -736,7 +755,7 @@ class MaintenanceModeManager(
             },
             loginBlock = when (focus) {
                 PageTemplate.LOGIN_FORM -> renderLoginFormBlock(null, drafts)
-                PageTemplate.LOGIN_BUTTON -> renderLoginButtonBlock(DEFAULT_LOGIN_LOCATION, drafts)
+                PageTemplate.LOGIN_BUTTON -> renderLoginButtonBlock(defaultLoginLocation(), drafts)
                 else -> ""
             },
             skipBlock = if (focus == PageTemplate.SKIP) renderSkipBlock(drafts) else ""
@@ -973,6 +992,7 @@ class MaintenanceModeManager(
     ): Map<String, Any?> = mapOf(
         "lang" to localeCode(),
         "logoUrl" to logoUrl(),
+        "faviconUrl" to ApiPaths.core("/favicon"),
         // Only referenced by pages composed from an empty title/message field; resolving them
         // here is what keeps the fallback copy in the platform language.
         "defaultTitle" to translate("maintenance.default-title"),
@@ -1025,7 +1045,9 @@ class MaintenanceModeManager(
     private fun logoUrl(): String {
         val logo = configManager.config.filePaths.websiteLogoFile
 
-        return if (logo == null) "/api/websiteLogo" else "/api/websiteLogo?hash=${logo.hash}"
+        val path = ApiPaths.core("/website-logo")
+
+        return if (logo == null) path else "$path?hash=${logo.hash}"
     }
 
     private suspend fun renderNotice(notice: Notice, drafts: Map<PageTemplate, String>? = null): String {
@@ -1066,7 +1088,7 @@ class MaintenanceModeManager(
     ): String = renderTemplate(
         PageTemplate.LOGIN_FORM,
         mapOf(
-            "action" to LOGIN_PATH,
+            "action" to ApiPaths.core(LOGIN_PATH),
             // No context means a preview: there is nothing to bind a nonce to, and issuing one
             // would set a cookie on the panel's own request.
             "nonce" to (context?.let { escapeHtml(issueLoginNonce(it)) } ?: ""),
@@ -1086,7 +1108,7 @@ class MaintenanceModeManager(
     private suspend fun renderSkipBlock(drafts: Map<PageTemplate, String>? = null): String = renderTemplate(
         PageTemplate.SKIP,
         mapOf(
-            "action" to SKIP_PATH,
+            "action" to ApiPaths.core(SKIP_PATH),
             "label" to escapeHtml(translate("maintenance.button.skip")),
             "description" to escapeHtml(translate("maintenance.skip-description"))
         ),

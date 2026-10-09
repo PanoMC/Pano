@@ -1,0 +1,136 @@
+/*
+ * Pano fallback pages (served at /_pano/assets/fallback.css). Plain on purpose: one centred card, system fonts,
+ * light and dark by the visitor's setting. The colours are the --pano-color-* tokens of the open front-end
+ * model (doc 03), with literal defaults here.
+ */
+:root {
+  color-scheme: light dark;
+  --pano-color-bg: #f5f6f8;
+  --pano-color-surface: #ffffff;
+  --pano-color-text: #14171c;
+  --pano-color-text-muted: #596273;
+  --pano-color-border: #dfe3ea;
+  --pano-color-primary: #2f6feb;
+  --pano-color-on-primary: #ffffff;
+  --pano-color-danger: #a4291f;
+  --pano-color-danger-bg: #fdf3f2;
+  --pano-color-info: #2c5282;
+  --pano-color-info-bg: #f1f5fb;
+  --pano-radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --pano-color-bg: #12151a;
+    --pano-color-surface: #1b2027;
+    --pano-color-text: #e8ebf0;
+    --pano-color-text-muted: #9aa3b2;
+    --pano-color-border: #2d343f;
+    --pano-color-primary: #5b8def;
+    --pano-color-on-primary: #0b1020;
+    --pano-color-danger: #ff9b92;
+    --pano-color-danger-bg: #2a1a19;
+    --pano-color-info: #9cc2f5;
+    --pano-color-info-bg: #18222f;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box }
+
+[hidden] { display: none !important }
+
+html, body { margin: 0; padding: 0 }
+
+.pano-fb-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--pano-color-bg);
+  color: var(--pano-color-text);
+  font: 1rem/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pano-fb-main {
+  width: 100%;
+  max-width: 26rem;
+  padding: 2rem 1.75rem;
+  background: var(--pano-color-surface);
+  border: 1px solid var(--pano-color-border);
+  border-radius: var(--pano-radius);
+}
+
+.pano-fb-logo {
+  display: block;
+  max-width: 100%;
+  max-height: 4.5rem;
+  margin: 0 auto 1.5rem;
+}
+
+.pano-fb-title {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.pano-fb-lead {
+  margin: 0 0 1rem;
+  color: var(--pano-color-text-muted);
+}
+
+.pano-fb-form { display: flex; flex-direction: column; gap: .875rem }
+
+.pano-fb-field { display: flex; flex-direction: column; gap: .3rem; font-size: .9rem }
+
+.pano-fb-field input {
+  width: 100%;
+  padding: .6rem .7rem;
+  font: inherit;
+  color: inherit;
+  background: var(--pano-color-bg);
+  border: 1px solid var(--pano-color-border);
+  border-radius: calc(var(--pano-radius) - 4px);
+}
+
+.pano-fb-field input:focus-visible,
+.pano-fb-button:focus-visible {
+  outline: 2px solid var(--pano-color-primary);
+  outline-offset: 2px;
+}
+
+.pano-fb-check { display: flex; align-items: flex-start; gap: .5rem; font-size: .9rem }
+
+.pano-fb-button {
+  display: inline-block;
+  padding: .65rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  color: var(--pano-color-on-primary);
+  background: var(--pano-color-primary);
+  border: 0;
+  border-radius: calc(var(--pano-radius) - 4px);
+  cursor: pointer;
+}
+
+.pano-fb-button:hover { filter: brightness(1.08) }
+.pano-fb-button:disabled { opacity: .6; cursor: progress }
+
+.pano-fb-message {
+  margin: 0 0 .875rem;
+  padding: .65rem .8rem;
+  font-size: .9rem;
+  border-radius: calc(var(--pano-radius) - 4px);
+}
+
+.pano-fb-message[data-kind="error"] { color: var(--pano-color-danger); background: var(--pano-color-danger-bg) }
+.pano-fb-message[data-kind="info"] { color: var(--pano-color-info); background: var(--pano-color-info-bg) }
+
+.pano-fb-done { display: flex; flex-direction: column; gap: .875rem }
+
+.pano-fb-main a:not(.pano-fb-button) { color: var(--pano-color-primary) }

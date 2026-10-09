@@ -16,7 +16,7 @@ class ActivationMail(
 
     override suspend fun generateParameters(systemParameters: MailManager.Companion.SystemParameters, i18nManager: I18nManager, locale: String) =
         ActivationMailParameters(
-            "${systemParameters.websiteUrl}/activate?token=$token",
+            activationLink(systemParameters),
             username,
             email,
             activationCode,
@@ -24,6 +24,10 @@ class ActivationMail(
                 i18nManager, locale, "mail.activation", mapOf("activation-expires" to mapOf("minutes" to 15))
             )
         )
+
+    /** Where the visitor confirms the account: target `auth.activate` of the front-end URL map. */
+    internal fun activationLink(systemParameters: MailManager.Companion.SystemParameters) =
+        systemParameters.linkTo("auth.activate", mapOf("token" to token), "/activate?token=$token")
 
     companion object {
         data class ActivationMailParameters(

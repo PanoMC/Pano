@@ -14,8 +14,8 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
 
 /**
- * The SHA-256 of the jar [NodeJarAPI] serves (`GET /api/node/pano-node.jar.sha256`, and
- * `/api/node/pano-agent.jar.sha256` naming the same bytes as `pano-agent.jar`).
+ * The SHA-256 of the jar [NodeJarAPI] serves (`GET /api/v1/node/pano-node.jar.sha256`, and
+ * `/api/v1/node/pano-agent.jar.sha256` naming the same bytes as `pano-agent.jar`).
  *
  * The installers verify what they downloaded against this, which is the only reason the download
  * endpoint is allowed to be unauthenticated over plain HTTP on a lab network: the bytes are
@@ -31,8 +31,8 @@ class NodeJarChecksumAPI(
     private val nodeJarProvider: NodeJarProvider
 ) : Api() {
     override val paths = listOf(
-        Path("/api/node/${LocalNodeJarLocator.JAR_NAME}.sha256", RouteType.GET),
-        Path("/api/node/${LocalNodeJarLocator.AGENT_JAR_NAME}.sha256", RouteType.GET)
+        Path("/node/${LocalNodeJarLocator.JAR_NAME}.sha256", RouteType.GET),
+        Path("/node/${LocalNodeJarLocator.AGENT_JAR_NAME}.sha256", RouteType.GET)
     )
 
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

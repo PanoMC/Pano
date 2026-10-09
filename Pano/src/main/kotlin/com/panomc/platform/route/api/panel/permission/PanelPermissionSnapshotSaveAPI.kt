@@ -26,7 +26,7 @@ class PanelPermissionSnapshotSaveAPI(
     private val permissionManager: PermissionManager,
     private val serverManager: ServerManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/permission/snapshot", RouteType.POST))
+    override val paths = listOf(Path("/permission/snapshot", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

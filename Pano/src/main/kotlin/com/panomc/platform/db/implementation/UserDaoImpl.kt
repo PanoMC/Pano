@@ -376,13 +376,14 @@ class UserDaoImpl : UserDao() {
     }
 
     override suspend fun getAllByPageAndStatus(
-        page: Long,
         status: PlayerStatus,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<User> {
         val now = System.currentTimeMillis()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?) " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ${if (status == PlayerStatus.BANNED) "WHERE `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?) " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT $limit OFFSET $offset"
 
         val parameters = Tuple.tuple()
 
@@ -425,14 +426,15 @@ class UserDaoImpl : UserDao() {
     }
 
     override suspend fun getAllByPageAndStatusAndSearch(
-        page: Long,
         status: PlayerStatus,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<User> {
         val now = System.currentTimeMillis()
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?) " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `username` LIKE ? ${if (status == PlayerStatus.BANNED) "AND `banned` = ? AND (`bannedUntil` IS NULL OR `bannedUntil` > ?) " else ""}ORDER BY `registerDate` DESC, `id` DESC LIMIT $limit OFFSET $offset"
 
         val parameters = Tuple.tuple()
         parameters.addString("%$search%")
@@ -801,7 +803,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): List<User> {
         if (ids.isEmpty()) {
-            return getAllByPageAndStatus(page, PlayerStatus.ALL, sqlClient)
+            return getAllByPageAndStatus(PlayerStatus.ALL, pageSize, (page - 1) * pageSize, sqlClient)
         }
 
         var listText = ""
@@ -854,7 +856,7 @@ class UserDaoImpl : UserDao() {
         sqlClient: SqlClient
     ): List<User> {
         if (ids.isEmpty()) {
-            return getAllByPageAndStatusAndSearch(page, PlayerStatus.ALL, search, sqlClient)
+            return getAllByPageAndStatusAndSearch(PlayerStatus.ALL, search, pageSize, (page - 1) * pageSize, sqlClient)
         }
 
         var listText = ""

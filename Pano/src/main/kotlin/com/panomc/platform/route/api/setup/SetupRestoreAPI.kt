@@ -17,17 +17,17 @@ import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 
 /**
- * setup-ui "restore from file" (`POST /api/setup/restore`, multipart: `file`, `passphrase`, and the
+ * setup-ui "restore from file" (`POST /api/v1/setup/restore`, multipart: `file`, `passphrase`, and the
  * target database `host`, `dbName`, `username`, `password` — omitted = the database from setup
  * step 2). The archive's site replaces the setup: its config (with this machine's database, server
- * and uploads keys) is installed and Pano restarts. Poll `GET /api/setup/restore`.
+ * and uploads keys) is installed and Pano restarts. Poll `GET /api/v1/setup/restore`.
  */
 @Endpoint
 class SetupRestoreAPI(
     private val configManager: ConfigManager,
     private val panoBackupManager: PanoBackupManager
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/restore", RouteType.POST))
+    override val paths = listOf(Path("/setup/restore", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 

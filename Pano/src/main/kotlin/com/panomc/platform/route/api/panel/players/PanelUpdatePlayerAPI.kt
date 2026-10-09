@@ -9,13 +9,14 @@ import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.InvalidFields
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 
@@ -25,7 +26,7 @@ class PanelUpdatePlayerAPI(
     private val authProvider: AuthProvider,
     private val permissionManager: PermissionManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/players/:id", RouteType.PUT))
+    override val paths = listOf(Path("/players/:id", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -114,7 +115,7 @@ class PanelUpdatePlayerAPI(
             val usernameExists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
             if (usernameExists) {
-                throw Errors(mapOf("username" to "EXISTS"))
+                throw InvalidFields(mapOf("username" to "EXISTS"))
             }
         }
 
@@ -123,7 +124,7 @@ class PanelUpdatePlayerAPI(
                 val emailExists = databaseManager.userDao.isEmailExists(emailNormalized, sqlClient)
 
                 if (emailExists) {
-                    throw Errors(mapOf("email" to "EXISTS"))
+                    throw InvalidFields(mapOf("email" to "EXISTS"))
                 }
             }
 
@@ -188,7 +189,7 @@ class PanelUpdatePlayerAPI(
         }
 
         if (errors.isNotEmpty()) {
-            throw Errors(errors)
+            throw InvalidFields(errors)
         }
     }
 }

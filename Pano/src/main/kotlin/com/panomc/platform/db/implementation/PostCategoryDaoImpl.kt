@@ -130,13 +130,14 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getByPageAndSearch(
-        page: Long,
+    override suspend fun getListBySearch(
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<PostCategory> {
         val query =
-            "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ? ORDER BY id DESC ${if (page != 0L) "LIMIT 10 OFFSET " + (page - 1) * 10 else ""}"
+            "SELECT `id`, `title`, `description`, `url`, `color` FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ? ORDER BY id DESC LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -146,12 +147,13 @@ class PostCategoryDaoImpl : PostCategoryDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getCategories(
-        page: Long,
+    override suspend fun getList(
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<PostCategory> {
         val query =
-            "SELECT id, title, description, url, color FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT id, title, description, url, color FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

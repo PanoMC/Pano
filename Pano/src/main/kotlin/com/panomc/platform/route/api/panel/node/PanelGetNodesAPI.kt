@@ -33,11 +33,12 @@ class PanelGetNodesAPI(
     private val authProvider: AuthProvider,
     private val nodeManager: NodeManager,
     private val nodeJarProvider: NodeJarProvider,
-    private val nodeUpdateProgressStore: NodeUpdateProgressStore
+    private val nodeUpdateProgressStore: NodeUpdateProgressStore,
+    private val configManager: com.panomc.platform.config.ConfigManager
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes", RouteType.GET))
+    override val paths = listOf(Path("/nodes", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -53,6 +54,8 @@ class PanelGetNodesAPI(
         // Hashed once for the whole list: the jar Pano serves is the same for every node.
         val servedSha256 = nodeJarProvider.sha256()
 
+        val localNodeManaged = com.panomc.platform.route.api.panel.compatibility.CompatibilityPayload.localNodeManaged(configManager.config)
+
         val payload = nodes.map { node ->
             val jarSha256 = nodeManager.getJarSha256(node.id)
 
@@ -61,6 +64,12 @@ class PanelGetNodesAPI(
                 .put("metrics", nodeManager.getLatestMetrics(node.id)?.toJsonObject())
                 .put("serverCount", databaseManager.serverDao.countByNodeId(node.id, sqlClient))
                 .put("platformVersion", Main.VERSION)
+                // `{ nodeId, name, agent, protocolVersion, minProtocolVersion, downloadPath }` when the stored
+                // protocol is too old to reach this Pano (its jar must be replaced by hand), else null.
+                .put(
+                    "unreachable",
+                    com.panomc.platform.server.feature.ServerFeatureResolver.unreachableNodeInfo(node, localNodeManaged)
+                )
                 .put("jarSha256", jarSha256)
                 // `{ version, status, percent, message }` while its daemon updates, else null, and
                 // the version an update installs (null for a development build) (SM-77).

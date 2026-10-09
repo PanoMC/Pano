@@ -14,7 +14,7 @@ import io.vertx.kotlin.coroutines.coAwait
 import com.panomc.platform.util.UsageMode
 
 /**
- * The installer a new node is set up with (`GET /api/node/install.sh`).
+ * The installer a new node is set up with (`GET /api/v1/node/install.sh`).
  *
  * Public and unauthenticated, like every `get the installer` URL: the script itself grants
  * nothing — pairing still needs a code an admin read out of the panel — and the one-line command
@@ -33,7 +33,7 @@ class NodeInstallScriptAPI(
 ) : Api() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/node/install.sh", RouteType.GET))
+    override val paths = listOf(Path(NodeInstallScriptProvider.SHELL_SCRIPT_PATH, RouteType.GET))
 
     // Setting a node up is exactly the kind of work an operator does *during* maintenance.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

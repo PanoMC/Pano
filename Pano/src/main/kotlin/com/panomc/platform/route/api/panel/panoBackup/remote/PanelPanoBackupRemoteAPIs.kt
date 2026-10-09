@@ -34,7 +34,7 @@ import io.vertx.kotlin.coroutines.coAwait
  * Panel routes of Pano Backup (the E2E-encrypted remote target on panomc.com) and of the transfer to
  * Pano Host, both over this Pano's panomc.com platform connection (not connected → `hostError
  * CONNECT_REQUIRED`). All need MANAGE_PANO_BACKUPS; the background jobs are polled with
- * `GET /api/panel/pano-backups/job`. Pano Host errors come back as `PANO_HOST_ERROR {hostError, …}`.
+ * `GET /api/v1/panel/pano-backups/job`. Pano Host errors come back as `PANO_HOST_ERROR {hostError, …}`.
  */
 
 /** Base: JSON bodies are read by hand (several paths/methods per class), permission checked first. */
@@ -47,14 +47,14 @@ abstract class PanoBackupRemoteApi(protected val authProvider: AuthProvider) : P
 }
 
 /**
- * `GET /api/panel/pano-backups/remote[?fresh=true]` → `{connected, account {username, platformId}, plan
+ * `GET /api/v1/panel/pano-backups/remote[?fresh=true]` → `{connected, account {username, platformId}, plan
  * {tier, subscription} | null, usage {used, reserved, quota, free} | null, settings, passphraseSet,
  * lastUploadAt, hostError?, apiUrl, job, busy}` (plan + usage cached for a minute unless `fresh`).
  */
 @Endpoint
 class PanelGetPanoBackupRemoteAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :
     PanoBackupRemoteApi(authProvider) {
-    override val paths = listOf(Path("/api/panel/pano-backups/remote", RouteType.GET))
+    override val paths = listOf(Path("/pano-backups/remote", RouteType.GET))
 
     override suspend fun handle(context: RoutingContext): Result {
         requireManage(context)
@@ -83,8 +83,8 @@ class PanelUpdatePanoBackupRemoteAPI(
     private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
-        Path("/api/panel/pano-backups/remote/settings", RouteType.PUT),
-        Path("/api/panel/pano-backups/remote/passphrase", RouteType.PUT)
+        Path("/pano-backups/remote/settings", RouteType.PUT),
+        Path("/pano-backups/remote/passphrase", RouteType.PUT)
     )
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -135,7 +135,7 @@ class PanelPanoBackupRemoteBackupsAPI(
     private val panoBackupManager: PanoBackupManager,
     private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
-    override val paths = listOf(Path("/api/panel/pano-backups/remote/backups", RouteType.ROUTE))
+    override val paths = listOf(Path("/pano-backups/remote/backups", RouteType.ROUTE))
 
     override suspend fun handle(context: RoutingContext): Result {
         requireManage(context)
@@ -173,8 +173,8 @@ class PanelPanoBackupRemoteBackupAPI(
     private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
-        Path("/api/panel/pano-backups/remote/backups/:id/restore", RouteType.POST),
-        Path("/api/panel/pano-backups/remote/backups/:id", RouteType.DELETE)
+        Path("/pano-backups/remote/backups/:id/restore", RouteType.POST),
+        Path("/pano-backups/remote/backups/:id", RouteType.DELETE)
     )
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -225,9 +225,9 @@ class PanelPanoBackupRemoteTransfersAPI(
     private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
-        Path("/api/panel/pano-backups/remote/workloads", RouteType.GET),
-        Path("/api/panel/pano-backups/remote/transfers", RouteType.ROUTE),
-        Path("/api/panel/pano-backups/remote/transfers/:id", RouteType.ROUTE)
+        Path("/pano-backups/remote/workloads", RouteType.GET),
+        Path("/pano-backups/remote/transfers", RouteType.ROUTE),
+        Path("/pano-backups/remote/transfers/:id", RouteType.ROUTE)
     )
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -279,14 +279,14 @@ class PanelPanoBackupRemoteTransfersAPI(
     }
 }
 
-/** `POST /api/panel/servers/:id/backups/:backupId/pano-backup` → `{job}`: one MC server backup to Pano Backup. */
+/** `POST /api/v1/panel/servers/:id/backups/:backupId/pano-backup` → `{job}`: one MC server backup to Pano Backup. */
 @Endpoint
 class PanelUploadServerBackupToPanoBackupAPI(
     authProvider: AuthProvider,
     private val panoBackupManager: PanoBackupManager,
     private val mcServerBackupSources: McServerBackupSources
 ) : PanoBackupRemoteApi(authProvider) {
-    override val paths = listOf(Path("/api/panel/servers/:id/backups/:backupId/pano-backup", RouteType.POST))
+    override val paths = listOf(Path("/servers/:id/backups/:backupId/pano-backup", RouteType.POST))
 
     override suspend fun handle(context: RoutingContext): Result {
         val serverId = context.pathParam("id")?.toLongOrNull() ?: throw BadRequest()

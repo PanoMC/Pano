@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class CantUpdatePermGroupYourself(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(401, statusMessage, extras)
+) : Error("CANT_UPDATE_PERM_GROUP_YOURSELF", 401, statusMessage, extras)

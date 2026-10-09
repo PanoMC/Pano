@@ -8,14 +8,15 @@ import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.InvalidFields
 import com.panomc.platform.model.*
 import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import com.panomc.platform.util.UsageMode
@@ -27,7 +28,7 @@ class PanelUpdateTicketCategoryAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/ticket/categories/:id", RouteType.PUT))
+    override val paths = listOf(Path("/ticket/categories/:id", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -89,7 +90,7 @@ class PanelUpdateTicketCategoryAPI(
 //            errors["description"] = true
 
         if (errors.isNotEmpty()) {
-            throw Errors(errors)
+            throw InvalidFields(errors)
         }
     }
 }

@@ -18,10 +18,12 @@ import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class ResetPasswordAPI(
@@ -29,7 +31,14 @@ class ResetPasswordAPI(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/auth/resetPassword", RouteType.POST))
+    override val paths = listOf(Path("/auth/reset-password", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Mails a password reset link to the account of a user name or e-mail.",
+        tag = "auth",
+        response = objectSchema(),
+        errors = listOf(NotExists::class, CantResetPasswordWait5Minutes::class, PluginDeniedLogin::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

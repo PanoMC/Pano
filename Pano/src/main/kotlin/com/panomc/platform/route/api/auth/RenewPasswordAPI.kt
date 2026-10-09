@@ -16,10 +16,16 @@ import com.panomc.platform.util.RegisterUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
+import com.panomc.platform.schema.EndpointDoc
+import com.panomc.platform.error.NewPasswordEmpty
+import com.panomc.platform.error.NewPasswordTooShort
+import com.panomc.platform.error.NewPasswordTooLong
+import com.panomc.platform.error.NewPasswordRepeatDoesntMatch
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class RenewPasswordAPI(
@@ -28,7 +34,14 @@ class RenewPasswordAPI(
     private val tokenProvider: TokenProvider,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/auth/renewPassword", RouteType.POST))
+    override val paths = listOf(Path("/auth/renew-password", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Sets a new password with the token from the reset mail.",
+        tag = "auth",
+        response = objectSchema(),
+        errors = listOf(InvalidLink::class, PluginDeniedLogin::class, NewPasswordEmpty::class, NewPasswordTooShort::class, NewPasswordTooLong::class, NewPasswordRepeatDoesntMatch::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

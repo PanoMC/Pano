@@ -13,4 +13,4 @@ import com.panomc.platform.model.Error
 class PluginUpToDate(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("PLUGIN_UP_TO_DATE", 400, statusMessage, extras)

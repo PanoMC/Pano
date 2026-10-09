@@ -11,21 +11,21 @@ import com.panomc.platform.node.NodeDaemonUpdateService
 import com.panomc.platform.route.api.panel.node.PanelUpdateNodeDaemonAPI
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * Updates the Pano Agent behind a server (`POST /api/panel/servers/:id/agent/update`).
+ * Updates the Pano Agent behind a server (`POST /api/v1/panel/servers/:id/agent/update`).
  *
  * An agent is a node, and it is updated exactly like one -- `SELF_UPDATE` with the jar this Pano
  * serves, through [NodeDaemonUpdateService] -- but it is never shown on the nodes page, so the
  * manual update has to be reachable from its server, under the servers permission. The automatic
  * update (`managed-servers.node-auto-update`) covers agents as well.
  *
- * Answers like `POST /api/panel/nodes/:id/update`: `{ upToDate: true }`, or `{ version, sha256 }`
+ * Answers like `POST /api/v1/panel/nodes/:id/update`: `{ upToDate: true }`, or `{ version, sha256 }`
  * of what was offered; 404 when this Pano has no daemon jar to hand out, `NODE_OFFLINE` when the
  * agent is not connected, and `SERVER_CAPABILITY_MISSING` for a server that has no agent.
  */
@@ -37,7 +37,7 @@ class PanelUpdateServerAgentAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/agent/update", RouteType.POST))
+    override val paths = listOf(Path("/servers/:id/agent/update", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

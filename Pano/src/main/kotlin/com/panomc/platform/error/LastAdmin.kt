@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class LastAdmin(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("LAST_ADMIN", 422, statusMessage, extras)

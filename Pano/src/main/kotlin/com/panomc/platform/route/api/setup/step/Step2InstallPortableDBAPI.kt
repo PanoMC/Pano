@@ -6,7 +6,7 @@ import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
 import kotlinx.coroutines.delay
@@ -16,7 +16,7 @@ class Step2InstallPortableDBAPI(
     private val mariaDBManager: MariaDBManager,
     private val configManager: ConfigManager
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/steps/2/install-portable", RouteType.POST))
+    override val paths = listOf(Path("/setup/steps/2/install-portable", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository).build()

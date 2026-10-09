@@ -1,6 +1,11 @@
 package com.panomc.platform.server.feature
 
+import com.panomc.platform.ApiLevel
+import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.db.model.Node
 import com.panomc.platform.db.model.Server
+import com.panomc.platform.node.NodeKind
+import com.panomc.platform.route.api.panel.compatibility.CompatibilityPayload
 import com.panomc.platform.error.FeatureUnavailable
 import com.panomc.platform.error.ServerNoStdin
 import com.panomc.platform.Main
@@ -53,7 +58,8 @@ class ServerFeatureResolver(
     private val agentNodeDirectory: AgentNodeDirectory,
     private val nodeJarProvider: NodeJarProvider,
     private val managedPluginJarResolver: ManagedPluginJarResolver,
-    private val nodeUpdateProgressStore: NodeUpdateProgressStore
+    private val nodeUpdateProgressStore: NodeUpdateProgressStore,
+    private val configManager: ConfigManager
 ) {
     /** Reads the live facts about [server] and resolves its features. */
     fun resolve(server: Server): ServerFeatures = resolve(inputsOf(server))
@@ -108,6 +114,7 @@ class ServerFeatureResolver(
                     }
                 )
                 put("nodeOutdated", nodeOutdatedOf(server))
+                put("nodeUnreachable", nodeUnreachableOf(server))
                 put("daemonUpdate", nodeUpdateProgressStore.get(server.nodeId)?.toServerJsonObject())
             }
 
@@ -146,6 +153,8 @@ class ServerFeatureResolver(
         return JsonObject()
             .put("available", PanoPluginStatus.updateAvailable(server.pluginVersion, latest))
             .put("outdatedProtocol", pluginConnected && server.protocolVersion < ServerProtocol.CURRENT_PROTOCOL_VERSION)
+            .put("unreachableProtocol", unreachablePlugin(server))
+            .put("downloadPath", if (unreachablePlugin(server)) CompatibilityPayload.serverJarPath(server.id) else null)
             .put("latestVersion", latest)
             .put("mode", mode?.wire)
             .put("manual", refusal != null && PanoPluginUpdatePlan.canUpdateByHand(refusal, server.isManaged))
@@ -160,6 +169,20 @@ class ServerFeatureResolver(
         val node = server.nodeId?.let { nodeManager.getConnectedNodeById(it) } ?: return false
 
         return node.protocolVersion < NodeProtocol.VERSION
+    }
+
+    /**
+     * The node (or Pano Agent) behind [server] when its stored protocol is too old to reach this Pano at all,
+     * connected or not: `{ nodeId, name, agent, protocolVersion, minProtocolVersion, downloadPath }`, else null.
+     * Only agents (kept in [AgentNodeDirectory]) and connected nodes are known here without a database round
+     * trip; the Nodes page lists every other stored node itself. The local node Pano manages is never flagged.
+     */
+    private fun nodeUnreachableOf(server: Server): JsonObject? {
+        val nodeId = server.nodeId ?: return null
+        val node = agentNodeDirectory.get(nodeId) ?: nodeManager.getConnectedNodeById(nodeId) ?: return null
+        val managed = CompatibilityPayload.localNodeManaged(configManager.config)
+
+        return unreachableNodeInfo(node, managed)
     }
 
     /** What the panel shows about the Pano Agent behind [server], or null when there is none. */
@@ -199,6 +222,28 @@ class ServerFeatureResolver(
         pick(inputsOf(server), feature)
 
     companion object {
+        /** A plugin Pano accepted whose stored protocol is below what this Pano talks to: it cannot reach it. */
+        fun unreachablePlugin(server: Server): Boolean =
+            server.permissionGranted && server.protocolVersion < ApiLevel.MIN_MC_PROTOCOL
+
+        /** A node (or agent) below [ApiLevel.MIN_NODE_PROTOCOL]; the local node Pano manages itself is exempt. */
+        fun unreachableNode(node: Node, localNodeManaged: Boolean): Boolean =
+            node.approved && node.protocolVersion < ApiLevel.MIN_NODE_PROTOCOL &&
+                !(localNodeManaged && node.kind == NodeKind.LOCAL)
+
+        /** The panel object for an unreachable [node], null when it is fine. */
+        fun unreachableNodeInfo(node: Node, localNodeManaged: Boolean): JsonObject? {
+            if (!unreachableNode(node, localNodeManaged)) return null
+
+            return JsonObject()
+                .put("nodeId", node.id)
+                .put("name", node.name)
+                .put("agent", node.agent)
+                .put("protocolVersion", node.protocolVersion)
+                .put("minProtocolVersion", ApiLevel.MIN_NODE_PROTOCOL)
+                .put("downloadPath", CompatibilityPayload.nodeJarPath(node.agent))
+        }
+
         private val NODE = ServerFeatureSource.NODE
         private val PLUGIN = ServerFeatureSource.PLUGIN
         private val PANO = ServerFeatureSource.PANO

@@ -10,4 +10,4 @@ import com.panomc.platform.model.Error
 class ServerInstallFailed(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("SERVER_INSTALL_FAILED", 409, statusMessage, extras)

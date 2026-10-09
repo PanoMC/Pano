@@ -14,8 +14,8 @@ import com.panomc.platform.util.TimeUtil
 import com.panomc.platform.util.TimeUtil.toGroupGetCountAndDates
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import io.vertx.json.schema.common.dsl.Schemas.enumSchema
@@ -30,7 +30,7 @@ class PanelGetStatisticsAPI(
     private val pluginManager: PluginManager,
     private val permissionManager: PermissionManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/statistics", RouteType.GET))
+    override val paths = listOf(Path("/statistics", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

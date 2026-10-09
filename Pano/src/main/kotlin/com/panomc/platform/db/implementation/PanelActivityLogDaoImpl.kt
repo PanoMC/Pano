@@ -110,7 +110,7 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
 
         beforeId?.let { parameters.add(it) }
 
-        parameters.add(limit.coerceIn(1, MAX_PAGE_SIZE))
+        parameters.add(limit.coerceIn(1, MAX_PAGE_SIZE + 1))
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -122,17 +122,20 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
 
     override suspend fun byUserId(
         userId: Long,
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<PanelActivityLog> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userId
+                    userId,
+                    limit,
+                    offset
                 )
             ).coAwait()
 
@@ -158,15 +161,16 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
     }
 
     override suspend fun getAll(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<PanelActivityLog> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.of(limit, offset))
             .coAwait()
 
         return rows.toEntities()
@@ -243,7 +247,7 @@ class PanelActivityLogDaoImpl : PanelActivityLogDao() {
     }
 
     companion object {
-        /** Hard ceiling on one page, whatever the caller asks for. */
-        const val MAX_PAGE_SIZE = 200
+        /** Hard ceiling on one page, whatever the caller asks for (see [PanelActivityLogDao.MAX_PAGE_SIZE]). */
+        const val MAX_PAGE_SIZE = PanelActivityLogDao.MAX_PAGE_SIZE
     }
 }

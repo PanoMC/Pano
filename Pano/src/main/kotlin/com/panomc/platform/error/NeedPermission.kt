@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class NeedPermission(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(401, statusMessage, extras)
+) : Error("NEED_PERMISSION", 401, statusMessage, extras)

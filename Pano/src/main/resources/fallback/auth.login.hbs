@@ -1,0 +1,60 @@
+{{pageTitle t.login.title}}
+<h1 class="pano-fb-title">{{t.login.heading}}</h1>
+<div data-pano-flow="login">
+  <p class="pano-fb-message" data-pano-message role="alert" hidden></p>
+
+  <form class="pano-fb-form" data-pano-step="credentials" data-pano-busy="{{t.common.working}}">
+    <label class="pano-fb-field">
+      <span>{{t.login.username}}</span>
+      <input type="text" name="usernameOrEmail" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </label>
+    <label class="pano-fb-field">
+      <span>{{t.login.password}}</span>
+      <input type="password" name="password" autocomplete="current-password">
+    </label>
+    <button type="submit" class="pano-fb-button">{{t.login.button}}</button>
+  </form>
+
+  <form class="pano-fb-form" data-pano-step="challenge" data-pano-busy="{{t.common.working}}" hidden>
+    <p class="pano-fb-lead">{{t.login.challengeLead}}</p>
+    <label class="pano-fb-field">
+      <span>{{t.login.challengeCode}}</span>
+      <input type="text" name="challenge" autocomplete="one-time-code" inputmode="numeric" spellcheck="false" required>
+    </label>
+    <button type="submit" class="pano-fb-button">{{t.login.challengeButton}}</button>
+  </form>
+
+  <form class="pano-fb-form" data-pano-step="link" data-pano-busy="{{t.common.working}}" hidden>
+    <p class="pano-fb-lead">{{t.login.linkLead}}</p>
+    <label class="pano-fb-field">
+      <span>{{t.login.linkCode}}</span>
+      <input type="text" name="code" autocomplete="off" spellcheck="false" required>
+    </label>
+    <button type="submit" class="pano-fb-button">{{t.login.linkButton}}</button>
+  </form>
+
+  <form class="pano-fb-form" data-pano-step="register" data-pano-busy="{{t.common.working}}" hidden>
+    <p class="pano-fb-lead">{{t.login.registerLead}}</p>
+    <label class="pano-fb-field">
+      <span>{{t.login.email}}</span>
+      <input type="email" name="email" autocomplete="email" required>
+    </label>
+    <label class="pano-fb-field">
+      <span>{{t.login.newPassword}}</span>
+      <input type="password" name="password" autocomplete="new-password" required>
+    </label>
+    <label class="pano-fb-field">
+      <span>{{t.login.newPasswordRepeat}}</span>
+      <input type="password" name="passwordRepeat" autocomplete="new-password" required>
+    </label>
+    <label class="pano-fb-check">
+      <input type="checkbox" name="agreement" required>
+      <span>{{t.login.agreement}}</span>
+    </label>
+    <button type="submit" class="pano-fb-button">{{t.login.registerButton}}</button>
+  </form>
+
+  <div class="pano-fb-done" data-pano-step="verify" hidden>
+    <p class="pano-fb-lead">{{t.login.verifyEmail}}</p>
+  </div>
+</div>

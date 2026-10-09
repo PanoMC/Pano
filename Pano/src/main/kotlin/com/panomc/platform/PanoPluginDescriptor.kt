@@ -20,6 +20,13 @@ class PanoPluginDescriptor : DefaultPluginDescriptor() {
      */
     var freemium: Boolean = false
 
+    /**
+     * The extension contract level the plugin needs (doc 04 section 7), from the `api-level` manifest attribute.
+     * A plugin built before the attribute existed has none, which reads as level 0 and is refused by the
+     * [com.panomc.platform.gate.ApiLevelGate].
+     */
+    var apiLevel: Int = 0
+
     @Deprecated("Do not use", level = DeprecationLevel.HIDDEN)
     override fun getProvider(): String? {
         return super.getProvider()

@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class InvalidPlatformUpdateFile(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(500, statusMessage, extras)
+) : Error("INVALID_PLATFORM_UPDATE_FILE", 500, statusMessage, extras)

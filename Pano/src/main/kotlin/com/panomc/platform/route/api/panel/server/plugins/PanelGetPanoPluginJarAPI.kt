@@ -11,8 +11,8 @@ import com.panomc.platform.server.plugins.PanoPluginJarProvider
 import com.panomc.platform.server.plugins.PanoPluginUpdatePlan
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.kotlin.coroutines.coAwait
@@ -20,11 +20,11 @@ import com.panomc.platform.util.UsageMode
 
 /**
  * The Pano plugin build for one server, as a download for the admin
- * (`GET /api/panel/servers/:id/pano-plugin/jar`).
+ * (`GET /api/v1/panel/servers/:id/pano-plugin/jar`).
  *
  * The hand-update path of [PanelUpdatePanoPluginAPI]: a linked server whose plugin is too old to
  * replace itself (or is not connected) is updated by putting this jar in its `plugins/` folder once.
- * It is the same file `GET /api/server/pano-plugin/jar` gives a plugin — the build for the server's
+ * It is the same file `GET /api/v1/server/pano-plugin/jar` gives a plugin — the build for the server's
  * platform, which may be a development build that exists nowhere else — under the permission a
  * plugin install needs, since that is what the admin is about to do with it.
  */
@@ -36,7 +36,7 @@ class PanelGetPanoPluginJarAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/pano-plugin/jar", RouteType.GET))
+    override val paths = listOf(Path("/servers/:id/pano-plugin/jar", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

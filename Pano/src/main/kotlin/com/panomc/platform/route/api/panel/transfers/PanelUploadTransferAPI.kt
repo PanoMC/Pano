@@ -44,7 +44,7 @@ class PanelUploadTransferAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/transfers/upload", RouteType.POST))
+    override val paths = listOf(Path("/transfers/upload", RouteType.POST))
 
     // Nothing to validate: the body is a multipart file and every other decision is made from the
     // session, so a schema would only be able to say "yes, that is a request".

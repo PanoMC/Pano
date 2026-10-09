@@ -1,0 +1,12 @@
+{{pageTitle t.activate.title}}
+<h1 class="pano-fb-title">{{t.activate.heading}}</h1>
+<form class="pano-fb-form" data-pano-endpoint="/auth/verify-email" data-pano-auto data-pano-busy="{{t.common.working}}">
+  <p class="pano-fb-lead" data-pano-hide-on-done>{{t.activate.lead}}</p>
+  <input type="hidden" name="token" value="{{token}}">
+  <p class="pano-fb-message" data-pano-message role="alert" hidden></p>
+  <button type="submit" class="pano-fb-button" data-pano-hide-on-done>{{t.activate.button}}</button>
+  <div class="pano-fb-done" data-pano-done hidden>
+    <p class="pano-fb-lead">{{t.activate.done}}</p>
+    {{#if loginUrl}}<a class="pano-fb-button" href="{{loginUrl}}">{{t.common.signIn}}</a>{{/if}}
+  </div>
+</form>

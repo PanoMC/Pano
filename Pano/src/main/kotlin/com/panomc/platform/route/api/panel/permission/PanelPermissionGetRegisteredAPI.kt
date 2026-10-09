@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.panel.permission
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.PermissionRegistry
 import com.panomc.platform.model.*
+import com.panomc.platform.route.Namespace
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
@@ -10,9 +11,11 @@ import io.vertx.json.schema.SchemaRepository
 class PanelPermissionGetRegisteredAPI(
     private val permissionRegistry: PermissionRegistry
 ) : Api() {
-    override val paths = listOf(Path("/api/panel/permission/registered", RouteType.GET))
+    override val paths = listOf(Path("/permission/registered", RouteType.GET))
 
-    // Lives under /api/panel/ but extends Api, not PanelApi — it feeds the panel's permission-node
+    override val namespace = Namespace.PANEL
+
+    // Lives under /api/v1/panel/ but extends Api, not PanelApi — it feeds the panel's permission-node
     // autocomplete, including the maintenance settings card.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
 

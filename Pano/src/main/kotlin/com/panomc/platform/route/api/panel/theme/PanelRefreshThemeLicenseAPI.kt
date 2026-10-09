@@ -11,8 +11,8 @@ import com.panomc.platform.license.deriveThemeLicenseStatusLabel
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
@@ -33,7 +33,7 @@ class PanelRefreshThemeLicenseAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/themes/:themeId/license/refresh", RouteType.POST))
+    override val paths = listOf(Path("/themes/:themeId/license/refresh", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap
  * An update needs more than a URL. It replaces something that works, so whoever receives it must be
  * able to check that what arrived is what was meant — a SHA-256 and a size — and a linked server's
  * plugin cannot be sent to GitHub for it at all, because it downloads through Pano with its own
- * token (`GET /api/server/pano-plugin/jar`). Both needs have the same answer: Pano has the jar.
+ * token (`GET /api/v1/server/pano-plugin/jar`). Both needs have the same answer: Pano has the jar.
  *
  * A development jar (`managed-servers.plugin-jar-dir`) is already on this disk and is used where it
  * is. A release asset is fetched once into `.temp/pano-plugin-jars/<platform>/`, which Pano empties

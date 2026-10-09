@@ -47,14 +47,18 @@ abstract class TicketCategoryDao : Dao<TicketCategory>(TicketCategory::class.jav
         sqlClient: SqlClient
     ): Long
 
-    abstract suspend fun getByPage(
-        page: Long,
+    /** Categories, newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getList(
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<TicketCategory>
 
-    abstract suspend fun getByPageAndSearch(
-        page: Long,
+    /** Categories matching [search], newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getListBySearch(
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<TicketCategory>
 

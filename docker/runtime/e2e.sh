@@ -5,7 +5,7 @@
 #   docker/runtime/e2e.sh <Pano jar> [JRE...]     (default JREs: 11 21; linux/amd64 only)
 # The first JRE runs the full scenario: env -> config, HTTP on 8088, setup (scripts/smoke-install.sh),
 # setup never visits the env-managed mail step (1 -> 4), capabilities announce, /panel/host-sso (single use),
-# GET /api/panel/hosted, mail delivered through a fake Portal mail relay (plain SMTP + AUTH on 2525, no STARTTLS),
+# GET /api/v1/panel/hosted, mail delivered through a fake Portal mail relay (plain SMTP + AUTH on 2525, no STARTTLS),
 # in-panel restart as an exit-75 relaunch (RestartCount stays 0), a simulated self-update through /data/.pano-jar,
 # a local Pano backup restored in the panel (the post-restore restart is an exit-75 relaunch too), clean stop.
 # Every further JRE boots the installed instance again and checks it serves (smoke).
@@ -200,7 +200,7 @@ build_image() { # jre
   last_image=$image
 }
 
-setup_api_up() { curl -fsS "$base/api/setup/step" >/dev/null || [ "$(curl -sS "$base/api/setup/step" | jq -r '.error // empty')" = PLATFORM_ALREADY_INSTALLED ]; }
+setup_api_up() { curl -fsS "$base/api/v1/setup/step" >/dev/null || [ "$(curl -sS "$base/api/v1/setup/step" | jq -r '.error.code // empty')" = PLATFORM_ALREADY_INSTALLED ]; }
 cp_seen() { grep -c "\"path\": \"$1\", \"authed\": true" "$work/cp.log" || true; }
 
 full=1
@@ -244,19 +244,19 @@ for jre in "${jres[@]}"; do
     check "SSO: no-store" grep -qi '^cache-control: *no-store' <<<"$sso"
     again=$(curl -sS -D - -o /dev/null "$base/panel/host-sso?t=$ticket")
     check "SSO: a used ticket lands on /panel/login" grep -qiE '^location: */panel/login' <<<"$again"
-    hosted=$(curl -sS -b "$work/sso.jar" "$base/api/panel/hosted")
-    check "SSO session reaches GET /api/panel/hosted (hosted, workload id)" jq -e ".hosted == true and .workloadId == \"$workload\"" <<<"$hosted"
-    check "GET /api/panel/hosted never returns the secret" not_contains "$hosted" "$secret"
+    hosted=$(curl -sS -b "$work/sso.jar" "$base/api/v1/panel/hosted")
+    check "SSO session reaches GET /api/v1/panel/hosted (hosted, workload id)" jq -e ".hosted == true and .workloadId == \"$workload\"" <<<"$hosted"
+    check "GET /api/v1/panel/hosted never returns the secret" not_contains "$hosted" "$secret"
 
     echo "  -- in-panel restart (exit 75)"
     curl -fsS -c "$work/admin.jar" -H 'Content-Type: application/json' \
-      --data "{\"usernameOrEmail\":\"smokeadmin\",\"password\":\"$admin_pass\",\"panel\":true}" "$base/api/auth/login" >/dev/null \
+      --data "{\"usernameOrEmail\":\"smokeadmin\",\"password\":\"$admin_pass\",\"panel\":true}" "$base/api/v1/auth/login" >/dev/null \
       || fail "admin login"
     csrf=$(awk '$6 ~ /csrf_token/ {print $7}' "$work/admin.jar" | head -1)
     pid_before=$(docker top "$pano" -eo pid,args | awk '/java/ && /-jar/ {print $1; exit}')
     restart() {
       curl -fsS -b "$work/admin.jar" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' \
-        --data "{\"password\":\"$admin_pass\"}" "$base/api/panel/settings/restart-pano" >/dev/null
+        --data "{\"password\":\"$admin_pass\"}" "$base/api/v1/panel/settings/restart-pano" >/dev/null
     }
     check "restart request accepted" restart
     check "launcher relaunched after exit 75" wait_for 90 logs_have 'pano-launcher: planned restart (exit 75)'
@@ -277,19 +277,19 @@ for jre in "${jres[@]}"; do
     login() {
       rm -f "$work/admin.jar"
       curl -fsS -c "$work/admin.jar" -H 'Content-Type: application/json' \
-        --data "{\"usernameOrEmail\":\"smokeadmin\",\"password\":\"$admin_pass\",\"panel\":true}" "$base/api/auth/login" >/dev/null &&
+        --data "{\"usernameOrEmail\":\"smokeadmin\",\"password\":\"$admin_pass\",\"panel\":true}" "$base/api/v1/auth/login" >/dev/null &&
         csrf=$(awk '$6 ~ /csrf_token/ {print $7}' "$work/admin.jar" | head -1)
     }
     panel() { # method path [body]
       curl -sS -X "$1" -b "$work/admin.jar" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' ${3:+--data "$3"} "$base$2"
     }
-    job_status() { panel GET /api/panel/pano-backups/job | jq -r '.job.status // empty'; }
+    job_status() { panel GET /api/v1/panel/pano-backups/job | jq -r '.job.status // empty'; }
     job_done() { [ "$(job_status)" = DONE ]; }
     check "admin login after the update" login
-    backup=$(panel POST /api/panel/pano-backups '{}')
-    check "backup job started" jqok '.result == "ok" and .job.type == "CREATE"' <<<"$backup"
+    backup=$(panel POST /api/v1/panel/pano-backups '{}')
+    check "backup job started" jqok '(has("error") | not) and .job.type == "CREATE"' <<<"$backup"
     check "backup job finished" wait_for 180 job_done
-    backup_id=$(panel GET /api/panel/pano-backups/job | jq -r '.job.backupId // empty')
+    backup_id=$(panel GET /api/v1/panel/pano-backups/job | jq -r '.job.backupId // empty')
     check "backup listed" sh -c "test -n '$backup_id'"
 
     echo "  -- mail through the Portal mail relay (no STARTTLS)"
@@ -297,11 +297,11 @@ for jre in "${jres[@]}"; do
     mail_to="$mail_user@example.com"
     curl -sS -H 'Content-Type: application/json' \
       --data "{\"username\":\"$mail_user\",\"email\":\"$mail_to\",\"password\":\"$admin_pass\",\"passwordRepeat\":\"$admin_pass\",\"agreement\":true}" \
-      "$base/api/auth/register" >"$work/register.json"
-    check "a new player registers" jqok '.result == "ok"' "$work/register.json"
-    check "the player exists before the restore" jqok '.result == "ok"' <<<"$(panel GET "/api/panel/players/$mail_user/exists")"
+      "$base/api/v1/auth/register" >"$work/register.json"
+    check "a new player registers" jqok 'has("error") | not' "$work/register.json"
+    check "the player exists before the restore" jqok 'has("error") | not' <<<"$(panel GET "/api/v1/panel/players/$mail_user/exists")"
     # registration mails only when verification is required; the panel's resend always mails an unverified player
-    panel POST "/api/panel/players/$mail_user/verificationMail" >"$work/verify.json"
+    panel POST "/api/v1/panel/players/$mail_user/verificationMail" >"$work/verify.json"
     relayed() { grep -F "\"$mail_to\"" "$work/relay.log" | grep -q '"user": "pano_w"'; }
     check "activation mail reached the relay with the env credentials" wait_for 60 relayed
     check "Pano never asked the relay for STARTTLS" not_contains "$(cat "$work/relay.log")" '"starttls": true'
@@ -310,13 +310,13 @@ for jre in "${jres[@]}"; do
     echo "  -- restore of the local backup (post-restore restart = exit 75)"
     relaunches() { docker logs "$pano" 2>&1 | grep -c 'pano-launcher: planned restart (exit 75)' || true; }
     before=$(relaunches)
-    restore=$(panel POST "/api/panel/pano-backups/$backup_id/restore" "{\"currentPassword\":\"$admin_pass\"}")
-    check "restore accepted" jqok '.result == "ok" and .job.type == "RESTORE"' <<<"$restore"
+    restore=$(panel POST "/api/v1/panel/pano-backups/$backup_id/restore" "{\"currentPassword\":\"$admin_pass\"}")
+    check "restore accepted" jqok '(has("error") | not) and .job.type == "RESTORE"' <<<"$restore"
     relaunched() { [ "$(relaunches)" -gt "$before" ]; }
     check "launcher relaunched after the restore (exit 75)" wait_for 240 relaunched
     check "Pano serves after the restore" wait_for 240 serves /panel/_app/version.json 200
     check "admin login after the restore" wait_for 60 login
-    check "the restored database predates the mail user" test "$(panel GET "/api/panel/players/$mail_user/exists" | jq -r '.error // empty')" = NOT_EXISTS
+    check "the restored database predates the mail user" test "$(panel GET "/api/v1/panel/players/$mail_user/exists" | jq -r '.error.code // empty')" = NOT_EXISTS
     check "container RestartCount stays 0 after the restore" test "$(restart_count)" = 0
     check "the jar pointer survives the restore" sh -c "docker exec '$pano' cat /data/.pano-jar | grep -qx 'Pano-e2e-b.jar'"
     check "container never stopped (restore)" running

@@ -16,6 +16,7 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
         private const val PLUGIN_LICENSE: String = "license"
         private const val PLUGIN_SOURCE_URL: String = "source-url"
         private const val PLUGIN_FREEMIUM: String = "freemium"
+        private const val PLUGIN_API_LEVEL: String = "api-level"
         private const val PLUGIN_DEPENDENCIES: String = "dependencies"
         private const val PLUGIN_REQUIRES: String = "requires"
     }
@@ -39,6 +40,8 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
         val sourceUrl = attributes.getValue(PLUGIN_SOURCE_URL)
         // Absent attribute means "not freemium", so every existing plugin keeps its behaviour.
         val freemium = attributes.getValue(PLUGIN_FREEMIUM).toBoolean()
+        // Absent (or not a number) means level 0: a plugin built before the cutover, refused by the API level gate.
+        val apiLevel = attributes.getValue(PLUGIN_API_LEVEL)?.trim()?.toIntOrNull() ?: 0
         val dependencies = attributes.getValue(PLUGIN_DEPENDENCIES)
         val requires = attributes.getValue(PLUGIN_REQUIRES)
 
@@ -52,6 +55,7 @@ class PanoManifestPluginDescriptorFinder : ManifestPluginDescriptorFinder() {
         pluginDescriptor.setLicense(license)
         pluginDescriptor.sourceUrl = sourceUrl
         pluginDescriptor.freemium = freemium
+        pluginDescriptor.apiLevel = apiLevel
         pluginDescriptor.setDependencies(dependencies ?: "")
         pluginDescriptor.setRequires(requires ?: "")
 

@@ -14,7 +14,7 @@ import io.vertx.kotlin.coroutines.coAwait
 
 /**
  * The Pano plugin build a node should put inside a managed server
- * (`GET /api/node/plugin-jars/:platform`).
+ * (`GET /api/v1/node/plugin-jars/:platform`).
  *
  * Exists because `managed-servers.plugin-jar-dir` used to be handed to nodes as a `file://` URL.
  * That works for the daemon Pano runs beside itself and for nothing else: a node on another machine
@@ -22,7 +22,7 @@ import io.vertx.kotlin.coroutines.coAwait
  * the plugin, and the task still said DONE. Publishing the jar turns a path only one host can read
  * into an artifact every node can fetch from the Pano it is already talking to.
  *
- * Public and unauthenticated, at the same trust level as [NodeJarAPI] and `GET /api/node/install.sh`:
+ * Public and unauthenticated, at the same trust level as [NodeJarAPI] and `GET /api/v1/node/install.sh`:
  * the plugin is a published artifact of `PanoMC/pano-mc-plugin` that anybody can download from
  * GitHub, and it carries no credential — the token and the AES key travel inside `INSTALL_SERVER`,
  * on an encrypted socket, and are written next to the jar by the node.

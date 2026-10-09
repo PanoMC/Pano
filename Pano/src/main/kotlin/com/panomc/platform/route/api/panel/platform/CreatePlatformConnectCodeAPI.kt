@@ -7,7 +7,7 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
@@ -15,7 +15,7 @@ class CreatePlatformConnectCodeAPI(
     private val panoApiManager: PanoApiManager,
     private val authProvider: AuthProvider,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/platform/code", RouteType.POST))
+    override val paths = listOf(Path("/platform/code", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

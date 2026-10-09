@@ -7,12 +7,15 @@ import com.panomc.platform.error.PostNotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.security.MessageDigest
 import com.panomc.platform.util.UsageMode
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 
 @Endpoint
 class TrackPostViewAPI(
@@ -34,7 +37,14 @@ class TrackPostViewAPI(
     override val usageModes = UsageMode.WITH_WEBSITE
 
 
-    override val paths = listOf(Path("/api/posts/:url/view", RouteType.POST))
+    override val paths = listOf(Path("/posts/:url/view", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Counts one view of a post; a bot or a repeat view inside the window is not counted.",
+        tag = "posts",
+        response = objectSchema().requiredProperty("counted", booleanSchema()),
+        errors = listOf(PostNotFound::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

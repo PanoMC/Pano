@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class PanoNotConnected(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("PANO_NOT_CONNECTED", 400, statusMessage, extras)

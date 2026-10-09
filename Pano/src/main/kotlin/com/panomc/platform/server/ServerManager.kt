@@ -183,7 +183,7 @@ class ServerManager(
 
     /**
      * Application-level WebSocket heartbeat for every connected Minecraft server. Keeps the
-     * long-lived /api/server/connection socket non-idle end to end so a reverse proxy in front of
+     * long-lived /api/v1/server/connection socket non-idle end to end so a reverse proxy in front of
      * Pano (Nginx, Cloudflare, a cloud load balancer) doesn't kill it as idle, and lets this side
      * notice a dead peer quickly instead of relying on TCP-level failure detection. This is purely
      * protocol-level (WebSocket ping/pong frames) and never touches the encrypted message layer.

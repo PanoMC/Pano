@@ -62,7 +62,7 @@ class NodeInstallScriptProviderTest {
         // Serving it locally is what makes a node installable without any release existing, so
         // the local jar has to win over both the pinned tag and the latest-release fallback.
         assertEquals(
-            "https://pano.example.com/api/node/pano-node.jar",
+            "https://pano.example.com/api/v1/node/pano-node.jar",
             NodeInstallScriptProvider.downloadUrl("https://pano.example.com", servedByPano = true, version = "1.2.3")
         )
         assertEquals(

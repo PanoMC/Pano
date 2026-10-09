@@ -8,16 +8,14 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.error.CategoryNotExists
-import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.PostStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
-import kotlin.math.ceil
 import com.panomc.platform.util.UsageMode
 
 @Endpoint
@@ -27,10 +25,10 @@ class PanelGetPostsAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/posts", RouteType.GET))
+    override val paths = listOf(Path("/posts", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
+        Paging.params(ValidationHandlerBuilder.create(schemaRepository))
             .queryParameter(
                 optionalParam(
                     "pageType",
@@ -38,7 +36,6 @@ class PanelGetPostsAPI(
                         .items(enumSchema(*PostStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
-            .queryParameter(optionalParam("page", numberSchema()))
             .queryParameter(optionalParam("categoryUrl", stringSchema()))
             .queryParameter(optionalParam("search", stringSchema()))
             .build()
@@ -52,7 +49,7 @@ class PanelGetPostsAPI(
             PostStatus.valueOf(
                 parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: PostStatus.PUBLISHED.name
             )
-        val page = parameters.queryParameter("page")?.long ?: 1L
+        val page = Paging.request(context)
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
         val search = parameters.queryParameter("search")?.string
 
@@ -81,24 +78,17 @@ class PanelGetPostsAPI(
         else
             databaseManager.postDao.countByPageType(pageType, sqlClient)
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
-
-        if (totalPage < 1)
-            totalPage = 1
-
-        if (page > totalPage || page < 1) {
-            throw PageNotFound()
-        }
+        Paging.requireInRange(page, count)
 
         val posts = if (search != null)
-            databaseManager.postDao.getByPageAndPageTypeAndSearch(page, pageType, search, sqlClient)
+            databaseManager.postDao.getListByPageTypeAndSearch(pageType, search, page.limit, page.offset, sqlClient)
         else if (postCategory != null)
-            databaseManager.postDao.getByPagePageTypeAndCategoryId(page, pageType, postCategory.id, sqlClient)
+            databaseManager.postDao.getListByPageTypeAndCategoryId(pageType, postCategory.id, page.limit, page.offset, sqlClient)
         else
-            databaseManager.postDao.getByPageAndPageType(page, pageType, sqlClient)
+            databaseManager.postDao.getListByPageType(pageType, page.limit, page.offset, sqlClient)
 
         if (posts.isEmpty()) {
-            return getResults(postCategory, posts, mapOf(), mapOf(), count, totalPage)
+            return getResults(postCategory, posts, mapOf(), mapOf(), count, page)
         }
 
         val userIdList = posts.distinctBy { it.writerUserId }.map { it.writerUserId }.filter { it != -1L }
@@ -106,18 +96,18 @@ class PanelGetPostsAPI(
         val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
         if (postCategory != null) {
-            return getResults(postCategory, posts, usernameList, mapOf(), count, totalPage)
+            return getResults(postCategory, posts, usernameList, mapOf(), count, page)
         }
 
         val categoryIdList = posts.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
-            return getResults(null, posts, usernameList, mapOf(), count, totalPage)
+            return getResults(null, posts, usernameList, mapOf(), count, page)
         }
 
         val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlClient)
 
-        return getResults(null, posts, usernameList, categories, count, totalPage)
+        return getResults(null, posts, usernameList, categories, count, page)
     }
 
     private fun getResults(
@@ -126,45 +116,52 @@ class PanelGetPostsAPI(
         usernameList: Map<Long, String>,
         categories: Map<Long, PostCategory>,
         count: Long,
-        totalPage: Long
-    ): Result {
-        val postsDataList = mutableListOf<Map<String, Any?>>()
+        page: PageRequest
+    ): Result = Successful(payload(postCategory, posts, usernameList, categories, count, page))
 
-        posts.forEach { post ->
-            postsDataList.add(
-                mapOf(
-                    "id" to post.id,
-                    "title" to post.title,
-                    "category" to
-                            (postCategory
-                                ?: if (post.categoryId == -1L)
-                                    mapOf("id" to -1, "title" to "-", "url" to "-")
-                                else
-                                    categories.getOrDefault(
-                                        post.categoryId,
+    companion object {
+        /** The whole response body: `{ items, page }` plus the `category` when the list is filtered. */
+        fun payload(
+            postCategory: PostCategory?,
+            posts: List<Post>,
+            usernameList: Map<Long, String>,
+            categories: Map<Long, PostCategory>,
+            count: Long,
+            page: PageRequest
+        ): Map<String, Any?> {
+            val postsDataList = mutableListOf<Map<String, Any?>>()
+
+            posts.forEach { post ->
+                postsDataList.add(
+                    mapOf(
+                        "id" to post.id,
+                        "title" to post.title,
+                        "category" to
+                                (postCategory
+                                    ?: if (post.categoryId == -1L)
                                         mapOf("id" to -1, "title" to "-", "url" to "-")
-                                    )),
-                    "writer" to mapOf(
-                        "username" to (usernameList[post.writerUserId] ?: "-")
-                    ),
-                    "date" to post.date,
-                    "thumbnailUrl" to post.thumbnailUrl,
-                    "views" to post.views,
-                    "status" to post.status
+                                    else
+                                        categories.getOrDefault(
+                                            post.categoryId,
+                                            mapOf("id" to -1, "title" to "-", "url" to "-")
+                                        )),
+                        "writer" to mapOf(
+                            "username" to (usernameList[post.writerUserId] ?: "-")
+                        ),
+                        "date" to post.date,
+                        "thumbnailUrl" to post.thumbnailUrl,
+                        "views" to post.views,
+                        "status" to post.status
+                    )
                 )
+            }
+
+            return Paging.response(
+                postsDataList,
+                count,
+                page,
+                if (postCategory != null) mapOf("category" to postCategory) else mapOf()
             )
         }
-
-        val result = mutableMapOf<String, Any?>(
-            "posts" to postsDataList,
-            "postCount" to count,
-            "totalPage" to totalPage
-        )
-
-        if (postCategory != null) {
-            result["category"] = postCategory
-        }
-
-        return Successful(result)
     }
 }

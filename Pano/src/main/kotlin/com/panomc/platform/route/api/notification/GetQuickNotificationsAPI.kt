@@ -7,6 +7,7 @@ import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationTypeRegistry
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.schema.EndpointDoc
 
 @Endpoint
 class GetQuickNotificationsAPI(
@@ -14,7 +15,13 @@ class GetQuickNotificationsAPI(
     private val databaseManager: DatabaseManager,
     private val notificationTypeRegistry: NotificationTypeRegistry
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/notifications/quick", RouteType.GET))
+    override val paths = listOf(Path("/notifications/quick", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The last five notifications and the number of unread ones, for a dropdown.",
+        tag = "notifications",
+        response = NotificationPage.schema
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -27,27 +34,16 @@ class GetQuickNotificationsAPI(
 
         val count = databaseManager.notificationDao.getCountOfNotReadByUserId(userId, sqlClient)
 
-        val notificationsDataList = mutableListOf<Map<String, Any?>>()
-
-        notifications.forEach { notification ->
-            notificationsDataList.add(
-                mapOf(
-                    "id" to notification.id,
-                    "type" to notification.type.getName(),
-                    "pluginId" to notificationTypeRegistry.ownerOf(notification.type.getName()),
-                    "details" to notification.details.map,
-                    "status" to notification.status,
-                    "isPersonal" to (notification.userId == userId),
-                    "createdAt" to notification.createdAt,
-                    "updatedAt" to notification.updatedAt,
-                )
-            )
-        }
+        val total = databaseManager.notificationDao.getCountByUserId(userId, sqlClient)
 
         return Successful(
-            mutableMapOf<String, Any?>(
-                "notifications" to notificationsDataList,
-                "notificationCount" to count
+            NotificationPage.payload(
+                notifications,
+                userId,
+                notificationTypeRegistry::ownerOf,
+                NotificationPage.QUICK_SIZE,
+                total > notifications.size,
+                count
             )
         )
     }

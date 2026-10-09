@@ -14,13 +14,17 @@ class ChangeEmailMail(private val token: String, private val username: String, p
         i18nManager: I18nManager,
         locale: String,
     ) = ChangeEmailMailParameters(
-        "${systemParameters.websiteUrl}/activate-new-email?token=$token",
+        confirmationLink(systemParameters),
         username,
         newEmail,
         getTranslations(
             i18nManager, locale, "mail.change-email", mapOf("change-email-expires" to mapOf("minutes" to 15))
         )
     )
+
+    /** Where the visitor confirms the new address: target `auth.activate-new-email` of the front-end URL map. */
+    internal fun confirmationLink(systemParameters: MailManager.Companion.SystemParameters) =
+        systemParameters.linkTo("auth.activate-new-email", mapOf("token" to token), "/activate-new-email?token=$token")
 
     companion object {
         data class ChangeEmailMailParameters(

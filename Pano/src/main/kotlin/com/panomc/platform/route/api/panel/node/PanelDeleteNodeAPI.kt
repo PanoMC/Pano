@@ -11,9 +11,9 @@ import com.panomc.platform.node.NodeRemovalService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
@@ -22,7 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * Deletes a node and everything on it (`POST /api/panel/nodes/:id/delete`, SM-64, §2.4.29 B).
+ * Deletes a node and everything on it (`POST /api/v1/panel/nodes/:id/delete`, SM-64, §2.4.29 B).
  *
  * Body `{ currentPassword, force? }` → `{ removedFiles, serversDeleted, manualSteps: [] }`.
  *
@@ -41,7 +41,7 @@ class PanelDeleteNodeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/:id/delete", RouteType.POST))
+    override val paths = listOf(Path("/nodes/:id/delete", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

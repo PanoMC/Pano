@@ -8,7 +8,7 @@ import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class GetCurrentStepAPI : SetupApi() {
-    override val paths = listOf(Path("/api/setup/step", RouteType.GET))
+    override val paths = listOf(Path("/setup/step", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

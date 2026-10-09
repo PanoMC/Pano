@@ -36,7 +36,7 @@ class SelfUpdateService(
 
     fun handle(message: SelfUpdateMessage) {
         val version = message.version
-        // Pano serves the daemon from `/api/node/pano-node.jar`, which is a path rather than a URL
+        // Pano serves the daemon from `/api/v1/node/pano-node.jar`, which is a path rather than a URL
         // for the usual reason: the address this node reaches Pano on is a fact only this node has.
         val url = platformUrls.resolve(message.url)
         val sha256 = message.sha256

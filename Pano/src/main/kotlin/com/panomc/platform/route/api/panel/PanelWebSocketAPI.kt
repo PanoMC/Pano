@@ -1,5 +1,8 @@
 package com.panomc.platform.route.api.panel
 
+import com.panomc.platform.access.AccessContext
+import com.panomc.platform.access.OriginClass
+import com.panomc.platform.access.WsAuth
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageNodesPermission
@@ -21,7 +24,7 @@ class PanelWebSocketAPI(
     private val authProvider: AuthProvider,
     private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/ws", RouteType.GET))
+    override val paths = listOf(Path("/ws", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -33,6 +36,15 @@ class PanelWebSocketAPI(
     override suspend fun onBeforeHandle(context: RoutingContext) {
         context.request().pause()
         try {
+            // A cookie is ambient: only the panel's own site may open the panel socket with it (doc 05 §6). A
+            // front-end on an allowed origin has no business here, and a foreign page least of all.
+            WsAuth.checkCookieOrigin(
+                source = authProvider.credentialSource(context),
+                origin = AccessContext.of(context)?.origin ?: OriginClass.NONE,
+                originHeader = context.request().getHeader("Origin"),
+                panel = true
+            )
+
             super.onBeforeHandle(context)
         } catch (e: Throwable) {
             try {

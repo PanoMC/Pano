@@ -10,4 +10,4 @@ import com.panomc.platform.model.Error
 class NodeOutdated(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("NODE_OUTDATED", 409, statusMessage, extras)

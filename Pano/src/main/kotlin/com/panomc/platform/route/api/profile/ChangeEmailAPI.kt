@@ -17,11 +17,12 @@ import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.schema.EndpointDoc
 
 @Endpoint
 class ChangeEmailAPI(
@@ -30,7 +31,14 @@ class ChangeEmailAPI(
     private val authProvider: AuthProvider,
     private val tokenProvider: TokenProvider
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/profile/changeEmail", RouteType.POST))
+    override val paths = listOf(Path("/profile/change-email", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Starts an e-mail change: stores the new address as pending and mails a confirmation link.",
+        tag = "profile",
+        response = objectSchema(),
+        errors = listOf(InvalidEmail::class, CantChangeEmailWait15Minutes::class, CurrentPasswordNotCorrect::class, NewEmailExists::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

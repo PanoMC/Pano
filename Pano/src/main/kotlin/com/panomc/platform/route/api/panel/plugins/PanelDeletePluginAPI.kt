@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.panel.plugins
 
 
 import com.panomc.platform.PluginManager
+import com.panomc.platform.gate.Verdict
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.auth.AuthProvider
@@ -13,8 +14,8 @@ import com.panomc.platform.model.*
 import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.coAwait
@@ -27,7 +28,7 @@ class PanelDeletePluginAPI(
     private val pluginManager: PluginManager,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.DELETE))
+    override val paths = listOf(Path("/addons/:pluginId", RouteType.DELETE))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -48,10 +49,12 @@ class PanelDeletePluginAPI(
         }
 
         val pluginFile = pluginWrapper.pluginPath.toFile()
-        val plugin = (pluginWrapper.plugin as PanoPlugin)
+        // A plugin the API level gate holds disabled never ran and is never instantiated (reading wrapper.plugin
+        // would build it against an API it was not made for): it is removed without its hooks.
+        val plugin = if (pluginManager.verdictOf(pluginId) == Verdict.OK) (pluginWrapper.plugin as PanoPlugin) else null
 
-        plugin.onUninstall()
-        PluginManager.lifecycleListeners.forEach { it.onPluginUnload(plugin) }
+        plugin?.onUninstall()
+        plugin?.let { held -> PluginManager.lifecycleListeners.forEach { it.onPluginUnload(held) } }
 
         pluginManager.stopPlugin(pluginId)
 
@@ -63,7 +66,7 @@ class PanelDeletePluginAPI(
             pluginManager.disablePlugin(it)
         }
 
-        plugin.unload()
+        plugin?.unload()
         pluginManager.unloadPlugin(pluginId)
 
         vertx.executeBlocking<Unit> {

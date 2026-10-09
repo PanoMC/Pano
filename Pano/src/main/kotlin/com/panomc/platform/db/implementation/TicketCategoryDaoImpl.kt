@@ -167,28 +167,30 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun getByPage(
-        page: Long,
+    override suspend fun getList(
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<TicketCategory> {
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC ${if (page != 0L) "LIMIT 10 OFFSET " + (page - 1) * 10 else ""}"
+            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.of(limit, offset))
             .coAwait()
 
         return rows.toEntities()
     }
 
-    override suspend fun getByPageAndSearch(
-        page: Long,
+    override suspend fun getListBySearch(
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<TicketCategory> {
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ? ORDER BY id DESC ${if (page != 0L) "LIMIT 10 OFFSET " + (page - 1) * 10 else ""}"
+            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ? ORDER BY id DESC LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class InvalidToken(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(401, statusMessage, extras)
+) : Error("INVALID_TOKEN", 401, statusMessage, extras)

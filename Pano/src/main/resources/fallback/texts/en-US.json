@@ -1,0 +1,77 @@
+{
+  "common": {
+    "working": "Please wait...",
+    "signIn": "Sign in"
+  },
+  "activate": {
+    "title": "Activate your account",
+    "heading": "Activate your account",
+    "lead": "We are confirming your e-mail address.",
+    "button": "Activate my account",
+    "done": "Your account is active. You can sign in now."
+  },
+  "activateNewEmail": {
+    "title": "Confirm your new e-mail",
+    "heading": "Confirm your new e-mail",
+    "lead": "We are confirming your new e-mail address.",
+    "button": "Confirm e-mail",
+    "done": "Your new e-mail address is confirmed."
+  },
+  "renewPassword": {
+    "title": "Choose a new password",
+    "heading": "Choose a new password",
+    "lead": "Enter the new password for your account.",
+    "newPassword": "New password",
+    "newPasswordRepeat": "New password again",
+    "button": "Save password",
+    "done": "Your password is changed. You can sign in with it now."
+  },
+  "login": {
+    "title": "Sign in",
+    "heading": "Sign in",
+    "username": "Username or e-mail",
+    "password": "Password",
+    "button": "Sign in",
+    "challengeLead": "Enter the verification code to finish signing in.",
+    "challengeCode": "Verification code",
+    "challengeButton": "Verify",
+    "linkLead": "This account has no password yet. Enter the code you got in the game with the link command.",
+    "linkCode": "Link code",
+    "linkButton": "Continue",
+    "registerLead": "Choose an e-mail address and a password for your account.",
+    "email": "E-mail",
+    "newPassword": "Password",
+    "newPasswordRepeat": "Password again",
+    "agreement": "I accept the user agreement",
+    "registerButton": "Create my account",
+    "verifyEmail": "We sent you an e-mail. Open the link in it to activate your account, then sign in."
+  },
+  "errors": {
+    "GENERIC": "Something went wrong. Please try again.",
+    "NETWORK": "Could not reach the server. Please try again.",
+    "INVALID_LINK": "This link is not valid or has expired.",
+    "INVALID_TOKEN": "This link is not valid or has expired.",
+    "LOGIN_IS_INVALID": "The user name or the password is wrong.",
+    "LOGIN_EMAIL_NOT_VERIFIED": "Your e-mail address is not verified yet. We sent you an activation link.",
+    "LOGIN_USER_IS_BANNED": "This account is banned.",
+    "IP_IS_BANNED": "Your IP address is banned.",
+    "RATE_LIMITED": "Too many attempts. Please wait a moment and try again.",
+    "RATE_LIMIT_EXCEEDED": "Too many attempts. Please wait a moment and try again.",
+    "MAINTENANCE_MODE_ENABLED": "The site is under maintenance.",
+    "REGISTER_LINK_CODE_INVALID": "The link code is wrong or has expired.",
+    "PLUGIN_DENIED_LOGIN": "This sign-in needs a step that this page cannot show. Sign in on the site.",
+    "CHALLENGE_INVALID": "The verification code is wrong. Please try again.",
+    "NEW_PASSWORD_EMPTY": "Enter a new password.",
+    "NEW_PASSWORD_TOO_SHORT": "The password is too short.",
+    "NEW_PASSWORD_TOO_LONG": "The password is too long.",
+    "NEW_PASSWORD_REPEAT_DOESNT_MATCH": "The two passwords are not the same.",
+    "REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME": "The two passwords are not the same.",
+    "PASSWORD_EMPTY": "Enter a password.",
+    "PASSWORD_TOO_SHORT": "The password is too short.",
+    "PASSWORD_TOO_LONG": "The password is too long.",
+    "REGISTER_INVALID_EMAIL": "This e-mail address is not valid.",
+    "REGISTER_EMAIL_NOT_AVAILABLE": "This e-mail address is already in use.",
+    "REGISTER_NOT_ACCEPTED_AGREEMENT": "You must accept the user agreement.",
+    "INVALID_CSRF_TOKEN": "Your session expired. Reload the page and try again."
+  }
+}

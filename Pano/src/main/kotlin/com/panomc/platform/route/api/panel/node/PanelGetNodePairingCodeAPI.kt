@@ -15,7 +15,7 @@ import com.panomc.platform.util.UsageMode
  * The rotating pairing code for the Add-node modal, with how long it is still good for and the
  * one-line commands that use it.
  *
- * Registered at a lower order than the rest of the node routes: `/api/panel/nodes/:id` would
+ * Registered at a lower order than the rest of the node routes: `/api/v1/panel/nodes/:id` would
  * otherwise match `pairing-code` first and reject it as a non-numeric id, and Vert.x fails the
  * first matching route rather than trying the next one.
  *
@@ -34,7 +34,7 @@ class PanelGetNodePairingCodeAPI(
     override val usageModes = UsageMode.WITH_SERVERS
 
 
-    override val paths = listOf(Path("/api/panel/nodes/pairing-code", RouteType.GET))
+    override val paths = listOf(Path("/nodes/pairing-code", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

@@ -7,8 +7,8 @@ import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 
@@ -16,7 +16,7 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 class Step3VerifyMailAPI(
     private val mailManager: MailManager
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/steps/3/verify", RouteType.POST))
+    override val paths = listOf(Path("/setup/steps/3/verify", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

@@ -13,6 +13,7 @@ import com.panomc.platform.node.dto.ScannedPluginData
 import com.panomc.platform.node.message.InstallPluginMessage
 import com.panomc.platform.node.message.PluginScanMessage
 import com.panomc.platform.panel.PanelRealtimeHub
+import com.panomc.platform.route.ApiPaths
 import com.panomc.platform.server.ServerActiveTaskStore
 import com.panomc.platform.server.ServerCapability
 import com.panomc.platform.server.ServerManager
@@ -86,7 +87,7 @@ class PanoPluginUpdateService(
 
     /**
      * Whether [server] has no route right now but its admin can update it by hand from the jar
-     * `GET /api/panel/servers/:id/pano-plugin/jar` serves (see [PanoPluginUpdatePlan.canUpdateByHand]).
+     * `GET /api/v1/panel/servers/:id/pano-plugin/jar` serves (see [PanoPluginUpdatePlan.canUpdateByHand]).
      */
     fun canUpdateByHand(server: Server): Boolean {
         if (ManagedPluginJarResolver.platformOf(server.type) == null || modeFor(server) != null) {
@@ -226,7 +227,7 @@ class PanoPluginUpdateService(
             PanoPluginUpdateMessage(
                 eventId = UUID.randomUUID().toString(),
                 taskId = task.uuid,
-                url = SERVER_JAR_PATH,
+                url = ApiPaths.core(SERVER_JAR_PATH),
                 sha256 = jar.sha256,
                 size = jar.size,
                 fileName = jar.fileName,
@@ -325,8 +326,8 @@ class PanoPluginUpdateService(
     }
 
     companion object {
-        /** Where a plugin fetches its successor from; see `ServerPanoPluginJarAPI`. */
-        const val SERVER_JAR_PATH = "/api/server/pano-plugin/jar"
+        /** Declared path of `ServerPanoPluginJarAPI`, where a plugin fetches its successor from. */
+        const val SERVER_JAR_PATH = "/server/pano-plugin/jar"
 
         /** How long the node gets to list the plugin directory before the update is refused. */
         private const val SCAN_TIMEOUT_MS = 10_000L

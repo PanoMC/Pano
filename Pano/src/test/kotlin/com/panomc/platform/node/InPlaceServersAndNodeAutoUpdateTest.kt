@@ -170,7 +170,7 @@ class InPlaceServersAndNodeAutoUpdateTest {
 
     @Test
     fun `in-place adoption needs protocol 5`() {
-        assertEquals(5, NodeProtocol.VERSION)
+        assertEquals(6, NodeProtocol.VERSION)
         assertFalse(NodeProtocol.supportsInPlace(null))
         assertFalse(NodeProtocol.supportsInPlace(4))
         assertTrue(NodeProtocol.supportsInPlace(5))

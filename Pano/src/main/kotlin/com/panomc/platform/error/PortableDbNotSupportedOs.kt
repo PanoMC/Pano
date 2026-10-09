@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class PortableDbNotSupportedOs(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(500, statusMessage, extras)
+) : Error("PORTABLE_DB_NOT_SUPPORTED_OS", 500, statusMessage, extras)

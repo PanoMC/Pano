@@ -7,6 +7,7 @@ import com.panomc.platform.api.config.ConfigComment
 import com.panomc.platform.api.config.ConfigSection
 import com.panomc.platform.Main.Companion.STAGE
 import com.panomc.platform.ReleaseStage
+import com.panomc.platform.ui.FrontendMode
 import com.panomc.platform.util.KeyGeneratorUtil
 import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.util.UpdateSource
@@ -90,6 +91,23 @@ data class PanoConfig(
 
     @ConfigComment("Active theme ID; falls back to \"vanilla-theme\" if invalid. Change via Panel → View → Themes.")
     @SerializedName("current-theme") var currentTheme: String = "vanilla-theme",
+
+    @ConfigSection("Front-end")
+    @ConfigComment(
+        "Who serves the website's pages at / (usage-mode = SERVERS still wins and serves none):",
+        "  THEME      — a theme run by Pano: current-theme above (default).",
+        "  CUSTOM_APP — an app uploaded in the panel, run by Pano: custom-app = its folder id under custom-apps/.",
+        "  EXTERNAL   — Pano proxies the pages to upstream-url, e.g. \"http://127.0.0.1:4000\".",
+        "  NONE       — no pages: / goes to the panel (or site-url), everything else is a 404.",
+        "  site-url       — where visitors are, when that is not website-url. Empty = website-url.",
+        "  descriptor-url — EXTERNAL / NONE: the front-end descriptor (default <upstream-url>/.well-known/pano-frontend.json).",
+        "  dev-url        — THEME + development-mode only: a theme dev server, e.g. \"http://localhost:3000\". While it",
+        "                   is set Pano does not start the theme and proxies / to it.",
+        "Change it in Panel → Appearance → Front-end. A broken value can be fixed here: set mode = \"THEME\".",
+    )
+    // Nullable for the same reason as the blocks below: a config.conf whose version is already 39 but
+    // which is missing this block still deserialises the field to null. Read it through effectiveFrontend.
+    @SerializedName("frontend") var frontend: FrontendConfig? = FrontendConfig(),
 
     @ConfigSection("Email (SMTP)")
     @ConfigComment(
@@ -247,7 +265,25 @@ data class PanoConfig(
     // but which is missing this block still deserialises the field to null. Read it through
     // effectivePluginSources.
     @SerializedName("plugin-sources") var pluginSources: PluginSourcesConfig? = PluginSourcesConfig(),
+
+    @ConfigSection("Webhooks")
+    @ConfigComment(
+        "Webhooks send events (new user, new ticket, store orders, ...) to URLs you add in Panel -> Settings -> Webhooks.",
+        "  allow-private-targets - true lets a webhook URL point at this machine or a private network",
+        "                          (localhost, 10.x, 192.168.x). Link-local and cloud metadata addresses stay refused.",
+        "                          Off by default, and always off on Pano Host."
+    )
+    // Nullable for the same reason as the blocks above: a config.conf whose version is already 40
+    // but which is missing this block still deserialises the field to null. Read it through
+    // effectiveWebhooks.
+    @SerializedName("webhooks") var webhooks: WebhooksConfig? = WebhooksConfig(),
 ) {
+    /** [webhooks] with the missing-block case resolved to the defaults. */
+    val effectiveWebhooks: WebhooksConfig get() = webhooks ?: WebhooksConfig()
+
+    /** [frontend] with the missing-block case resolved to the defaults. */
+    val effectiveFrontend: FrontendConfig get() = frontend ?: FrontendConfig()
+
     /** [localNode] with the missing-block case resolved to the defaults. Always read it through this. */
     val effectiveLocalNode: LocalNodeConfig get() = localNode ?: LocalNodeConfig()
 
@@ -541,6 +577,27 @@ data class PanoConfig(
             @SerializedName("node-auto-update") var nodeAutoUpdate: Boolean = true,
             @ConfigComment("Accept new Pano Agent links. False mints no agent code and refuses the ones in use.")
             @SerializedName("accept-agent-links") var acceptAgentLinks: Boolean = true
+        )
+
+        data class FrontendConfig(
+            @SerializedName("mode") var mode: String = "THEME",
+
+            @SerializedName("custom-app") var customApp: String = "",
+
+            @SerializedName("upstream-url") var upstreamUrl: String = "",
+
+            @SerializedName("site-url") var siteUrl: String = "",
+
+            @SerializedName("descriptor-url") var descriptorUrl: String = "",
+
+            @SerializedName("dev-url") var devUrl: String = ""
+        ) {
+            /** [mode] as an enum; a hand-edited or unknown value counts as THEME. */
+            val parsedMode: FrontendMode get() = FrontendMode.parse(mode)
+        }
+
+        data class WebhooksConfig(
+            @SerializedName("allow-private-targets") var allowPrivateTargets: Boolean = false
         )
 
         data class PluginSourcesConfig(

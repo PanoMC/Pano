@@ -11,9 +11,9 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.MimeTypeUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.File
@@ -22,7 +22,7 @@ import java.io.File
 class PanelGetUpdateIconAPI(
     private val configManager: ConfigManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/updates/icon/:filename", RouteType.GET))
+    override val paths = listOf(Path("/updates/icon/:filename", RouteType.GET))
 
     companion object {
         private const val CACHE_TTL_SECONDS = 7 * 24 * 60 * 60 // 1 week

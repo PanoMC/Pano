@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class FaviconWrongContentType(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("FAVICON_WRONG_CONTENT_TYPE", 422, statusMessage, extras)

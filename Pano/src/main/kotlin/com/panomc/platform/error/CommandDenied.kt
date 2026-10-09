@@ -13,4 +13,4 @@ import com.panomc.platform.model.Error
 class CommandDenied(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(403, statusMessage, extras)
+) : Error("COMMAND_DENIED", 403, statusMessage, extras)

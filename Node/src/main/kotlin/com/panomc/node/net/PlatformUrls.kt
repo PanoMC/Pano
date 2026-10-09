@@ -9,7 +9,7 @@ import com.panomc.node.config.NodeConfig
  * address this particular node reaches it on — a LAN address behind NAT, an SSH tunnel on
  * `127.0.0.1:18088`, the public hostname, all for the same Pano — and the one address that is
  * certainly right is the one the node is already connected on. So anything Pano hosts is sent as a
- * path (`/api/node/plugin-jars/spigot`) and joined to that address here.
+ * path (`/api/v1/node/plugin-jars/spigot`) and joined to that address here.
  *
  * Absolute URLs pass through untouched, which is every third-party download: a Paper build, a
  * Modrinth file, a GitHub release asset. Protocol-relative `//host/path` is deliberately left alone

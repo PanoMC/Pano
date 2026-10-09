@@ -7,9 +7,9 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.core.http.HttpMethod
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
@@ -21,7 +21,7 @@ class PanelUpdatePlatformAPI(
     private val updateManager: UpdateManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/updates/platform/stream", RouteType.GET))
+    override val paths = listOf(Path("/updates/platform/stream", RouteType.GET))
 
     override fun isAllowedInDemo(method: HttpMethod): Boolean {
         return false

@@ -10,19 +10,19 @@ import com.panomc.platform.node.NodeDaemonUpdateService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * The Updates page's "update nodes automatically" switch (`PUT /api/panel/updates/node-auto-update`,
+ * The Updates page's "update nodes automatically" switch (`PUT /api/v1/panel/updates/node-auto-update`,
  * body `{ enabled }`, answer `{ enabled }`).
  *
  * It writes `managed-servers.node-auto-update` in config.conf -- the same key Settings → Updates
- * writes through `PUT /api/panel/settings` and `GET /api/panel/updates/servers` reads back as
+ * writes through `PUT /api/v1/panel/settings` and `GET /api/v1/panel/updates/servers` reads back as
  * `nodeAutoUpdate` -- so there is one setting whichever page it is changed from. Either the
  * platform settings permission or the nodes permission may change it: it is a platform setting that
  * only ever affects nodes (and Pano Agents).
@@ -34,7 +34,7 @@ class PanelUpdateNodeAutoUpdateAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/updates/node-auto-update", RouteType.PUT))
+    override val paths = listOf(Path("/updates/node-auto-update", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

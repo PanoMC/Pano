@@ -21,8 +21,8 @@ wait_until() { # $1 description, then a command
   die "timed out after ${timeout}s waiting for $what"
 }
 
-step_json() { curl -fsS "$url/api/setup/step"; }
-put_step() { curl -fsS -X PUT -H 'Content-Type: application/json' --data "$1" "$url/api/setup/step"; }
+step_json() { curl -fsS "$url/api/v1/setup/step"; }
+put_step() { curl -fsS -X PUT -H 'Content-Type: application/json' --data "$1" "$url/api/v1/setup/step"; }
 current_step() { step_json | jq -r '.step'; }
 
 wait_until "the setup API" step_json >/dev/null 2>&1
@@ -37,7 +37,8 @@ step=$(current_step)
 if [ "$step" = 2 ]; then
   body=$(jq -nc --arg host "$db_host" --arg db "${PANO_DB_NAME:-pano}" --arg user "${PANO_DB_USER:-pano}" \
     --arg pass "${PANO_DB_PASSWORD:-}" '{host: $host, dbName: $db, username: $user, password: $pass}')
-  [ "$(curl -fsS -X POST -H 'Content-Type: application/json' --data "$body" "$url/api/setup/steps/2/verify" | jq -r .result)" = ok ] \
+  # success is a 2xx with no `error` (the envelope is { "error": { "code" } }, doc 04 section 3); curl -f turns the 4xx into a failure
+  curl -fsS -X POST -H 'Content-Type: application/json' --data "$body" "$url/api/v1/setup/steps/2/verify" >/dev/null \
     || die "the database from env did not verify"
   put_step "$(jq -c '. + {clientStep: 2, dbType: "mariadb"}' <<<"$body")" >/dev/null
   step=$(current_step)
@@ -55,10 +56,10 @@ say "finishing the install"
 finish=$(curl -sS -X POST -H 'Content-Type: application/json' \
   --data "$(jq -nc --arg pass "${SMOKE_ADMIN_PASSWORD:-Sm0ke-Test-Passw0rd}" \
     '{username: "smokeadmin", email: "smoke@example.com", password: $pass, setupLocale: "en-US", telemetryEnabled: false}')" \
-  "$url/api/setup/finish")
-[ "$(jq -r .result <<<"$finish")" = ok ] || die "finish failed: $(jq -c 'del(.jwt, .token, .csrfToken)' <<<"$finish" 2>/dev/null || echo "$finish" | head -c 300)"
+  "$url/api/v1/setup/finish")
+jq -e 'has("error") | not' <<<"$finish" >/dev/null 2>&1 && [ -n "$(jq -r '.jwt // empty' <<<"$finish" 2>/dev/null)" ] || die "finish failed: $(jq -c 'del(.jwt, .token, .csrfToken)' <<<"$finish" 2>/dev/null || echo "$finish" | head -c 300)"
 
-installed() { [ "$(curl -sS "$url/api/setup/step" | jq -r '.error // empty')" = PLATFORM_ALREADY_INSTALLED ]; }
+installed() { [ "$(curl -sS "$url/api/v1/setup/step" | jq -r '.error.code // empty')" = PLATFORM_ALREADY_INSTALLED ]; }
 wait_until "the setup API to report the install" installed
 
 served() { local code; code=$(curl -s -o /dev/null -w '%{http_code}' "$url/"); [ "$code" = 200 ]; }

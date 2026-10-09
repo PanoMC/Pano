@@ -13,15 +13,15 @@ import com.panomc.platform.node.coolify.NodeCoolifyBootstrapService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * Deploys a node to a Coolify instance (`POST /api/panel/nodes/coolify-bootstrap`).
+ * Deploys a node to a Coolify instance (`POST /api/v1/panel/nodes/coolify-bootstrap`).
  *
  * The API token is used for this one deployment and never written anywhere: an operator handing
  * Pano a token that can create applications on their infrastructure is doing it for a single
@@ -52,7 +52,7 @@ class PanelCoolifyBootstrapNodeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/coolify-bootstrap", RouteType.POST))
+    override val paths = listOf(Path("/nodes/coolify-bootstrap", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

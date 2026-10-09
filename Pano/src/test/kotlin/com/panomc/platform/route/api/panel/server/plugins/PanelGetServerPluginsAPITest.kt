@@ -33,13 +33,14 @@ class PanelGetServerPluginsAPITest {
                 )
             )
         }
-        val body = JsonObject(error.encode(emptyMap()))
+        val envelope = JsonObject(error.encode(emptyMap())).getJsonObject("error")
+        val details = envelope.getJsonObject("details")
 
         assertEquals(409, error.getStatusCode())
-        assertEquals("FEATURE_UNAVAILABLE", body.getString("error"))
-        assertEquals("plugins.list", body.getString("feature"))
-        assertEquals("NOT_SUPPORTED", body.getString("reason"))
-        assertFalse(body.containsKey("capability"))
+        assertEquals("FEATURE_UNAVAILABLE", envelope.getString("code"))
+        assertEquals("plugins.list", details.getString("feature"))
+        assertEquals("NOT_SUPPORTED", details.getString("reason"))
+        assertFalse(details.containsKey("capability"))
     }
 
     @Test
@@ -66,7 +67,7 @@ class PanelGetServerPluginsAPITest {
                 PanelGetServerPluginsAPI.refuseUnsupported(inputs)
             }
 
-            assertEquals("NOT_SUPPORTED", JsonObject(error.encode(emptyMap())).getString("reason"), "$inputs")
+            assertEquals("NOT_SUPPORTED", JsonObject(error.encode(emptyMap())).getJsonObject("error").getJsonObject("details").getString("reason"), "$inputs")
         }
     }
 

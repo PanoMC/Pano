@@ -7,6 +7,7 @@ import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Node
 import com.panomc.platform.node.message.SelfUpdateMessage
+import com.panomc.platform.route.ApiPaths
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -21,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Hands a node the daemon this Pano serves (`SELF_UPDATE`), by hand or on its own.
  *
- * [update] is the one path both take: `POST /api/panel/nodes/:id/update`, the agent update of a
+ * [update] is the one path both take: `POST /api/v1/panel/nodes/:id/update`, the agent update of a
  * server, and the automatic update that follows a hello all end up sending the same message with
  * the same relative URL and the same checksum, so there is exactly one way a node is ever told to
  * replace itself.
@@ -109,7 +110,7 @@ class NodeDaemonUpdateService(
             nodeId,
             SelfUpdateMessage(
                 version = Main.VERSION,
-                url = "/api/node/${LocalNodeJarLocator.JAR_NAME}",
+                url = ApiPaths.core("/node/${LocalNodeJarLocator.JAR_NAME}"),
                 sha256 = sha256
             )
         )

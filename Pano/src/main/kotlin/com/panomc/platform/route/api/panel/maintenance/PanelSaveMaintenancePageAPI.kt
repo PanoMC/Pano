@@ -12,8 +12,8 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
@@ -32,7 +32,7 @@ class PanelSaveMaintenancePageAPI(
     private val configManager: ConfigManager,
     private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/maintenance/page", RouteType.POST))
+    override val paths = listOf(Path("/maintenance/page", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

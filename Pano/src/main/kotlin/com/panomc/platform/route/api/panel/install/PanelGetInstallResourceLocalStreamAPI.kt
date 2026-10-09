@@ -16,8 +16,8 @@ import com.panomc.platform.util.FileUtil
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.coAwait
@@ -30,7 +30,7 @@ class PanelGetInstallResourceLocalStreamAPI(
     private val pluginManager: PluginManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/install/local/:type/:fileName/stream", RouteType.GET))
+    override val paths = listOf(Path("/install/local/:type/:fileName/stream", RouteType.GET))
 
     override fun isAllowedInDemo(method: HttpMethod): Boolean {
         return false
@@ -115,6 +115,12 @@ class PanelGetInstallResourceLocalStreamAPI(
     }
 
     override suspend fun getFailureHandler(context: RoutingContext) {
+        // No head yet: the stream never started, so the base handler answers the JSON envelope with the
+        // error's own status (401, 403, 400). Writing an event here would throw and leave the request open.
+        if (!shouldSendAsEvent(context.response().headWritten())) {
+            return
+        }
+
         if (context.failure() is Result) {
             sendServerSentEventMessage(context, context.failure() as Result)
         } else {
@@ -138,5 +144,10 @@ class PanelGetInstallResourceLocalStreamAPI(
             }
             response.end()
         }
+    }
+
+    companion object {
+        /** A failure goes out as a stream event only once the stream has started (the head is written). */
+        fun shouldSendAsEvent(headWritten: Boolean): Boolean = headWritten
     }
 }

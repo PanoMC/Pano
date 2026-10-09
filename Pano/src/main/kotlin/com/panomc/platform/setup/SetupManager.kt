@@ -180,7 +180,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             env != null && env.password.isNotEmpty() && db.password == env.password
 
         /**
-         * Step 2's DB password as the setup API returns it. `GET /api/setup/step` is unauthenticated,
+         * Step 2's DB password as the setup API returns it. `GET /api/v1/setup/step` is unauthenticated,
          * so it is empty when the environment owns the database or seeded this password.
          */
         fun databasePasswordView(
@@ -208,7 +208,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         }
 
         /**
-         * Step 3's mail settings as the setup API returns them. `GET /api/setup/step` is
+         * Step 3's mail settings as the setup API returns them. `GET /api/v1/setup/step` is
          * unauthenticated, so the SMTP password is never included (the wizard asks for it again).
          */
         fun emailView(mail: PanoConfig.Companion.EmailConfig): Map<String, Any?> = mapOf(

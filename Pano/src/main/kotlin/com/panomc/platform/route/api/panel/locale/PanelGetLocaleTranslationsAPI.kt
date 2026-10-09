@@ -11,19 +11,24 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.NotFound
+import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
+import com.panomc.platform.model.WholeList
+import com.panomc.platform.plugin.PluginNamespace
 import com.panomc.platform.util.JsonObjectUtil
 import com.panomc.platform.util.PluginDevUtil
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.kotlin.coroutines.coAwait
+import org.pf4j.PluginState
 
 @Endpoint
 class PanelGetLocaleTranslationsAPI(
@@ -35,7 +40,51 @@ class PanelGetLocaleTranslationsAPI(
     private val i18nManager: I18nManager,
     private val configManager: ConfigManager,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/locales/:localeId/types/:type/translations", RouteType.GET))
+    companion object {
+        const val SOURCE_PLUGIN = "plugin"
+        const val SOURCE_THEME = "theme"
+
+        /**
+         * Layers the theme's plugin texts (`<code>.plugins.json`, doc 03 section 5.1) over [original], the
+         * flat `plugins.<pluginId>.<key>` map of the plugins' own texts: a theme key replaces the plugin's or
+         * adds a new one. A top-level folder of [themeFile] names a plugin by its namespace or by its full id;
+         * [plugins] is `pluginId to namespace`. A folder no plugin owns is skipped, as is a missing file
+         * (null: no theme, an old theme, a non-200). Returns the keys the theme supplied.
+         */
+        internal fun applyThemePluginTexts(
+            original: MutableMap<String, Any>,
+            themeFile: JsonObject?,
+            plugins: List<Pair<String, String>>
+        ): Set<String> {
+            if (themeFile == null) return emptySet()
+
+            val supplied = mutableSetOf<String>()
+
+            // The namespace folder first, so a file that also has the full-id folder lets the id win.
+            val byNamespace = plugins.sortedBy { it.first }.groupBy({ it.second }, { it.first })
+            val byId = plugins.map { it.first }.toSet()
+
+            val folders = themeFile.fieldNames().sortedBy { if (it in byId && it !in byNamespace) 1 else 0 }
+
+            folders.forEach { folder ->
+                val texts = themeFile.getValue(folder) as? JsonObject ?: return@forEach
+                val pluginId = if (folder in byNamespace) byNamespace.getValue(folder).first() else folder.takeIf { it in byId }
+
+                if (pluginId == null) return@forEach
+
+                JsonObjectUtil.flattenJsonObject(texts).forEach { (key, value) ->
+                    val flatKey = "plugins.$pluginId.$key"
+
+                    original[flatKey] = value
+                    supplied.add(flatKey)
+                }
+            }
+
+            return supplied
+        }
+    }
+
+    override val paths = listOf(Path("/locales/:localeId/types/:type/translations", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -161,15 +210,35 @@ class PanelGetLocaleTranslationsAPI(
             }
         }
 
+        var themeKeys = emptySet<String>()
+
+        if (type == TranslationType.PLUGIN) {
+            // The theme may restate plugin texts (doc 03 section 5.2). Front-end mode "none" has no theme: skip.
+            val themeUI = uiManager.activatedUIList[Type.THEME_UI]
+
+            if (themeUI != null) {
+                val themeFile = getJsonFromUI(
+                    "http://${themeUI.host}:${themeUI.port}/theme-api/languages/${locale.code}.plugins.json"
+                )
+
+                themeKeys = applyThemePluginTexts(originalTranslations, themeFile, installedNamespaces())
+            }
+        }
+
         originalTranslations.forEach {
-            translations.add(Translation(it.key, it.value.toString(), customTranslationKeyMap[it.key]?.value))
+            translations.add(
+                Translation(
+                    it.key, it.value.toString(), customTranslationKeyMap[it.key]?.value,
+                    source = if (it.key in themeKeys) SOURCE_THEME else SOURCE_PLUGIN
+                )
+            )
         }
 
         if (type != TranslationType.PLUGIN && originalTranslations.isNotEmpty() || type == TranslationType.PLUGIN) {
             customTranslationKeyMap
                 .filter { !originalTranslations.containsKey(it.key) }
                 .forEach {
-                    translations.add(Translation(it.value.key, "", it.value.value, true))
+                    translations.add(Translation(it.value.key, "", it.value.value, true, SOURCE_PLUGIN))
                 }
         }
 
@@ -192,12 +261,11 @@ class PanelGetLocaleTranslationsAPI(
         }
 
         return Successful(
-            mutableMapOf(
-                "data" to translations,
-                "meta" to mapOf(
-                    "totalCount" to translations.count(),
+            WholeList.response(
+                translations.map { it.row(type) },
+                mapOf(
                     "filterCount" to filterResult.count(),
-                    "filterResult" to filterResult,
+                    "filterResult" to filterResult.map { it.row(type) },
                 )
             )
         )
@@ -207,7 +275,20 @@ class PanelGetLocaleTranslationsAPI(
         val key: String,
         val original: String,
         val custom: String? = null,
-        val notExists: Boolean = false
+        val notExists: Boolean = false,
+        val source: String = SOURCE_PLUGIN
+    ) {
+        /** Only the plugin list tells where a text comes from; the other lists keep their rows as they were. */
+        fun row(type: TranslationType): Any =
+            if (type == TranslationType.PLUGIN) PluginRow(key, original, custom, notExists, source) else this
+    }
+
+    private data class PluginRow(
+        val key: String,
+        val original: String,
+        val custom: String?,
+        val notExists: Boolean,
+        val source: String
     )
 
     private enum class TranslationFilter {
@@ -218,17 +299,31 @@ class PanelGetLocaleTranslationsAPI(
     }
 
     private suspend fun getTranslationsFromUI(url: String): MutableMap<String, Any> {
+        val body = getJsonFromUI(url) ?: return mutableMapOf()
+
+        return JsonObjectUtil.flattenJsonObject(body).toMutableMap()
+    }
+
+    /** The JSON object at [url], null for a 404, a non-200, a body that is not an object or any failure. */
+    private suspend fun getJsonFromUI(url: String): JsonObject? {
         return try {
             val response = webClient.getAbs(url).send().coAwait()
 
-            if (response.statusCode() == 404) {
-                return mutableMapOf()
+            if (response.statusCode() != 200) {
+                return null
             }
 
-            val body = response.bodyAsJsonObject()
-            JsonObjectUtil.flattenJsonObject(body).toMutableMap()
+            response.bodyAsJsonObject()
         } catch (e: Exception) {
-            mutableMapOf()
+            null
         }
     }
+
+    /** `pluginId to namespace` of every loaded plugin; a plugin that is not running has no package to ask, so the id rule. */
+    private fun installedNamespaces(): List<Pair<String, String>> =
+        pluginManager.getPluginWrappers().map { wrapper ->
+            val plugin = if (wrapper.pluginState == PluginState.STARTED) wrapper.plugin as? PanoPlugin else null
+
+            wrapper.pluginId to if (plugin != null) PluginNamespace.of(plugin) else PluginNamespace.fromId(wrapper.pluginId)
+        }
 }

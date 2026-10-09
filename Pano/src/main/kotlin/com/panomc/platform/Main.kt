@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.gate.CompatibilityReconciler
 import com.panomc.platform.hosted.HostedAutoSetupRunner
 import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.hosted.PanoHostManager
@@ -503,7 +504,15 @@ class Main : CoroutineVerticle() {
 
             initPermissionRegistry()
 
-            initPlugins()
+            loadPlugins()
+        }
+
+        // Gate 0 (doc 04 section 7) is a suspend step of the boot, not a runBlocking inside executeBlocking: the install
+        // code runs its own executeBlocking work, which queued behind the blocked worker and never ran (BOOT-02).
+        reconcileCompatibility()
+
+        executeBlocking {
+            startPlugins()
         }
 
         syncHostedPanoUrls()
@@ -514,6 +523,8 @@ class Main : CoroutineVerticle() {
 
         if (isPlatformInstalled) {
             initDatabaseManager()
+
+            initWebhookDispatcher()
 
             initI18nManager()
 
@@ -526,6 +537,8 @@ class Main : CoroutineVerticle() {
             initPluginUpdateSweeper()
 
             initUpdateManager()
+
+            announceIncompatibleResources()
 
             initTelemetryManager()
 
@@ -633,6 +646,19 @@ class Main : CoroutineVerticle() {
         panoHostManager.announceCapabilities()
     }
 
+    /** Arms the webhook timer now that the database is up, so deliveries left from the last run go out at once. */
+    private fun initWebhookDispatcher() {
+        try {
+            logger.info("Initializing webhook dispatcher")
+
+            applicationContext.getBean(com.panomc.platform.webhook.WebhookDispatcher::class.java).start()
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError) throw e
+
+            logger.error("The webhook dispatcher could not be armed; it starts with the first publish", e)
+        }
+    }
+
     private fun initOnlinePlayerTracker() {
         logger.info("Initializing online player tracker")
 
@@ -679,14 +705,46 @@ class Main : CoroutineVerticle() {
         pluginManager = applicationContext.getBean(PluginManager::class.java)
     }
 
-    private fun initPlugins() {
+    private fun loadPlugins() {
         logger.info("Loading plugins")
 
         pluginManager.loadPlugins()
+    }
 
+    private fun startPlugins() {
         logger.info("Starting enabled plugins")
 
         pluginManager.startPlugins()
+    }
+
+    /**
+     * Gate 0: replaces plugins and themes outside the supported API level with a compatible store version, after they
+     * are loaded (so the gate has judged them) and before they are started and before the theme is prepared. A boot
+     * with nothing refused pays one catalog scan. Never fails the boot: a reconcile that cannot run leaves the refused
+     * resources refused, as without it.
+     */
+    private suspend fun reconcileCompatibility() {
+        try {
+            applicationContext.getBean(CompatibilityReconciler::class.java).reconcile(atBoot = true)
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError || e is kotlinx.coroutines.CancellationException) throw e
+
+            logger.error("The compatibility reconcile failed; refused plugins and themes stay refused", e)
+        }
+    }
+
+    /**
+     * Tells the admins about the resources the boot reconcile left refused. Needs the database and the
+     * notification manager, which the reconcile itself runs before.
+     */
+    private suspend fun announceIncompatibleResources() {
+        try {
+            applicationContext.getBean(CompatibilityReconciler::class.java).announceRefusals()
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError) throw e
+
+            logger.error("Could not announce the incompatible resources", e)
+        }
     }
 
     private fun initPermissionRegistry() {

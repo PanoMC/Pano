@@ -13,9 +13,9 @@ import com.panomc.platform.model.*
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.net.URLEncoder
@@ -37,7 +37,7 @@ class PanelGetLicenseEmbedAPI(
     private val configManager: ConfigManager,
     private val panoApiManager: PanoApiManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/plugins/:pluginId/license/embed", RouteType.GET))
+    override val paths = listOf(Path("/addons/:pluginId/license/embed", RouteType.GET))
 
     override fun isAllowedInDemo(method: HttpMethod): Boolean {
         return false

@@ -12,7 +12,6 @@ import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.ActivationTokenType
-import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.PasswordHasher
 import com.panomc.platform.util.Regexes
 import com.panomc.platform.util.TextUtil
@@ -20,11 +19,13 @@ import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.sqlclient.SqlClient
+import com.panomc.platform.schema.EndpointDoc
+import com.panomc.platform.schema.CoreSchemas
 
 @Endpoint
 class LoginAPI(
@@ -35,7 +36,14 @@ class LoginAPI(
     private val configManager: ConfigManager,
     private val passwordHasher: PasswordHasher
 ) : Api() {
-    override val paths = listOf(Path("/api/auth/login", RouteType.POST))
+    override val paths = listOf(Path("/auth/login", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Signs in with a user name or e-mail and a password.",
+        tag = "auth",
+        response = CoreSchemas.session,
+        errors = listOf(IpIsBanned::class, LinkCodeRequired::class, LoginIsInvalid::class, LoginEmailNotVerified::class, LoginUserIsBanned::class, NoPanelAccess::class, PluginDeniedLogin::class, UsernameRequired::class, RegisterEmailRequired::class, RegisterInvalidEmail::class, RegisterEmailNotAvailable::class, RegisterUsernameTooShort::class, RegisterUsernameTooLong::class, RegisterInvalidUsername::class, RegisterUsernameNotAvailable::class)
+    )
 
     override fun isAllowedInDemo(method: HttpMethod) = true
 
@@ -65,6 +73,11 @@ class LoginAPI(
         val registerEmail = data.getString("registerEmail")?.let { TextUtil.stripWhitespace(it) }
         val newUsername = data.getString("newUsername")?.let { TextUtil.stripWhitespace(it) }
         val panelLogin = data.getBoolean("panel", false)
+
+        // The panel never takes a front-end's site session (doc 05 §3.3): a stored key asking for a panel login is refused.
+        if (panelLogin && AuthProvider.hasStoredKey(context)) {
+            throw BadRequest()
+        }
 
         val sqlClient = getSqlClient()
 
@@ -220,8 +233,6 @@ class LoginAPI(
 
         // Use the potentially updated username for login
         val loginUsername = databaseManager.userDao.getUsernameFromUserId(checkUserId, sqlClient)!!
-        val token = authProvider.login(loginUsername, context, sqlClient)
-
         val userId = checkUserId
 
         databaseManager.userDao.updateLastLoginDate(userId, sqlClient)
@@ -236,9 +247,8 @@ class LoginAPI(
             }
         }
 
-        val csrfToken = CSRFTokenGenerator.nextToken()
-
-        authProvider.setCookies(context, token, csrfToken)
+        // A stored front-end key gets the site session token in the body, anyone else the cookie session.
+        val session = authProvider.issueSession(loginUsername, context, sqlClient)
 
         // Fire AuthEventListener.onAfterLogin hooks
         val updatedUser = databaseManager.userDao.getById(userId, sqlClient)!!
@@ -246,11 +256,7 @@ class LoginAPI(
             listener.onAfterLogin(updatedUser, context, sqlClient)
         }
 
-        return Successful(
-            mapOf(
-                "csrfToken" to csrfToken
-            )
-        )
+        return Successful(session)
     }
 
     private suspend fun sendActivationEmail(userId: Long, sqlClient: SqlClient) {

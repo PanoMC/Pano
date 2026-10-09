@@ -6,13 +6,21 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class DeleteAllNotificationAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/notifications", RouteType.DELETE))
+    override val paths = listOf(Path("/notifications", RouteType.DELETE))
+
+    override val doc = EndpointDoc(
+        summary = "Deletes every notification of the signed-in user.",
+        tag = "notifications",
+        response = objectSchema()
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

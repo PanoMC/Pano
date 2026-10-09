@@ -31,14 +31,18 @@ abstract class PostCategoryDao : Dao<PostCategory>(PostCategory::class.java) {
         sqlClient: SqlClient
     ): List<PostCategory>
 
-    abstract suspend fun getCategories(
-        page: Long,
+    /** Categories, newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getList(
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<PostCategory>
 
-    abstract suspend fun getByPageAndSearch(
-        page: Long,
+    /** Categories matching [search], newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getListBySearch(
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<PostCategory>
 

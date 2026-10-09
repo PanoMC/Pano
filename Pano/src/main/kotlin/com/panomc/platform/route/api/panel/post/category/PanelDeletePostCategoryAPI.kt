@@ -9,8 +9,8 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
@@ -22,7 +22,7 @@ class PanelDeletePostCategoryAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/post/categories/:id", RouteType.DELETE))
+    override val paths = listOf(Path("/post/categories/:id", RouteType.DELETE))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

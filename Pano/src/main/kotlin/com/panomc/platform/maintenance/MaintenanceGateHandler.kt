@@ -233,7 +233,7 @@ class MaintenanceGateHandler(
             return
         }
 
-        val target = maintenanceModeManager.loginLocations().firstOrNull() ?: DEFAULT_LOGIN_PATH
+        val target = maintenanceModeManager.loginLocations().firstOrNull() ?: maintenanceModeManager.defaultLoginLocation()
 
         response
             .setStatusCode(302)
@@ -296,7 +296,6 @@ class MaintenanceGateHandler(
 
     companion object {
         private const val ROBOTS_TXT_PATH = "/robots.txt"
-        private const val DEFAULT_LOGIN_PATH = "/login"
         private const val PLAIN_503_BODY = "The site is temporarily unavailable while we carry out maintenance."
     }
 }

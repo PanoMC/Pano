@@ -82,7 +82,7 @@ class FileChmodMessage(
  * Tells a node to stream one file up to Pano under [ticket].
  *
  * Fire and forget on the socket: what the browser is waiting on is the node's HTTP request
- * arriving at `PUT /api/node/transfer/<ticket>`, and a failure is reported on that same request
+ * arriving at `PUT /api/v1/node/transfer/<ticket>`, and a failure is reported on that same request
  * rather than over here, so there is only ever one thing to wait for.
  *
  * With [paths] set the source streams a zip instead of one file: [path] becomes the directory the

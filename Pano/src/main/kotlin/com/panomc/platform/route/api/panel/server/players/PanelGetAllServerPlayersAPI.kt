@@ -31,14 +31,14 @@ class PanelGetAllServerPlayersAPI(
     private val authProvider: AuthProvider,
     private val serverManager: ServerManager
 ) : PanelApi() {
-    // Registered ahead of `/api/panel/servers/:id`, which would otherwise answer this with a
+    // Registered ahead of `/api/v1/panel/servers/:id`, which would otherwise answer this with a
     // server called "players".
     override val order = 0
 
     override val usageModes = UsageMode.WITH_SERVERS
 
 
-    override val paths = listOf(Path("/api/panel/servers/players", RouteType.GET))
+    override val paths = listOf(Path("/servers/players", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -86,7 +86,7 @@ class PanelGetAllServerPlayersAPI(
                 }
             }
 
-        return Successful(mapOf("players" to players))
+        return Successful(mapOf("items" to players))
     }
 
     private fun displayName(server: Server) =

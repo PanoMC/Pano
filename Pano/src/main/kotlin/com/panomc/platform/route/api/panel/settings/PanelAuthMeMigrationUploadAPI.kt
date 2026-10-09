@@ -30,7 +30,7 @@ class PanelAuthMeMigrationUploadAPI(
     private val configManager: ConfigManager,
     private val vertx: Vertx
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/migration/authme/upload", RouteType.POST))
+    override val paths = listOf(Path("/migration/authme/upload", RouteType.POST))
 
     override fun bodyHandler(): Handler<RoutingContext> =
         BodyHandler.create()
@@ -237,7 +237,6 @@ class PanelAuthMeMigrationUploadAPI(
         return Successful(
             mapOf(
                 "users" to previewUsers,
-                "totalCount" to previewUsers.size,
                 "newCount" to newCount,
                 "existingCount" to existingCount,
                 "backend" to backend,

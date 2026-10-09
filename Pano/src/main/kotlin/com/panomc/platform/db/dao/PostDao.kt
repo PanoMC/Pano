@@ -95,23 +95,27 @@ abstract class PostDao : Dao<Post>(Post::class.java) {
         sqlClient: SqlClient
     ): List<Post>
 
-    abstract suspend fun getByPageAndPageType(
-        page: Long,
+    /** Posts of one status, newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getListByPageType(
         postStatus: PostStatus,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    abstract suspend fun getByPageAndPageTypeAndSearch(
-        page: Long,
+    abstract suspend fun getListByPageTypeAndSearch(
         postStatus: PostStatus,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    abstract suspend fun getByPagePageTypeAndCategoryId(
-        page: Long,
+    abstract suspend fun getListByPageTypeAndCategoryId(
         postStatus: PostStatus,
         categoryId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post>
 
@@ -124,16 +128,25 @@ abstract class PostDao : Dao<Post>(Post::class.java) {
         sqlClient: SqlClient
     ): Long
 
-    abstract suspend fun getPublishedListByPage(
-        page: Long,
+    /** Published posts, newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getPublishedList(
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post>
 
-    abstract suspend fun getPublishedListByPageAndCategoryId(
+    /** Published posts of one category, newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getPublishedListByCategoryId(
         categoryId: Long,
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post>
+
+    /** `url` and `date` of every published post, newest first (the sitemap rows). */
+    abstract suspend fun getPublishedUrlsAndDates(
+        sqlClient: SqlClient
+    ): List<Pair<String, Long>>
 
     abstract suspend fun getListByPageAndCategoryId(
         categoryId: Long,

@@ -13,4 +13,4 @@ import com.panomc.platform.model.Error
 class ServerCapabilityMissing(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("SERVER_CAPABILITY_MISSING", 400, statusMessage, extras)

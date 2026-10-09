@@ -41,7 +41,7 @@ class NodeRemovalTest {
     @Test
     fun `uninstall support starts at protocol 4`() {
         // Protocol 5 (in-place servers, agent mode) still uninstalls.
-        assertEquals(5, NodeProtocol.VERSION)
+        assertEquals(6, NodeProtocol.VERSION)
         assertEquals(4, NodeProtocol.NODE_UNINSTALL_VERSION)
         assertFalse(NodeProtocol.supportsUninstall(null))
         assertFalse(NodeProtocol.supportsUninstall(3))

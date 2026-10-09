@@ -5,14 +5,14 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class Step4CreatePlatformConnectCodeAPI(
     private val panoApiManager: PanoApiManager
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/steps/4/platform/code", RouteType.POST))
+    override val paths = listOf(Path("/setup/steps/4/platform/code", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

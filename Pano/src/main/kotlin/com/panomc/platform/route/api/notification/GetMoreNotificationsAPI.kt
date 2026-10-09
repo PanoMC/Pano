@@ -8,10 +8,12 @@ import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationTypeRegistry
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
+import com.panomc.platform.schema.EndpointDoc
+import com.panomc.platform.error.InvalidFields
 
 @Endpoint
 class GetMoreNotificationsAPI(
@@ -19,7 +21,14 @@ class GetMoreNotificationsAPI(
     private val databaseManager: DatabaseManager,
     private val notificationTypeRegistry: NotificationTypeRegistry
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/notifications/:id/more", RouteType.GET))
+    override val paths = listOf(Path("/notifications/:id/more", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "Ten notifications older than the given id, as a cursor page; marks them read.",
+        tag = "notifications",
+        response = NotificationPage.schema,
+        errors = listOf(InvalidFields::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -42,26 +51,21 @@ class GetMoreNotificationsAPI(
             databaseManager.notificationDao.markReadLast10StartFromId(userId, lastNotificationId, sqlClient)
         }
 
-        val notificationsDataList = mutableListOf<Map<String, Any?>>()
-
-        notifications.forEach { notification ->
-            notificationsDataList.add(
-                mapOf(
-                    "id" to notification.id,
-                    "type" to notification.type.getName(),
-                    "pluginId" to notificationTypeRegistry.ownerOf(notification.type.getName()),
-                    "details" to notification.details.map,
-                    "status" to notification.status,
-                    "isPersonal" to (notification.userId == userId),
-                    "createdAt" to notification.createdAt,
-                    "updatedAt" to notification.createdAt,
-                )
-            )
-        }
+        // A full page may be followed by an older one: ask for it, so the last page has no cursor.
+        val hasMore = notifications.size >= NotificationPage.SIZE &&
+                databaseManager.notificationDao
+                    .get10ByUserIdAndStartFromId(userId, notifications.last().id, sqlClient)
+                    .isNotEmpty()
 
         return Successful(
-            mutableMapOf(
-                "notifications" to notificationsDataList,
+            NotificationPage.payload(
+                notifications,
+                userId,
+                notificationTypeRegistry::ownerOf,
+                NotificationPage.SIZE,
+                hasMore,
+                // After this page was marked read: what the navbar's badge should say now.
+                databaseManager.notificationDao.getCountOfNotReadByUserId(userId, sqlClient)
             )
         )
     }

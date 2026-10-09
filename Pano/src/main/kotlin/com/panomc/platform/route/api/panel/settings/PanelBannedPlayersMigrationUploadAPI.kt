@@ -8,6 +8,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InvalidData
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
+import com.panomc.platform.model.WholeList
 import com.panomc.platform.util.BanUtil
 import io.vertx.core.Handler
 import io.vertx.core.json.JsonArray
@@ -24,7 +25,7 @@ class PanelBannedPlayersMigrationUploadAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/migration/server/banned/upload", RouteType.POST))
+    override val paths = listOf(Path("/migration/server/banned/upload", RouteType.POST))
 
     override fun bodyHandler(): Handler<RoutingContext> =
         BodyHandler.create()
@@ -157,14 +158,15 @@ class PanelBannedPlayersMigrationUploadAPI(
         }
 
         return Successful(
-            mapOf(
-                "items" to previewItems,
-                "totalCount" to previewItems.size,
-                "matchedCount" to matchedCount,
-                "unmatchedCount" to unmatchedCount,
-                "alreadyBannedCount" to alreadyBannedCount,
-                "expiredCount" to expiredCount,
-                "invalidCount" to invalidCount
+            WholeList.response(
+                previewItems,
+                mapOf(
+                    "matchedCount" to matchedCount,
+                    "unmatchedCount" to unmatchedCount,
+                    "alreadyBannedCount" to alreadyBannedCount,
+                    "expiredCount" to expiredCount,
+                    "invalidCount" to invalidCount
+                )
             )
         )
     }

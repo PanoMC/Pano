@@ -8,7 +8,7 @@ package com.panomc.platform.node
  * bumped whenever a message changes shape in a way an older peer cannot ignore.
  */
 object NodeProtocol {
-    const val VERSION = 5
+    const val VERSION = 6
 
     /** What a node that announced nothing is assumed to speak. */
     const val LEGACY_PROTOCOL_VERSION = 1

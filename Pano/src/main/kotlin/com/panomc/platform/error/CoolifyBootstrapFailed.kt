@@ -14,4 +14,4 @@ import com.panomc.platform.model.Error
 class CoolifyBootstrapFailed(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("COOLIFY_BOOTSTRAP_FAILED", 400, statusMessage, extras)

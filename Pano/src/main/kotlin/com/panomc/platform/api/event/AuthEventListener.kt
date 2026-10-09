@@ -21,7 +21,7 @@ interface AuthEventListener : PanoEventListener {
     }
 
     /**
-     * Called before link-code verification (POST /api/auth/verifyLinkCode).
+     * Called before link-code verification (POST /api/v1/auth/verify-link-code).
      * Use when login captcha is required for users with no password (link-only), instead of on the
      * initial username request that returns LinkCodeRequired.
      */

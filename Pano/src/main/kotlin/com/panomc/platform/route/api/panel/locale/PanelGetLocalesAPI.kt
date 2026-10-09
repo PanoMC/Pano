@@ -4,60 +4,42 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTranslations
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.error.PageNotFound
+import com.panomc.platform.db.model.Locale
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.numberSchema
-import kotlin.math.ceil
 
 @Endpoint
 class PanelGetLocalesAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/locales", RouteType.GET))
+    override val paths = listOf(Path("/locales", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .queryParameter(optionalParam("page", numberSchema()))
-            .build()
+        Paging.params(ValidationHandlerBuilder.create(schemaRepository)).build()
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManageTranslations(), context)
 
-        val parameters = getParameters(context)
-
-        val page = parameters.queryParameter("page")?.long ?: 1L
+        val page = Paging.request(context)
 
         val sqlClient = getSqlClient()
 
         val count = databaseManager.localeDao.count(sqlClient)
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
+        Paging.requireInRange(page, count)
 
-        if (totalPage < 1)
-            totalPage = 1
+        val locales = databaseManager.localeDao.getAllByPage(page.limit, page.offset, sqlClient)
 
-        if (page > totalPage || page < 1) {
-            throw PageNotFound()
-        }
+        return Successful(payload(locales, count, page))
+    }
 
-        val locales = databaseManager.localeDao.getAllByPage(page, sqlClient)
-
-        val response = mutableMapOf(
-            "data" to locales,
-            "meta" to mapOf(
-                "totalPage" to totalPage,
-                "totalCount" to count,
-            )
-        )
-
-        return Successful(
-            response,
-        )
+    companion object {
+        /** The whole response body: `{ items, page }`. */
+        fun payload(locales: List<Locale>, count: Long, page: PageRequest): Map<String, Any?> =
+            Paging.response(locales, count, page)
     }
 }

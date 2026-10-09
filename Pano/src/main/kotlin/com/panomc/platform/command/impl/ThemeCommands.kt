@@ -1,6 +1,8 @@
 package com.panomc.platform.command.impl
 
+import com.panomc.platform.ApiLevel
 import com.panomc.platform.AppConstants
+import com.panomc.platform.gate.Verdict
 import com.panomc.platform.UIManager
 import com.panomc.platform.command.Command
 import com.panomc.platform.command.CommandExecutor
@@ -79,6 +81,13 @@ class ThemeCommands(
 
                 if (theme.id == uiManager.activeTheme) {
                     sender.sendMessage("\u001B[33mTheme '$id' is already active.\u001B[0m")
+                    return
+                }
+
+                val verdict = uiManager.themeVerdict(theme.id)
+
+                if (verdict != Verdict.OK) {
+                    sender.sendMessage("\u001B[31mTheme '$id' is not compatible with this Pano (THEME_API_LEVEL_UNSUPPORTED: $verdict, API level ${theme.apiLevel}; supported ${ApiLevel.MIN_SUPPORTED} to ${ApiLevel.CURRENT}).\u001B[0m")
                     return
                 }
 

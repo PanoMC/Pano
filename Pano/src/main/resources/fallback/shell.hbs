@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>{{title}}</title>
+<link rel="icon" href="{{faviconUrl}}">
+<link rel="stylesheet" href="{{styleUrl}}">
+</head>
+<body class="pano-fb-body">
+<main class="pano-fb-main">
+{{#if logoUrl}}<img class="pano-fb-logo" src="{{logoUrl}}" alt="{{siteName}}" data-pano-logo>{{/if}}
+{{{content}}}
+</main>
+<script type="application/json" id="pano-fallback-config">{{{configJson}}}</script>
+<script src="{{scriptUrl}}" defer></script>
+</body>
+</html>

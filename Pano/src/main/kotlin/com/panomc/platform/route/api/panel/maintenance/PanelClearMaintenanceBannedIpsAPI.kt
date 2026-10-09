@@ -15,7 +15,7 @@ class PanelClearMaintenanceBannedIpsAPI(
     private val databaseManager: DatabaseManager,
     private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/maintenance/banned-ips/clear", RouteType.POST))
+    override val paths = listOf(Path("/maintenance/banned-ips/clear", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

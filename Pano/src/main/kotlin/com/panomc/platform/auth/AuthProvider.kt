@@ -1,14 +1,17 @@
 package com.panomc.platform.auth
 
+import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginEventManager
 import com.panomc.platform.api.event.AuthEventListener
 import com.panomc.platform.auth.panel.permission.AccessPanelPermission
+import com.panomc.platform.access.AccessContext
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PendingAuthSession
 import com.panomc.platform.db.model.User
 import com.panomc.platform.error.*
+import com.panomc.platform.model.Error
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.AuthenticationTokenType
@@ -31,6 +34,12 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 
+/** A front-end's site session token reached the panel API or the panel UI, where it is never valid (doc 05 §3.3). */
+class SiteTokenNotAllowed : Error("SITE_TOKEN_NOT_ALLOWED", 403, "Forbidden")
+
+/** Where a request's session credential came from (doc 05 §1). */
+enum class CredentialSource { COOKIE, BEARER }
+
 @Lazy
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -43,6 +52,15 @@ class AuthProvider(
 ) {
     companion object {
         const val HEADER_PREFIX = "Bearer "
+
+        /**
+         * Whether an unverified e-mail address blocks a login. Only when the site asks for verification
+         * ([requireEmailVerification]) and the caller did not waive the check ([dontCheckVerified]);
+         * a site that does not require verification never turns an account away for it.
+         */
+        internal fun mustBeVerified(dontCheckVerified: Boolean, requireEmailVerification: Boolean): Boolean =
+            !dontCheckVerified && requireEmailVerification
+
         private const val INSECURE_COOKIE_SUFFIX = "_http"
 
         private val CSRF_SAFE_METHODS = setOf(HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS)
@@ -77,6 +95,47 @@ class AuthProvider(
             }
 
             return splitHeader.last()
+        }
+
+        /** The claim and value that mark a front-end's site session token (doc 05 §3.3). */
+        const val SCOPE_CLAIM = "scope"
+        const val SITE_SCOPE = "site"
+
+        /**
+         * Whether the request carries a **stored** front-end key. The per-boot internal key (id 0) is not
+         * one: the UIs Pano spawns keep cookie sessions.
+         */
+        internal fun hasStoredKey(routingContext: RoutingContext): Boolean {
+            val key = AccessContext.of(routingContext)?.key ?: return false
+
+            return !key.isInternal
+        }
+
+        /**
+         * Where the session credential of a request comes from, free of any request object (doc 05 §1).
+         * Sync, no database.
+         *
+         * A request with a stored key ([storedKey]) ignores cookies entirely: `BEARER` or null. Otherwise
+         * a session cookie wins (`COOKIE`), then a bearer token (`BEARER`), else null.
+         */
+        internal fun credentialSource(
+            cookieHeader: String?,
+            authorizationHeader: String?,
+            storedKey: Boolean
+        ): CredentialSource? {
+            val hasBearer = bearerToken(authorizationHeader)?.isNotBlank() == true
+
+            if (storedKey) {
+                return if (hasBearer) CredentialSource.BEARER else null
+            }
+
+            val cookies = parseCookies(cookieHeader ?: "")
+
+            if (cookies[jwtCookieName(true)] != null || cookies[jwtCookieName(false)] != null) {
+                return CredentialSource.COOKIE
+            }
+
+            return if (hasBearer) CredentialSource.BEARER else null
         }
 
         private fun jwtCookieName(secureVariant: Boolean): String =
@@ -166,12 +225,14 @@ class AuthProvider(
 
     suspend fun runOnAfterRegister(user: User, sqlClient: SqlClient) {
         PluginEventManager.getPanoEventListeners<AuthEventListener>().forEach { it.onAfterRegister(user, sqlClient) }
+
+        WebhookCoreEvents.fire { userRegistered(user, sqlClient) }
     }
 
     // --- Pending-session API ---
     // A pending session is "I've already identified this user out-of-band; please complete the auth
     // lifecycle for me." Entry adapters (social login, magic link, SAML, …) create one when their
-    // own auth succeeded; `POST /api/auth/complete-pending` consumes it through the standard
+    // own auth succeeded; `POST /api/v1/auth/complete-pending` consumes it through the standard
     // onBeforeLogin pipeline so cross-cutting plugins (2FA, …) get to run.
 
     /**
@@ -239,7 +300,7 @@ class AuthProvider(
 
             val isVerified = databaseManager.userDao.isEmailVerifiedById(userId, sqlClient)
 
-            if (!isVerified) {
+            if (!isVerified && mustBeVerified(dontCheckVerified, authConfig.requireEmailVerification)) {
                 val email = databaseManager.userDao.getEmailFromUserId(userId, sqlClient)
                 val maskedEmail = email?.let { TextUtil.maskEmail(it) } ?: ""
 
@@ -268,7 +329,58 @@ class AuthProvider(
             sqlClient
         )!!
 
-        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), AuthenticationTokenType)
+        return createSession(userId, routingContext, sqlClient).first
+    }
+
+    /**
+     * Opens a session for [username] after the caller has authenticated them (doc 05 §3.3).
+     *
+     * A request with a **stored** front-end key gets a site-scoped token (`scope = site`) in the body,
+     * `{ sessionToken, expiresAt }`, and no cookies: the front-end server keeps the token itself. Any
+     * other request gets today's cookie session, `login` + [setCookies], and `{ csrfToken }`. The
+     * internal key of Pano's own UIs counts as "other", so those stay cookie sessions.
+     */
+    suspend fun issueSession(
+        username: String,
+        routingContext: RoutingContext,
+        sqlClient: SqlClient
+    ): Map<String, Any?> {
+        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(username, sqlClient)!!
+
+        return issueSessionFor(userId, routingContext, sqlClient)
+    }
+
+    internal suspend fun issueSessionFor(
+        userId: Long,
+        routingContext: RoutingContext,
+        sqlClient: SqlClient
+    ): Map<String, Any?> {
+        if (hasStoredKey(routingContext)) {
+            val (token, expireDate) = createSession(
+                userId,
+                routingContext,
+                sqlClient,
+                mapOf(SCOPE_CLAIM to SITE_SCOPE)
+            )
+
+            return mapOf("sessionToken" to token, "expiresAt" to expireDate)
+        }
+
+        val (token, _) = createSession(userId, routingContext, sqlClient)
+        val csrfToken = CSRFTokenGenerator.nextToken()
+
+        setCookies(routingContext, token, csrfToken)
+
+        return mapOf("csrfToken" to csrfToken)
+    }
+
+    private suspend fun createSession(
+        userId: Long,
+        routingContext: RoutingContext,
+        sqlClient: SqlClient,
+        claims: Map<String, String> = emptyMap()
+    ): Pair<String, Long> {
+        val (token, expireDate) = tokenProvider.generateToken(userId.toString(), AuthenticationTokenType, claims)
 
         val ipAddress = getRemoteIP(routingContext)
         val userAgent = routingContext.request().getHeader("User-Agent")
@@ -284,7 +396,7 @@ class AuthProvider(
 
         tokenProvider.saveToken(token, userId.toString(), AuthenticationTokenType, expireDate, sqlClient, ipAddress, userAgent)
 
-        return token
+        return Pair(token, expireDate)
     }
 
     /**
@@ -464,7 +576,10 @@ class AuthProvider(
         return ".$host"
     }
 
+    /** The client address the access plane decided on; without it, the shipped resolver. */
     fun getRemoteIP(routingContext: RoutingContext): String {
+        AccessContext.of(routingContext)?.let { return it.clientIp }
+
         return TrustedProxyIpResolver.resolveClientIp(routingContext.request(), trustedProxies())
     }
 
@@ -481,9 +596,45 @@ class AuthProvider(
         val sqlClient = databaseManager.getSqlClient()
         val token = getTokenFromRoutingContext(routingContext) ?: return false
 
-        val isTokenValid = tokenProvider.isTokenValid(token, AuthenticationTokenType, sqlClient)
+        if (!tokenProvider.isTokenValid(token, AuthenticationTokenType, sqlClient)) {
+            return false
+        }
 
-        return isTokenValid
+        // A site token is good only as a Bearer on a request with a stored key (doc 05 §3.3); in a
+        // cookie, or without the key, it is not a login.
+        if (isSiteToken(token)) {
+            return credentialSource(routingContext) == CredentialSource.BEARER && hasStoredKey(routingContext)
+        }
+
+        return true
+    }
+
+    /** Where this request's session credential comes from; see the companion function. Sync, no database. */
+    fun credentialSource(routingContext: RoutingContext): CredentialSource? {
+        val request = routingContext.request()
+
+        return credentialSource(request.getHeader("cookie"), request.getHeader("Authorization"), hasStoredKey(routingContext))
+    }
+
+    /** Whether [token] is a signed token carrying the site scope claim. An unparsable token is not. */
+    fun isSiteToken(token: String): Boolean = try {
+        tokenProvider.parseToken(token).getClaim(SCOPE_CLAIM).asString() == SITE_SCOPE
+    } catch (_: Exception) {
+        false
+    }
+
+    /** Whether the session token of this request is a site token (whatever its source). */
+    fun hasSiteToken(routingContext: RoutingContext): Boolean {
+        val token = getTokenFromRoutingContext(routingContext) ?: return false
+
+        return isSiteToken(token)
+    }
+
+    /** Throws `403 SITE_TOKEN_NOT_ALLOWED` when the request carries a site token: for the panel API and the panel UI guard. */
+    fun requireNoSiteToken(routingContext: RoutingContext) {
+        if (hasSiteToken(routingContext)) {
+            throw SiteTokenNotAllowed()
+        }
     }
 
     suspend fun hasAccessPanel(
@@ -546,6 +697,12 @@ class AuthProvider(
 
     fun getTokenFromRoutingContext(routingContext: RoutingContext): String? {
         val request = routingContext.request()
+
+        // A stored front-end key means a server-side front-end: cookies are ignored, only a Bearer counts.
+        if (hasStoredKey(routingContext)) {
+            return bearerToken(request.getHeader("Authorization"))
+        }
+
         val cookieHeader = request.getHeader("cookie") ?: ""
 
         val cookies = parseCookies(cookieHeader)
@@ -569,7 +726,8 @@ class AuthProvider(
 
         return isCsrfSafe(
             request.method(),
-            request.getHeader("cookie"),
+            // A stored-key request ignores cookies, so only its Bearer counts as a credential.
+            if (hasStoredKey(routingContext)) null else request.getHeader("cookie"),
             request.getHeader("Authorization"),
             request.getHeader(AppConstants.CSRF_HEADER)
         ) { token ->

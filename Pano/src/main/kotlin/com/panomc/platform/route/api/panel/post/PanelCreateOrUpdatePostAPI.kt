@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.post
 
+import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -19,9 +20,9 @@ import io.vertx.ext.web.FileUpload
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.multipartFormData
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.multipartFormData
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import org.imgscalr.Scalr
@@ -39,8 +40,8 @@ class PanelCreateOrUpdatePostAPI(
     override val usageModes = UsageMode.WITH_WEBSITE
 
     override val paths = listOf(
-        Path("/api/panel/posts/:id", RouteType.PUT),
-        Path("/api/panel/post", RouteType.POST)
+        Path("/posts/:id", RouteType.PUT),
+        Path("/post", RouteType.POST)
     )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -131,6 +132,17 @@ class PanelCreateOrUpdatePostAPI(
             databaseManager.postDao.update(userId, post, sqlClient)
 
             databaseManager.panelActivityLogDao.add(UpdatedPostLog(userId, username, title), sqlClient)
+        }
+
+        // core.post.published: only when the post becomes published (a new post saved as published, or a draft / trashed
+        // post published), not when an already published post is edited
+        if (post.status == PostStatus.PUBLISHED && postInDb?.status != PostStatus.PUBLISHED) {
+            val publishedId = id ?: body["id"] as Long
+            val published = databaseManager.postDao.getById(publishedId, sqlClient)
+
+            if (published != null) {
+                WebhookCoreEvents.fire { postPublished(published, sqlClient) }
+            }
         }
 
         return Successful(body)

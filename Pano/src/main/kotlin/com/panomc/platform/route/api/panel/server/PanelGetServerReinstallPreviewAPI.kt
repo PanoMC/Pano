@@ -13,9 +13,9 @@ import com.panomc.platform.route.api.panel.software.PanelGetSoftwareVersionAPI
 import com.panomc.platform.server.software.ServerSoftwareFamily
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import com.panomc.platform.server.InPlaceServerRules
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
@@ -26,7 +26,7 @@ import com.panomc.platform.util.UsageMode
  * What a reinstall or software change of a managed server would do, for the danger-zone modal
  * (SM-66, §2.4.31).
  *
- * `GET /api/panel/servers/:id/reinstall-preview?software=&version=` (both optional: the current
+ * `GET /api/v1/panel/servers/:id/reinstall-preview?software=&version=` (both optional: the current
  * software, and the current version or the target's recommended release) →
  * `{ from: { software, version, family, kind }, to: { … }, defaults: { worlds, plugins, configs },
  * allowed: { … }, reasons: { worlds, plugins, configs }, java: { minimum, maximum }, running,
@@ -44,7 +44,7 @@ class PanelGetServerReinstallPreviewAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/reinstall-preview", RouteType.GET))
+    override val paths = listOf(Path("/servers/:id/reinstall-preview", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

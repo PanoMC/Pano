@@ -24,7 +24,7 @@ class PanelGetAlertSettingsAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/settings/alerts", RouteType.GET))
+    override val paths = listOf(Path("/settings/alerts", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

@@ -6,4 +6,4 @@ import com.panomc.platform.model.Error
 class PanoBackupBusy(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("PANO_BACKUP_BUSY", 409, statusMessage, extras)

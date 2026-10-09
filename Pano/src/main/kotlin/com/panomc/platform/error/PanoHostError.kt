@@ -13,7 +13,7 @@ class PanoHostError(
     statusCode: Int = 400,
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(statusCode, statusMessage, extras) {
+) : Error("PANO_HOST_ERROR", statusCode, statusMessage, extras) {
     companion object {
         fun of(exception: PanoHostException): PanoHostError {
             val status = when (exception.code) {

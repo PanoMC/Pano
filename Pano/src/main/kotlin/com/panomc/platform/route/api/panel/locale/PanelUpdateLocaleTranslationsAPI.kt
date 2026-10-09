@@ -12,9 +12,9 @@ import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 
@@ -23,7 +23,7 @@ class PanelUpdateLocaleTranslationsAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/locales/:localeId/types/:type/translations", RouteType.PUT))
+    override val paths = listOf(Path("/locales/:localeId/types/:type/translations", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -107,10 +107,8 @@ class PanelUpdateLocaleTranslationsAPI(
 
         return Successful(
             mutableMapOf(
-                "data" to translations,
-                "meta" to mapOf(
-                    "totalCount" to translations.count(),
-                )
+                "translations" to translations,
+                "count" to translations.count()
             )
         )
     }

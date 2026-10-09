@@ -9,18 +9,18 @@ import com.panomc.platform.model.*
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
 
-/** Local Pano backups, the running/last job and the settings (`GET /api/panel/pano-backups`). */
+/** Local Pano backups, the running/last job and the settings (`GET /api/v1/panel/pano-backups`). */
 @Endpoint
 class PanelGetPanoBackupsAPI(
     private val authProvider: AuthProvider,
     private val panoBackupManager: PanoBackupManager,
     private val platformStateManager: PlatformStateManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/pano-backups", RouteType.GET))
+    override val paths = listOf(Path("/pano-backups", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository).build()

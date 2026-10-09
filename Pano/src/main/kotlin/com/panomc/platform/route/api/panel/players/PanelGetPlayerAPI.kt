@@ -16,9 +16,9 @@ import com.panomc.platform.util.BanUtil
 import com.panomc.platform.util.UsageMode
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
@@ -31,7 +31,7 @@ class PanelGetPlayerAPI(
     private val permissionManager: PermissionManager,
     private val configManager: ConfigManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/players/:username", RouteType.GET))
+    override val paths = listOf(Path("/players/:username", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

@@ -1,6 +1,7 @@
 package com.panomc.platform.node
 
 import com.panomc.platform.ReleaseStage
+import com.panomc.platform.route.ApiPaths
 import java.util.concurrent.ConcurrentHashMap
 import com.panomc.platform.server.MinecraftJavaVersions
 import com.panomc.platform.config.ConfigManager
@@ -140,7 +141,7 @@ class ManagedPluginJarResolver(
     /**
      * The configured development directory's jar for [platform], if one is there.
      *
-     * Public because `GET /api/node/plugin-jars/:platform` serves exactly this file: the endpoint
+     * Public because `GET /api/v1/node/plugin-jars/:platform` serves exactly this file: the endpoint
      * and the URL that points at it have to agree about which jar is meant, and the only way to
      * guarantee that is for both to ask the same question.
      */
@@ -422,8 +423,8 @@ class ManagedPluginJarResolver(
             else -> null
         }
 
-        /** Where Pano publishes the plugin jars it holds locally. */
-        const val PLUGIN_JAR_PATH = "/api/node/plugin-jars"
+        /** Declared path (below the API prefix) where Pano publishes the plugin jars it holds locally. */
+        const val PLUGIN_JAR_PATH = "/node/plugin-jars"
 
         /**
          * The URL a node should fetch [platform]'s plugin from when Pano is serving it itself.
@@ -431,7 +432,7 @@ class ManagedPluginJarResolver(
          * Path only, with no host. Whoever receives it resolves it against the Pano address it is
          * already talking to, which is the only address known to work from that host.
          */
-        fun pluginJarPath(platform: String) = "$PLUGIN_JAR_PATH/$platform"
+        fun pluginJarPath(platform: String) = ApiPaths.core("$PLUGIN_JAR_PATH/$platform")
 
         /** The stem every release asset of [platform] starts with. */
         fun assetPrefix(platform: String) = "pano-$platform-"

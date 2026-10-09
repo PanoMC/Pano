@@ -23,6 +23,7 @@ import com.panomc.platform.util.HashUtil
 import com.panomc.platform.util.NetworkFailureUtil
 import com.panomc.platform.util.ProgressWriteStream
 import com.panomc.platform.util.VersionUtil
+import com.panomc.platform.update.ReleaseApiLevel
 import com.panomc.platform.update.ReleaseAsset
 import com.panomc.platform.update.ReleaseInfo
 import com.panomc.platform.update.ReleaseLookup
@@ -150,6 +151,14 @@ class UpdateManager(
 
             val version = latestRelease.tag
 
+            // The levels the update plan (gate 2) reads. The Pano API carries them; GitHub does not, so its release
+            // asset is asked for. A release without them is simply "unknown" to the plan.
+            val levels = if (latestRelease.apiLevel == null && latestRelease.minApiLevel == null) {
+                fetchPublishedApiLevels(latestRelease.tag)
+            } else {
+                ReleaseApiLevel(latestRelease.apiLevel, latestRelease.minApiLevel)
+            }
+
             val sqlClient = databaseManager.getSqlClient()
             val propertyExists = databaseManager.systemPropertyDao.existsByOption(PLATFORM_UPDATE_CHECK_INFO, sqlClient)
 
@@ -164,6 +173,8 @@ class UpdateManager(
                     "hash" to hash,
                     "releaseDate" to latestRelease.publishedAt?.let { Instant.ofEpochMilli(it).toString() },
                     "channel" to VersionUtil.getReleaseType(version),
+                    "apiLevel" to levels?.apiLevel,
+                    "minApiLevel" to levels?.minApiLevel,
                     "state" to UUID.randomUUID()
                 )
             )
@@ -231,6 +242,18 @@ class UpdateManager(
         }
     } catch (_: Exception) {
         PublishedSha256.Unknown
+    }
+
+    /** The release's `pano-api-level.json` asset, downloaded from github.com; null when it has none or is unreachable. */
+    private suspend fun fetchPublishedApiLevels(tag: String): ReleaseApiLevel? = try {
+        val response = webClient.getAbs(ReleaseProduct.PANO.assetUrl(tag, ReleaseApiLevel.ASSET_NAME))
+            .timeout(ReleaseLookup.REQUEST_TIMEOUT_MS)
+            .send()
+            .coAwait()
+
+        if (response.statusCode() == 200) ReleaseApiLevel.parse(response.bodyAsString()) else null
+    } catch (_: Exception) {
+        null
     }
 
     /** The update jar's size for the download progress bar; null when GitHub does not say. */

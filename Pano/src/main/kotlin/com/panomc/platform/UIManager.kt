@@ -3,19 +3,25 @@ package com.panomc.platform
 import com.google.gson.GsonBuilder
 import com.panomc.platform.AppConstants.DEFAULT_THEME_ID
 import com.panomc.platform.AppConstants.THEMES_FOLDER_PATH
+import com.panomc.platform.access.FrontendKeyService
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.gate.ApiLevelGate
+import com.panomc.platform.gate.Verdict
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.license.LicenseDeniedReason
 import com.panomc.platform.license.LicenseManager
 import com.panomc.platform.license.LicenseRequiredException
 import com.panomc.platform.license.ThemeLicenseFailure
 import com.panomc.platform.model.Route
+import com.panomc.platform.route.ApiPaths
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.HashUtil.computeStableFileFingerprint
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.OperatingSystem
 import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.adapter.StrictNotNullTypeAdapterFactory
+import com.panomc.platform.ui.FrontendMode
+import com.panomc.platform.ui.UpstreamTarget
 import com.panomc.platform.util.annotation.StrictValidation
 import com.panomc.platform.util.ForwardedProtoInterceptor
 import com.panomc.platform.util.UpstreamRetryInterceptor
@@ -24,10 +30,12 @@ import io.vertx.core.Handler
 import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.http.RequestOptions
+import io.vertx.core.net.SocketAddress
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.proxy.handler.ProxyHandler
 import io.vertx.httpproxy.HttpProxy
+import io.vertx.httpproxy.OriginRequestProvider
 import io.vertx.httpproxy.ProxyContext
 import io.vertx.httpproxy.ProxyInterceptor
 import io.vertx.httpproxy.ProxyOptions
@@ -75,6 +83,7 @@ class UIManager(
     private val setupUIFolderPath = System.getProperty("pano.setupUIFolder", "setup-ui")
     private val panelUIFolderPath = System.getProperty("pano.panelUIFolder", "panel-ui")
     private val defaultThemeFolderPath = THEMES_FOLDER_PATH + File.separator + DEFAULT_THEME_ID
+    private val customAppsFolderPath = System.getProperty("pano.customAppsFolder", "custom-apps")
 
     /**
      * Lazy to break the construction cycle: [LicenseManager] also looks up [UIManager] lazily
@@ -82,6 +91,11 @@ class UIManager(
      */
     private val licenseManager: LicenseManager by lazy {
         applicationContext.getBean(LicenseManager::class.java)
+    }
+
+    /** Lazy like [licenseManager]: the key service is only needed when a UI is spawned. */
+    private val frontendKeyService: FrontendKeyService by lazy {
+        applicationContext.getBean(FrontendKeyService::class.java)
     }
 
     /**
@@ -101,6 +115,9 @@ class UIManager(
     private val setupUIFolder = File(setupUIFolderPath)
     private val panelUIFolder = File(panelUIFolderPath)
     private val defaultThemeFolder = File(defaultThemeFolderPath)
+
+    /** Where uploaded custom apps live, one folder per id (`custom-apps/<id>/index.js`). */
+    val customAppsFolder = File(customAppsFolderPath)
 
     private val githubUrl = "https://github.com"
 
@@ -133,6 +150,73 @@ class UIManager(
     var activeTheme = ""
         private set
 
+    /**
+     * What the wildcard route serves right now (doc 05 §8). Set when a front-end is bound and when
+     * the boot decides; [FrontendMode.THEME] until then, which is what every install was before modes.
+     */
+    @Volatile
+    var frontendMode: FrontendMode = FrontendMode.THEME
+        private set
+
+    /** What is bound to the wildcard route: the mode, the id of the front-end and, for a proxy, its address. */
+    class SiteBinding(val mode: FrontendMode, val id: String, val upstream: String?)
+
+    @Volatile
+    var siteBinding: SiteBinding? = null
+        private set
+
+    /**
+     * The `id` of the descriptor of an `EXTERNAL` / `NONE` front-end (doc 05 §8.2), for
+     * [activeFrontendId]. The descriptor itself is read by another unit; until it sets this the
+     * answer is "external".
+     */
+    @Volatile
+    var descriptorId: String? = null
+
+    /** The id of a custom app that was started by [startCustomApp] and not stopped since. */
+    @Volatile
+    private var customAppProcessId: String? = null
+
+    /**
+     * Who serves the site: theme id | custom-app id | descriptor `id` | `"external"` (doc 05 §8).
+     * For a theme this is [activeTheme], also while a dev server stands in for its process.
+     */
+    /** The theme `current-theme` names, which may differ from [activeTheme] when the API level gate refused it. */
+    fun configuredTheme(): String = configManager.config.currentTheme
+
+    fun activeFrontendId(): String = when (frontendMode) {
+        FrontendMode.THEME -> activeTheme
+        FrontendMode.CUSTOM_APP -> siteBinding?.id ?: configManager.config.effectiveFrontend.customApp
+        FrontendMode.EXTERNAL, FrontendMode.NONE -> descriptorId?.takeIf { it.isNotBlank() } ?: EXTERNAL_FRONTEND_ID
+    }
+
+    /** Whether the app [id] is the front-end in use (bound, or configured while it is being started). */
+    fun isCustomAppActive(id: String): Boolean {
+        val frontend = configManager.config.effectiveFrontend
+
+        return (frontend.parsedMode == FrontendMode.CUSTOM_APP && frontend.customApp == id) ||
+            (frontendMode == FrontendMode.CUSTOM_APP && siteBinding?.id == id)
+    }
+
+    /**
+     * The theme dev server (`frontend.dev-url`, doc 05 §8) while it applies: the mode is THEME, Development
+     * Mode is on and the address parses. Null in every other case, where the field is ignored.
+     */
+    fun devServerTarget(assumeThemeMode: Boolean = false): UpstreamTarget? {
+        val config = configManager.config
+
+        if (!config.developmentMode) {
+            return null
+        }
+
+        // [assumeThemeMode]: the caller is about to make THEME the stored mode (ThemeUiController.apply).
+        if (!assumeThemeMode && config.effectiveFrontend.parsedMode != FrontendMode.THEME) {
+            return null
+        }
+
+        return UpstreamTarget.parse(config.effectiveFrontend.devUrl)
+    }
+
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
 
     private fun findAvailablePort(): Int {
@@ -144,7 +228,15 @@ class UIManager(
     private var muslRequired = false
 
     fun parseThemeManifest(manifestFile: File): ThemeManifest {
-        return gson.fromJson(manifestFile.readText(), ThemeManifest::class.java)
+        val text = manifestFile.readText()
+
+        // A custom app is not a theme (doc 05 §8.1): its manifest would fail the strict check below
+        // anyway for lack of panoVersion and screenshots, but "this is an app" is the useful answer.
+        if (declaresCustomApp(text)) {
+            throw IllegalArgumentException("This is a custom app (type \"custom-app\"), not a theme. Upload it under Front-end.")
+        }
+
+        return gson.fromJson(text, ThemeManifest::class.java)
     }
 
     fun getThemeFile(id: String, fileName: String): File? {
@@ -165,9 +257,7 @@ class UIManager(
 
     fun getThemeFileAsStream(id: String, fileName: String): FileInputStream? = getThemeFile(id, fileName)?.inputStream()
 
-    private fun parseInstalledTheme(manifestFile: File): InstalledTheme {
-        return gson.fromJson(manifestFile.readText(), InstalledTheme::class.java)
-    }
+    private fun parseInstalledTheme(manifestFile: File): InstalledTheme = parseInstalledThemeText(manifestFile.readText())
 
     private fun tryRun(path: String): Boolean {
         logger.info("Checking is downloaded Bun compatible with the system...")
@@ -375,7 +465,8 @@ class UIManager(
             System.currentTimeMillis(),
             InstalledBy.SYSTEM,
             themeManifest.premium,
-            themeManifest.fileFingerprint
+            themeManifest.fileFingerprint,
+            themeManifest.apiLevel
         )
 
         manifestFile.writeText(installedTheme.encode())
@@ -414,7 +505,9 @@ class UIManager(
         val serverPort = serverConfig.httpPort
 
         environment["PORT"] = port.toString()
-        environment["HOST"] = serverHost
+        // The UI listens on loopback only: the port is reachable through Pano's proxy and nowhere
+        // else, so nobody can talk to it directly and name any client address in X-Forwarded-For.
+        environment["HOST"] = "127.0.0.1"
         // Built SvelteKit apps: production mode silences the theme's bot-noise error logging
         // (405 form-action probes) and puts every library on its production path. Dev UIs are
         // never spawned here (they run under vite from the theme repo), so this cannot leak
@@ -438,7 +531,16 @@ class UIManager(
             "::", "[::]" -> "[::1]"
             else -> serverHost
         }
-        environment["API_URL"] = "http://${apiHost}:${serverPort}/api"
+        val apiUrl = "http://${apiHost}:${serverPort}/api"
+
+        environment["API_URL"] = apiUrl
+        // Open front-end contract (doc 05 §3.1): the same URL under its new name, this boot's
+        // internal key (id 0, never stored; sessions stay cookie sessions for it) and where
+        // visitors are (the configured website URL; empty = same as the API host).
+        environment["PANO_API_URL"] = apiUrl
+        environment["PANO_FRONTEND_KEY"] = frontendKeyService.internalKey
+        environment["PANO_SITE_URL"] = config.effectiveFrontend.siteUrl.trim().trimEnd('/')
+            .ifEmpty { config.websiteUrl.trim().trimEnd('/') }
         environment["PANO_WEBSITE_URL"] = config.panoWebsiteUrl
         environment["PANO_WEBSITE_API_URL"] = config.panoApiUrl
         if (!licenseJwt.isNullOrBlank()) {
@@ -458,14 +560,14 @@ class UIManager(
 
         redirectStreamToConsole(id, process.inputStream)
 
-        val startedUI = LoadedUI(id, serverHost, port, process, uiFolder, licenseJwt)
+        val startedUI = LoadedUI(id, "127.0.0.1", port, process, uiFolder, licenseJwt)
 
         startedUIList.add(startedUI)
 
         // `process.isAlive` only means bun forked — the SvelteKit HTTP listener binds a beat
         // later. Routing to the port before that yields a 502 window at boot and after a
         // memory-watchdog restart, so hold "started" until the upstream actually answers.
-        waitUntilUiResponds(id, serverHost, port)
+        waitUntilUiResponds(id, "127.0.0.1", port)
 
         logger.info("\"$id\" started at port: {}", port)
     }
@@ -537,7 +639,18 @@ class UIManager(
      * deal with that explicitly (panel returns ThemeLicenseRequired, init() falls back to
      * vanilla, etc.).
      */
-    suspend fun startUI(id: String, port: Int = findAvailablePort()) {
+    suspend fun startUI(requestedId: String, port: Int = findAvailablePort()) {
+        // Every way a theme process gets started passes here, so the API level verdict is checked once, here: a
+        // theme this Pano cannot run is replaced by the bundled one (the configured name is not touched).
+        val id = servedThemeId(requestedId, _installedThemeList)
+
+        if (id != requestedId) {
+            logger.warn(
+                "Theme '{}' is not compatible with this Pano ({}; supported API level {} to {}); serving \"{}\" instead. The configured theme is kept.",
+                requestedId, themeVerdict(requestedId), ApiLevel.MIN_SUPPORTED, ApiLevel.CURRENT, id
+            )
+        }
+
         val uiFolder = THEMES_FOLDER_PATH + File.separator + id
         val theme = _installedThemeList.find { it.id == id }
 
@@ -633,6 +746,53 @@ class UIManager(
         withContext(Dispatchers.IO) {
             startUI(id, port)
         }
+    }
+
+    /**
+     * Spawns the custom app `custom-apps/<id>/index.js` (doc 05 §8.1) and returns its port. Same
+     * process, environment and memory watchdog as a theme, but none of the theme steps: no licence,
+     * no fingerprint. The route is bound separately ([activateCustomAppUI]).
+     *
+     * Throws when the app is not on disk, the runtime cannot start, or the process is gone by the
+     * time it should answer, so a caller can leave the previous front-end serving.
+     */
+    suspend fun startCustomApp(id: String, port: Int = findAvailablePort()): Int {
+        val appFolder = File(customAppsFolder, id)
+
+        if (!File(appFolder, "index.js").isFile) {
+            throw IllegalStateException("Custom app '$id' is not installed (no index.js in ${appFolder.path}).")
+        }
+
+        startUI(id, appFolder.path, port)
+
+        val started = startedUIList.find { it.id == id }
+
+        if (started == null || !started.process.isAlive) {
+            started?.let { startedUIList.remove(it) }
+
+            throw IllegalStateException("Custom app '$id' exited while starting.")
+        }
+
+        customAppProcessId = id
+
+        // A premium theme is no longer the thing running; keep the renewal sweep from refreshing it.
+        runCatching { licenseManager.clearActivePremiumTheme() }
+
+        return port
+    }
+
+    /** Stops whatever process serves the site (a theme or a custom app); a proxy has none. */
+    fun stopSiteProcess(): String? {
+        val id = customAppProcessId ?: siteBinding?.takeIf { it.upstream == null && it.mode == FrontendMode.THEME }?.id
+            ?: return null
+
+        stopUI(id)
+
+        if (customAppProcessId == id) {
+            customAppProcessId = null
+        }
+
+        return id
     }
 
     /**
@@ -965,6 +1125,14 @@ class UIManager(
         checkEmbeddedUiUpgrade("vanilla-theme", defaultThemeFolder)
     }
 
+    /** The configured theme [id] became compatible while nothing is bound for it: it is the one to serve from now on. */
+    fun resumeConfiguredTheme(id: String) {
+        activeTheme = id
+    }
+
+    /** The API level verdict for an installed theme, see [Companion.themeVerdict]. */
+    fun themeVerdict(id: String): Verdict = themeVerdict(id, installedThemeList)
+
     fun reloadInstalledThemes() {
         logger.info("Reloading installed themes...")
         _installedThemeList = mutableListOf()
@@ -989,6 +1157,8 @@ class UIManager(
 
                     _installedThemeList.add(installedTheme)
                 } catch (e: Exception) {
+                    logger.warn("Theme folder '{}' has a manifest.json Pano cannot read ({}); it is not listed.", themeFolder.name, e.message)
+
                     return@forEach
                 }
             }
@@ -1029,14 +1199,29 @@ class UIManager(
             logger.error("Current theme is not valid, defaulting to \"$DEFAULT_THEME_ID\"")
         }
 
-        val theme = if (currentThemeValid) currentTheme else DEFAULT_THEME_ID
-
-        activeTheme = theme
-
         // Populate installedThemeList BEFORE attempting to start a premium theme, otherwise
         // startUI() can't see the manifest and treats it as a free theme (skipping the
-        // license check).
+        // license check). It also holds the API levels the gate below reads.
         reloadInstalledThemes()
+
+        val configuredTheme = if (currentThemeValid) currentTheme else DEFAULT_THEME_ID
+
+        // Gate 1 for themes (doc 04 section 7): a theme outside the supported API level runs the bundled one for
+        // this boot. config.currentTheme is not rewritten, so the site returns to its theme after an update.
+        val verdict = themeVerdict(configuredTheme)
+        val theme = if (verdict == Verdict.OK) {
+            configuredTheme
+        } else {
+            logger.warn(
+                "Theme '{}' is not compatible with this Pano ({}; supported API level {} to {}); serving \"{}\" instead. The configured theme is kept.",
+                configuredTheme, verdict, ApiLevel.MIN_SUPPORTED, ApiLevel.CURRENT, DEFAULT_THEME_ID
+            )
+
+            DEFAULT_THEME_ID
+        }
+
+        activeTheme = theme
+        frontendMode = config.effectiveFrontend.parsedMode
 
         if (config.initUi) {
             try {
@@ -1050,34 +1235,14 @@ class UIManager(
                         startUI("panel-ui", panelUIFolder.absolutePath)
                     }
                 }
-                try {
+                if (!isThemeWanted()) {
                     // A servers-only install has no website, and the theme is a second Bun
                     // process (~200 MB) serving pages nobody can reach: every theme page is
                     // redirected to the panel and the panel now has its own login. Not starting
                     // it is the whole point of U-06 — the memory saving is the feature.
-                    if (!isThemeWanted()) {
-                        logger.info("Usage mode is SERVERS: not starting the theme process.")
-                    } else {
-                        startUIBlocking(theme)
-                    }
-                } catch (e: LicenseRequiredException) {
-                    // Premium theme cannot be licensed right now (no account connected, no
-                    // purchase, expired, network down, etc.). Persist a fallback to the bundled
-                    // vanilla theme so subsequent restarts also boot cleanly — the operator can
-                    // manually re-activate the premium theme from the panel once the license
-                    // issue is resolved.
-                    logger.warn(
-                        "Active theme '{}' has no valid license at boot ({}); booting with default theme '{}' instead",
-                        theme, e.reason.publicId, DEFAULT_THEME_ID,
-                    )
-                    activeTheme = DEFAULT_THEME_ID
-                    config.currentTheme = DEFAULT_THEME_ID
-                    try {
-                        configManager.saveConfig()
-                    } catch (t: Throwable) {
-                        logger.error("Failed to persist fallback theme at boot: {}", t.message, t)
-                    }
-                    startUIBlocking(DEFAULT_THEME_ID)
+                    logger.info("Usage mode is SERVERS: not starting the theme process.")
+                } else {
+                    startFrontendAtBoot(theme)
                 }
             } catch (e: Exception) {
                 throw e as? StartupFailure ?: StartupFailure("Failed to start UI.", e)
@@ -1095,6 +1260,91 @@ class UIManager(
             } catch (t: Throwable) {
                 logger.debug("Initial premium theme license sweep failed: {}", t.message)
             }
+        }
+    }
+
+    /**
+     * Boot-time start of the configured front-end (doc 05 §8). Decides [frontendMode]: a custom app
+     * that is not installed or will not start, or an `upstream-url` that does not parse, leaves the
+     * site on its theme instead of a dead route (the config is not touched, so the cause is still
+     * there to fix). `dev-url` stands in for the theme process while it applies.
+     */
+    private fun startFrontendAtBoot(theme: String) {
+        val frontend = configManager.config.effectiveFrontend
+
+        when (frontend.parsedMode) {
+            FrontendMode.CUSTOM_APP -> {
+                try {
+                    runBlocking { withContext(Dispatchers.IO) { startCustomApp(frontend.customApp) } }
+
+                    frontendMode = FrontendMode.CUSTOM_APP
+
+                    return
+                } catch (e: Exception) {
+                    logger.error(
+                        "Custom app '{}' cannot start ({}); serving theme '{}' instead.",
+                        frontend.customApp, e.message, theme
+                    )
+                }
+            }
+
+            FrontendMode.EXTERNAL -> {
+                if (UpstreamTarget.parse(frontend.upstreamUrl) != null) {
+                    logger.info("Front-end mode is EXTERNAL: proxying pages to {}; not starting a theme.", frontend.upstreamUrl)
+
+                    frontendMode = FrontendMode.EXTERNAL
+
+                    return
+                }
+
+                logger.error("frontend.upstream-url '{}' is not a valid address; serving theme '{}' instead.", frontend.upstreamUrl, theme)
+            }
+
+            FrontendMode.NONE -> {
+                logger.info("Front-end mode is NONE: no site pages are served.")
+
+                frontendMode = FrontendMode.NONE
+
+                return
+            }
+
+            FrontendMode.THEME -> Unit
+        }
+
+        frontendMode = FrontendMode.THEME
+
+        val devServer = devServerTarget()
+
+        if (devServer != null) {
+            logger.info("Theme dev server {} is set and Development Mode is on: not starting theme '{}'.", devServer, theme)
+
+            return
+        }
+
+        startThemeAtBoot(theme)
+    }
+
+    private fun startThemeAtBoot(theme: String) {
+        try {
+            startUIBlocking(theme)
+        } catch (e: LicenseRequiredException) {
+            // Premium theme cannot be licensed right now (no account connected, no
+            // purchase, expired, network down, etc.). Persist a fallback to the bundled
+            // vanilla theme so subsequent restarts also boot cleanly — the operator can
+            // manually re-activate the premium theme from the panel once the license
+            // issue is resolved.
+            logger.warn(
+                "Active theme '{}' has no valid license at boot ({}); booting with default theme '{}' instead",
+                theme, e.reason.publicId, DEFAULT_THEME_ID,
+            )
+            activeTheme = DEFAULT_THEME_ID
+            configManager.config.currentTheme = DEFAULT_THEME_ID
+            try {
+                configManager.saveConfig()
+            } catch (t: Throwable) {
+                logger.error("Failed to persist fallback theme at boot: {}", t.message, t)
+            }
+            startUIBlocking(DEFAULT_THEME_ID)
         }
     }
 
@@ -1164,9 +1414,8 @@ class UIManager(
 
         val config = configManager.config
         val serverConfig = config.server
-        val serverHost = serverConfig.host
 
-        setupUI.origin(port, serverHost)
+        setupUI.origin(port, "127.0.0.1")
 
         val setupUIHandler = ProxyHandler.create(setupUI)
 
@@ -1176,7 +1425,7 @@ class UIManager(
             .handler(setupUIHandler)
             .failureHandler { it.failure().printStackTrace() }
 
-        _activatedUIList[Route.Type.SETUP_UI] = ActivatedUI(port, serverHost, setupUIHandler)
+        _activatedUIList[Route.Type.SETUP_UI] = ActivatedUI(port, "127.0.0.1", setupUIHandler)
     }
 
     fun activatePanelUI(router: Router) {
@@ -1193,11 +1442,10 @@ class UIManager(
 
         val config = configManager.config
         val serverConfig = config.server
-        val serverHost = serverConfig.host
 
         val port = startedPanelUI?.port ?: 3001
 
-        panelUI.origin(port, serverHost)
+        panelUI.origin(port, "127.0.0.1")
 
         val panelUIHandler = ProxyHandler.create(panelUI)
 
@@ -1212,6 +1460,21 @@ class UIManager(
                     val isLoggedIn = authProvider.isLoggedIn(context)
 
                     if (context.response().closed()) {
+                        return@launch
+                    }
+
+                    // A site token (a server-side front-end's session) never opens the panel.
+                    try {
+                        authProvider.requireNoSiteToken(context)
+                    } catch (error: com.panomc.platform.model.Error) {
+                        request.resume()
+
+                        context.response()
+                            .setStatusCode(error.getStatusCode())
+                            .setStatusMessage(error.getStatusMessage())
+                            .putHeader("content-type", "application/json; charset=utf-8")
+                            .end(error.encode())
+
                         return@launch
                     }
 
@@ -1233,40 +1496,187 @@ class UIManager(
             }
             .failureHandler { it.failure().printStackTrace() }
 
-        _activatedUIList[Route.Type.PANEL_UI] = ActivatedUI(port, serverHost, panelUIHandler)
+        _activatedUIList[Route.Type.PANEL_UI] = ActivatedUI(port, "127.0.0.1", panelUIHandler)
     }
 
+
+    /**
+     * Binds the site's wildcard route (the root wildcard, order 5, metadata type THEME_UI whatever the mode) to the
+     * upstream at [host]:[port]. Theme, custom app, `EXTERNAL` and the theme dev server all go through
+     * here, so they share the WebSocket support, the forwarded-proto header and the retry on a dropped
+     * keep-alive connection.
+     *
+     * [external] marks a front-end Pano did not start (`EXTERNAL`, `dev-url`): its HTTP caching is its
+     * own, and `/panel`, `/api` and `/_pano` never reach it (they answer 404 here when nothing before
+     * them claimed the path). A theme or an app keeps the behaviour it always had.
+     */
+    fun activateSiteUI(router: Router, host: String, port: Int, ssl: Boolean, id: String, external: Boolean = false) {
+        if (_activatedUIList.containsKey(Route.Type.THEME_UI)) {
+            return
+        }
+
+        val siteUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
+
+        if (!external) {
+            siteUI.addInterceptor(uiCacheControlInterceptor)
+        }
+
+        siteUI.addInterceptor(forwardedProtoInterceptor)
+        siteUI.addInterceptor(upstreamRetryInterceptor(id))
+
+        if (ssl) {
+            siteUI.origin(OriginRequestProvider { proxyContext ->
+                proxyContext.client().request(
+                    RequestOptions()
+                        .setServer(SocketAddress.inetSocketAddress(port, host))
+                        .setHost(host)
+                        .setPort(port)
+                        .setSsl(true)
+                )
+            })
+        } else {
+            siteUI.origin(port, host)
+        }
+
+        val siteUIHandler = ProxyHandler.create(siteUI)
+
+        val routeHandler: Handler<RoutingContext> = if (external) {
+            Handler { context ->
+                if (isReservedPath(context.normalizedPath())) {
+                    notFoundHandler().handle(context)
+                } else {
+                    siteUIHandler.handle(context)
+                }
+            }
+        } else {
+            siteUIHandler
+        }
+
+        router.route("/*")
+            .order(5)
+            .putMetadata("type", Route.Type.THEME_UI)
+            .handler(routeHandler)
+            .failureHandler { it.failure().printStackTrace() }
+
+        _activatedUIList[Route.Type.THEME_UI] = ActivatedUI(port, host, siteUIHandler)
+    }
 
     fun activateThemeUI(router: Router, id: String) {
         if (_activatedUIList.containsKey(Route.Type.THEME_UI)) {
             return
         }
 
-        val themeUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
-        themeUI.addInterceptor(uiCacheControlInterceptor)
-        themeUI.addInterceptor(forwardedProtoInterceptor)
-        themeUI.addInterceptor(upstreamRetryInterceptor(id))
+        // Activating a theme (the panel's theme list, the console, an upgrade) is choosing the THEME
+        // mode, so the config follows when another mode was set.
+        adoptThemeMode()
 
-        val startedThemeUI = startedUIList.find { it.id == id }
+        bindThemeUI(router, id)
+    }
+
+    private fun bindThemeUI(router: Router, id: String) {
         activeTheme = id
+        frontendMode = FrontendMode.THEME
+
+        // The theme author's dev server stands in for the theme process (doc 05 §8); a process that
+        // was started for the theme anyway is simply not routed to.
+        devServerTarget()?.let { dev ->
+            activateExternalUI(router, dev, DEV_SERVER_FRONTEND_ID)
+
+            return
+        }
+
+        val port = startedUIList.find { it.id == id }?.port ?: 3000
+
+        activateSiteUI(router, "127.0.0.1", port, false, id)
+
+        siteBinding = SiteBinding(FrontendMode.THEME, id, null)
+    }
+
+    /** Binds the wildcard route to the running custom app [id] (see [startCustomApp]). */
+    fun activateCustomAppUI(router: Router, id: String) {
+        if (_activatedUIList.containsKey(Route.Type.THEME_UI)) {
+            return
+        }
+
+        val port = startedUIList.find { it.id == id }?.port ?: 3000
+
+        frontendMode = FrontendMode.CUSTOM_APP
+
+        activateSiteUI(router, "127.0.0.1", port, false, id)
+
+        siteBinding = SiteBinding(FrontendMode.CUSTOM_APP, id, null)
+    }
+
+    /**
+     * Binds the wildcard route to a front-end Pano does not run: `EXTERNAL`, or the theme dev server
+     * (then [id] is [DEV_SERVER_FRONTEND_ID] and the mode stays THEME).
+     */
+    fun activateExternalUI(router: Router, target: UpstreamTarget, id: String = EXTERNAL_FRONTEND_ID) {
+        if (_activatedUIList.containsKey(Route.Type.THEME_UI)) {
+            return
+        }
+
+        val mode = if (id == DEV_SERVER_FRONTEND_ID) FrontendMode.THEME else FrontendMode.EXTERNAL
+
+        frontendMode = mode
+
+        activateSiteUI(router, target.host, target.port, target.ssl, id, external = true)
+
+        siteBinding = SiteBinding(mode, id, target.origin)
+    }
+
+    /** `NONE`: nothing is bound; the order-6 handlers answer ([com.panomc.platform.route.ServersModeRootHandler]). */
+    fun useNoFrontend() {
+        frontendMode = FrontendMode.NONE
+        siteBinding = SiteBinding(FrontendMode.NONE, EXTERNAL_FRONTEND_ID, null)
+    }
+
+    /** Whether the wildcard route is bound to what [mode], [id] and [upstream] describe right now. */
+    fun isBoundTo(mode: FrontendMode, id: String, upstream: String?): Boolean {
+        val binding = siteBinding ?: return false
+
+        if (mode == FrontendMode.NONE) {
+            return binding.mode == FrontendMode.NONE
+        }
+
+        return _activatedUIList.containsKey(Route.Type.THEME_UI) &&
+            binding.mode == mode && binding.id == id && binding.upstream == upstream
+    }
+
+    private fun adoptThemeMode() {
+        val previousMode = frontendMode
 
         val config = configManager.config
-        val serverConfig = config.server
-        val serverHost = serverConfig.host
+        val frontend = config.effectiveFrontend
 
-        val port = startedThemeUI?.port ?: 3000
+        if (frontend.parsedMode == FrontendMode.THEME) {
+            return
+        }
 
-        themeUI.origin(port, serverHost)
+        if (previousMode == FrontendMode.CUSTOM_APP) {
+            customAppProcessId?.let { stopUI(it) }
+            customAppProcessId = null
+        }
 
-        val themeUIHandler = ProxyHandler.create(themeUI)
+        frontend.mode = FrontendMode.THEME.name
+        config.frontend = frontend
 
-        router.route("/*")
-            .order(5)
-            .putMetadata("type", Route.Type.THEME_UI)
-            .handler(themeUIHandler)
-            .failureHandler { it.failure().printStackTrace() }
+        try {
+            configManager.saveConfig()
+        } catch (t: Throwable) {
+            logger.error("Failed to persist front-end mode THEME: {}", t.message, t)
+        }
+    }
 
-        _activatedUIList[Route.Type.THEME_UI] = ActivatedUI(port, serverHost, themeUIHandler)
+    private fun isReservedPath(path: String) =
+        RESERVED_SITE_PREFIXES.any { path == it || path.startsWith("$it/") }
+
+    private fun notFoundHandler(): Handler<RoutingContext> = Handler { context ->
+        context.response()
+            .setStatusCode(404)
+            .putHeader("Cache-Control", "no-store")
+            .putHeader("Content-Type", "text/plain; charset=utf-8")
+            .end("Not Found")
     }
 
     fun disableUIOnRoute(router: Router, UI: Route.Type) {
@@ -1281,6 +1691,10 @@ class UIManager(
         foundUI?.let {
             it.disable()
             it.remove()
+        }
+
+        if (UI == Route.Type.THEME_UI) {
+            siteBinding = null
         }
 
         if (!_activatedUIList.containsKey(UI)) {
@@ -1299,7 +1713,7 @@ class UIManager(
             // No theme process in SERVERS mode, so no proxy route to it either: binding one would
             // send every page request to a port nothing is listening on.
             if (isThemeWanted()) {
-                activateThemeUI(router, activeTheme)
+                activateConfiguredFrontend(router)
             }
 
             activatePanelUI(router)
@@ -1311,6 +1725,28 @@ class UIManager(
         disableUIOnRoute(router, Route.Type.PANEL_UI)
 
         activateSetupUI(router)
+    }
+
+    /** Binds the wildcard route for [frontendMode] (resolved at boot, see [startFrontendAtBoot]). */
+    private fun activateConfiguredFrontend(router: Router) {
+        val frontend = configManager.config.effectiveFrontend
+
+        when (frontendMode) {
+            // Not activateThemeUI: a boot that fell back to the theme must not rewrite the config.
+            FrontendMode.THEME -> if (!_activatedUIList.containsKey(Route.Type.THEME_UI)) bindThemeUI(router, activeTheme)
+            FrontendMode.CUSTOM_APP -> activateCustomAppUI(router, frontend.customApp)
+            FrontendMode.EXTERNAL -> {
+                val target = UpstreamTarget.parse(frontend.upstreamUrl)
+
+                if (target == null) {
+                    if (!_activatedUIList.containsKey(Route.Type.THEME_UI)) bindThemeUI(router, activeTheme)
+                } else {
+                    activateExternalUI(router, target)
+                }
+            }
+
+            FrontendMode.NONE -> useNoFrontend()
+        }
     }
 
     /**
@@ -1347,6 +1783,23 @@ class UIManager(
 
     companion object {
         private const val UI_MEMORY_WATCHDOG_INTERVAL_MS = 30_000L
+
+        /** [UIManager.activeFrontendId] of an `EXTERNAL` / `NONE` front-end without a descriptor. */
+        const val EXTERNAL_FRONTEND_ID = "external"
+
+        /** Proxy id of the theme dev server (`frontend.dev-url`). */
+        const val DEV_SERVER_FRONTEND_ID = "theme-dev-server"
+
+        /** Paths that belong to Pano and are never handed to an `EXTERNAL` front-end or the dev server. */
+        private val RESERVED_SITE_PREFIXES = listOf("/panel", ApiPaths.BASE, "/_pano")
+
+        /** Whether a manifest.json says `"type": "custom-app"`. */
+        internal fun declaresCustomApp(manifestText: String): Boolean = try {
+            com.google.gson.JsonParser.parseString(manifestText).asJsonObject.get("type")
+                ?.takeIf { it.isJsonPrimitive }?.asString == "custom-app"
+        } catch (_: Exception) {
+            false
+        }
 
         private const val UI_READINESS_TIMEOUT_MS = 20_000L
         private const val UI_READINESS_POLL_INTERVAL_MS = 250L
@@ -1422,6 +1875,45 @@ class UIManager(
 
         fun InstalledTheme.encode(): String = gson.toJson(this)
 
+        /**
+         * Reads the `manifest.json` of an installed theme. A manifest laid down by an older Pano or copied from a theme
+         * zip lists `screenshots` as an array and has no `apiLevel`; it reads here as a theme of level 0 instead of
+         * failing, because a theme that cannot be read cannot be judged and would be started unchecked.
+         */
+        internal fun parseInstalledThemeText(text: String): InstalledTheme {
+            val json = com.google.gson.JsonParser.parseString(text).asJsonObject
+            val screenshots = json.get("screenshots")
+
+            if (screenshots != null && screenshots.isJsonArray) {
+                val map = com.google.gson.JsonObject()
+
+                screenshots.asJsonArray.forEach { map.addProperty(it.asString, "") }
+
+                json.add("screenshots", map)
+            }
+
+            return gson.fromJson(json, InstalledTheme::class.java)
+        }
+
+        /** The theme to start for [id]: [id] itself when its verdict is OK, else the bundled [DEFAULT_THEME_ID]. */
+        internal fun servedThemeId(id: String, installed: List<InstalledTheme>): String =
+            if (themeVerdict(id, installed) == Verdict.OK) id else DEFAULT_THEME_ID
+
+        /**
+         * The API level verdict (doc 04 section 7) for the theme [id] among the [installed] ones. The bundled default
+         * theme always passes: it is the fallback and is built with this Pano. A theme with no readable manifest is
+         * not judged here.
+         */
+        fun themeVerdict(id: String, installed: List<InstalledTheme>): Verdict {
+            if (id == DEFAULT_THEME_ID) {
+                return Verdict.OK
+            }
+
+            val theme = installed.find { it.id == id } ?: return Verdict.OK
+
+            return ApiLevelGate.check(theme.apiLevel)
+        }
+
         class LoadedUI(
             val id: String,
             val host: String,
@@ -1469,7 +1961,13 @@ class UIManager(
              * folder no longer matches what was shipped. See [com.panomc.platform.util.HashUtil.computeStableFileFingerprint].
              * Optional for backward compatibility with old free themes that ship without it.
              */
-            val fileFingerprint: String? = null
+            val fileFingerprint: String? = null,
+            /**
+             * The extension contract level the theme needs (doc 04 section 7), stamped by the theme's build.
+             * A theme without it reads as level 0, built before the cutover: the API level gate refuses it and
+             * the bundled theme is served instead.
+             */
+            val apiLevel: Int = 0
         )
 
         @StrictValidation
@@ -1488,7 +1986,8 @@ class UIManager(
             val updatedAt: Long,
             val installedBy: InstalledBy,
             val premium: Boolean = false,
-            val fileFingerprint: String? = null
+            val fileFingerprint: String? = null,
+            val apiLevel: Int = 0
         )
     }
 }

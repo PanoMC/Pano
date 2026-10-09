@@ -12,4 +12,4 @@ import com.panomc.platform.model.Error
 class NodeOffline(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("NODE_OFFLINE", 409, statusMessage, extras)

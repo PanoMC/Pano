@@ -9,4 +9,4 @@ import com.panomc.platform.model.Error
 class NetworkRoleConflict(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("NETWORK_ROLE_CONFLICT", 400, statusMessage, extras)

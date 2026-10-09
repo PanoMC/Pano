@@ -1,0 +1,42 @@
+{
+ "_readme": "Recorded deviations of other units. A failure that matches a `known` entry (same kind, method, path regex) is printed on every run and does not fail the gate; the unit that fixes it deletes its entry (an entry that matches nothing is reported as stale). binary / redirect / emptyError describe routes whose non-JSON answer is by design.",
+ "binary": [
+  {
+   "path": "^/api/v1/node/(install\\.ps1|install\\.sh|pano-agent\\.jar|pano-agent\\.jar\\.sha256|pano-node\\.jar|pano-node\\.jar\\.sha256)$",
+   "note": "node installer scripts and the daemon jar with checksum"
+  },
+  {
+   "path": "^/api/v1/widgets/loader\\.js$",
+   "note": "widget loader script, a JavaScript file by design"
+  }
+ ],
+ "redirect": [
+  {
+   "path": "^/api/v1/(favicon|website-logo)$",
+   "note": "content-hash redirect to the same path"
+  },
+  {
+   "path": "^/api/v1/profile/picture/[^/]+$",
+   "note": "avatar redirect to the skin service"
+  },
+  {
+   "path": "^/api/v1/maintenance/(exit|login|skip)$",
+   "note": "maintenance forms redirect to the site"
+  }
+ ],
+ "emptyError": [
+  {
+   "path": "^/api/v1/(posts/thumbnails|theme/file)/[^/]+$",
+   "note": "image and file routes answer a status-only 404"
+  },
+  {
+   "path": "^/api/plugins/[^/]+/(?!panel/).*(image|background|media/file|/logo)(/[^/]+)*$",
+   "note": "plugin image and file routes answer a status-only 404"
+  },
+  {
+   "path": "^/api/plugins/pano-plugin-market/(payments|shipping)/.*(notify|webhook|return|page).*$",
+   "note": "gateway callbacks and return pages answer a status-only 404 for an unknown provider"
+  }
+ ],
+ "known": []
+}

@@ -1,3 +1,9 @@
-panel-ui: v1.0.0-dev.601
-vanilla-theme: v1.0.0-dev.276
-setup-ui: v1.0.0-dev.80
+panel-ui: v1.0.0-dev.602
+vanilla-theme: v1.0.0-dev.277
+setup-ui: v1.0.0-dev.82
+
+# widget-runtime (doc 06 section 3.3): the web-component runtime from theme-core/packages/widget-host.
+# Written, not exercised: nothing can be released yet, so the row stays a comment and downloadUIReleases
+# ignores it. When the first theme-core release carries widget-runtime.zip, add
+# "widget-runtime" to repoMapping in Pano/build.gradle.kts and uncomment the pin below.
+# widget-runtime: v1.0.0

@@ -21,7 +21,7 @@ class PanelResetMaintenancePageAPI(
     private val configManager: ConfigManager,
     private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/maintenance/page/reset", RouteType.POST))
+    override val paths = listOf(Path("/maintenance/page/reset", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

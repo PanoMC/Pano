@@ -26,7 +26,7 @@ class PanelGetBasicDataAPI(
     private val maintenanceModeManager: MaintenanceModeManager,
     private val permissionManager: PermissionManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/basicData", RouteType.GET))
+    override val paths = listOf(Path("/basicData", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -71,7 +71,7 @@ class PanelGetBasicDataAPI(
             "connectedServerCount" to connectedServerCount,
             "acceptPluginAuth" to configManager.config.acceptPluginAuth,
             // The "Link with the Pano Agent" dialog's switch (`managed-servers.accept-agent-links`,
-            // SM-77), flipped with `PUT /api/panel/servers/agent-link/toggle`.
+            // SM-77), flipped with `PUT /api/v1/panel/servers/agent-link/toggle`.
             "acceptAgentLinks" to configManager.config.effectiveManagedServers.acceptAgentLinks,
             "usageMode" to configManager.config.effectiveUsageMode.name,
             "panelTheme" to panelTheme,

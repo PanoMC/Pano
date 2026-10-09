@@ -103,8 +103,8 @@ class ManagedPluginJarResolverTest {
     fun `a local jar is published under a path every node can resolve`() {
         // Never a file:// url: only a node on this very machine could open one, and the remote
         // node's install threw on it while still reporting the install as done.
-        assertEquals("/api/node/plugin-jars/spigot", ManagedPluginJarResolver.pluginJarPath("spigot"))
-        assertEquals("/api/node/plugin-jars/velocity", ManagedPluginJarResolver.pluginJarPath("velocity"))
+        assertEquals("/api/v1/node/plugin-jars/spigot", ManagedPluginJarResolver.pluginJarPath("spigot"))
+        assertEquals("/api/v1/node/plugin-jars/velocity", ManagedPluginJarResolver.pluginJarPath("velocity"))
 
         ManagedPluginJarResolver.PLATFORMS.forEach { platform ->
             assertTrue(ManagedPluginJarResolver.pluginJarPath(platform).startsWith("/"), platform)

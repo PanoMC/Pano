@@ -211,3 +211,18 @@ the Bun runtime); set `init-ui = true` to serve any UI — required when develop
   `CommandManager` (`command/impl`). `-bg` respawns detached with no terminal.
 - **Updater**: `:Updater` builds a tiny dependency-free jar, zipped and embedded into Pano's
   resources; `UpdateManager` drives self-update.
+
+<!-- pano-agent-guide:start -->
+## Agent guide
+
+Guidance for **plugins, themes and headless front-ends** does not live in this repo. It is the agent guide in `theme-core/agent-guide/` (repo `PanoMC/sdk`); every plugin under `plugins/` carries a synced copy as `agent-guide/`.
+
+Working in `plugins/<plugin>/`: read that plugin's `agent-guide/README.md` first, then the topic for your task.
+Working on the platform itself: the guide states what plugin and front-end authors are promised, so do not break it.
+
+The three rules you will break first:
+
+1. Core is `/api/v1/...` (panel `/api/v1/panel/...`); plugins are mounted at `/api/plugins/<pluginId>/...` and `/api/plugins/<pluginId>/panel/...` from relative declared paths.
+2. Lists answer `{ items }` (+ `{ page }` when paged) and errors `{ error: { code, ... } }` with declared codes, on every endpoint.
+3. A plugin or theme without an API level is refused; inside `/api/v1` and inside a plugin the API is additive only.
+<!-- pano-agent-guide:end -->

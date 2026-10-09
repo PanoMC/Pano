@@ -15,10 +15,12 @@ import com.panomc.platform.model.Successful
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class UpdateProfileAPI(
@@ -26,7 +28,14 @@ class UpdateProfileAPI(
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/profile", RouteType.PUT))
+    override val paths = listOf(Path("/profile", RouteType.PUT))
+
+    override val doc = EndpointDoc(
+        summary = "Changes the signed-in user's language.",
+        tag = "profile",
+        response = objectSchema(),
+        errors = listOf(NotExists::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

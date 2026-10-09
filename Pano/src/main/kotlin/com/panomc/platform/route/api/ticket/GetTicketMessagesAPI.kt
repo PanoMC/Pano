@@ -9,11 +9,15 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
+import com.panomc.platform.schema.CoreSchemas
 
 @Endpoint
 class GetTicketMessagesAPI(
@@ -22,7 +26,14 @@ class GetTicketMessagesAPI(
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/tickets/:id/messages", RouteType.GET))
+    override val paths = listOf(Path("/tickets/:id/messages", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The messages of a ticket that came after a given message.",
+        tag = "tickets",
+        response = objectSchema().requiredProperty("messages", arraySchema().items(CoreSchemas.ticketMessage)),
+        errors = listOf(NotExists::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

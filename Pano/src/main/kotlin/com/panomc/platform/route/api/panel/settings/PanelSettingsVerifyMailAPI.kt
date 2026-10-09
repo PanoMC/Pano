@@ -12,8 +12,8 @@ import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 
@@ -23,7 +23,7 @@ class PanelSettingsVerifyMailAPI(
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/settings/verify/mail", RouteType.POST))
+    override val paths = listOf(Path("/settings/verify/mail", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

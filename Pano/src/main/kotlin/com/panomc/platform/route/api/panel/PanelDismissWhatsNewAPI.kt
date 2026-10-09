@@ -7,8 +7,8 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelConfig
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
@@ -18,7 +18,7 @@ class PanelDismissWhatsNewAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/dismissWhatsNew", RouteType.POST))
+    override val paths = listOf(Path("/dismissWhatsNew", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) =
         ValidationHandlerBuilder.create(schemaRepository)

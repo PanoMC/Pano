@@ -707,6 +707,11 @@ fun parseLicenseFromPom(pomContent: String, groupId: String, artifactId: String,
 // classes compile to needs 21+ to run.
 tasks.named<Test>("test") {
     useJUnitPlatform()
+    // A failed test prints its whole exception (message and stack) to the console, so a CI log is enough to read it.
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
     // Main.STAGE reads the build type from the jar manifest, or from this variable when there is none (a run
     // from classes). Tests that start a plugin through the real PluginManager need a stage.
     environment("PanoBuildType", buildType)

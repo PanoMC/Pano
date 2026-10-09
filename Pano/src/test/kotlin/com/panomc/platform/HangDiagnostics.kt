@@ -25,7 +25,19 @@ object HangDiagnostics {
 
             System.err.println(dump)
 
-            throw e
+            // Gradle prints a failed test's exception to the console, not its output: carry the Vert.x and test
+            // threads in the message so a CI log shows where the wait was stuck.
+            val brief = StringBuilder("HANG after ${seconds}s, in flight: $inFlight, future: $future\n")
+
+            Thread.getAllStackTraces()
+                .filterKeys { it.name.startsWith("vert.x") || it.name.startsWith("Test worker") || it.name.contains("vertx") }
+                .toSortedMap(compareBy { it.name })
+                .forEach { (thread, stack) ->
+                    brief.append("\"${thread.name}\" ${thread.state}\n")
+                    stack.take(18).forEach { brief.append("    at $it\n") }
+                }
+
+            throw TimeoutException(brief.toString()).apply { initCause(e) }
         }
     }
 }

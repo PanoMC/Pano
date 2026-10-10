@@ -35,7 +35,7 @@ class FrontendAccessDisabled : Error(
     "Forbidden",
     mapOf(
         "message" to "Headless access is off while the front-end is a theme; " +
-            "choose another front-end under Panel → Appearance → Themes → Front-end settings."
+            "choose another front-end under Panel → Appearance → Themes → Site display settings."
     )
 ) {
     companion object {
@@ -60,7 +60,7 @@ class OriginNotAllowed(origin: String?) : Error(
     "Forbidden",
     mapOf(
         "message" to "Requests that change data are not accepted from the origin '${origin.orEmpty()}'. " +
-            "To allow it, add it under Panel → Appearance → Themes → Front-end settings; " +
+            "To allow it, add it under Panel → Appearance → Themes → Site display settings; " +
             "a front-end on another domain uses a front-end key from its server."
     )
 )

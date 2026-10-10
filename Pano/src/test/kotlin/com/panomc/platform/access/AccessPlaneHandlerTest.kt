@@ -217,7 +217,7 @@ class AccessPlaneHandlerTest {
 
         assertEquals(403, refused.status)
         assertEquals("FRONTEND_ACCESS_DISABLED", refused.json.getJsonObject("error").getString("code"))
-        assertTrue(refused.json.getJsonObject("error").getString("message").contains("Themes → Front-end settings"))
+        assertTrue(refused.json.getJsonObject("error").getString("message").contains("Themes → Site display settings"))
 
         assertEquals(200, get("/api/v1/posts", keyed(service.internalKey)).status)
 

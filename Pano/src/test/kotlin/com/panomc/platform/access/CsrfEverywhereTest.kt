@@ -564,7 +564,7 @@ class CsrfEverywhereTest {
         val message = response.json.getJsonObject("error").getString("message")
 
         assertTrue(message.contains("https://evil.example"), message)
-        assertTrue(message.contains("Themes → Front-end settings"), message)
+        assertTrue(message.contains("Themes → Site display settings"), message)
         assertNull(response.header("Access-Control-Allow-Origin"), "a foreign origin gets no CORS headers")
     }
 

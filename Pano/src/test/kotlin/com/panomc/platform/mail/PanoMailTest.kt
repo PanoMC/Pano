@@ -1,5 +1,6 @@
 package com.panomc.platform.mail
 
+import com.panomc.platform.backup.remote.PanoBackupSetupView
 import com.panomc.platform.backup.remote.PanoHostClient
 import com.panomc.platform.backup.remote.PanoIdentity
 import com.panomc.platform.backup.remote.RetryPolicy
@@ -476,5 +477,57 @@ class PanoMailTest {
 
         configManager.config.panoAccount.accessToken = ""
         assertEquals("UNKNOWN", service().checkName("x")["status"])
+    }
+
+    @Test
+    fun `free backup gb comes from the catalog and is cached`() = runBlocking {
+        answers["/host/catalog"] = ok(JsonObject().put("backupFreeGb", 1).put("backupTiers", JsonArray()))
+        val service = service()
+
+        assertEquals(1, service.freeBackupGb()!!.toInt())
+        service.freeBackupGb()
+        assertEquals(1, catalogCalls)
+
+        server.stop(0)
+        clock += PanoMailService.FREE_PLAN_CACHE_MS + 1
+        assertNull(service.freeBackupGb())
+    }
+
+    @Test
+    fun `setup backup view maps the connected backups answer honestly`() {
+        configManager.config.panoWebsiteUrl = "https://panomc.example/"
+        val config = configManager.config
+        val paid = JsonObject().put("tier", JsonObject().put("id", "backup-10").put("name", "10 GB"))
+            .put("usage", JsonObject().put("usedBytes", 5).put("quotaBytes", 10L shl 30))
+        val free = JsonObject().put("tier", null as String?)
+            .put("usage", JsonObject().put("usedBytes", 7).put("quotaBytes", 1L shl 30)).put("free", JsonObject().put("quotaBytes", 1L shl 30))
+        val lapsed = JsonObject().put("usage", JsonObject().put("usedBytes", 9).put("quotaBytes", null as Long?))
+
+        val view = PanoBackupSetupView.build(config, free, 1, false)
+        assertEquals("https://panomc.example/", view["website"])
+        assertEquals(true, view["connected"])
+        assertEquals(mapOf("username" to "alice"), view["account"])
+        assertEquals(1, view["freeGb"])
+        assertEquals(mapOf("name" to null, "quotaBytes" to (1L shl 30), "free" to true), view["plan"])
+        assertEquals(mapOf("usedBytes" to 7L), view["usage"])
+        assertEquals(false, view["daily"])
+        assertEquals("https://panomc.example/host/manage/backups", view["manageUrl"])
+
+        assertEquals(
+            mapOf("name" to "10 GB", "quotaBytes" to (10L shl 30), "free" to false),
+            PanoBackupSetupView.build(config, paid, 1, true)["plan"]
+        )
+        assertEquals(true, PanoBackupSetupView.build(config, paid, 1, true)["daily"])
+        assertNull(PanoBackupSetupView.build(config, lapsed, 1, false)["plan"])
+
+        val offline = PanoBackupSetupView.build(config, null, null, false)
+        assertNull(offline["plan"])
+        assertNull(offline["usage"])
+        assertNull(offline["freeGb"])
+
+        config.panoAccount.accessToken = ""
+        val none = PanoBackupSetupView.build(config, null, 1, false)
+        assertEquals(false, none["connected"])
+        assertNull(none["account"])
     }
 }

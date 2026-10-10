@@ -56,6 +56,9 @@ class PanoMailService internal constructor(
     private var cachedFreePlan: Pair<Long, JsonObject?>? = null
 
     @Volatile
+    private var cachedBackupFreeGb: Pair<Long, Number?>? = null
+
+    @Volatile
     private var cachedStatus: Triple<Long, String, JsonObject?>? = null
 
     /**
@@ -215,6 +218,25 @@ class PanoMailService internal constructor(
         }
 
         return Enabled(status, address)
+    }
+
+    /** `backupFreeGb` of the public catalog (Pano Backup storage every account has), cached like [freePlan]; null when unreadable. Never throws. */
+    suspend fun freeBackupGb(): Number? {
+        val cached = cachedBackupFreeGb
+
+        if (cached != null && now() - cached.first < FREE_PLAN_CACHE_MS) {
+            return cached.second
+        }
+
+        val gb = try {
+            clientProvider().catalog(Duration.ofSeconds(4)).getValue("backupFreeGb") as? Number
+        } catch (_: Exception) {
+            null
+        }
+
+        cachedBackupFreeGb = now() to gb
+
+        return gb
     }
 
     private suspend fun clientCall(name: String?): JsonObject = guarded { clientProvider().enableMail(name) }

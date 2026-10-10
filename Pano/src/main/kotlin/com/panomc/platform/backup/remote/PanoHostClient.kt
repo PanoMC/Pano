@@ -100,7 +100,8 @@ class PanoHostClient(
     // Pano Backup
 
     /** `{instanceId, tier, subscription, usage, panos[]}` of the connection's account. */
-    suspend fun listBackups(): JsonObject = call("GET", "/host/connected/backups")
+    suspend fun listBackups(timeout: Duration = Duration.ofSeconds(60)): JsonObject =
+        call("GET", "/host/connected/backups", null, timeout)
 
     suspend fun startBackup(size: Long, kind: String, subject: String?): UploadSession {
         val body = JsonObject().put("size", size).put("kind", kind)

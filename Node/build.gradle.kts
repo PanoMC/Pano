@@ -22,6 +22,9 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
 
+    // The snapshot format (chunker, chunk codec, manifest), shared with Pano; shadowJar bundles it.
+    implementation(project(":Snapshot"))
+
     // WebSocket client, HTTP client and the timer wheel the daemon schedules everything on.
     implementation("io.vertx:vertx-core:$vertxVersion")
 

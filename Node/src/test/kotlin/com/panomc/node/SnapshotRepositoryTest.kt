@@ -3,7 +3,7 @@ package com.panomc.node
 import com.panomc.node.backup.BackupScope
 import com.panomc.node.backup.BackupScopeKind
 import com.panomc.node.backup.ResolvedScope
-import com.panomc.node.backup.snapshot.CorruptChunkException
+import com.panomc.snapshot.CorruptChunkException
 import com.panomc.node.backup.snapshot.RepoBusyException
 import com.panomc.node.backup.snapshot.SnapshotRepository
 import com.panomc.node.files.BackupExcludeMatcher
@@ -77,7 +77,7 @@ class SnapshotRepositoryTest {
     private fun tree(root: File): Map<String, String?> = root.walkTopDown()
         .filter { it != root }
         .associate { file ->
-            ZipTool.relativeName(root, file) to if (file.isFile) SnapshotRepository.sha256Hex(file.readBytes(), 0, file.readBytes().size) else null
+            ZipTool.relativeName(root, file) to if (file.isFile) com.panomc.snapshot.ChunkCodec.sha256Hex(file.readBytes(), 0, file.readBytes().size) else null
         }
         .toSortedMap()
 

@@ -1,0 +1,3 @@
+newChunks=51
+totalChunks=51
+storedBytes=7566

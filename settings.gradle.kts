@@ -22,3 +22,4 @@ File("plugins").listFiles()?.filter { it.isProjectDir() }?.sortedBy { it.name }?
 
 include("Updater")
 include("Node")
+include("Snapshot")

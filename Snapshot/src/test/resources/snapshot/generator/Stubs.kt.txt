@@ -1,0 +1,41 @@
+// Minimal stand-ins for the pano-node classes SnapshotRepository imports; none of them influence
+// the bytes of chunks or manifests (they only filter paths, which the generator's tree never trips).
+package com.panomc.node.agent
+
+import java.io.File
+
+object AgentFiles {
+    fun isOwnJar(serverDirectory: File, relative: String): Boolean = false
+}
+package com.panomc.node.backup
+
+import java.io.File
+
+enum class BackupScopeKind { ALL, WORLDS, CUSTOM, PANO_INSTANCE }
+
+data class ResolvedScope(val kind: BackupScopeKind, val roots: List<String>, val wholeDirectory: Boolean)
+
+object BackupScope {
+    fun worldsIn(filePaths: Sequence<String>): Set<String> = emptySet()
+}
+
+object WorldReplacement {
+    fun clear(serverDirectory: File, world: String) {}
+}
+package com.panomc.node.files
+
+object ServerFileDenylist {
+    fun normalise(path: String?): String = (path ?: "").replace('\\', '/').trim('/')
+    fun isDenied(path: String?): Boolean = false
+    fun isMutable(path: String?): Boolean = true
+}
+
+class BackupExcludeMatcher(val patterns: List<String>) {
+    fun matches(path: String): Boolean = false
+}
+
+class FileService {
+    companion object {
+        const val ERROR_TOO_LARGE = "TOO_LARGE"
+    }
+}

@@ -1,4 +1,4 @@
-package com.panomc.node.backup.snapshot
+package com.panomc.snapshot
 
 import java.io.InputStream
 
@@ -47,6 +47,7 @@ class FastCdc(
         require(minSize in 64..avgSize) { "The minimum chunk size must be at least 64 and at most the average." }
         require(avgSize <= maxSize) { "The average chunk size may not exceed the maximum." }
         require(avgSize and (avgSize - 1) == 0) { "The average chunk size must be a power of two." }
+        require(maxSize <= MAX_ALLOWED) { "The maximum chunk size is out of range." }
 
         val bits = Integer.numberOfTrailingZeros(avgSize)
 
@@ -157,6 +158,9 @@ class FastCdc(
         const val DEFAULT_AVG = 1024 * 1024
         const val DEFAULT_MAX = 4 * 1024 * 1024
 
+        /** Chunks never exceed this; the codec's inflate cap ([ChunkCodec.MAX_INFLATED_BYTES]) is four times as much. */
+        const val MAX_ALLOWED = 16 * 1024 * 1024
+
         /** "PANO" in ASCII: the SplitMix64 seed the gear table is drawn from. */
         const val GEAR_SEED = 0x50414E4FL
 
@@ -181,6 +185,9 @@ class FastCdc(
                 z xor (z ushr 31)
             }
         }
+
+        /** The chunker a repository with [config] was written with. */
+        fun of(config: SnapshotRepoConfig) = FastCdc(config.min, config.avg, config.max)
 
         private fun topBits(count: Int): Long = if (count <= 0) 0L else -1L shl (64 - count)
     }

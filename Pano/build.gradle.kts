@@ -103,6 +103,9 @@ dependencies {
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation("com.google.code.gson:gson:$gsonVersion")
 
+    // The snapshot format (chunker, chunk codec, manifest, seal, pack), shared with the Node daemon.
+    implementation(project(":Snapshot"))
+
     implementation("org.pf4j:pf4j:${pf4jVersion}")
     kapt("org.pf4j:pf4j:${pf4jVersion}")
 

@@ -9,7 +9,7 @@ import com.panomc.node.backup.BackupScope
 import com.panomc.node.backup.BackupScopeException
 import com.panomc.node.backup.BackupScopeKind
 import com.panomc.node.backup.WorldReplacement
-import com.panomc.node.backup.snapshot.CorruptChunkException
+import com.panomc.snapshot.CorruptChunkException
 import com.panomc.node.backup.snapshot.RepoBusyException
 import com.panomc.node.backup.snapshot.SnapshotRepository
 import com.panomc.node.console.ConsoleLevel

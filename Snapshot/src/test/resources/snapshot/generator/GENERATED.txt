@@ -1,0 +1,14 @@
+Golden vectors for snapshot/SnapshotFormatTest (archive-format.md §7).
+
+Generated from pano-web-platform origin/alpha 67ed403e2a419cd0b353e06b9ede6e001f87c296 by compiling, unmodified,
+Node/src/main/kotlin/com/panomc/node/backup/snapshot/{FastCdc,SnapshotManifest,SnapshotRepository}.kt
+and util/PathSafety.kt together with Stubs.kt.txt (path filters only) and Gen.kt.txt
+(Kotlin 2.3.0, Gson 2.13.2, JDK 21). Run: gradle run --args=<out dir>.
+
+gear.txt              the 256 gear values
+cuts-*.txt            "<length> <sha256>" per chunk: default params over splitMix(1, 12 MiB + 12345),
+                      64/256/1024 over splitMix(2, 64 KiB + 77) and splitMix(3,3000)+zeros(5000)+splitMix(4,3000)
+repo/                 a repository written by the real SnapshotRepository.create (config 64/256/1024) of tree/
+manifest.json         the gunzipped snapshots/snap-golden.json.gz
+seal.txt              sealed-object vectors (independent JCA AES-GCM + HKDF, fixed nonces)
+derived-key.txt       HKDF-SHA256(00..1f, "pano-snapshot-v1")

@@ -3,6 +3,7 @@ package com.panomc.platform.backup.remote
 import com.panomc.platform.archive.ArchiveManifest
 import com.panomc.platform.archive.PanoArcEncryption
 import com.panomc.platform.archive.PanoArchive
+import com.panomc.platform.archive.instance.InstanceLayout
 import com.panomc.platform.backup.PanoBackupException
 import com.panomc.platform.backup.PanoBackupInfo
 import com.panomc.platform.backup.PanoBackupJob
@@ -84,6 +85,9 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     @Volatile
     var onPart: (String, Int) -> Unit = { _, _ -> }
 
+    /** Deduplicated snapshots of connected Panos (host-api.md "Snapshots of connected Panos"). */
+    val snapshotRepo = FakeSnapshotRepo(this)
+
     // In-memory S3 state
     val parts = ConcurrentHashMap<String, ConcurrentHashMap<Int, ByteArray>>()
     val objects = ConcurrentHashMap<String, ByteArray>()
@@ -137,7 +141,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         server.close().toCompletionStage().toCompletableFuture().get()
     }
 
-    private class Failure(val status: Int, val code: String, val extras: JsonObject = JsonObject()) : Exception(code)
+    class Failure(val status: Int, val code: String, val extras: JsonObject = JsonObject()) : Exception(code)
 
     private fun answer(context: RoutingContext) {
         val method = context.request().method().name()
@@ -190,6 +194,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
             !path.startsWith("/host/connected") -> throw Failure(404, "NOT_FOUND")
             segments.isEmpty() -> JsonObject().put("accountId", ACCOUNT_ID).put("platformId", "p1").put("username", "tester")
                 .put("instanceId", instance(context, false)).put("instanceName", context.request().getHeader("X-Pano-Instance-Name"))
+            segments[0] == "snapshots" -> snapshotRepo.route(method, segments, instance(context, true)!!, body)
             segments[0] == "backups" -> backupsRoute(method, segments, instance(context, true)!!, body)
             segments[0] == "exports" -> JsonObject().put(
                 "workloads",
@@ -206,7 +211,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
     private fun freeQuota(): Long? = if (lapsed) null else freeQuotaBytes
 
-    private fun usedBytes() = backups.values.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") }
+    private fun usedBytes() = backups.values.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") } + snapshotRepo.storedBytes()
 
     private fun backupsRoute(method: String, segments: List<String>, instanceId: String, body: JsonObject): JsonObject {
         val id = segments.getOrNull(1)
@@ -220,13 +225,17 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                     JsonObject().put("instanceId", instance).put("instanceName", list.first().getString("instanceName")).put("current", instance == instanceId)
                         .put("usedBytes", list.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") })
                         .put("backups", JsonArray(list.sortedByDescending { it.getLong("createdAt") }))
+                        .put("snapshots", JsonArray(snapshotRepo.views(instance)))
+                } + snapshotRepo.instancesWithoutBackups(visible.map { it.getString("instanceId") }.toSet()).map { other ->
+                    JsonObject().put("instanceId", other).put("instanceName", "Other Pano").put("current", other == instanceId).put("usedBytes", 0)
+                        .put("backups", JsonArray()).put("snapshots", JsonArray(snapshotRepo.views(other)))
                 }
 
                 JsonObject()
                     .put("instanceId", instanceId)
                     .put("tier", if (active) tier() else null)
                     .put("subscription", if (active) JsonObject().put("tierId", "backup-10").put("status", "ACTIVE") else null)
-                    .put("usage", JsonObject().put("usedBytes", usedBytes()).put("reservedBytes", 0).put("quotaBytes", if (active) quotaBytes else freeQuota())
+                    .put("usage", JsonObject().put("usedBytes", usedBytes()).put("reservedBytes", snapshotRepo.reservedBytes()).put("quotaBytes", if (active) quotaBytes else freeQuota())
                         .put("freeBytes", if (active) maxOf(0L, quotaBytes - usedBytes()) else freeQuota()?.let { maxOf(0L, it - usedBytes()) }))
                     .put("free", JsonObject().put("quotaBytes", freeQuotaBytes ?: 0L))
                     .put("panos", JsonArray(panos))
@@ -373,6 +382,15 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
     private fun s3Put(context: RoutingContext) {
         val key = context.request().path().removePrefix("/s3/")
+
+        if (key.startsWith("snap/")) {
+            val status = if (failAllPuts) 500 else snapshotRepo.put(key, context.body().buffer()?.bytes ?: ByteArray(0))
+
+            context.response().setStatusCode(status).end()
+
+            return
+        }
+
         val partNumber = context.request().getParam("partNumber")?.toInt() ?: 1
         onPart(key, partNumber)
 
@@ -396,8 +414,12 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         context.response().putHeader("ETag", "\"$partNumber\"").end()
     }
 
+    /** Stored plus reserved bytes of the account, snapshots included (the quota check at start and per pack). */
+    fun snapshotUsed(): Long = usedBytes() + snapshotRepo.reservedBytes()
+
     private fun s3Get(context: RoutingContext) {
-        val bytes = objects[context.request().path().removePrefix("/s3/")]
+        val key = context.request().path().removePrefix("/s3/")
+        val bytes = if (key.startsWith("snap/")) snapshotRepo.get(key) else objects[key]
 
         if (bytes == null) context.response().setStatusCode(404).end() else context.response().end(Buffer.buffer(bytes))
     }
@@ -445,6 +467,19 @@ class FakeRunner(private val scope: CoroutineScope, private val payloadBytes: In
     private val mutex = Mutex()
     val restored = CopyOnWriteArrayList<ArchiveManifest>()
     val archived = CopyOnWriteArrayList<Boolean>()
+
+    /** Snapshot tests: the instance files to read (null = [prepareSnapshot] is not available) and the dump text to write. */
+    @Volatile
+    var layout: InstanceLayout? = null
+
+    @Volatile
+    var dumpText: String = ""
+
+    /** The last restored archive: entry path → bytes, and its size in bytes. */
+    val restoredEntries = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+
+    @Volatile
+    var restoredSize = 0L
 
     @Volatile
     override var job: PanoBackupJob? = null
@@ -498,8 +533,31 @@ class FakeRunner(private val scope: CoroutineScope, private val payloadBytes: In
     override suspend fun restoreFrom(source: File, passphrase: CharArray?, safetyArchive: Boolean, maintenance: Boolean): PanoBackupInfo? =
         withContext(Dispatchers.IO) {
             restored.add(source.inputStream().buffered().use { PanoArchive.verify(it, PanoArcKeys(passphrase = passphrase)) })
+
+            restoredEntries.clear()
+            restoredSize = source.length()
+
+            if (passphrase == null) {
+                java.util.zip.ZipInputStream(source.inputStream().buffered()).use { zip ->
+                    while (true) {
+                        val entry = zip.nextEntry ?: break
+
+                        restoredEntries[entry.name] = zip.readBytes()
+                    }
+                }
+            }
+
             null
         }
+
+    override suspend fun prepareSnapshot(dumpFile: File): SnapshotContent = withContext(Dispatchers.IO) {
+        val layout = layout ?: throw IllegalStateException("No layout in this test.")
+
+        dumpFile.parentFile?.mkdirs()
+        dumpFile.writeText(dumpText)
+
+        SnapshotContent(layout, "pano_", "1.0.0-test", mapOf("core" to 5), "pano-native", dumpFile)
+    }
 }
 
 suspend fun awaitJob(job: PanoBackupJob, timeoutMs: Long = 60_000): PanoBackupJob = withTimeout(timeoutMs) {

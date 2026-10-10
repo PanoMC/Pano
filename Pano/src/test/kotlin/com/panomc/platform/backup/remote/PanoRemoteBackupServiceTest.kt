@@ -75,6 +75,7 @@ class PanoRemoteBackupServiceTest {
         host.backups.clear()
         host.transfers.clear()
         host.aborted.clear()
+        host.snapshotRepo.reset()
         host.tokens.add(FakePanoHost.TOKEN)
         host.subscription = true
         host.lapsed = false
@@ -392,10 +393,11 @@ class PanoRemoteBackupServiceTest {
         assertTrue(host.backups.isEmpty(), "schedule OFF")
         assertNull(runner.job)
 
-        service.saveSettings(RemoteBackupSettings(schedule = RemoteBackupSettings.Schedule.DAILY, hour = 0))
+        service.saveSettings(RemoteBackupSettings(schedule = RemoteBackupSettings.Schedule.DAILY, hour = 0, mode = RemoteBackupSettings.Mode.FULL))
         service.tick(now)
         assertEquals(PanoBackupJob.Status.DONE, awaitJob(runner.job!!).status)
         assertEquals(1, host.backups.size)
+        assertTrue(service.state().lastFullBytes!! > 0, "the size of the last full archive is remembered")
 
         val first = runner.job
 
@@ -413,7 +415,7 @@ class PanoRemoteBackupServiceTest {
         service.tick(now + 10 * 60_000L)
         assertTrue(runner.job === first, "backing off")
 
-        // A failed scheduled upload also backs off.
+        // A failed scheduled upload also backs off (here: the storage refused it, so it waits for the next slot).
         host.quotaBytes = 1000
         service.tick(now + PanoRemoteBackupService.RETRY_AFTER_FAILURE_MS)
         val failed = awaitJob(runner.job!!)
@@ -422,6 +424,12 @@ class PanoRemoteBackupServiceTest {
         service.tick(now + PanoRemoteBackupService.RETRY_AFTER_FAILURE_MS + 10 * 60_000L)
         assertTrue(runner.job === failed, "backing off after the failed upload")
 
+        service.tick(now + 2 * PanoRemoteBackupService.RETRY_AFTER_FAILURE_MS + 10 * 60_000L)
+        assertTrue(runner.job === failed, "a refused run is not retried within the slot")
+
+        // The plan got bigger (the overview shows more room): it runs at once.
+        host.quotaBytes = 20L shl 30
+        service.status(fresh = true)
         service.tick(now + 2 * PanoRemoteBackupService.RETRY_AFTER_FAILURE_MS + 10 * 60_000L)
         assertEquals(PanoBackupJob.Status.DONE, awaitJob(runner.job!!).status)
         assertEquals(2, host.backups.values.count { it.getString("status") == "DONE" })
@@ -435,8 +443,9 @@ class PanoRemoteBackupServiceTest {
 
         // What setup's "daily backups" switches on: DAILY with the saved hour (default 03:00) and servers.
         service.saveSettings(service.state().settings.copy(schedule = RemoteBackupSettings.Schedule.DAILY))
-        assertEquals(RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, 3, emptyList()), service.state().settings)
+        assertEquals(RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, 3, emptyList(), RemoteBackupSettings.Mode.SNAPSHOT), service.state().settings)
 
+        service.saveSettings(service.state().settings.copy(mode = RemoteBackupSettings.Mode.FULL))
         service.tick(now)
         assertEquals(PanoBackupJob.Status.DONE, awaitJob(runner.job!!).status)
         assertEquals(1, host.backups.size)
@@ -472,6 +481,21 @@ class PanoRemoteBackupServiceTest {
         assertEquals(RemoteBackupSettings.Schedule.DAILY, RemoteBackupSettings.fromJson(JsonObject().put("schedule", "TIER").put("hour", 1))?.schedule)
 
         assertEquals(daily, RemoteBackupSettings.fromJson(daily.toJson()))
+
+        // `mode`: snapshots by default (also for a state stored before the field), full when chosen, nothing else.
+        assertEquals(RemoteBackupSettings.Mode.SNAPSHOT, daily.mode)
+        assertEquals(RemoteBackupSettings.Mode.SNAPSHOT, RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 4))?.mode)
+        assertEquals(RemoteBackupSettings.Mode.FULL, RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 4), RemoteBackupSettings.Mode.FULL)?.mode)
+        assertEquals(RemoteBackupSettings.Mode.FULL, RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 4).put("mode", "FULL"))?.mode)
+        assertEquals(RemoteBackupSettings.Mode.SNAPSHOT, RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 4).put("mode", "SNAPSHOT"), RemoteBackupSettings.Mode.FULL)?.mode)
+        assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 4).put("mode", "DIFF")))
+        assertEquals("FULL", daily.copy(mode = RemoteBackupSettings.Mode.FULL).toJson().getString("mode"))
+        assertEquals(daily.copy(mode = RemoteBackupSettings.Mode.FULL), RemoteBackupSettings.fromJson(daily.copy(mode = RemoteBackupSettings.Mode.FULL).toJson()))
+        assertEquals(
+            RemoteBackupState(daily.copy(mode = RemoteBackupSettings.Mode.FULL), 5L, 99L),
+            RemoteBackupState.parse(RemoteBackupState(daily.copy(mode = RemoteBackupSettings.Mode.FULL), 5L, 99L).toJson().encode())
+        )
+        assertEquals(RemoteBackupSettings.Mode.SNAPSHOT, RemoteBackupState.parse(JsonObject().put("settings", JsonObject().put("schedule", "DAILY").put("hour", 2)).encode()).settings.mode)
         assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "HOURLY").put("hour", 1)))
         assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 24)))
         assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 1).put("mcServerIds", JsonArray().add("x"))))

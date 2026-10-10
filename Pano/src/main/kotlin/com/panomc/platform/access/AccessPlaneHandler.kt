@@ -39,7 +39,7 @@ class FrontendAccessDisabled : Error(
     )
 ) {
     companion object {
-        /** The panel calls that create a key or add an origin: refused while the front-end is a theme. */
+        /** The panel call that creates a key: refused while the front-end is a theme. */
         fun requireOff(mode: com.panomc.platform.ui.FrontendMode) {
             if (mode == com.panomc.platform.ui.FrontendMode.THEME) throw FrontendAccessDisabled()
         }

@@ -245,7 +245,7 @@ class AccessPlaneHandlerTest {
     }
 
     @Test
-    fun `creating a key or adding an origin is refused only in THEME mode`() {
+    fun `creating a key is refused only in THEME mode`() {
         val refusal = org.junit.jupiter.api.Assertions.assertThrows(FrontendAccessDisabled::class.java) {
             FrontendAccessDisabled.requireOff(com.panomc.platform.ui.FrontendMode.THEME)
         }

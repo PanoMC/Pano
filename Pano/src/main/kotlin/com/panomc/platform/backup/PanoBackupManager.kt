@@ -161,7 +161,7 @@ class PanoBackupManager(
     }
 
     /**
-     * Setup's "daily backups with free Pano Backup": switches the remote backup schedule to DAILY (the saved hour,
+     * Setup's "daily backups with free Pano Backup": switches the remote backup schedule to DAILY with deduplicated snapshots (the saved hour,
      * default 03:00 local, and the saved managed MC servers stay) when the account is connected. Needs the database
      * (setup's finish route calls it after creating it). Returns whether it was switched on; never throws.
      */
@@ -171,7 +171,7 @@ class PanoBackupManager(
                 return false
             }
 
-            remote.saveSettings(remote.state().settings.copy(schedule = RemoteBackupSettings.Schedule.DAILY))
+            remote.saveSettings(remote.state().settings.copy(schedule = RemoteBackupSettings.Schedule.DAILY, mode = RemoteBackupSettings.Mode.SNAPSHOT))
 
             true
         } catch (e: Exception) {

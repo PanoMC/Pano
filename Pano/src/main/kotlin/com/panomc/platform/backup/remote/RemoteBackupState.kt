@@ -11,14 +11,18 @@ import java.time.ZoneId
 
 /**
  * Pano Backup (remote) settings: [schedule] of the automatic upload (at the local [hour]; the plan has
- * no frequency rule), [mcServerIds] = managed MC servers whose finished full backups are also
- * uploaded (`kind: mc-server`).
+ * no frequency rule), [mode] = what a scheduled run uploads, [mcServerIds] = managed MC servers whose
+ * finished full backups are also uploaded (`kind: mc-server`).
  */
 data class RemoteBackupSettings(
     val schedule: Schedule = Schedule.OFF,
     val hour: Int = 3,
-    val mcServerIds: List<Long> = emptyList()
+    val mcServerIds: List<Long> = emptyList(),
+    val mode: Mode = Mode.SNAPSHOT
 ) {
+    /** `SNAPSHOT` = deduplicated snapshots (only what changed is uploaded), `FULL` = one whole `.panoarc` per run. */
+    enum class Mode { SNAPSHOT, FULL }
+
     enum class Schedule(val intervalMs: Long) {
         OFF(0),
         DAILY(24L * 60 * 60 * 1000),
@@ -29,6 +33,7 @@ data class RemoteBackupSettings(
         .put("schedule", schedule.name)
         .put("hour", hour)
         .put("mcServerIds", JsonArray(mcServerIds))
+        .put("mode", mode.name)
 
     /** Whether an upload is due at [now]: schedule on, local [hour] reached, the last upload a schedule ago (minus slack for tick jitter). */
     fun isDue(lastUploadAt: Long?, now: Long, zone: ZoneId = ZoneId.systemDefault()): Boolean {
@@ -47,8 +52,11 @@ data class RemoteBackupSettings(
         const val MAX_MC_SERVERS = 100
         private const val SLACK_MS = 60L * 60 * 1000
 
-        /** `TIER` (the link era's "as often as the tier allows") reads as `DAILY`. */
-        fun fromJson(json: JsonObject?): RemoteBackupSettings? {
+        /**
+         * `TIER` (the link era's "as often as the tier allows") reads as `DAILY`. A missing `mode` (state stored before
+         * snapshots) is [defaultMode]; an unknown one is refused.
+         */
+        fun fromJson(json: JsonObject?, defaultMode: Mode = Mode.SNAPSHOT): RemoteBackupSettings? {
             json ?: return null
 
             val raw = json.getValue("schedule")
@@ -61,8 +69,10 @@ data class RemoteBackupSettings(
             }
 
             val ids = servers.map { (it as? Number)?.toLong() ?: return null }.distinct()
+            val rawMode = json.getValue("mode")
+            val mode = if (rawMode == null) defaultMode else Mode.values().firstOrNull { it.name == rawMode } ?: return null
 
-            return RemoteBackupSettings(schedule, hour, ids)
+            return RemoteBackupSettings(schedule, hour, ids, mode)
         }
     }
 }
@@ -73,11 +83,14 @@ data class RemoteBackupSettings(
  */
 data class RemoteBackupState(
     val settings: RemoteBackupSettings = RemoteBackupSettings(),
-    val lastUploadAt: Long? = null
+    val lastUploadAt: Long? = null,
+    /** Size of the last full `.panoarc` uploaded (a scheduled full run is skipped when the free storage is below it). */
+    val lastFullBytes: Long? = null
 ) {
     fun toJson(): JsonObject = JsonObject()
         .put("settings", settings.toJson())
         .put("lastUploadAt", lastUploadAt)
+        .put("lastFullBytes", lastFullBytes)
 
     companion object {
         const val OPTION = "pano_backup_remote"
@@ -90,7 +103,8 @@ data class RemoteBackupState(
 
             RemoteBackupState(
                 settings = RemoteBackupSettings.fromJson(json.getJsonObject("settings")) ?: RemoteBackupSettings(),
-                lastUploadAt = json.getLong("lastUploadAt")
+                lastUploadAt = json.getLong("lastUploadAt"),
+                lastFullBytes = json.getLong("lastFullBytes")
             )
         } catch (_: Exception) {
             RemoteBackupState()

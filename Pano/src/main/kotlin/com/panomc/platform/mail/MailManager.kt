@@ -17,6 +17,7 @@ import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.mail.*
+import io.vertx.ext.mail.mailencoder.MailEncoder
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.SqlClient
 import org.slf4j.Logger
@@ -36,7 +37,8 @@ class MailManager(
     private val gson: Gson,
     private val vertx: Vertx,
     private val i18nManager: I18nManager,
-    private val frontendUrlMap: FrontendUrlMap? = null
+    private val frontendUrlMap: FrontendUrlMap? = null,
+    private val panoMailService: PanoMailService? = null
 ) {
     // Handlebars instance for rendering mail templates
     private val handlebars by lazy { Handlebars() }
@@ -50,6 +52,16 @@ class MailManager(
     private val systemClassLoader = ClassLoader.getSystemClassLoader()
 
     companion object {
+        const val PROVIDER_SMTP = "SMTP"
+        const val PROVIDER_PANO_MAIL = "PANO_MAIL"
+
+        /** The raw MIME message (CRLF) of [message]; the Message-ID's host is the sender's domain. */
+        fun encodeMime(message: MailMessage): ByteArray {
+            val domain = message.from.substringAfterLast('@', "pano").trim('>', ' ').ifBlank { "pano" }
+
+            return MailEncoder(message, domain).encode().toByteArray(Charsets.UTF_8)
+        }
+
         private const val MAX_LOGO_SIZE_BYTES = 20 * 1024 // 20KB
         private const val MAX_LOGO_DIMENSION = 800 // Maximum width or height in pixels
         private const val CACHE_FOLDER_NAME = "cache"
@@ -294,9 +306,35 @@ class MailManager(
             }
         }
 
-        mailClient.sendMail(message).coAwait()
+        if (emailConfig.provider == PROVIDER_PANO_MAIL) {
+            sendThroughPanoMail(message)
+        } else {
+            mailClient.sendMail(message).coAwait()
+        }
 
         return MailResult.SENT
+    }
+
+    /**
+     * Sends [message] through the Pano Mail of the connected panomc.com account.
+     *
+     * @throws PanoMailException when the website refuses, is unreachable, or this Pano is not connected
+     */
+    private suspend fun sendThroughPanoMail(message: MailMessage) {
+        val service = panoMailService ?: throw PanoMailException(PanoMailException.UNAVAILABLE, "Pano Mail is not available.")
+
+        val from = message.from
+        val to = message.to.orEmpty()
+
+        try {
+            val result = service.send(from, to, encodeMime(message))
+
+            logger.debug("Pano Mail accepted message ${result.getString("id")} for ${to.size} recipient(s).")
+        } catch (e: PanoMailException) {
+            logger.error("Pano Mail did not send the e-mail (${e.code}): ${e.message}")
+
+            throw e
+        }
     }
 
     suspend fun validateConfig(config: JsonObject, sender: String) {

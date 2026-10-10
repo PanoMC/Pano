@@ -22,6 +22,9 @@ import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.ui.FrontendMode
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.PanoMailService
+import com.panomc.platform.mail.PanoMailVerify
 import com.panomc.platform.ui.ThemeUiController
 import org.slf4j.Logger
 import com.panomc.platform.util.UsageMode
@@ -50,6 +53,7 @@ class PanelUpdateSettingsAPI(
     private val maintenanceModeManager: MaintenanceModeManager,
     private val themeUiController: ThemeUiController,
     private val logger: Logger,
+    private val panoMailService: PanoMailService,
 ) : PanelApi() {
     override val paths = listOf(Path("/settings", RouteType.PUT))
 
@@ -131,18 +135,23 @@ class PanelUpdateSettingsAPI(
                         .optionalProperty(
                             "email",
                             objectSchema()
-                                .requiredProperty("enabled", booleanSchema())
-                                .requiredProperty("hostname", stringSchema())
-                                .requiredProperty("port", intSchema())
-                                .requiredProperty("ssl", booleanSchema())
-                                .requiredProperty(
+                                // Required for SMTP (checked in handle()); `{provider: "PANO_MAIL"}` needs only itself.
+                                .optionalProperty("enabled", booleanSchema())
+                                .optionalProperty("hostname", stringSchema())
+                                .optionalProperty("port", intSchema())
+                                .optionalProperty("ssl", booleanSchema())
+                                .optionalProperty(
                                     "starttls",
                                     enumSchema(*StartTLSOptions.entries.map { it.name }.toTypedArray())
                                 )
-                                .requiredProperty("username", stringSchema())
-                                .requiredProperty("password", stringSchema())
-                                .requiredProperty("sender", stringSchema())
+                                .optionalProperty("username", stringSchema())
+                                .optionalProperty("password", stringSchema())
+                                .optionalProperty("sender", stringSchema())
                                 .optionalProperty("authMethods", stringSchema())
+                                // "SMTP" (default) or "PANO_MAIL": send through the connected panomc.com account.
+                                .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
+                                // PANO_MAIL: the sender address; omitted = the one the website gave the account.
+                                .optionalProperty("from", stringSchema())
                                 // Pano Host: true = use the instance's Pano Host mail again (the other fields are ignored).
                                 .optionalProperty("hostManaged", booleanSchema())
                         )
@@ -405,8 +414,19 @@ class PanelUpdateSettingsAPI(
             configManager.config.keywords = keywords.filter { !it.isBlank() }
         }
 
-        if (email != null) {
+        if (email != null && email.getString("provider") == MailManager.PROVIDER_PANO_MAIL) {
+            if (email.getBoolean("enabled") == false) {
+                // Pano Mail turned off: the provider stays, nothing is asked of the website.
+                configManager.config.email.enabled = false
+                configManager.saveConfig()
+            } else {
+                // Throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE, nothing is stored then.
+                panoMailService.activate(email.getString("from") ?: email.getString("sender"))
+            }
+        } else if (email != null) {
+            PanoMailVerify.requireSmtpFields(email, PanoMailVerify.SMTP_SAVE_FIELDS)
             val mailConfiguration = configManager.config.email
+            mailConfiguration.provider = MailManager.PROVIDER_SMTP
             val hosted = HostedEnvConfig.current
             val hostMail = hosted.isHosted && hosted.smtp != null
             val enabled = email.getBoolean("enabled")

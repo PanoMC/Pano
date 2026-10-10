@@ -166,6 +166,24 @@ class PanoHostClient(
         call("DELETE", "/host/connected/transfers/${segment(transferId)}")
     }
 
+    // Pano Mail
+
+    /** `{enabled, ready, from, plan, usage, senders, limits}` of the connection's account. */
+    suspend fun mailStatus(): JsonObject = call("GET", "/host/connected/mail")
+
+    /** Idempotent: switches Pano Mail on for this Pano; same body as [mailStatus]. */
+    suspend fun enableMail(): JsonObject = call("POST", "/host/connected/mail/enable")
+
+    /** `{id, recipients}`; [mime] is the raw MIME message (sent base64). */
+    suspend fun sendMail(from: String, to: List<String>, mime: ByteArray): JsonObject =
+        call(
+            "POST", "/host/connected/mail/send",
+            JsonObject().put("from", from).put("to", JsonArray(to)).put("mime", java.util.Base64.getEncoder().encodeToString(mime))
+        )
+
+    /** `GET /host/catalog` (public, no token): `{mailPlans[…], …}`; [timeout] bounds the whole call. */
+    suspend fun catalog(timeout: Duration = Duration.ofSeconds(5)): JsonObject = send("GET", "/host/catalog", null, null, null, timeout)
+
     // Object storage (presigned URLs)
 
     /**
@@ -328,7 +346,14 @@ class PanoHostClient(
         return send(method, path, token, identity, body)
     }
 
-    private suspend fun send(method: String, path: String, token: String, identity: PanoIdentity, body: JsonObject?): JsonObject = withContext(Dispatchers.IO) {
+    private suspend fun send(
+        method: String,
+        path: String,
+        token: String?,
+        identity: PanoIdentity?,
+        body: JsonObject?,
+        timeout: Duration = Duration.ofSeconds(60)
+    ): JsonObject = withContext(Dispatchers.IO) {
         val base = baseUrl().trim().trimEnd('/')
 
         if (!base.startsWith("http://") && !base.startsWith("https://")) {
@@ -336,11 +361,14 @@ class PanoHostClient(
         }
 
         val builder = HttpRequest.newBuilder(URI(base + path))
-            .timeout(Duration.ofSeconds(60))
+            .timeout(timeout)
             .header("Accept", "application/json")
-            .header("Authorization", "Bearer $token")
-            .header(HEADER_INSTANCE_ID, identity.instanceId)
-            .header(HEADER_INSTANCE_NAME, headerSafe(identity.instanceName))
+
+        if (token != null && identity != null) {
+            builder.header("Authorization", "Bearer $token")
+                .header(HEADER_INSTANCE_ID, identity.instanceId)
+                .header(HEADER_INSTANCE_NAME, headerSafe(identity.instanceName))
+        }
 
         if (body != null) {
             builder.header("Content-Type", "application/json")

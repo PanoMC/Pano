@@ -366,6 +366,12 @@ data class PanoConfig(
         data class EmailConfig(
             var enabled: Boolean = false,
 
+            @ConfigComment(
+                "How mail is sent: \"SMTP\" (the settings below) or \"PANO_MAIL\" (the Pano Mail of the",
+                "panomc.com account this Pano is connected to; the SMTP settings are not used)."
+            )
+            var provider: String = "SMTP",
+
             @ConfigComment("Sender, e.g. \"Pano <no-reply@domain.com>\" — usually the same as username.")
             var sender: String = "",
 

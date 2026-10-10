@@ -127,6 +127,9 @@ class PanoBackupManager(
         PanoHostClient({ hostApiUrl() }, ::connectionToken, { PanoIdentity(id, instanceName()) })
     }
 
+    /** The control-plane client for Pano Mail: the persisted instance id once set-up is done, else the set-up one. */
+    fun mailClient(): PanoHostClient = if (setupManager.isSetupDone()) hostClient else setupHostClient
+
     /** Pano Backup + transfer of the running Pano over its platform connection; settings in the database. */
     val remote by lazy {
         PanoRemoteBackupService(

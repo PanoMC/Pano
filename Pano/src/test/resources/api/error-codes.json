@@ -371,6 +371,14 @@
     "code": "PANO_HOST_ERROR",
     "status": 400
   },
+  "com.panomc.platform.error.PanoMailConnectRequired": {
+    "code": "CONNECT_REQUIRED",
+    "status": 409
+  },
+  "com.panomc.platform.error.PanoMailUnavailable": {
+    "code": "PANO_MAIL_UNAVAILABLE",
+    "status": 502
+  },
   "com.panomc.platform.error.PanoNotConnected": {
     "code": "PANO_NOT_CONNECTED",
     "status": 400

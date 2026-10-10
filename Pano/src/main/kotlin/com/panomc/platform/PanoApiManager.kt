@@ -1,5 +1,6 @@
 package com.panomc.platform
 
+import com.panomc.platform.mail.MailManager
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
@@ -254,6 +255,12 @@ class PanoApiManager(
         panoAccountConfig.email = ""
 
         panoAccountConfig.connect = null
+
+        // Pano Mail belongs to the account: without it e-mail is off.
+        configManager.config.email.takeIf { it.provider == MailManager.PROVIDER_PANO_MAIL }?.let {
+            it.provider = MailManager.PROVIDER_SMTP
+            it.enabled = false
+        }
 
         configManager.saveConfig()
 

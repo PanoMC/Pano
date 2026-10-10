@@ -6,6 +6,8 @@ import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermissio
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.PanoMailService
+import com.panomc.platform.mail.PanoMailVerify
 import com.panomc.platform.model.*
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.mail.StartTLSOptions
@@ -20,6 +22,7 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 @Endpoint
 class PanelSettingsVerifyMailAPI(
     private val mailManager: MailManager,
+    private val panoMailService: PanoMailService,
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi() {
@@ -30,18 +33,19 @@ class PanelSettingsVerifyMailAPI(
             .body(
                 json(
                     objectSchema()
-                        .requiredProperty("hostname", stringSchema())
-                        .requiredProperty("port", intSchema())
+                        .optionalProperty("hostname", stringSchema())
+                        .optionalProperty("port", intSchema())
                         .optionalProperty("ssl", booleanSchema())
-                        .requiredProperty(
+                        .optionalProperty(
                             "starttls",
                             enumSchema(*StartTLSOptions.entries.map { it.name }.toTypedArray())
                         )
-                        .requiredProperty("username", stringSchema())
-                        .requiredProperty("password", stringSchema())
-                        .requiredProperty("sender", stringSchema())
+                        .optionalProperty("username", stringSchema())
+                        .optionalProperty("password", stringSchema())
+                        .optionalProperty("sender", stringSchema())
                         .optionalProperty("authMethods", stringSchema())
                         .optionalProperty("hostManaged", booleanSchema())
+                        .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -53,10 +57,18 @@ class PanelSettingsVerifyMailAPI(
         val parameters = getParameters(context)
         val body = parameters.body().jsonObject
 
+        if (body.getString("provider") == MailManager.PROVIDER_PANO_MAIL) {
+            return Successful(PanoMailVerify.run(panoMailService))
+        }
+
         // Pano Host mail: checked with the env's relay settings; the panel never sees the relay password.
         val hostMail = if (body.getBoolean("hostManaged") == true) {
             HostedEnvConfig.current.hostMail(body.getString("sender"), withPassword = true)
         } else null
+        if (hostMail == null) {
+            PanoMailVerify.requireSmtpFields(body)
+        }
+
         val config = hostMail?.let { JsonObject(it) } ?: body.also { custom ->
             // Own SMTP with an empty password: the stored one of the same server and account (the
             // panel never receives it).

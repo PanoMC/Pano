@@ -40,7 +40,8 @@ class FinishAPI(
     private val logger: Logger,
     @get:Lazy private val i18nManager: I18nManager,
     @get:Lazy private val panoHostManager: PanoHostManager,
-    @get:Lazy private val panoBackupManager: PanoBackupManager
+    @get:Lazy private val panoBackupManager: PanoBackupManager,
+    @get:Lazy private val panoMailService: com.panomc.platform.mail.PanoMailService
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/finish", RouteType.POST))
 
@@ -130,6 +131,22 @@ class FinishAPI(
         }
 
         setupManager.finishSetup()
+
+        // The wizard switched Pano Mail on under the set-up's throwaway instance id; the website keeps that
+        // switch per Pano, so it is switched on again under the id this Pano keeps from now on.
+        if (configManager.config.email.let { it.enabled && it.provider == com.panomc.platform.mail.MailManager.PROVIDER_PANO_MAIL }) {
+            try {
+                panoMailService.enable()
+            } catch (e: Exception) {
+                logger.warn("Pano Mail could not be switched on after the set-up: ${e.message}")
+            }
+        }
+
+        try {
+            panoBackupManager.start()
+        } catch (e: Exception) {
+            logger.warn("The Pano Backup schedule could not be started after the set-up: ${e.message}")
+        }
 
         panoHostManager.announceCapabilities()
 

@@ -229,8 +229,17 @@ class PanoBackupManager(
     var setupService: PanoBackupService? = null
         private set
 
-    /** Starts the schedule tick; setup must be done. */
+    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Starts the schedule tick once (boot of an installed Pano, or the end of the set-up wizard: without the
+     * second call a freshly set-up Pano would take no scheduled backup until its next restart).
+     */
     fun start() {
+        if (!started.compareAndSet(false, true)) {
+            return
+        }
+
         store.cleanParts()
 
         vertx.setPeriodic(TICK_INTERVAL_MS) {

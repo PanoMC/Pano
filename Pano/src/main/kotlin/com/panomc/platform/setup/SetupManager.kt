@@ -64,6 +64,8 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         data.put("step", step)
         data.put("locale", configManager.config.locale)
         data.put("usageMode", configManager.config.effectiveUsageMode.name)
+        // The website this Pano connects to: the wizard's links and sign-in go there.
+        data.put("panoWebsiteUrl", configManager.config.panoWebsiteUrl.trimEnd('/'))
 
         if (step == 1 || step == 4) {
             data.put("websiteName", configManager.config.websiteName)

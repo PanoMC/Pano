@@ -447,15 +447,18 @@ class PanoRemoteBackupService(
         val lastFailure = lastScheduledFailureAt
 
         if (state.settings.isDue(state.lastUploadAt, now) && (lastFailure == null || now - lastFailure >= RETRY_AFTER_FAILURE_MS)) {
-            val plan = try {
-                planOf(cachedList(fresh = false))
+            // A paid plan, or the free quota every account has (`usage.quotaBytes` is null without either).
+            val allowed = try {
+                val list = cachedList(fresh = false)
+
+                planOf(list) != null || list.getJsonObject("usage")?.getValue("quotaBytes") != null
             } catch (e: PanoHostException) {
                 logger.warn("Could not read the Pano Backup plan: ${e.code}")
-                null
+                false
             }
 
-            if (plan == null) {
-                logger.warn("Pano Backup is scheduled but the connected panomc.com account has no active Pano Backup plan")
+            if (!allowed) {
+                logger.warn("Pano Backup is scheduled but the connected panomc.com account has no active Pano Backup plan or free quota")
                 lastScheduledFailureAt = now
             } else {
                 logger.info("Taking the scheduled Pano Backup upload")

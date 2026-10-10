@@ -9,6 +9,7 @@ import com.panomc.platform.auth.panel.log.PanoBackupSystemLog
 import com.panomc.platform.backup.remote.ConnectedAccount
 import com.panomc.platform.backup.remote.MemoryRemoteStateStore
 import com.panomc.platform.backup.remote.PanoHostClient
+import com.panomc.platform.backup.remote.RemoteBackupSettings
 import com.panomc.platform.backup.remote.PanoIdentity
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.backup.remote.PassphraseFile
@@ -157,6 +158,27 @@ class PanoBackupManager(
             instanceName = ::instanceName,
             panoVersion = Main.VERSION
         )
+    }
+
+    /**
+     * Setup's "daily backups with free Pano Backup": switches the remote backup schedule to DAILY (the saved hour,
+     * default 03:00 local, and the saved managed MC servers stay) when the account is connected. Needs the database
+     * (setup's finish route calls it after creating it). Returns whether it was switched on; never throws.
+     */
+    suspend fun enableDailyRemoteBackup(): Boolean {
+        return try {
+            if (!remote.isConnected()) {
+                return false
+            }
+
+            remote.saveSettings(remote.state().settings.copy(schedule = RemoteBackupSettings.Schedule.DAILY))
+
+            true
+        } catch (e: Exception) {
+            logger.warn("Could not switch on the daily Pano Backup: ${e.message}")
+
+            false
+        }
     }
 
     /** A managed MC server backup is READY: uploaded to Pano Backup when that server is selected. */

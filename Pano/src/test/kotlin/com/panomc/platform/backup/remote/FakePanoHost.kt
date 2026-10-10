@@ -76,6 +76,10 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     @Volatile
     var quotaBytes = 10L shl 30
 
+    /** The free quota of an account without a paid plan (`tier` null + a quota = the free plan); null = no free plan. */
+    @Volatile
+    var freeQuotaBytes: Long? = null
+
     /** Called on every part PUT (`key`, part number) before it is stored (e.g. to stop the backup there). */
     @Volatile
     var onPart: (String, Int) -> Unit = { _, _ -> }
@@ -200,6 +204,8 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
     private fun tier() = JsonObject().put("id", "backup-10").put("name", "10 GB").put("storageGb", 10).put("priceMonthly", 100).put("graceDays", 7)
 
+    private fun freeQuota(): Long? = if (lapsed) null else freeQuotaBytes
+
     private fun usedBytes() = backups.values.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") }
 
     private fun backupsRoute(method: String, segments: List<String>, instanceId: String, body: JsonObject): JsonObject {
@@ -220,19 +226,21 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                     .put("instanceId", instanceId)
                     .put("tier", if (active) tier() else null)
                     .put("subscription", if (active) JsonObject().put("tierId", "backup-10").put("status", "ACTIVE") else null)
-                    .put("usage", JsonObject().put("usedBytes", usedBytes()).put("reservedBytes", 0).put("quotaBytes", if (active) quotaBytes else null)
-                        .put("freeBytes", if (active) maxOf(0L, quotaBytes - usedBytes()) else null))
+                    .put("usage", JsonObject().put("usedBytes", usedBytes()).put("reservedBytes", 0).put("quotaBytes", if (active) quotaBytes else freeQuota())
+                        .put("freeBytes", if (active) maxOf(0L, quotaBytes - usedBytes()) else freeQuota()?.let { maxOf(0L, it - usedBytes()) }))
+                    .put("free", JsonObject().put("quotaBytes", freeQuotaBytes ?: 0L))
                     .put("panos", JsonArray(panos))
             }
 
             id == null && method == "POST" -> {
                 if (lapsed) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "LAPSED").put("graceUntil", 1L))
-                if (!subscription) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "NO_SUBSCRIPTION"))
+                if (!subscription && freeQuotaBytes == null) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "NO_SUBSCRIPTION"))
 
                 val size = body.getLong("size")
+                val quota = if (subscription) quotaBytes else freeQuotaBytes!!
 
-                if (usedBytes() + size > quotaBytes) {
-                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("reason", "QUOTA").put("quotaBytes", quotaBytes).put("usedBytes", usedBytes()))
+                if (usedBytes() + size > quota) {
+                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("reason", "QUOTA").put("quotaBytes", quota).put("usedBytes", usedBytes()))
                 }
 
                 val backupId = UUID.randomUUID().toString()

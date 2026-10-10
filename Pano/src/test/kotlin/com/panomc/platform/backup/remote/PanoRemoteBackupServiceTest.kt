@@ -428,6 +428,34 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
+    fun `daily schedule uploads on the free quota, an unconnected schedule does nothing`(): Unit = runBlocking {
+        host.subscription = false
+        host.freeQuotaBytes = 1L shl 30
+        now = LocalDateTime.of(2026, 9, 27, 23, 30).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        // What setup's "daily backups" switches on: DAILY with the saved hour (default 03:00) and servers.
+        service.saveSettings(service.state().settings.copy(schedule = RemoteBackupSettings.Schedule.DAILY))
+        assertEquals(RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, 3, emptyList()), service.state().settings)
+
+        service.tick(now)
+        assertEquals(PanoBackupJob.Status.DONE, awaitJob(runner.job!!).status)
+        assertEquals(1, host.backups.size)
+
+        // No free plan and no paid one: still refused.
+        host.freeQuotaBytes = null
+        val first = runner.job
+        service.status(fresh = true)
+        service.tick(now + 30 * 3600_000L)
+        assertTrue(runner.job === first)
+
+        // The account was disconnected: the schedule stays on and the tick silently returns.
+        token = null
+        service.tick(now + 60 * 3600_000L)
+        assertTrue(runner.job === first)
+        assertEquals(RemoteBackupSettings.Schedule.DAILY, service.state().settings.schedule)
+    }
+
+    @Test
     fun `settings, state and passphrase file`() {
         val daily = RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, hour = 4)
         val at = { hour: Int -> LocalDateTime.of(2026, 9, 26, hour, 0).toInstant(ZoneOffset.UTC).toEpochMilli() }

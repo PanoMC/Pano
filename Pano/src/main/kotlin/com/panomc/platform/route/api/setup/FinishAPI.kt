@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.setup
 
+import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.UIManager
@@ -38,7 +39,8 @@ class FinishAPI(
     private val mariaDBManager: MariaDBManager,
     private val logger: Logger,
     @get:Lazy private val i18nManager: I18nManager,
-    @get:Lazy private val panoHostManager: PanoHostManager
+    @get:Lazy private val panoHostManager: PanoHostManager,
+    @get:Lazy private val panoBackupManager: PanoBackupManager
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/finish", RouteType.POST))
 
@@ -57,6 +59,9 @@ class FinishAPI(
                         // Absent means the wizard is an older setup-ui build that never asked:
                         // usage data stays on, which is the documented default.
                         .optionalProperty("telemetryEnabled", booleanSchema())
+                        // true + a connected account: the remote (Pano Backup) schedule is switched on, daily.
+                        // Without an account it is ignored; false / absent leaves the settings untouched.
+                        .optionalProperty("dailyBackup", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -75,6 +80,7 @@ class FinishAPI(
         val password = data.getString("password")
         val setupLocale = data.getString("setupLocale")
         val telemetryEnabled = data.getBoolean("telemetryEnabled") ?: true
+        val dailyBackup = data.getBoolean("dailyBackup") ?: false
 
         val remoteIP = authProvider.getRemoteIP(context)
 
@@ -118,6 +124,10 @@ class FinishAPI(
         configManager.saveConfig()
 
         databaseManager.panelActivityLogDao.add(InstalledPlatformLog(userId, username), sqlClient)
+
+        if (dailyBackup) {
+            panoBackupManager.enableDailyRemoteBackup()
+        }
 
         setupManager.finishSetup()
 

@@ -15,9 +15,9 @@ import io.vertx.json.schema.SchemaRepository
 
 /**
  * `GET /api/v1/setup/pano-mail` → `{website, connected, account {username} | null, freePlan {mailsPerMonth,
- * mailsPerDay} | null, sender {name, zone, localPart} | null}`: what setup step 3 shows for "send through Pano Mail". `website` is the connected
+ * mailsPerDay} | null, sender {name, zone, localPart} | null, plan {id, name, free, mailsPerMonth, mailsPerDay} | null, manageUrl}`: what setup step 3 shows for "send through Pano Mail". `website` is the connected
  * website's URL (`pano-website-url`); `freePlan` is the free plan of the website's public catalog (cached a few
- * minutes), null when it cannot be read. `sender` (the address name the website has or suggests, its zone, and the local part) is null when not connected or the website is unreachable. Never fails because the website is down.
+ * minutes), null when it cannot be read. `sender` (the address name the website has or suggests, its zone, and the local part) is null when not connected or the website is unreachable. `plan` is the account's plan in force (null when not connected / unreachable); `manageUrl` is `<website>/host/manage/mail`. Never fails because the website is down.
  */
 @Endpoint
 class SetupGetPanoMailAPI(
@@ -31,7 +31,7 @@ class SetupGetPanoMailAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val config = configManager.config
         val connected = panoMailService.isConnected()
-        val sender = PanoMailService.senderView(config, panoMailService.shortStatus())
+        val status = panoMailService.shortStatus()
 
         return Successful(
             mapOf(
@@ -39,7 +39,9 @@ class SetupGetPanoMailAPI(
                 "connected" to connected,
                 "account" to if (connected) mapOf("username" to config.panoAccount.username) else null,
                 "freePlan" to panoMailService.freePlan(),
-                "sender" to sender
+                "sender" to PanoMailService.senderView(config, status),
+                "plan" to PanoMailService.planView(status),
+                "manageUrl" to PanoMailService.manageUrl(config)
             )
         )
     }

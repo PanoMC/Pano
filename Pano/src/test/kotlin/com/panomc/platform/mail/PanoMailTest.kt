@@ -402,6 +402,16 @@ class PanoMailTest {
         val view = PanoMailService.panelView(configManager.config, withSubdomain("mysite"), null)
         assertEquals("mysite", (view["sender"] as Map<*, *>)["name"])
         assertNull(PanoMailService.panelView(configManager.config, null, null)["sender"])
+
+        // the set-up route's plan / manageUrl come from the same helpers as the panel's
+        configManager.config.panoWebsiteUrl = "https://panomc.example/"
+        assertEquals("https://panomc.example/host/manage/mail", PanoMailService.manageUrl(configManager.config))
+        assertEquals(
+            JsonObject().put("id", "free").put("name", "Free").put("free", true).put("mailsPerMonth", 300).put("mailsPerDay", 20),
+            PanoMailService.planView(status)
+        )
+        assertNull(PanoMailService.planView(null))
+        assertNull(PanoMailService.planView(JsonObject()))
     }
 
     @Test

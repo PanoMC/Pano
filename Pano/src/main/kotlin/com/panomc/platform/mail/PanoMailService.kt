@@ -271,16 +271,19 @@ class PanoMailService internal constructor(
         const val STATUS_CACHE_MS = 60 * 1000L
         const val FREE_PLAN_CACHE_MS = 5 * 60 * 1000L
 
+        /** `{id, name, free, mailsPerMonth, mailsPerDay}` of the account's plan in force; null when [status] is unknown. */
+        fun planView(status: JsonObject?): JsonObject? = status?.getJsonObject("plan")?.let {
+            JsonObject()
+                .put("id", it.getValue("id")).put("name", it.getValue("name")).put("free", it.getValue("free"))
+                .put("mailsPerMonth", it.getValue("mailsPerMonth")).put("mailsPerDay", it.getValue("mailsPerDay"))
+        }
+
+        /** Where the plan is changed: `<website>/host/manage/mail`. */
+        fun manageUrl(config: PanoConfig): String = config.panoWebsiteUrl.trimEnd('/') + "/host/manage/mail"
+
         /** The panel's Pano Mail view; see `PanelGetPanoMailAPI`. [status] is the website's mail status, null when unknown. */
         fun panelView(config: PanoConfig, status: JsonObject?, freePlan: JsonObject?): Map<String, Any?> {
-            val website = config.panoWebsiteUrl.trimEnd('/')
             val connected = config.panoAccount.accessToken.isNotBlank()
-            val plan = status?.getJsonObject("plan")?.let {
-                JsonObject()
-                    .put("id", it.getValue("id")).put("name", it.getValue("name")).put("free", it.getValue("free"))
-                    .put("mailsPerMonth", it.getValue("mailsPerMonth")).put("mailsPerDay", it.getValue("mailsPerDay"))
-            }
-
             return mapOf(
                 "website" to config.panoWebsiteUrl,
                 "connected" to connected,
@@ -290,11 +293,11 @@ class PanoMailService internal constructor(
                 "ready" to status?.getValue("ready"),
                 "from" to status?.getValue("from"),
                 "held" to status?.getValue("held"),
-                "plan" to plan,
+                "plan" to planView(status),
                 "usage" to status?.getJsonObject("usage"),
                 "freePlan" to freePlan,
                 "sender" to senderView(config, status),
-                "manageUrl" to "$website/host/manage/mail"
+                "manageUrl" to manageUrl(config)
             )
         }
 

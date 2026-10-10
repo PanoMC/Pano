@@ -430,4 +430,41 @@ class PanoMailTest {
         assertEquals("a@b.c", PanoMailService.bareAddress("Pano <a@b.c>"))
         assertEquals("a@b.c", PanoMailService.bareAddress(" a@b.c "))
     }
+
+    @Test
+    fun `name check maps the website statuses and never throws`() = runBlocking {
+        fun answer(status: String, vararg extra: Pair<String, Any>) {
+            val body = JsonObject().put("name", "mysite").put("status", status)
+            extra.forEach { body.put(it.first, it.second) }
+            answers["/host/connected/mail/name-check"] = ok(body)
+        }
+
+        for (status in listOf("AVAILABLE", "CURRENT", "TAKEN", "INVALID")) {
+            answer(status)
+            assertEquals(mapOf("name" to "mysite", "status" to status), service().checkName("mysite"))
+        }
+
+        answer("RESERVED")
+        assertEquals("TAKEN", service().checkName("mysite")["status"])
+
+        answer("INVALID", "reason" to "TOO_SHORT", "minLength" to 3, "maxLength" to 32)
+        assertEquals(
+            mapOf("name" to "mysite", "status" to "INVALID", "reason" to "TOO_SHORT", "minLength" to 3, "maxLength" to 32),
+            service().checkName("mysite")
+        )
+        assertEquals("POST", requests.last { it.second == "/host/connected/mail/name-check" }.first)
+        assertEquals("mysite", JsonObject(requests.last { it.second == "/host/connected/mail/name-check" }.third).getString("name"))
+
+        answer("SOMETHING_NEW")
+        assertEquals("UNKNOWN", service().checkName("mysite")["status"])
+
+        answers["/host/connected/mail/name-check"] = err("INTERNAL", 500)
+        assertEquals(mapOf("name" to "x", "status" to "UNKNOWN"), service().checkName("x"))
+
+        server.stop(0)
+        assertEquals("UNKNOWN", service().checkName("x")["status"])
+
+        configManager.config.panoAccount.accessToken = ""
+        assertEquals("UNKNOWN", service().checkName("x")["status"])
+    }
 }

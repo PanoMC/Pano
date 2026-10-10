@@ -105,6 +105,35 @@ class PanoMailService internal constructor(
         }
     }
 
+    /**
+     * `{name, status, reason?, minLength?, maxLength?}`: `status` is AVAILABLE, CURRENT, TAKEN (also for the
+     * website's RESERVED), INVALID, or UNKNOWN when not connected or on any failure (timeout ~5 s, no caching).
+     * Never throws.
+     */
+    suspend fun checkName(name: String): Map<String, Any?> {
+        val unknown = mapOf<String, Any?>("name" to name, "status" to NAME_UNKNOWN)
+
+        if (!isConnected()) {
+            return unknown
+        }
+
+        return try {
+            val answer = guarded { clientProvider().mailNameCheck(name, Duration.ofSeconds(5)) }
+            val status = when (val raw = answer.getString("status")) {
+                "AVAILABLE", "CURRENT", "INVALID" -> raw
+                "TAKEN", "RESERVED" -> "TAKEN"
+                else -> return unknown
+            }
+            val result = linkedMapOf<String, Any?>("name" to (answer.getString("name") ?: name), "status" to status)
+
+            listOf("reason", "minLength", "maxLength").forEach { key -> answer.getValue(key)?.let { result[key] = it } }
+
+            result
+        } catch (_: Exception) {
+            unknown
+        }
+    }
+
     /** `GET /host/connected/mail`. */
     suspend fun status(): JsonObject = guarded { clientProvider().mailStatus() }
 
@@ -238,6 +267,7 @@ class PanoMailService internal constructor(
     }
 
     companion object {
+        const val NAME_UNKNOWN = "UNKNOWN"
         const val STATUS_CACHE_MS = 60 * 1000L
         const val FREE_PLAN_CACHE_MS = 5 * 60 * 1000L
 

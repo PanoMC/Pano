@@ -187,6 +187,10 @@ class PanoHostClient(
             JsonObject().put("from", from).put("to", JsonArray(to)).put("mime", java.util.Base64.getEncoder().encodeToString(mime))
         )
 
+    /** `{name, status, reason?, minLength?, maxLength?}`: whether the account may use [name] as its sender address name. */
+    suspend fun mailNameCheck(name: String, timeout: Duration = Duration.ofSeconds(5)): JsonObject =
+        call("POST", "/host/connected/mail/name-check", JsonObject().put("name", name), timeout)
+
     /** `GET /host/catalog` (public, no token): `{mailPlans[…], …}`; [timeout] bounds the whole call. */
     suspend fun catalog(timeout: Duration = Duration.ofSeconds(5)): JsonObject = send("GET", "/host/catalog", null, null, null, timeout)
 

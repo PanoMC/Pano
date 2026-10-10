@@ -5,7 +5,12 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.mail.PanoMailService
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
+import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.json.schema.SchemaRepository
 
 /**
@@ -37,5 +42,29 @@ class SetupGetPanoMailAPI(
                 "sender" to sender
             )
         )
+    }
+}
+
+/**
+ * `POST /api/v1/setup/pano-mail/name-check {name}` → `{name, status, reason?, minLength?, maxLength?}`; `status` is
+ * `AVAILABLE`, `CURRENT`, `TAKEN` (also reserved names), `INVALID` or `UNKNOWN` (not connected, website unreachable or
+ * any failure). Never an error answer; ~5 s timeout, no caching.
+ */
+@Endpoint
+class SetupPanoMailNameCheckAPI(
+    private val panoMailService: PanoMailService
+) : SetupApi() {
+    override val paths = listOf(Path("/setup/pano-mail/name-check", RouteType.POST))
+
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
+        ValidationHandlerBuilder.create(schemaRepository)
+            .body(json(objectSchema().requiredProperty("name", stringSchema())))
+            .predicate(RequestPredicate.BODY_REQUIRED)
+            .build()
+
+    override suspend fun handle(context: RoutingContext): Result {
+        val name = getParameters(context).body().jsonObject.getString("name")
+
+        return Successful(panoMailService.checkName(name))
     }
 }

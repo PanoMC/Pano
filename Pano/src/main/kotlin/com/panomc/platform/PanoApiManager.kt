@@ -235,6 +235,12 @@ class PanoApiManager(
 
         configManager.saveConfig()
 
+        // During the set-up there is no database yet: the update check and the licence refresh read it and
+        // would leave the connect request without an answer. Both run after the set-up anyway.
+        if (configManager.config.setup.step != 5) {
+            return
+        }
+
         try {
             updateManager.checkResourceUpdates(true)
         } catch (_: Exception) {

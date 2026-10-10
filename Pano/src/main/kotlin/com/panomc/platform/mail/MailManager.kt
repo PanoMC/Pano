@@ -307,7 +307,13 @@ class MailManager(
         }
 
         if (emailConfig.provider == PROVIDER_PANO_MAIL) {
-            sendThroughPanoMail(message)
+            try {
+                sendThroughPanoMail(message)
+            } catch (_: PanoMailException) {
+                // Already logged. A full limit or a paused account must not turn a registration into an error
+                // after the account was created.
+                return MailResult.FAILED
+            }
         } else {
             mailClient.sendMail(message).coAwait()
         }

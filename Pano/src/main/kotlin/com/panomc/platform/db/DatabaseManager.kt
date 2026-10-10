@@ -100,6 +100,12 @@ class DatabaseManager(
 
         val databaseConfig = configManager.config.database
 
+        // Before the set-up's database step there is nothing to connect to. Building a pool here would keep a
+        // pool without a host for the whole process, and the end of the set-up would wait on it forever.
+        if (databaseConfig.host.isBlank()) {
+            throw StartupFailure("The database is not configured yet.")
+        }
+
         var port = 3306
         var host = databaseConfig.host
 
@@ -123,19 +129,22 @@ class DatabaseManager(
         val poolOptions = PoolOptions()
             .setMaxSize(HostedEnvConfig.current.dbPoolSize)
 
-        sqlClient = MySQLBuilder.pool()
+        val pooledClient = MySQLBuilder.pool()
             .with(poolOptions)
             .connectingTo(connectOptions)
             .using(vertx)
             .build()
 
-        val pooledClient = sqlClient as Pool
-
         try {
             pooledClient.connection.coAwait().close().coAwait()
         } catch (e: Exception) {
+            // Not kept: the next call builds a pool from the settings of that moment.
+            pooledClient.close()
+
             throw StartupFailure("Failed to connect database! Please check your configuration!", e)
         }
+
+        sqlClient = pooledClient
 
         return sqlClient
     }

@@ -1,8 +1,10 @@
 package com.panomc.platform.access
 
+import com.panomc.platform.UIManager
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Error
+import com.panomc.platform.ui.FrontendMode
 import com.panomc.platform.util.TrustedProxyIpResolver
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
@@ -12,6 +14,7 @@ import io.vertx.sqlclient.SqlClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -21,6 +24,27 @@ import java.net.Inet6Address
 
 /** `X-Pano-Frontend-Key` was sent and is unknown or revoked. Never treated as anonymous. */
 class InvalidFrontendKey : Error("INVALID_FRONTEND_KEY", 401, "Unauthorized")
+
+/**
+ * Headless access is off while the front-end is a theme (`frontend.mode` THEME): a stored front-end key is refused.
+ * Existing keys are kept and work again in another mode; the internal key (the theme's own) is never refused.
+ */
+class FrontendAccessDisabled : Error(
+    "FRONTEND_ACCESS_DISABLED",
+    403,
+    "Forbidden",
+    mapOf(
+        "message" to "Headless access is off while the front-end is a theme; " +
+            "choose another front-end under Panel → Appearance → Themes → Front-end settings."
+    )
+) {
+    companion object {
+        /** The panel calls that create a key or add an origin: refused while the front-end is a theme. */
+        fun requireOff(mode: com.panomc.platform.ui.FrontendMode) {
+            if (mode == com.panomc.platform.ui.FrontendMode.THEME) throw FrontendAccessDisabled()
+        }
+    }
+}
 
 /** `X-Pano-Client-Ip` from a valid key is not exactly one IP literal. */
 class InvalidClientIp : Error("INVALID_CLIENT_IP", 400, "Bad Request")
@@ -36,7 +60,7 @@ class OriginNotAllowed(origin: String?) : Error(
     "Forbidden",
     mapOf(
         "message" to "Requests that change data are not accepted from the origin '${origin.orEmpty()}'. " +
-            "To allow it, add it under Panel → Appearance → Front-end → Allowed origins; " +
+            "To allow it, add it under Panel → Appearance → Themes → Front-end settings; " +
             "a front-end on another domain uses a front-end key from its server."
     )
 )
@@ -66,7 +90,8 @@ class AccessPlaneHandler(
     private val frontendKeyService: FrontendKeyService,
     private val databaseManager: DatabaseManager,
     private val configManager: ConfigManager,
-    private val originPolicy: OriginPolicy
+    private val originPolicy: OriginPolicy,
+    private val uiManager: ObjectProvider<UIManager>
 ) {
     fun create(): Handler<RoutingContext> = create(
         frontendKeyService,
@@ -79,7 +104,9 @@ class AccessPlaneHandler(
                 emptyList()
             }
         },
-        origins = originPolicy
+        origins = originPolicy,
+        // Read per request from the live value: a mode change applies without a restart.
+        frontendMode = { uiManager.getObject().frontendMode }
     )
 
     companion object {
@@ -102,7 +129,8 @@ class AccessPlaneHandler(
             service: FrontendKeyService,
             sqlClient: suspend () -> SqlClient,
             trustedProxies: () -> List<String>,
-            origins: OriginPolicy = OriginPolicy.empty()
+            origins: OriginPolicy = OriginPolicy.empty(),
+            frontendMode: () -> FrontendMode = { FrontendMode.CUSTOM_APP }
         ): Handler<RoutingContext> = Handler { context ->
             // The list of allowed origins is only needed when an Origin header is there; read it once.
             if (!origins.isLoaded && context.request().getHeader("Origin") != null) {
@@ -118,7 +146,7 @@ class AccessPlaneHandler(
                     context.request().resume()
 
                     try {
-                        dispatch(context, service, sqlClient, trustedProxies, origins)
+                        dispatch(context, service, sqlClient, trustedProxies, origins, frontendMode)
                     } catch (e: Throwable) {
                         context.fail(e)
                     }
@@ -127,7 +155,7 @@ class AccessPlaneHandler(
                 return@Handler
             }
 
-            dispatch(context, service, sqlClient, trustedProxies, origins)
+            dispatch(context, service, sqlClient, trustedProxies, origins, frontendMode)
         }
 
         private fun dispatch(
@@ -135,12 +163,13 @@ class AccessPlaneHandler(
             service: FrontendKeyService,
             sqlClient: suspend () -> SqlClient,
             trustedProxies: () -> List<String>,
-            origins: OriginPolicy
+            origins: OriginPolicy,
+            frontendMode: () -> FrontendMode
         ) {
             val header = context.request().getHeader(FrontendKeyService.HEADER)
 
             if (header.isNullOrBlank()) {
-                proceed(context, service, KeyMatch.None, trustedProxies, sqlClient, origins)
+                proceed(context, service, KeyMatch.None, trustedProxies, sqlClient, origins, frontendMode)
 
                 return
             }
@@ -149,7 +178,7 @@ class AccessPlaneHandler(
 
             // A valid key (the internal one, or a loaded stored one) needs neither the database nor a coroutine.
             if (match is KeyMatch.Valid) {
-                proceed(context, service, match, trustedProxies, sqlClient, origins)
+                proceed(context, service, match, trustedProxies, sqlClient, origins, frontendMode)
 
                 return
             }
@@ -167,7 +196,7 @@ class AccessPlaneHandler(
 
                     context.request().resume()
 
-                    proceed(context, service, service.matchHeader(header), trustedProxies, sqlClient, origins)
+                    proceed(context, service, service.matchHeader(header), trustedProxies, sqlClient, origins, frontendMode)
                 } catch (e: Throwable) {
                     context.fail(e)
                 }
@@ -180,7 +209,8 @@ class AccessPlaneHandler(
             match: KeyMatch,
             trustedProxies: () -> List<String>,
             sqlClient: suspend () -> SqlClient,
-            origins: OriginPolicy
+            origins: OriginPolicy,
+            frontendMode: () -> FrontendMode
         ) {
             val request = context.request()
 
@@ -218,6 +248,13 @@ class AccessPlaneHandler(
                 }
 
                 is KeyMatch.Valid -> {
+                    // Only the selected front-end may be used: while Pano serves a theme, a stored key is refused.
+                    if (!match.ref.isInternal && frontendMode() == FrontendMode.THEME) {
+                        respond(context, FrontendAccessDisabled())
+
+                        return
+                    }
+
                     val declared = request.headers().getAll(CLIENT_IP_HEADER).filter { it.isNotBlank() }
 
                     val ip: String

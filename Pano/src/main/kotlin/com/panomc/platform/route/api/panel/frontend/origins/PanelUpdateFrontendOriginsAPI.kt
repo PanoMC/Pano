@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.panel.frontend.origins
 
 import com.panomc.platform.access.OriginPolicy
+import com.panomc.platform.UIManager
+import com.panomc.platform.access.FrontendAccessDisabled
+import org.springframework.beans.factory.ObjectProvider
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
@@ -26,7 +29,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 class PanelUpdateFrontendOriginsAPI(
     private val originPolicy: OriginPolicy,
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val uiManager: ObjectProvider<UIManager>
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -40,6 +44,8 @@ class PanelUpdateFrontendOriginsAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManageViewPermission(), context)
+
+        FrontendAccessDisabled.requireOff(uiManager.getObject().frontendMode)
 
         val requested = getParameters(context).body().jsonObject.getJsonArray("origins").map { it as String }
 

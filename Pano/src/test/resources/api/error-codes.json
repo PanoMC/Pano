@@ -7,6 +7,10 @@
     "code": "INVALID_CLIENT_IP",
     "status": 400
   },
+  "com.panomc.platform.access.FrontendAccessDisabled": {
+    "code": "FRONTEND_ACCESS_DISABLED",
+    "status": 403
+  },
   "com.panomc.platform.access.InvalidFrontendKey": {
     "code": "INVALID_FRONTEND_KEY",
     "status": 401

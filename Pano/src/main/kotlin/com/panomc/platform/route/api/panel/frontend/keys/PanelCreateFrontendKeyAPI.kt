@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.panel.frontend.keys
 
 import com.panomc.platform.access.FrontendKeyService
+import com.panomc.platform.UIManager
+import com.panomc.platform.access.FrontendAccessDisabled
+import org.springframework.beans.factory.ObjectProvider
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageViewPermission
@@ -27,7 +30,8 @@ class PanelCreateFrontendKeyAPI(
     private val frontendKeyService: FrontendKeyService,
     private val databaseManager: DatabaseManager,
     private val configManager: ConfigManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val uiManager: ObjectProvider<UIManager>
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -41,6 +45,8 @@ class PanelCreateFrontendKeyAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManageViewPermission(), context)
+
+        FrontendAccessDisabled.requireOff(uiManager.getObject().frontendMode)
 
         val name = getParameters(context).body().jsonObject.getString("name").trim()
 

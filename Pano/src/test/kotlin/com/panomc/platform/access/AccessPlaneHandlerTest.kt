@@ -75,6 +75,7 @@ class AccessPlaneHandlerTest {
     private lateinit var service: FrontendKeyService
     private lateinit var rateLimitManager: RateLimitManager
     private var port = 0
+    private val mode = java.util.concurrent.atomic.AtomicReference(com.panomc.platform.ui.FrontendMode.CUSTOM_APP)
 
     @BeforeEach
     fun setUp() {
@@ -103,7 +104,7 @@ class AccessPlaneHandlerTest {
         val router = Router.router(vertx)
 
         router.route("/api/v1/*").order(0).handler(
-            AccessPlaneHandler.create(keys, sqlClient = { sqlClient }, trustedProxies = { emptyList() })
+            AccessPlaneHandler.create(keys, sqlClient = { sqlClient }, trustedProxies = { emptyList() }, frontendMode = { mode.get() })
         )
         router.route("/api/v1/*").order(0).handler(rateLimitManager.createHandler())
         router.route("/api/v1/*").order(1).handler { context ->
@@ -204,6 +205,55 @@ class AccessPlaneHandlerTest {
                 assertEquals(400, response.status, bad)
                 assertEquals("INVALID_CLIENT_IP", response.json.getJsonObject("error").getString("code"), bad)
             }
+    }
+
+    @Test
+    fun `in THEME mode a stored key is 403 FRONTEND_ACCESS_DISABLED, the internal key and a wrong key are unchanged`() {
+        val key = createKey()
+
+        mode.set(com.panomc.platform.ui.FrontendMode.THEME)
+
+        val refused = get("/api/v1/posts", keyed(key.key))
+
+        assertEquals(403, refused.status)
+        assertEquals("FRONTEND_ACCESS_DISABLED", refused.json.getJsonObject("error").getString("code"))
+        assertTrue(refused.json.getJsonObject("error").getString("message").contains("Themes → Front-end settings"))
+
+        assertEquals(200, get("/api/v1/posts", keyed(service.internalKey)).status)
+
+        val wrong = get("/api/v1/posts", keyed("pfk_nope"))
+
+        assertEquals(401, wrong.status)
+        assertEquals("INVALID_FRONTEND_KEY", wrong.json.getJsonObject("error").getString("code"))
+    }
+
+    @Test
+    fun `a mode change applies to the next request and the kept key works again`() {
+        val key = createKey()
+
+        for (blocked in listOf(true, false, true)) {
+            mode.set(if (blocked) com.panomc.platform.ui.FrontendMode.THEME else com.panomc.platform.ui.FrontendMode.EXTERNAL)
+
+            assertEquals(if (blocked) 403 else 200, get("/api/v1/posts", keyed(key.key)).status)
+        }
+
+        for (other in listOf(com.panomc.platform.ui.FrontendMode.CUSTOM_APP, com.panomc.platform.ui.FrontendMode.NONE)) {
+            mode.set(other)
+
+            assertEquals(200, get("/api/v1/posts", keyed(key.key)).status, other.name)
+        }
+    }
+
+    @Test
+    fun `creating a key or adding an origin is refused only in THEME mode`() {
+        val refusal = org.junit.jupiter.api.Assertions.assertThrows(FrontendAccessDisabled::class.java) {
+            FrontendAccessDisabled.requireOff(com.panomc.platform.ui.FrontendMode.THEME)
+        }
+
+        assertEquals(403, refusal.getStatusCode())
+
+        com.panomc.platform.ui.FrontendMode.entries.filter { it != com.panomc.platform.ui.FrontendMode.THEME }
+            .forEach { FrontendAccessDisabled.requireOff(it) }
     }
 
     @Test

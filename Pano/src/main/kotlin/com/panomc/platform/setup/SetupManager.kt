@@ -213,6 +213,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
          */
         fun emailView(mail: PanoConfig.Companion.EmailConfig): Map<String, Any?> = mapOf(
             "enabled" to mail.enabled,
+            "provider" to mail.provider,
             "sender" to mail.sender,
             "hostname" to mail.hostname,
             "port" to mail.port,

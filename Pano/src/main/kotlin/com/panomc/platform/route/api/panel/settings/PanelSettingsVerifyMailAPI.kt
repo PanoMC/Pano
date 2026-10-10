@@ -46,6 +46,8 @@ class PanelSettingsVerifyMailAPI(
                         .optionalProperty("authMethods", stringSchema())
                         .optionalProperty("hostManaged", booleanSchema())
                         .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
+                        .optionalProperty("name", stringSchema())
+                        .optionalProperty("localPart", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -58,7 +60,7 @@ class PanelSettingsVerifyMailAPI(
         val body = parameters.body().jsonObject
 
         if (body.getString("provider") == MailManager.PROVIDER_PANO_MAIL) {
-            return Successful(PanoMailVerify.run(panoMailService))
+            return Successful(PanoMailVerify.run(panoMailService, body.getString("name"), body.getString("localPart")))
         }
 
         // Pano Host mail: checked with the env's relay settings; the panel never sees the relay password.

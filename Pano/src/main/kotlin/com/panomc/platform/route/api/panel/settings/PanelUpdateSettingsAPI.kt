@@ -152,6 +152,9 @@ class PanelUpdateSettingsAPI(
                                 .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
                                 // PANO_MAIL: the sender address; omitted = the one the website gave the account.
                                 .optionalProperty("from", stringSchema())
+                                // PANO_MAIL: the sender address is <localPart>@<name>.<zone>.
+                                .optionalProperty("name", stringSchema())
+                                .optionalProperty("localPart", stringSchema())
                                 // Pano Host: true = use the instance's Pano Host mail again (the other fields are ignored).
                                 .optionalProperty("hostManaged", booleanSchema())
                         )
@@ -421,7 +424,7 @@ class PanelUpdateSettingsAPI(
                 configManager.saveConfig()
             } else {
                 // Throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE, nothing is stored then.
-                panoMailService.activate(email.getString("from") ?: email.getString("sender"))
+                panoMailService.activate(email.getString("from") ?: email.getString("sender"), email.getString("name"), email.getString("localPart"))
             }
         } else if (email != null) {
             PanoMailVerify.requireSmtpFields(email, PanoMailVerify.SMTP_SAVE_FIELDS)

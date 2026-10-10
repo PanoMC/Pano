@@ -323,7 +323,8 @@ class MailManager(
     private suspend fun sendThroughPanoMail(message: MailMessage) {
         val service = panoMailService ?: throw PanoMailException(PanoMailException.UNAVAILABLE, "Pano Mail is not available.")
 
-        val from = message.from
+        // The website wants the bare address; the MIME From header keeps the display name.
+        val from = PanoMailService.bareAddress(message.from)
         val to = message.to.orEmpty()
 
         try {

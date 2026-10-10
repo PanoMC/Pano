@@ -5,7 +5,11 @@ import com.panomc.platform.backup.remote.PanoHostClient
 import com.panomc.platform.backup.remote.PanoHostException
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
+import com.panomc.platform.error.InvalidData
 import com.panomc.platform.error.PanoMailConnectRequired
+import com.panomc.platform.error.PanoMailNameInvalid
+import com.panomc.platform.error.PanoMailNameRateLimited
+import com.panomc.platform.error.PanoMailNameTaken
 import com.panomc.platform.error.PanoMailUnavailable
 import io.vertx.core.json.JsonObject
 import org.springframework.beans.factory.annotation.Autowired
@@ -71,7 +75,7 @@ class PanoMailService internal constructor(
         }
 
         val status = try {
-            status()
+            shortStatus()
         } catch (_: Exception) {
             null
         }
@@ -87,6 +91,19 @@ class PanoMailService internal constructor(
     }
 
     fun isConnected(): Boolean = configManager.config.panoAccount.accessToken.isNotBlank()
+
+    /** `GET /host/connected/mail` with a short timeout; null when not connected or on any failure. Never throws. */
+    suspend fun shortStatus(): JsonObject? {
+        if (!isConnected()) {
+            return null
+        }
+
+        return try {
+            guarded { clientProvider().mailStatus(Duration.ofSeconds(6)) }
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     /** `GET /host/connected/mail`. */
     suspend fun status(): JsonObject = guarded { clientProvider().mailStatus() }
@@ -122,40 +139,82 @@ class PanoMailService internal constructor(
         return plan
     }
 
+    /** The result of switching Pano Mail on: the website's status body and the sender address it resolves to. */
+    data class Enabled(val status: JsonObject, val address: String?)
+
     /**
-     * Turns Pano Mail on for this Pano: enables it on the website, then stores provider `PANO_MAIL`,
-     * `enabled = true` and the sender ([from], else the address the website gave the account).
-     * `ready = false` is not a failure (a new address becomes ready shortly).
+     * Enables Pano Mail on the website, creating or renaming the address when [name] is given, and resolves the
+     * sender: `<localPart>@<name>.<zone>` when [name] or [localPart] is given (local part default: the stored
+     * sender's while the provider is PANO_MAIL, else `no-reply`), else the address the website reports.
      *
+     * @throws InvalidData when [localPart] is not a plain e-mail local part (max 64 chars)
      * @throws PanoMailConnectRequired when no account is connected
+     * @throws PanoMailNameTaken, PanoMailNameInvalid, PanoMailNameRateLimited for the website's `LABEL_*` / `RATE_LIMITED`
      * @throws PanoMailUnavailable when the website refuses or cannot be reached (`extras.reason`)
-     * @return the website's status body
      */
-    suspend fun activate(from: String?): JsonObject {
+    suspend fun enableAs(name: String?, localPart: String?): Enabled {
+        val local = localPart?.trim()?.takeIf { it.isNotEmpty() }?.also { validateLocalPart(it) }
+        val label = name?.trim()?.takeIf { it.isNotEmpty() }
+
         if (!isConnected()) {
             throw PanoMailConnectRequired()
         }
 
         val status = try {
-            enable()
+            clientCall(label)
         } catch (e: PanoMailException) {
-            if (e.code == PanoMailException.CONNECT_REQUIRED) throw PanoMailConnectRequired()
-
-            throw PanoMailUnavailable(e.message ?: "", mapOf("reason" to e.reason))
+            throw when (e.code) {
+                PanoMailException.CONNECT_REQUIRED -> PanoMailConnectRequired()
+                "LABEL_TAKEN", "LABEL_RESERVED" -> PanoMailNameTaken(e.message ?: "")
+                "LABEL_INVALID" -> PanoMailNameInvalid(e.message ?: "")
+                "RATE_LIMITED" -> PanoMailNameRateLimited(
+                    e.message ?: "",
+                    mapOf("minutes" to e.extras.getValue("minutes"), "retryAfter" to e.extras.getValue("retryAfter"))
+                )
+                else -> PanoMailUnavailable(e.message ?: "", mapOf("reason" to e.reason))
+            }
         }
 
+        val sub = status.getJsonObject("subdomain")
+        val subName = sub?.getString("name")
+        val zone = sub?.getString("zone")
+
+        val address = if ((label != null || local != null) && !subName.isNullOrBlank() && !zone.isNullOrBlank()) {
+            "${local ?: currentLocalPart(configManager.config)}@$subName.$zone"
+        } else {
+            status.getString("from")?.let { bareAddress(it) }
+        }
+
+        return Enabled(status, address)
+    }
+
+    private suspend fun clientCall(name: String?): JsonObject = guarded { clientProvider().enableMail(name) }
+
+    /**
+     * Turns Pano Mail on for this Pano: [enableAs], then stores provider `PANO_MAIL`, `enabled = true` and the
+     * sender (the resolved address when [name] / [localPart] is given, else [from], else the website's address).
+     * `ready = false` is not a failure (a new address becomes ready shortly).
+     *
+     * @return the website's status body
+     */
+    suspend fun activate(from: String?, name: String? = null, localPart: String? = null): JsonObject {
+        val enabled = enableAs(name, localPart)
         val email = configManager.config.email
+        val chosen = !name.isNullOrBlank() || !localPart.isNullOrBlank()
 
         email.provider = MailManager.PROVIDER_PANO_MAIL
         email.enabled = true
-        email.sender = from?.takeIf { it.isNotBlank() } ?: status.getString("from") ?: email.sender
+        email.sender = (if (chosen) enabled.address else null)
+            ?: from?.takeIf { it.isNotBlank() }
+            ?: enabled.address
+            ?: email.sender
         // Hosted installs: the env must not rewrite this block back to the relay.
         email.hostManaged = false
 
         configManager.saveConfig()
         invalidateStatus()
 
-        return status
+        return enabled.status
     }
 
     /** Back to SMTP with e-mail off (the account was disconnected). */
@@ -204,7 +263,48 @@ class PanoMailService internal constructor(
                 "plan" to plan,
                 "usage" to status?.getJsonObject("usage"),
                 "freePlan" to freePlan,
+                "sender" to senderView(config, status),
                 "manageUrl" to "$website/host/manage/mail"
+            )
+        }
+
+        private val LOCAL_PART = Regex("^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$")
+
+        /** The part of [sender] before `@` while the provider is PANO_MAIL, else `no-reply`. */
+        fun currentLocalPart(config: PanoConfig): String {
+            if (config.email.provider != MailManager.PROVIDER_PANO_MAIL) {
+                return "no-reply"
+            }
+
+            val bare = bareAddress(config.email.sender)
+
+            return if ('@' in bare) bare.substringBefore('@').ifBlank { "no-reply" } else "no-reply"
+        }
+
+        /** `Name <a@b>` → `a@b`; a bare address stays. */
+        fun bareAddress(address: String): String {
+            val trimmed = address.trim()
+            val open = trimmed.lastIndexOf('<')
+            val close = trimmed.lastIndexOf('>')
+
+            return if (open >= 0 && close > open) trimmed.substring(open + 1, close).trim() else trimmed
+        }
+
+        fun validateLocalPart(localPart: String) {
+            if (localPart.length > 64 || !LOCAL_PART.matches(localPart)) {
+                throw InvalidData(extras = mapOf("field" to "localPart"))
+            }
+        }
+
+        /** `{name, zone, localPart}` for the sender pickers; null when the website's status is unknown or has no `subdomain`. */
+        fun senderView(config: PanoConfig, status: JsonObject?): Map<String, Any?>? {
+            val sub = status?.getJsonObject("subdomain") ?: return null
+            val zone = sub.getString("zone") ?: return null
+
+            return mapOf(
+                "name" to (sub.getString("name") ?: sub.getString("suggested")),
+                "zone" to zone,
+                "localPart" to currentLocalPart(config)
             )
         }
 

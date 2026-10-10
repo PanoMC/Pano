@@ -53,6 +53,9 @@ class UpdateStepAPI(
                         // Step 3: "PANO_MAIL" sends through the connected panomc.com account instead of SMTP.
                         .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
                         .optionalProperty("from", stringSchema())
+                        // PANO_MAIL: the sender address's name (<name>.<zone>) and local part (<localPart>@...).
+                        .optionalProperty("name", stringSchema())
+                        .optionalProperty("localPart", stringSchema())
 
                         .optionalProperty("dbType", stringSchema())
                         .optionalProperty("host", stringSchema())
@@ -105,6 +108,8 @@ class UpdateStepAPI(
 
         val provider = data.getString("provider")
         val from = data.getString("from")
+        val senderName = data.getString("name")
+        val localPart = data.getString("localPart")
 
         val host = data.getString("host")
         val dbName = data.getString("dbName")
@@ -193,7 +198,7 @@ class UpdateStepAPI(
         // Pano Mail: needs the account connected (step 4's connect routes work from step 0); a website
         // refusal throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE and the step stays.
         if (clientStep == 3 && provider == MailManager.PROVIDER_PANO_MAIL) {
-            panoMailService.activate(from)
+            panoMailService.activate(from, senderName, localPart)
 
             return true
         }

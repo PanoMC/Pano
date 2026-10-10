@@ -6,7 +6,11 @@ import com.panomc.platform.backup.remote.RetryPolicy
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.config.migration.ConfigMigration40To41
+import com.panomc.platform.error.InvalidData
 import com.panomc.platform.error.PanoMailConnectRequired
+import com.panomc.platform.error.PanoMailNameInvalid
+import com.panomc.platform.error.PanoMailNameRateLimited
+import com.panomc.platform.error.PanoMailNameTaken
 import com.panomc.platform.error.PanoMailUnavailable
 import com.sun.net.httpserver.HttpServer
 import io.vertx.core.Vertx
@@ -306,5 +310,124 @@ class PanoMailTest {
         assertEquals("PANO_MAIL", set.getJsonObject("email").getString("provider"))
 
         migration.migrate(JsonObject())
+    }
+
+    private fun withSubdomain(name: String?, suggested: String? = "my-site") =
+        status.copy().put("subdomain", JsonObject().put("name", name).put("suggested", suggested).put("zone", "mail.panomc.site"))
+
+    @Test
+    fun `enable sends the name only when given and the address is localPart at name dot zone`() = runBlocking {
+        answers["/host/connected/mail/enable"] = ok(withSubdomain("mysite"))
+
+        val plain = service().enableAs(null, null)
+        assertEquals("", requests.last { it.second == "/host/connected/mail/enable" }.third)
+        assertEquals("no-reply@pano.example", plain.address)
+
+        val named = service().enableAs("mysite", "info")
+        assertEquals("mysite", JsonObject(requests.last { it.second == "/host/connected/mail/enable" }.third).getString("name"))
+        assertEquals("info@mysite.mail.panomc.site", named.address)
+
+        // only a local part: the website's current name is kept
+        assertEquals("sales@mysite.mail.panomc.site", service().enableAs(null, "sales").address)
+        // only a name: the default local part
+        assertEquals("no-reply@mysite.mail.panomc.site", service().enableAs("mysite", null).address)
+    }
+
+    @Test
+    fun `activate stores the chosen address and keeps the stored local part on a rename`() = runBlocking {
+        answers["/host/connected/mail/enable"] = ok(withSubdomain("mysite"))
+
+        service().activate(null, "mysite", "info")
+        assertEquals("info@mysite.mail.panomc.site", configManager.config.email.sender)
+        assertEquals("PANO_MAIL", configManager.config.email.provider)
+
+        service().activate(null, "other", null)
+        assertEquals("info@mysite.mail.panomc.site", configManager.config.email.sender) // the stub keeps answering "mysite"
+    }
+
+    @Test
+    fun `website label errors map to the name error codes`() = runBlocking {
+        answers["/host/connected/mail/enable"] = err("LABEL_TAKEN", 409)
+        assertEquals("PANO_MAIL_NAME_TAKEN", assertThrows<PanoMailNameTaken> { runBlocking { service().enableAs("x", null) } }.code)
+
+        answers["/host/connected/mail/enable"] = err("LABEL_RESERVED", 409)
+        assertEquals("PANO_MAIL_NAME_TAKEN", assertThrows<PanoMailNameTaken> { runBlocking { service().enableAs("admin", null) } }.code)
+
+        answers["/host/connected/mail/enable"] = err("QUOTA_EXCEEDED", 429, JsonObject().put("reason", "SENDERS"))
+        val senders = assertThrows<com.panomc.platform.error.PanoMailUnavailable> { runBlocking { service().enableAs("x", null) } }
+        assertEquals("PANO_MAIL_UNAVAILABLE", senders.code)
+        assertTrue(senders.encode().contains("\"reason\":\"SENDERS\""), senders.encode())
+
+        answers["/host/connected/mail/enable"] = err("LABEL_INVALID", 422)
+        assertEquals("PANO_MAIL_NAME_INVALID", assertThrows<PanoMailNameInvalid> { runBlocking { service().enableAs("x", null) } }.code)
+
+        answers["/host/connected/mail/enable"] =
+            err("RATE_LIMITED", 429, JsonObject().put("reason", "SENDER_RENAME").put("minutes", 42).put("retryAfter", 99))
+        val limited = assertThrows<PanoMailNameRateLimited> { runBlocking { service().enableAs("x", null) } }
+        assertEquals("PANO_MAIL_NAME_RATE_LIMITED", limited.code)
+        assertTrue(limited.encode().contains("\"details\":{\"minutes\":42"), limited.encode())
+        assertEquals(configManager.config.email.sender, "")
+    }
+
+    @Test
+    fun `local part is validated before the website is called`() = runBlocking {
+        for (bad in listOf("a b", "a@b", "x".repeat(65), ".lead", "trail.", "a..b", "ü")) {
+            assertThrows<InvalidData> { runBlocking { service().enableAs(null, bad) } }
+        }
+        assertTrue(requests.isEmpty())
+
+        answers["/host/connected/mail/enable"] = ok(withSubdomain("mysite"))
+        assertEquals("a.b+c_d@mysite.mail.panomc.site", service().enableAs(null, "a.b+c_d").address)
+        assertEquals(64, "x".repeat(64).length)
+        service().enableAs(null, "x".repeat(64))
+    }
+
+    @Test
+    fun `sender view uses the current or suggested name and the stored local part`() {
+        configManager.config.email.provider = "PANO_MAIL"
+        configManager.config.email.sender = "Pano <info@mysite.mail.panomc.site>"
+
+        assertEquals(
+            mapOf("name" to "mysite", "zone" to "mail.panomc.site", "localPart" to "info"),
+            PanoMailService.senderView(configManager.config, withSubdomain("mysite"))
+        )
+        assertEquals("my-site", PanoMailService.senderView(configManager.config, withSubdomain(null))!!["name"])
+
+        configManager.config.email.provider = "SMTP"
+        assertEquals("no-reply", PanoMailService.senderView(configManager.config, withSubdomain("mysite"))!!["localPart"])
+
+        assertNull(PanoMailService.senderView(configManager.config, null))
+        assertNull(PanoMailService.senderView(configManager.config, status))
+
+        val view = PanoMailService.panelView(configManager.config, withSubdomain("mysite"), null)
+        assertEquals("mysite", (view["sender"] as Map<*, *>)["name"])
+        assertNull(PanoMailService.panelView(configManager.config, null, null)["sender"])
+    }
+
+    @Test
+    fun `short status is null when not connected or the website fails`() = runBlocking {
+        answers["/host/connected/mail"] = ok(withSubdomain("mysite"))
+        assertEquals("mysite", service().shortStatus()!!.getJsonObject("subdomain").getString("name"))
+
+        server.stop(0)
+        assertNull(service().shortStatus())
+
+        configManager.config.panoAccount.accessToken = ""
+        assertNull(service().shortStatus())
+    }
+
+    @Test
+    fun `verify answers the resulting address`() = runBlocking {
+        answers["/host/connected/mail/enable"] = ok(withSubdomain("mysite").put("ready", false))
+
+        val result = PanoMailVerify.run(service(), "mysite", "info")
+
+        assertEquals(mapOf("ready" to false, "from" to "info@mysite.mail.panomc.site"), result)
+    }
+
+    @Test
+    fun `bare address strips the display name`() {
+        assertEquals("a@b.c", PanoMailService.bareAddress("Pano <a@b.c>"))
+        assertEquals("a@b.c", PanoMailService.bareAddress(" a@b.c "))
     }
 }

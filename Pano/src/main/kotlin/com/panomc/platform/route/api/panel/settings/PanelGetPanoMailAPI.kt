@@ -12,7 +12,7 @@ import io.vertx.json.schema.SchemaRepository
 /**
  * `GET /api/v1/panel/settings/pano-mail` → `{website, connected, account {username} | null, provider, enabled,
  * ready, from, held, plan {id, name, free, mailsPerMonth, mailsPerDay} | null, usage {day, month} | null,
- * freePlan {mailsPerMonth, mailsPerDay} | null, manageUrl}`. `ready`/`from`/`held`/`plan`/`usage` come from the
+ * freePlan {mailsPerMonth, mailsPerDay} | null, sender {name, zone, localPart} | null, manageUrl}`. `ready`/`from`/`held`/`plan`/`usage` come from the
  * website's `GET /host/connected/mail` (cached a minute) and are null when this Pano is not connected or the
  * website is unreachable; the request never fails because of the website.
  */

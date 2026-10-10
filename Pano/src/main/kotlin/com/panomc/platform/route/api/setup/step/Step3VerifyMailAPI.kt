@@ -39,6 +39,8 @@ class Step3VerifyMailAPI(
                         .optionalProperty("sender", stringSchema())
                         .optionalProperty("authMethods", stringSchema())
                         .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
+                        .optionalProperty("name", stringSchema())
+                        .optionalProperty("localPart", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -49,7 +51,7 @@ class Step3VerifyMailAPI(
         val config = parameters.body().jsonObject
 
         if (config.getString("provider") == MailManager.PROVIDER_PANO_MAIL) {
-            return Successful(PanoMailVerify.run(panoMailService))
+            return Successful(PanoMailVerify.run(panoMailService, config.getString("name"), config.getString("localPart")))
         }
 
         PanoMailVerify.requireSmtpFields(config)

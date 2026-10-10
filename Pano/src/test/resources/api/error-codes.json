@@ -375,6 +375,18 @@
     "code": "CONNECT_REQUIRED",
     "status": 409
   },
+  "com.panomc.platform.error.PanoMailNameInvalid": {
+    "code": "PANO_MAIL_NAME_INVALID",
+    "status": 422
+  },
+  "com.panomc.platform.error.PanoMailNameRateLimited": {
+    "code": "PANO_MAIL_NAME_RATE_LIMITED",
+    "status": 429
+  },
+  "com.panomc.platform.error.PanoMailNameTaken": {
+    "code": "PANO_MAIL_NAME_TAKEN",
+    "status": 409
+  },
   "com.panomc.platform.error.PanoMailUnavailable": {
     "code": "PANO_MAIL_UNAVAILABLE",
     "status": 502

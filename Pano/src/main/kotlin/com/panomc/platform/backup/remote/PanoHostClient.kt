@@ -169,10 +169,16 @@ class PanoHostClient(
     // Pano Mail
 
     /** `{enabled, ready, from, plan, usage, senders, limits}` of the connection's account. */
-    suspend fun mailStatus(): JsonObject = call("GET", "/host/connected/mail")
+    suspend fun mailStatus(timeout: Duration = Duration.ofSeconds(60)): JsonObject =
+        call("GET", "/host/connected/mail", null, timeout)
 
-    /** Idempotent: switches Pano Mail on for this Pano; same body as [mailStatus]. */
-    suspend fun enableMail(): JsonObject = call("POST", "/host/connected/mail/enable")
+    /**
+     * Idempotent: switches Pano Mail on for this Pano; same body as [mailStatus]. [name] creates the
+     * account's sender address with that name, or renames the existing one (`LABEL_INVALID`,
+     * `LABEL_TAKEN`, `RATE_LIMITED`).
+     */
+    suspend fun enableMail(name: String? = null): JsonObject =
+        call("POST", "/host/connected/mail/enable", name?.let { JsonObject().put("name", it) })
 
     /** `{id, recipients}`; [mime] is the raw MIME message (sent base64). */
     suspend fun sendMail(from: String, to: List<String>, mime: ByteArray): JsonObject =
@@ -338,12 +344,12 @@ class PanoHostClient(
     }
 
     /** One control-plane call; returns `data` of an ok response, throws [PanoHostException] otherwise. */
-    private suspend fun call(method: String, path: String, body: JsonObject? = null): JsonObject {
+    private suspend fun call(method: String, path: String, body: JsonObject? = null, timeout: Duration = Duration.ofSeconds(60)): JsonObject {
         val token = token()?.takeIf { it.isNotBlank() }
             ?: throw PanoHostException(PanoHostException.CONNECT_REQUIRED, extras = JsonObject().put("reason", "NOT_CONNECTED"))
         val identity = identity()
 
-        return send(method, path, token, identity, body)
+        return send(method, path, token, identity, body, timeout)
     }
 
     private suspend fun send(

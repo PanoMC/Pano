@@ -1,5 +1,7 @@
 package com.panomc.platform.backup.remote
 
+import com.panomc.snapshot.SnapshotFormat
+import com.panomc.snapshot.SnapshotRepoConfig
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +21,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Duration
+import java.util.Base64
 
 /**
  * An error from the Pano Host API (`{"result":"error","error":"CODE",…}`) or from talking to it.
@@ -63,6 +66,42 @@ data class UploadSession(val id: String, val partSize: Long, val parts: List<Par
             expiresAt = json.getLong("expiresAt", 0L)
         )
     }
+}
+
+/** `POST /host/connected/snapshots` / `…/:id/open`: the sealing key of the Pano's repository and the manifest URL (PUT when starting, GET when opening). */
+class SnapshotSession(val id: String, val keyId: String, val key: ByteArray, val repoConfig: SnapshotRepoConfig, val manifestUrl: String) {
+    companion object {
+        fun from(json: JsonObject, id: String, urlKey: String): SnapshotSession {
+            fun bad(what: String): Nothing = throw PanoHostException(PanoHostException.UNAVAILABLE, message = "Pano Host answered a snapshot without $what.")
+
+            val key = runCatching { Base64.getDecoder().decode(json.getString("key")) }.getOrNull()?.takeIf { it.size == 32 } ?: bad("a usable key")
+            val config = runCatching { SnapshotFormat.parseConfig((json.getJsonObject("repoConfig") ?: bad("a repository config")).encode().toByteArray()).validate() }
+                .getOrElse { throw PanoHostException(PanoHostException.UNAVAILABLE, message = "Pano Host answered an unsupported snapshot repository.", cause = it) }
+
+            return SnapshotSession(
+                id = json.getString("snapshotId") ?: id,
+                keyId = json.getString("keyId")?.takeIf { it.isNotEmpty() } ?: bad("a key id"),
+                key = key,
+                repoConfig = config,
+                manifestUrl = json.getJsonObject(urlKey)?.getString("url") ?: bad("a manifest URL")
+            )
+        }
+    }
+}
+
+/** A pack upload slot: the pack's id (the sealed index is bound to it) and its presigned PUT. */
+data class PackSlot(val id: String, val url: String)
+
+/** Where one chunk sits: pack, offset and length of its sealed blob. */
+data class ChunkLocation(val id: String, val pack: String, val offset: Long, val length: Int)
+
+/** `…/:id/chunk-urls`: the chunks' places, a presigned GET per pack and the ids the repository does not know. */
+class ChunkLocations(val chunks: Map<String, ChunkLocation>, val packs: Map<String, String>, val missing: List<String>)
+
+/** The numbers `…/:id/complete` takes (`downloadBytes` = the size of the plain `.panoarc` of this snapshot). */
+data class SnapshotStats(val fileCount: Long, val logicalBytes: Long, val downloadBytes: Long, val chunkCount: Long, val newChunks: Long, val newBytes: Long) {
+    fun toJson(): JsonObject = JsonObject().put("fileCount", fileCount).put("logicalBytes", logicalBytes).put("downloadBytes", downloadBytes)
+        .put("chunkCount", chunkCount).put("newChunks", newChunks).put("newBytes", newBytes)
 }
 
 /** Retries of one part PUT / download: network errors, 408, 429 and 5xx; [baseDelayMs] doubles each time. */
@@ -129,6 +168,59 @@ class PanoHostClient(
 
     suspend fun deleteBackup(backupId: String) {
         call("DELETE", "/host/connected/backups/${segment(backupId)}")
+    }
+
+    // Snapshots (deduplicated, host-api.md "Snapshots of connected Panos")
+
+    /** Opens a snapshot; `PAYMENT_REQUIRED`, `QUOTA_EXCEEDED` and `SNAPSHOT_BUSY` are thrown as [PanoHostException]s. */
+    suspend fun startSnapshot(name: String?): SnapshotSession {
+        val data = call("POST", "/host/connected/snapshots", JsonObject().apply { name?.let { put("name", it) } })
+
+        return SnapshotSession.from(data, data.getString("snapshotId") ?: "", "manifestPut")
+    }
+
+    /** The ids of [chunks] (id, raw size; at most [MAX_SNAPSHOT_BATCH]) the repository does not hold yet. */
+    suspend fun snapshotMissing(snapshotId: String, chunks: List<Pair<String, Int>>): Set<String> {
+        val body = JsonObject().put("chunks", JsonArray(chunks.map { JsonObject().put("id", it.first).put("size", it.second) }))
+
+        return (call("POST", "/host/connected/snapshots/${segment(snapshotId)}/chunks", body).getJsonArray("missing") ?: JsonArray()).map { it as String }.toSet()
+    }
+
+    /** Reserves a pack of exactly [size] bytes (checked against the quota) and returns its id and PUT URL. */
+    suspend fun startSnapshotPack(snapshotId: String, size: Long): PackSlot {
+        val data = call("POST", "/host/connected/snapshots/${segment(snapshotId)}/packs", JsonObject().put("size", size))
+
+        return PackSlot(
+            data.getString("packId") ?: throw PanoHostException(PanoHostException.UNAVAILABLE, message = "No packId in the pack slot."),
+            data.getString("url") ?: throw PanoHostException(PanoHostException.UNAVAILABLE, message = "No url in the pack slot.")
+        )
+    }
+
+    /** Settles the snapshot (Pano Host reads the manifest and the pack indexes); returns its view, read `status` / `error`. */
+    suspend fun completeSnapshot(snapshotId: String, stats: SnapshotStats): JsonObject =
+        call("POST", "/host/connected/snapshots/${segment(snapshotId)}/complete", stats.toJson(), Duration.ofMinutes(10)).getJsonObject("snapshot") ?: JsonObject()
+
+    /** Key + manifest URL of a finished snapshot of the account. */
+    suspend fun openSnapshot(snapshotId: String): SnapshotSession =
+        SnapshotSession.from(call("POST", "/host/connected/snapshots/${segment(snapshotId)}/open", JsonObject()), snapshotId, "manifestGet")
+
+    /** Where [ids] (at most [MAX_SNAPSHOT_BATCH]) are stored. */
+    suspend fun snapshotChunkUrls(snapshotId: String, ids: List<String>): ChunkLocations {
+        val data = call("POST", "/host/connected/snapshots/${segment(snapshotId)}/chunk-urls", JsonObject().put("ids", JsonArray(ids)))
+        val chunks = (data.getJsonArray("chunks") ?: JsonArray()).map { it as JsonObject }.associate {
+            it.getString("id") to ChunkLocation(it.getString("id"), it.getString("pack"), it.getLong("offset"), it.getInteger("length"))
+        }
+        val packs = (data.getJsonArray("packs") ?: JsonArray()).map { it as JsonObject }.associate { it.getString("id") to it.getString("url") }
+
+        return ChunkLocations(chunks, packs, (data.getJsonArray("missing") ?: JsonArray()).map { it as String })
+    }
+
+    /** `{snapshots[view], repository {storedBytes}}` of this Pano. */
+    suspend fun listSnapshots(timeout: Duration = Duration.ofSeconds(60)): JsonObject = call("GET", "/host/connected/snapshots", null, timeout)
+
+    /** Deletes one of this Pano's snapshots (an open one is aborted). */
+    suspend fun deleteSnapshot(snapshotId: String) {
+        call("DELETE", "/host/connected/snapshots/${segment(snapshotId)}")
     }
 
     // Moving out of Pano Host
@@ -236,6 +328,24 @@ class PanoHostClient(
 
         if (offset != size) {
             throw PanoHostException(PanoHostException.UPLOAD_FAILED, message = "The upload session does not fit the archive.")
+        }
+    }
+
+    /** PUTs all of [file] to the presigned [url] (the signature covers its exact length), retried per [retry]. */
+    suspend fun putFile(url: String, file: File) {
+        val length = file.length()
+
+        withRetry(PanoHostException.UPLOAD_FAILED) { putPart(file, 0, length, url) }
+    }
+
+    /** PUTs [bytes] to the presigned [url], retried per [retry]. */
+    suspend fun putBytes(url: String, bytes: ByteArray) {
+        withRetry(PanoHostException.UPLOAD_FAILED) {
+            withContext(Dispatchers.IO) {
+                val request = HttpRequest.newBuilder(URI(url)).timeout(Duration.ofMinutes(30)).PUT(HttpRequest.BodyPublishers.ofByteArray(bytes)).build()
+
+                checkStorageStatus(http.send(request, HttpResponse.BodyHandlers.discarding()).statusCode(), "upload")
+            }
         }
     }
 
@@ -421,6 +531,9 @@ class PanoHostClient(
 
     companion object {
         private const val PROGRESS_STEP = 8L * 1024 * 1024
+
+        /** Chunk ids per `chunks` / `chunk-urls` call. */
+        const val MAX_SNAPSHOT_BATCH = 1000
 
         const val HEADER_INSTANCE_ID = "X-Pano-Instance-Id"
         const val HEADER_INSTANCE_NAME = "X-Pano-Instance-Name"

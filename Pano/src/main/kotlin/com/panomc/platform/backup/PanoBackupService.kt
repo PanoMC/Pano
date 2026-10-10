@@ -9,7 +9,9 @@ import com.panomc.platform.archive.PanoArcKeys
 import com.panomc.platform.archive.instance.ConfigRewriter
 import com.panomc.platform.archive.instance.InstanceArchiver
 import com.panomc.platform.archive.instance.InstanceLayout
+import com.panomc.platform.archive.db.PanoNativeDumper
 import com.panomc.platform.archive.instance.InstanceRestorer
+import com.panomc.platform.backup.remote.SnapshotContent
 import com.panomc.platform.backup.remote.PanoHostException
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
@@ -75,6 +77,12 @@ interface PanoBackupRunner {
     suspend fun archiveTo(file: File, passphrase: CharArray?): ArchiveManifest
 
     suspend fun restoreFrom(source: File, passphrase: CharArray?, safetyArchive: Boolean, maintenance: Boolean): PanoBackupInfo?
+
+    /**
+     * What a snapshot of this Pano reads: the plain (uncompressed) database dump is written to [dumpFile], the
+     * rest is read from the returned layout. Only call with the lock held.
+     */
+    suspend fun prepareSnapshot(dumpFile: File): SnapshotContent
 }
 
 class PanoBackupException(
@@ -103,7 +111,7 @@ data class PanoBackupJob(
     /** Extra fields of a Pano Host error (`reason`, `nextAllowedAt`, `quotaBytes`, …). */
     @Volatile var details: JsonObject? = null
 ) {
-    enum class Type { CREATE, RESTORE, UPLOAD, TRANSFER, MC_UPLOAD }
+    enum class Type { CREATE, RESTORE, UPLOAD, TRANSFER, MC_UPLOAD, SNAPSHOT }
     enum class Status { RUNNING, DONE, FAILED }
 
     fun toJson(): JsonObject = JsonObject()
@@ -335,6 +343,22 @@ class PanoBackupService(
         } finally {
             (encryption as? PanoArcEncryption.Passphrase)?.passphrase?.fill('\u0000')
         }
+    }
+
+    override suspend fun prepareSnapshot(dumpFile: File): SnapshotContent = withConnection { connection ->
+        val prefix = host.dbPrefix()
+
+        withContext(Dispatchers.IO) { dumpFile.parentFile?.mkdirs() }
+
+        val output = withContext(Dispatchers.IO) { dumpFile.outputStream().buffered(64 * 1024) }
+
+        val result = try {
+            PanoNativeDumper(prefix).dump(connection, output)
+        } finally {
+            withContext(Dispatchers.IO) { output.close() }
+        }
+
+        SnapshotContent(host.layout, prefix, host.panoVersion, result.schemeVersions, PanoNativeDumper.DUMP_TOOL, dumpFile)
     }
 
     /**

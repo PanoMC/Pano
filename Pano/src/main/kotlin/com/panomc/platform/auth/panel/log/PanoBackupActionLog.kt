@@ -37,6 +37,9 @@ class PanoBackupActionLog(
         const val ACTION_UPLOAD = "UPLOAD"
         const val ACTION_DELETE_REMOTE = "DELETE_REMOTE"
         const val ACTION_RESTORE_REMOTE = "RESTORE_REMOTE"
+        const val ACTION_SNAPSHOT = "SNAPSHOT"
+        const val ACTION_DELETE_SNAPSHOT = "DELETE_SNAPSHOT"
+        const val ACTION_RESTORE_SNAPSHOT = "RESTORE_SNAPSHOT"
         const val ACTION_REMOTE_SETTINGS = "REMOTE_SETTINGS"
         const val ACTION_PASSPHRASE = "PASSPHRASE"
 

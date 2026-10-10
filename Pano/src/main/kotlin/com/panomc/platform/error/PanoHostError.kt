@@ -15,10 +15,13 @@ class PanoHostError(
     extras: Map<String, Any?> = mapOf()
 ) : Error("PANO_HOST_ERROR", statusCode, statusMessage, extras) {
     companion object {
+        /** This Pano already has an open snapshot (`snapshotId` in the extras). */
+        const val SNAPSHOT_BUSY = "SNAPSHOT_BUSY"
+
         fun of(exception: PanoHostException): PanoHostError {
             val status = when (exception.code) {
                 PanoHostException.UNAVAILABLE -> 502
-                PanoHostException.CONNECT_REQUIRED, PanoRemoteBackupService.PASSPHRASE_NOT_SET, PanoHostException.STOPPED_REMOTELY -> 409
+                PanoHostException.CONNECT_REQUIRED, PanoRemoteBackupService.PASSPHRASE_NOT_SET, PanoHostException.STOPPED_REMOTELY, SNAPSHOT_BUSY -> 409
                 else -> 400
             }
 

@@ -48,7 +48,8 @@ abstract class PanoBackupRemoteApi(protected val authProvider: AuthProvider) : P
 
 /**
  * `GET /api/v1/panel/pano-backups/remote[?fresh=true]` → `{connected, account {username, platformId}, plan
- * {tier, subscription} | null, usage {used, reserved, quota, free} | null, settings, passphraseSet,
+ * {tier, subscription} | null, usage {used, reserved, quota, free} | null, settings {schedule, hour, mcServerIds,
+ * mode SNAPSHOT|FULL}, passphraseSet,
  * lastUploadAt, hostError?, apiUrl, job, busy}` (plan + usage cached for a minute unless `fresh`).
  */
 @Endpoint
@@ -71,7 +72,7 @@ class PanelGetPanoBackupRemoteAPI(authProvider: AuthProvider, private val panoBa
 }
 
 /**
- * `PUT …/remote/settings {schedule OFF|DAILY|WEEKLY, hour, mcServerIds}`;
+ * `PUT …/remote/settings {schedule OFF|DAILY|WEEKLY, hour, mcServerIds, mode? SNAPSHOT|FULL}` (`mode` omitted = unchanged);
  * `PUT …/remote/passphrase {currentPassword, passphrase}` (≥ 8 characters; kept on this server only,
  * lost = the remote backups are unrecoverable; changing it does not re-encrypt older backups).
  */
@@ -94,7 +95,8 @@ class PanelUpdatePanoBackupRemoteAPI(
         val remote = panoBackupManager.remote
 
         if (context.normalizedPath().endsWith("/settings")) {
-            val settings = RemoteBackupSettings.fromJson(body) ?: throw BadRequest()
+            // A body without `mode` keeps the stored one (older panels do not send it).
+            val settings = RemoteBackupSettings.fromJson(body, remote.state().settings.mode) ?: throw BadRequest()
 
             remote.saveSettings(settings)
 
@@ -208,6 +210,91 @@ class PanelPanoBackupRemoteBackupAPI(
         panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE_REMOTE, id)
 
         return Successful(mapOf("job" to job.toJson()))
+    }
+}
+
+/**
+ * Deduplicated snapshots in Pano Backup: `GET …/remote/snapshots` → `{snapshots[{id, instanceId, instanceName, name,
+ * status, createdAt, finishedAt, fileCount, logicalBytes, downloadBytes, uniqueBytes, error, own}], repository
+ * {storedBytes}}` (this Pano's and the account's other Panos', newest first); `POST …/remote/snapshots {name?}` →
+ * `{job}` (take one now); `POST …/remote/snapshots/:id/restore {currentPassword}` → `{job}` (any finished snapshot of the
+ * account: rebuilt, then the local restore flow); `DELETE …/remote/snapshots/:id` (this Pano's own; an open one is aborted).
+ */
+@Endpoint
+class PanelPanoBackupRemoteSnapshotsAPI(
+    authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
+    private val panoBackupManager: PanoBackupManager,
+    private val panoBackupAudit: PanoBackupAudit
+) : PanoBackupRemoteApi(authProvider) {
+    override val paths = listOf(
+        Path("/pano-backups/remote/snapshots", RouteType.ROUTE),
+        Path("/pano-backups/remote/snapshots/:id/restore", RouteType.POST),
+        Path("/pano-backups/remote/snapshots/:id", RouteType.DELETE)
+    )
+
+    override suspend fun handle(context: RoutingContext): Result {
+        requireManage(context)
+
+        val remote = panoBackupManager.remote
+        val single = context.pathParam("id") != null
+
+        return when (method(context)) {
+            HttpMethod.GET -> {
+                if (single) throw BadRequest()
+
+                Successful(host { remote.listSnapshots() }.map)
+            }
+
+            HttpMethod.POST -> if (single) restore(context) else {
+                val name = body(context).getValue("name")?.let { (it as? String)?.trim() ?: throw BadRequest(extras = mapOf("field" to "name")) }
+
+                if (name != null && name.length > MAX_NAME_LENGTH) throw BadRequest(extras = mapOf("field" to "name"))
+
+                requireReady(remote, passphrase = false)
+
+                val job = job { remote.startSnapshot(name?.takeIf { it.isNotEmpty() }) }
+
+                panoBackupAudit.log(context, PanoBackupActionLog.ACTION_SNAPSHOT)
+
+                Successful(mapOf("job" to job.toJson()))
+            }
+
+            HttpMethod.DELETE -> {
+                val id = remoteId(context)
+
+                host { remote.deleteSnapshot(id) }
+
+                panoBackupAudit.log(context, PanoBackupActionLog.ACTION_DELETE_SNAPSHOT, id)
+
+                Successful()
+            }
+
+            else -> throw BadRequest()
+        }
+    }
+
+    private suspend fun restore(context: RoutingContext): Result {
+        val id = remoteId(context)
+        val remote = panoBackupManager.remote
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+
+        if (!databaseManager.userDao.isPasswordCorrectWithId(userId, body(context).getString("currentPassword") ?: "", getSqlClient())) {
+            throw CurrentPasswordNotCorrect()
+        }
+
+        requireReady(remote, passphrase = false)
+
+        val job = job { remote.startSnapshotRestore(id) }
+
+        // Written into the restored database once the restore is applied (it replaces the log).
+        panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE_SNAPSHOT, id)
+
+        return Successful(mapOf("job" to job.toJson()))
+    }
+
+    private companion object {
+        const val MAX_NAME_LENGTH = 100
     }
 }
 

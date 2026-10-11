@@ -207,13 +207,15 @@ class PanoMailTest {
     }
 
     @Test
-    fun `verify runs the connect check and enable without a test mail`() = runBlocking {
-        answers["/host/connected/mail/enable"] = ok(status.copy().put("ready", false))
+    fun `verify is read-only, it reads the status and never enables`() = runBlocking {
+        answers["/host/connected/mail"] = ok(status.copy().put("ready", false))
 
         val result = PanoMailVerify.run(service())
 
         assertEquals(false, result["ready"])
         assertEquals("no-reply@pano.example", result["from"])
+        assertTrue(requests.none { it.second.endsWith("/enable") }, requests.toString())
+        assertTrue(requests.none { it.first == "POST" }, requests.toString())
 
         configManager.config.panoAccount.accessToken = ""
         assertThrows<PanoMailConnectRequired> { runBlocking { PanoMailVerify.run(service()) } }
@@ -428,12 +430,67 @@ class PanoMailTest {
     }
 
     @Test
-    fun `verify answers the resulting address`() = runBlocking {
-        answers["/host/connected/mail/enable"] = ok(withSubdomain("mysite").put("ready", false))
+    fun `verify answers the resulting address and checks the name without applying it`() = runBlocking {
+        answers["/host/connected/mail"] = ok(withSubdomain("old").put("ready", false))
+        answers["/host/connected/mail/name-check"] = ok(JsonObject().put("name", "mysite").put("status", "AVAILABLE"))
 
         val result = PanoMailVerify.run(service(), "mysite", "info")
 
         assertEquals(mapOf("ready" to false, "from" to "info@mysite.mail.panomc.site"), result)
+        assertTrue(requests.none { it.second.endsWith("/enable") })
+
+        answers["/host/connected/mail/name-check"] = ok(JsonObject().put("name", "mysite").put("status", "TAKEN"))
+        assertThrows<PanoMailNameTaken> { runBlocking { PanoMailVerify.run(service(), "mysite", null) } }
+
+        answers["/host/connected/mail/name-check"] = ok(JsonObject().put("name", "x").put("status", "INVALID").put("reason", "TOO_SHORT"))
+        assertThrows<PanoMailNameInvalid> { runBlocking { PanoMailVerify.run(service(), "x", null) } }
+
+        answers.remove("/host/connected/mail/name-check")
+        assertThrows<PanoMailUnavailable> { runBlocking { PanoMailVerify.run(service(), "mysite", null) } }
+        assertTrue(requests.none { it.second.endsWith("/enable") })
+    }
+
+    @Test
+    fun `the wizard only stores the choice, the website is enabled at the end of the set-up`() = runBlocking {
+        answers["/host/connected/mail"] = ok(withSubdomain("old"))
+        answers["/host/connected/mail/name-check"] = ok(JsonObject().put("name", "mysite").put("status", "AVAILABLE"))
+        answers["/host/connected/mail/enable"] = ok(withSubdomain("mysite"))
+
+        service().choose(null, "mysite", "info")
+
+        assertEquals("PANO_MAIL", configManager.config.email.provider)
+        assertTrue(configManager.config.email.enabled)
+        assertEquals("info@mysite.mail.panomc.site", configManager.config.email.sender)
+        assertTrue(requests.none { it.second.endsWith("/enable") }, "an abandoned wizard registers nothing")
+
+        assertNull(service().enableChosen())
+
+        val enable = requests.single { it.second.endsWith("/enable") }
+
+        assertEquals("mysite", JsonObject(enable.third).getString("name"))
+        assertEquals("PANO_MAIL", configManager.config.email.provider)
+
+        // not chosen: nothing to do
+        configManager.config.email.provider = "SMTP"
+        requests.clear()
+        assertNull(service().enableChosen())
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun `a refusal at the end of the set-up falls back to SMTP and reports the code`() = runBlocking {
+        answers["/host/connected/mail"] = ok(withSubdomain("mysite"))
+        configManager.config.email.provider = "PANO_MAIL"
+        configManager.config.email.enabled = true
+        configManager.config.email.sender = "no-reply@mysite.mail.panomc.site"
+
+        answers["/host/connected/mail/enable"] = err("MAIL_UNAVAILABLE", 503, JsonObject().put("reason", "NO_PLAN"))
+
+        assertEquals("PANO_MAIL_UNAVAILABLE", service().enableChosen())
+        assertEquals("SMTP", configManager.config.email.provider)
+        assertFalse(configManager.config.email.enabled)
+        // the name already is the website's: sent without a rename
+        assertEquals("", requests.last { it.second.endsWith("/enable") }.third)
     }
 
     @Test

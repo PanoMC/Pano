@@ -195,29 +195,129 @@ class PanoMailService internal constructor(
         val status = try {
             clientCall(label)
         } catch (e: PanoMailException) {
-            throw when (e.code) {
-                PanoMailException.CONNECT_REQUIRED -> PanoMailConnectRequired()
-                "LABEL_TAKEN", "LABEL_RESERVED" -> PanoMailNameTaken(e.message ?: "")
-                "LABEL_INVALID" -> PanoMailNameInvalid(e.message ?: "")
-                "RATE_LIMITED" -> PanoMailNameRateLimited(
-                    e.message ?: "",
-                    mapOf("minutes" to e.extras.getValue("minutes"), "retryAfter" to e.extras.getValue("retryAfter"))
-                )
-                else -> PanoMailUnavailable(e.message ?: "", mapOf("reason" to e.reason))
-            }
+            throw enableFailure(e)
         }
 
+        return Enabled(status, resolveAddress(status, label, local))
+    }
+
+    /** The API error for a website refusal of the enable call. */
+    private fun enableFailure(e: PanoMailException): Throwable = when (e.code) {
+        PanoMailException.CONNECT_REQUIRED -> PanoMailConnectRequired()
+        "LABEL_TAKEN", "LABEL_RESERVED" -> PanoMailNameTaken(e.message ?: "")
+        "LABEL_INVALID" -> PanoMailNameInvalid(e.message ?: "")
+        "RATE_LIMITED" -> PanoMailNameRateLimited(
+            e.message ?: "",
+            mapOf("minutes" to e.extras.getValue("minutes"), "retryAfter" to e.extras.getValue("retryAfter"))
+        )
+        else -> PanoMailUnavailable(e.message ?: "", mapOf("reason" to e.reason))
+    }
+
+    private fun resolveAddress(status: JsonObject, label: String?, local: String?): String? {
         val sub = status.getJsonObject("subdomain")
         val subName = sub?.getString("name")
         val zone = sub?.getString("zone")
 
-        val address = if ((label != null || local != null) && !subName.isNullOrBlank() && !zone.isNullOrBlank()) {
+        return if ((label != null || local != null) && !subName.isNullOrBlank() && !zone.isNullOrBlank()) {
             "${local ?: currentLocalPart(configManager.config)}@$subName.$zone"
         } else {
             status.getString("from")?.let { bareAddress(it) }
         }
+    }
 
-        return Enabled(status, address)
+    /**
+     * What [enableAs] would do, without doing it (the set-up wizard: nothing is registered on the website until the
+     * set-up is finished, see [enableChosen]). Reads the website's mail status and, when [name] is given, checks the
+     * name; the address is `<localPart>@<name>.<zone>` with the zone of the status. `ready` is the status' own.
+     *
+     * @throws InvalidData, PanoMailConnectRequired, PanoMailNameTaken, PanoMailNameInvalid as [enableAs]
+     * @throws PanoMailUnavailable when the website cannot be reached or cannot confirm the name
+     */
+    suspend fun verifyAs(name: String?, localPart: String?): Enabled {
+        val local = localPart?.trim()?.takeIf { it.isNotEmpty() }?.also { validateLocalPart(it) }
+        val label = name?.trim()?.takeIf { it.isNotEmpty() }
+
+        if (!isConnected()) {
+            throw PanoMailConnectRequired()
+        }
+
+        val status = try {
+            guarded { clientProvider().mailStatus(Duration.ofSeconds(10)) }
+        } catch (e: PanoMailException) {
+            throw enableFailure(e)
+        }
+
+        if (label != null) {
+            val check = checkName(label)
+
+            when (check["status"]) {
+                "TAKEN" -> throw PanoMailNameTaken(check["reason"] as? String ?: "")
+                "INVALID" -> throw PanoMailNameInvalid(check["reason"] as? String ?: "")
+                NAME_UNKNOWN -> throw PanoMailUnavailable("The name could not be checked.", mapOf("reason" to "PANO_HOST_UNAVAILABLE"))
+            }
+
+            // The zone is the website's; the name is only applied at the end of the set-up.
+            val zone = status.getJsonObject("subdomain")?.getString("zone")
+            val sub = JsonObject().put("name", label).put("zone", zone)
+
+            status.put("subdomain", sub)
+        }
+
+        return Enabled(status, resolveAddress(status, label, local))
+    }
+
+    /**
+     * The wizard's step 3 for Pano Mail: [verifyAs], then only this Pano's own config is written (provider
+     * `PANO_MAIL`, `enabled`, the sender); the website is not touched until [enableChosen] at the end of the set-up.
+     */
+    suspend fun choose(from: String?, name: String? = null, localPart: String? = null) {
+        val verified = verifyAs(name, localPart)
+        val email = configManager.config.email
+        val chosen = !name.isNullOrBlank() || !localPart.isNullOrBlank()
+
+        email.provider = MailManager.PROVIDER_PANO_MAIL
+        email.enabled = true
+        email.sender = (if (chosen) verified.address else null)
+            ?: from?.takeIf { it.isNotBlank() }
+            ?: verified.address
+            ?: email.sender
+        email.hostManaged = false
+
+        configManager.saveConfig()
+        invalidateStatus()
+    }
+
+    /**
+     * The end of the set-up for a Pano that chose Pano Mail: switches it on at the website (under the id this Pano
+     * keeps), with the address name picked in the wizard (the sender's domain is `<name>.<zone>`). When the website
+     * refuses, this Pano goes back to SMTP with e-mail off so it never claims to send through Pano Mail.
+     *
+     * @return null when Pano Mail is on (or was not chosen), else the error code of the refusal
+     */
+    suspend fun enableChosen(): String? {
+        val email = configManager.config.email
+
+        if (!email.enabled || email.provider != MailManager.PROVIDER_PANO_MAIL) {
+            return null
+        }
+
+        return try {
+            val current = shortStatus()?.getJsonObject("subdomain")
+            val zone = current?.getString("zone")
+            val domain = bareAddress(email.sender).substringAfter('@', "")
+            val name = if (!zone.isNullOrBlank() && domain.endsWith(".$zone")) domain.removeSuffix(".$zone").takeIf { '.' !in it && it.isNotEmpty() } else null
+
+            enableAs(name?.takeIf { it != current?.getString("name") }, null)
+            invalidateStatus()
+
+            null
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+
+            fallBackToSmtp()
+
+            (e as? com.panomc.platform.model.Error)?.getErrorCode() ?: "PANO_MAIL_UNAVAILABLE"
+        }
     }
 
     /** `backupFreeGb` of the public catalog (Pano Backup storage every account has), cached like [freePlan]; null when unreadable. Never throws. */

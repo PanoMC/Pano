@@ -196,9 +196,11 @@ class UpdateStepAPI(
         }
 
         // Pano Mail: needs the account connected (step 4's connect routes work from step 0); a website
-        // refusal throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE and the step stays.
+        // refusal throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE and the step stays. Only checked and stored
+        // here: Pano Mail is switched on at the website when the set-up is finished (FinishAPI), so an
+        // abandoned wizard leaves nothing registered in the account.
         if (clientStep == 3 && provider == MailManager.PROVIDER_PANO_MAIL) {
-            panoMailService.activate(from, senderName, localPart)
+            panoMailService.choose(from, senderName, localPart)
 
             return true
         }

@@ -132,14 +132,13 @@ class FinishAPI(
 
         setupManager.finishSetup()
 
-        // The wizard switched Pano Mail on under the set-up's throwaway instance id; the website keeps that
-        // switch per Pano, so it is switched on again under the id this Pano keeps from now on.
-        if (configManager.config.email.let { it.enabled && it.provider == com.panomc.platform.mail.MailManager.PROVIDER_PANO_MAIL }) {
-            try {
-                panoMailService.enable()
-            } catch (e: Exception) {
-                logger.warn("Pano Mail could not be switched on after the set-up: ${e.message}")
-            }
+        // Pano Mail is switched on at the website only now, under the id this Pano keeps from now on (the wizard
+        // only checked it). The account exists by this point, so a refusal does not fail the set-up: this Pano
+        // goes back to SMTP with e-mail off and the answer says why.
+        val panoMailError = panoMailService.enableChosen()
+
+        if (panoMailError != null) {
+            logger.warn("Pano Mail could not be switched on after the set-up: $panoMailError")
         }
 
         try {
@@ -169,9 +168,12 @@ class FinishAPI(
         authProvider.setCookies(context, token, csrfToken)
 
         return Successful(
-            mapOf(
-                "jwt" to token
-            )
+            buildMap {
+                put("jwt", token)
+
+                // Only present when the Pano Mail chosen in the wizard was refused at the end (e-mail is off then).
+                panoMailError?.let { put("panoMailError", it) }
+            }
         )
     }
 }

@@ -20,12 +20,12 @@ object PanoMailVerify {
     }
 
     /**
-     * Pano Mail verify: the account is connected and the website switches Pano Mail on for it (idempotent,
-     * no test mail is sent; [name] creates or renames the address). Answers `{ready, from}` with the resulting
-     * address; `ready = false` is not a failure.
+     * Pano Mail verify: the account is connected and Pano Mail would work (read-only: nothing is created or renamed
+     * on the website, no test mail is sent; [name] is checked, not applied). Answers `{ready, from}` with the
+     * resulting address; `ready = false` is not a failure.
      */
     suspend fun run(service: PanoMailService, name: String? = null, localPart: String? = null): Map<String, Any?> {
-        val enabled = service.enableAs(name, localPart)
+        val enabled = service.verifyAs(name, localPart)
 
         return mapOf("ready" to (enabled.status.getBoolean("ready") ?: false), "from" to enabled.address)
     }

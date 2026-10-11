@@ -374,6 +374,9 @@ class PanelPanoBackupRemoteSnapshotDownloadAPI(
 /**
  * Transfer to Pano Host: `GET …/remote/workloads` → `{workloads[{id, name, label, state, maxBytes}]}`
  * (the account's Pano workloads); `GET …/remote/transfers` → `{transfers}` (pushed by this Pano);
+ * `GET …/remote/transfers/estimate` → `{status CALCULATING | DONE | FAILED, bytes?, files?, calculatedAt?}` (answers at once; the
+ * uncompressed size of what a transfer carries: the files an archive includes plus the database's data and index length,
+ * calculated in the background and cached for two minutes, an estimate and not the archive size);
  * `POST …/remote/transfers/code {workloadId}` → `{email (masked), expiresAt, resendAfter}` (Pano Host e-mails
  * the account owner a code); `POST …/remote/transfers {workloadId, code}` → `{job}` (the code is the confirmation:
  * checked at Pano Host first, so a wrong one fails this request before anything is archived; then a plain archive is
@@ -390,6 +393,7 @@ class PanelPanoBackupRemoteTransfersAPI(
         Path("/pano-backups/remote/workloads", RouteType.GET),
         Path("/pano-backups/remote/transfers", RouteType.ROUTE),
         Path("/pano-backups/remote/transfers/code", RouteType.POST),
+        Path("/pano-backups/remote/transfers/estimate", RouteType.GET),
         Path("/pano-backups/remote/transfers/:id", RouteType.ROUTE)
     )
 
@@ -400,6 +404,10 @@ class PanelPanoBackupRemoteTransfersAPI(
 
         if (context.normalizedPath().endsWith("/workloads")) {
             return Successful(host { remote.listWorkloads() }.map)
+        }
+
+        if (context.normalizedPath().endsWith("/transfers/estimate")) {
+            return Successful(panoBackupManager.transferEstimate.get().map)
         }
 
         if (context.normalizedPath().endsWith("/transfers/code")) {

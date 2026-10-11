@@ -63,10 +63,7 @@ class InstanceArchiver(
                     dumpFile?.let { writer.addFile(ArchiveManifest.DB_DUMP_ENTRY, it) }
                     configBytes()?.let { writer.addBytes(InstanceLayout.CONFIG_ENTRY, it) }
 
-                    writer.addTree(layout.pluginsDir, InstanceLayout.PLUGINS)
-                    writer.addTree(layout.themesDir, InstanceLayout.THEMES, InstanceLayout::themeExcluded)
-                    writer.addTree(layout.uploadsDir, InstanceLayout.FILE_UPLOADS, InstanceLayout::uploadsExcluded)
-                    writer.addTree(layout.maintenanceDir, InstanceLayout.MAINTENANCE)
+                    layout.trees.forEach { writer.addTree(it.dir, it.prefix, it.exclude) }
 
                     writer.finish(
                         kind = ArchiveManifest.KIND_PANO_INSTANCE,

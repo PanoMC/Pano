@@ -14,6 +14,7 @@ import com.panomc.platform.backup.remote.PanoIdentity
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.backup.remote.PassphraseFile
 import com.panomc.platform.backup.remote.RemoteBackupState
+import com.panomc.platform.backup.remote.TransferEstimate
 import com.panomc.platform.backup.remote.RemoteStateStore
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
@@ -144,6 +145,32 @@ class PanoBackupManager(
             panoVersion = Main.VERSION,
             onScheduledSettled = { ok -> audit.system(PanoBackupSystemLog.ACTION_SCHEDULED_UPLOAD, ok) }
         )
+    }
+
+    /** The size a transfer of this Pano would carry (files per the archive rules + the tables' data and index length), cached. */
+    val transferEstimate by lazy {
+        TransferEstimate(
+            scope = scope,
+            layout = { InstanceLayout.current(configManager.config) },
+            databaseBytes = ::databaseBytes,
+            logger = logger
+        )
+    }
+
+    /** `data_length + index_length` of this Pano's tables (the configured prefix): what the database holds, uncompressed, estimated by MariaDB. */
+    private suspend fun databaseBytes(): Long? {
+        val prefix = configManager.config.database.prefix
+        val escaped = prefix.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%")
+
+        val rows = databaseManager.getSqlClient()
+            .preparedQuery(
+                "SELECT COALESCE(SUM(data_length + index_length), 0) FROM information_schema.tables " +
+                    "WHERE table_schema = DATABASE() AND table_name LIKE ?"
+            )
+            .execute(io.vertx.sqlclient.Tuple.of("$escaped%"))
+            .coAwait()
+
+        return rows.firstOrNull()?.getLong(0)
     }
 
     /** setup-ui "import from Pano Backup": uses the account connected in setup step 4. */

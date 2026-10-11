@@ -38,8 +38,8 @@ data class ConnectedAccount(val username: String, val platformId: String) {
  * - schedule per [RemoteBackupSettings] (the plan has no frequency rule; a failed scheduled upload
  *   waits [RETRY_AFTER_FAILURE_MS] before the next attempt, one refused for a full storage or a missing plan
  *   waits for the next scheduled slot unless the overview shows more room);
- * - transfer: a plain archive pushed into one of the account's Pano workloads (Pano Host asks the
- *   owner to confirm before restoring it);
+ * - transfer: a plain archive pushed into one of the account's Pano workloads (the admin confirmed
+ *   with the password in the panel, Pano Host restores it at once and the job follows it to the end);
  * - managed MC server backups wrapped as `kind: mc-server`, encrypted and uploaded.
  *
  * Every archive/restore/upload runs as the one [PanoBackupService] job (single flight). Not
@@ -566,10 +566,17 @@ class PanoRemoteBackupService(
     }
 
     /**
-     * Pushes a plain archive of this Pano into workload [workloadId]. The job ends when the upload is
-     * complete (`AWAITING_CONFIRMATION`); the owner confirms on panomc.com, then poll [getTransfer].
+     * Pushes a plain archive of this Pano into workload [workloadId]. Completing the upload makes Pano Host start
+     * the restore at once (`RESTORING`; the admin confirmed in the panel), and the job follows the transfer every
+     * [pollIntervalMs] until Pano Host says `DONE` (job DONE) or `FAILED` (job FAILED with `TRANSFER_FAILED`), or
+     * [timeoutMs] runs out (`TRANSFER_TIMEOUT`; the restore itself is not stopped). Jobs live in memory, so a
+     * restart of this Pano ends the job; the transfer goes on at Pano Host and shows in [listTransfers].
      */
-    fun startTransfer(workloadId: String): PanoBackupJob {
+    fun startTransfer(
+        workloadId: String,
+        pollIntervalMs: Long = TRANSFER_POLL_MS,
+        timeoutMs: Long = TRANSFER_TIMEOUT_MS
+    ): PanoBackupJob {
         val temp = tempFile("transfer")
 
         return backups.startTask(PanoBackupJob.Type.TRANSFER, cleanup = { delete(temp) }) { job ->
@@ -592,13 +599,38 @@ class PanoRemoteBackupService(
 
             job.remoteId = session.id
 
+            var transfer: JsonObject
+
+            // Until the restore has started the transfer can still be canceled; a failed complete leaves nothing waiting.
             try {
                 client.uploadParts(temp, session) { job.bytesDone = it }
-                client.completeTransfer(session.id)
+                transfer = client.completeTransfer(session.id)
             } catch (e: Throwable) {
                 runCatching { client.cancelTransfer(session.id) }
 
                 throw e
+            }
+
+            job.phase = PHASE_TRANSFER_RESTORING
+            job.bytesDone = 0
+            job.bytesTotal = 0
+
+            val deadline = clock() + timeoutMs
+
+            while (transfer.getString("status") != TRANSFER_DONE) {
+                val status = transfer.getString("status")
+
+                if (status == null || status in TRANSFER_ENDED) {
+                    throw PanoHostException(TRANSFER_FAILED_CODE, message = transfer.getString("error") ?: "The transfer failed.")
+                }
+
+                if (clock() > deadline) {
+                    throw PanoHostException(TRANSFER_TIMEOUT_CODE, message = "The transfer did not finish in time.")
+                }
+
+                delay(pollIntervalMs)
+
+                transfer = client.getTransfer(session.id)
             }
         }
     }
@@ -878,6 +910,14 @@ class PanoRemoteBackupService(
         const val DOWNLOAD_TTL_MS = 30L * 60 * 1000
 
         const val EXPORT_POLL_MS = 5_000L
+
+        const val PHASE_TRANSFER_RESTORING = "TRANSFER_RESTORING"
+        const val TRANSFER_FAILED_CODE = "TRANSFER_FAILED"
+        const val TRANSFER_TIMEOUT_CODE = "TRANSFER_TIMEOUT"
+        private const val TRANSFER_DONE = "DONE"
+        private val TRANSFER_ENDED = setOf("FAILED", "CANCELED", "EXPIRED")
+        const val TRANSFER_POLL_MS = 5_000L
+        const val TRANSFER_TIMEOUT_MS = 2L * 60 * 60 * 1000
         const val EXPORT_TIMEOUT_MS = 60L * 60 * 1000
         const val NOT_AVAILABLE = "NOT_AVAILABLE"
         const val WORKLOAD_NOT_FOUND = "WORKLOAD_NOT_FOUND"

@@ -372,13 +372,14 @@ class PanelPanoBackupRemoteSnapshotDownloadAPI(
 /**
  * Transfer to Pano Host: `GET …/remote/workloads` → `{workloads[{id, name, label, state, maxBytes}]}`
  * (the account's Pano workloads); `GET …/remote/transfers` → `{transfers}` (pushed by this Pano);
- * `POST …/remote/transfers {workloadId}` → `{job}` (plain archive pushed; then the owner confirms on
- * panomc.com); `GET …/remote/transfers/:id` → `{transfer}`; `DELETE …/remote/transfers/:id` cancels a
- * pending one.
+ * `POST …/remote/transfers {workloadId, currentPassword}` → `{job}` (the password is the confirmation: plain
+ * archive pushed, Pano Host restores it at once and the job follows it until DONE / FAILED); `GET …/remote/transfers/:id` → `{transfer}`; `DELETE …/remote/transfers/:id` cancels a
+ * one that has not started restoring.
  */
 @Endpoint
 class PanelPanoBackupRemoteTransfersAPI(
     authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
     private val panoBackupManager: PanoBackupManager,
     private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
@@ -409,7 +410,13 @@ class PanelPanoBackupRemoteTransfersAPI(
             HttpMethod.POST -> {
                 if (single) throw BadRequest()
 
-                val workloadId = workloadId(body(context).getValue("workloadId") as? String)
+                val body = body(context)
+                val workloadId = workloadId(body.getValue("workloadId") as? String)
+                val userId = authProvider.getUserIdFromRoutingContext(context)
+
+                if (!databaseManager.userDao.isPasswordCorrectWithId(userId, body.getString("currentPassword") ?: "", getSqlClient())) {
+                    throw CurrentPasswordNotCorrect()
+                }
 
                 requireReady(remote, passphrase = false)
 

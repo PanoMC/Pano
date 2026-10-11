@@ -74,6 +74,9 @@ class PanoRemoteBackupServiceTest {
     fun setUp() {
         host.backups.clear()
         host.transfers.clear()
+        host.transferPendingReads = 0
+        host.transferFails = false
+        host.transferCompleteQuota = 0
         host.aborted.clear()
         host.snapshotRepo.reset()
         host.tokens.add(FakePanoHost.TOKEN)
@@ -279,11 +282,13 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
-    fun `transfer pushes a plain archive into the chosen workload and ends awaiting confirmation`(): Unit = runBlocking {
+    fun `transfer pushes a plain archive, then follows the restore until it is done or failed`(): Unit = runBlocking {
         assertEquals(FakePanoHost.WORKLOAD_ID, service.listWorkloads().getJsonArray("workloads").getJsonObject(0).getString("id"))
         assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startTransfer("p-other0001")).error)
 
-        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID))
+        host.transferPendingReads = 2
+
+        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
 
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
 
@@ -292,11 +297,34 @@ class PanoRemoteBackupServiceTest {
 
         assertEquals(listOf(false), runner.archived)
         assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, PanoArchive.verify(ByteArrayInputStream(bytes), PanoArcKeys.NONE).kind)
-        assertEquals("AWAITING_CONFIRMATION", service.getTransfer(transferId).getString("status"))
+        assertEquals("DONE", service.getTransfer(transferId).getString("status"))
         assertEquals(transferId, service.listTransfers().getJsonArray("transfers").getJsonObject(0).getString("id"))
 
-        service.cancelTransfer(transferId)
-        assertEquals("CANCELED", service.getTransfer(transferId).getString("status"))
+        // A restore that failed on Pano Host fails the job with its message.
+        host.transferFails = true
+        val failed = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+
+        assertEquals(PanoRemoteBackupService.TRANSFER_FAILED_CODE, failed.error)
+        assertEquals("Restore failed.", failed.message)
+
+        // One that never ends times out; the job keeps no temp file.
+        host.transferFails = false
+        host.transferPendingReads = Int.MAX_VALUE
+        val timedOut = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10, timeoutMs = -1))
+
+        assertEquals(PanoRemoteBackupService.TRANSFER_TIMEOUT_CODE, timedOut.error)
+        assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
+    }
+
+    @Test
+    fun `a transfer the archive does not fit is refused with the size and cancels itself`(): Unit = runBlocking {
+        host.transferCompleteQuota = 1234
+
+        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+
+        assertEquals("QUOTA_EXCEEDED", job.error)
+        assertEquals(1234L, job.details?.getLong("maxBytes"))
+        assertEquals("CANCELED", host.transfers.values.single().getString("status"))
     }
 
     @Test

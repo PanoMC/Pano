@@ -63,6 +63,12 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     val tokens: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { add(TOKEN) }
     val backups = ConcurrentHashMap<String, JsonObject>()
     val transfers = ConcurrentHashMap<String, JsonObject>()
+
+    /** Reads of a RESTORING transfer before it ends; [transferFails] ends it FAILED instead of DONE. */
+    @Volatile var transferPendingReads = 0
+    @Volatile var transferFails = false
+    @Volatile var transferCompleteQuota = 0L
+    private var transferReads = 0
     val calls = CopyOnWriteArrayList<String>()
 
     /** `X-Pano-Instance-Id` / `-Name` of every connected call. */
@@ -355,12 +361,23 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                 val transfer = mine(id)
 
                 store.complete("imports/$id") ?: throw Failure(400, "INVALID_INPUT", JsonObject().put("reason", "not_uploaded"))
-                transfer.put("status", "AWAITING_CONFIRMATION")
+                if (transferCompleteQuota > 0) {
+                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("maxBytes", transferCompleteQuota))
+                }
+
+                transfer.put("status", "RESTORING")
+                transferReads = transferPendingReads
 
                 JsonObject().put("transfer", transfer)
             }
 
-            method == "GET" -> JsonObject().put("transfer", mine(id))
+            method == "GET" && id != null -> mine(id).let { transfer ->
+                if (transfer.getString("status") == "RESTORING" && transferReads-- <= 0) {
+                    if (transferFails) transfer.put("status", "FAILED").put("error", "Restore failed.") else transfer.put("status", "DONE")
+                }
+
+                JsonObject().put("transfer", transfer)
+            }
 
             method == "DELETE" -> {
                 mine(id).put("status", "CANCELED")

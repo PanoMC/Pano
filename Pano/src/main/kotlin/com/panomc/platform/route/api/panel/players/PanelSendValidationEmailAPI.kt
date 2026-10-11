@@ -11,6 +11,7 @@ import com.panomc.platform.error.EmailAlreadyVerified
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.MailOptions
 import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
@@ -77,7 +78,8 @@ class PanelSendValidationEmailAPI(
 
         tokenProvider.saveToken(token, playerId.toString(), ActivationTokenType, expireDate, sqlClient)
 
-        mailManager.sendMail(sqlClient, playerId, ActivationMail(token, user.username, user.email!!, ""), user.email)
+        // Strict: with e-mail off or Pano Mail refusing, the admin must not be told it was sent.
+        mailManager.sendRequiredMail(sqlClient, playerId, ActivationMail(token, user.username, user.email!!, ""), MailOptions(email = user.email))
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

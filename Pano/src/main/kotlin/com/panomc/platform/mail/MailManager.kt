@@ -8,8 +8,12 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.frontend.FrontendUrlMap
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.error.InvalidData
+import com.panomc.platform.error.MailDisabled
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.PanoMailConnectRequired
+import com.panomc.platform.error.PanoMailUnavailable
 import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.model.Error
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.ImageCompressionUtil
 import com.panomc.platform.util.MimeTypeUtil
@@ -61,6 +65,11 @@ class MailManager(
 
             return MailEncoder(message, domain).encode().toByteArray(Charsets.UTF_8)
         }
+
+        /** The error a strict send ([sendRequiredMail]) answers for a Pano Mail failure. */
+        fun strictFailure(e: PanoMailException): Error =
+            if (e.code == PanoMailException.CONNECT_REQUIRED) PanoMailConnectRequired()
+            else PanoMailUnavailable(e.message ?: "", mapOf("reason" to e.reason))
 
         private const val MAX_LOGO_SIZE_BYTES = 20 * 1024 // 20KB
         private const val MAX_LOGO_DIMENSION = 800 // Maximum width or height in pixels
@@ -179,13 +188,31 @@ class MailManager(
      * @throws IllegalArgumentException when the attachments violate the limits (before any SMTP work)
      * @return [MailResult.DISABLED] when e-mail is turned off, [MailResult.SENT] otherwise; SMTP failures throw
      */
-    suspend fun sendMail(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions): MailResult {
+    suspend fun sendMail(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions): MailResult =
+        deliver(sqlClient, userId, mail, options, strict = false)
+
+    /**
+     * [sendMail] for an action whose whole point is the e-mail (an admin sending one on purpose): a message that did not
+     * go out is an error, not a quiet result.
+     *
+     * @throws MailDisabled when e-mail is turned off
+     * @throws PanoMailConnectRequired when Pano Mail is chosen and this Pano is not connected
+     * @throws PanoMailUnavailable when Pano Mail did not take the message (limit used up, paused, website unreachable);
+     *   `extras.reason` says why
+     */
+    suspend fun sendRequiredMail(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions) {
+        deliver(sqlClient, userId, mail, options, strict = true)
+    }
+
+    private suspend fun deliver(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions, strict: Boolean): MailResult {
         val config = configManager.config
         val emailConfig = config.email
 
         val attachments = MailOptions.validateAttachments(options.attachments)
 
         if (!emailConfig.enabled) {
+            if (strict) throw MailDisabled()
+
             return MailResult.DISABLED
         }
 
@@ -309,9 +336,11 @@ class MailManager(
         if (emailConfig.provider == PROVIDER_PANO_MAIL) {
             try {
                 sendThroughPanoMail(message)
-            } catch (_: PanoMailException) {
+            } catch (e: PanoMailException) {
                 // Already logged. A full limit or a paused account must not turn a registration into an error
-                // after the account was created.
+                // after the account was created; an admin's own "send" says so.
+                if (strict) throw strictFailure(e)
+
                 return MailResult.FAILED
             }
         } else {

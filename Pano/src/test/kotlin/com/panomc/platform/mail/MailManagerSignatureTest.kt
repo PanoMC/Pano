@@ -90,8 +90,8 @@ class MailManagerSignatureTest {
     }
 
     @Test
-    fun `MailResult has exactly SENT and DISABLED`() {
-        assertEquals(listOf("SENT", "DISABLED"), MailResult.values().map { it.name })
+    fun `MailResult has exactly SENT, DISABLED and FAILED`() {
+        assertEquals(listOf("SENT", "DISABLED", "FAILED"), MailResult.values().map { it.name })
     }
 
     @Test

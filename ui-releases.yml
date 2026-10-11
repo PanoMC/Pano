@@ -1,6 +1,6 @@
-panel-ui: v1.0.0-dev.603
+panel-ui: v1.0.0-dev.604
 vanilla-theme: v1.0.0-dev.277
-setup-ui: v1.0.0-dev.82
+setup-ui: v1.0.0-dev.83
 
 # widget-runtime (doc 06 section 3.3): the web-component runtime from theme-core/packages/widget-host.
 # Written, not exercised: nothing can be released yet, so the row stays a comment and downloadUIReleases

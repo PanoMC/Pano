@@ -218,7 +218,7 @@ class PanelPanoBackupRemoteBackupAPI(
 
 /**
  * Deduplicated snapshots in Pano Backup: `GET …/remote/snapshots` → `{snapshots[{id, instanceId, instanceName, name,
- * status, createdAt, finishedAt, fileCount, logicalBytes, downloadBytes, uniqueBytes, error, own}], repository
+ * status, createdAt, finishedAt, fileCount, logicalBytes, downloadBytes, uniqueBytes, storedBytes, error, own}], repository
  * {storedBytes}}` (this Pano's and the account's other Panos', newest first); `POST …/remote/snapshots {name?}` →
  * `{job}` (take one now); `POST …/remote/snapshots/:id/restore {currentPassword}` → `{job}` (any finished snapshot of the
  * account: rebuilt, then the local restore flow); `DELETE …/remote/snapshots/:id` (this Pano's own; an open one is aborted).

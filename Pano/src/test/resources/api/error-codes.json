@@ -267,6 +267,10 @@
     "code": "LOGIN_USER_IS_BANNED",
     "status": 422
   },
+  "com.panomc.platform.error.MailDisabled": {
+    "code": "MAIL_DISABLED",
+    "status": 409
+  },
   "com.panomc.platform.error.MaintenanceModeEnabled": {
     "code": "MAINTENANCE_MODE_ENABLED",
     "status": 503

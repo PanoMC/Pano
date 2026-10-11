@@ -424,7 +424,11 @@ class PanelUpdateSettingsAPI(
                 configManager.saveConfig()
             } else {
                 // Throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE, nothing is stored then.
-                panoMailService.activate(email.getString("from") ?: email.getString("sender"), email.getString("name"), email.getString("localPart"))
+                // An explicit `from` must be at one of the account's sender domains (`INVALID_DATA {field: from}`).
+                panoMailService.activate(
+                    email.getString("from") ?: email.getString("sender"), email.getString("name"), email.getString("localPart"),
+                    strictFrom = !email.getString("from").isNullOrBlank()
+                )
             }
         } else if (email != null) {
             PanoMailVerify.requireSmtpFields(email, PanoMailVerify.SMTP_SAVE_FIELDS)

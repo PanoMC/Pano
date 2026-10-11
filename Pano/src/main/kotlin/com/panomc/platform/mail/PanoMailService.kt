@@ -344,14 +344,19 @@ class PanoMailService internal constructor(
     /**
      * Turns Pano Mail on for this Pano: [enableAs], then stores provider `PANO_MAIL`, `enabled = true` and the
      * sender (the resolved address when [name] / [localPart] is given, else [from], else the website's address).
-     * `ready = false` is not a failure (a new address becomes ready shortly).
+     * `ready = false` is not a failure (a new address becomes ready shortly). With [strictFrom], a [from] that is
+     * not an address at one of the account's sender domains is refused (`INVALID_DATA {field: from}`).
      *
      * @return the website's status body
      */
-    suspend fun activate(from: String?, name: String? = null, localPart: String? = null): JsonObject {
+    suspend fun activate(from: String?, name: String? = null, localPart: String? = null, strictFrom: Boolean = false): JsonObject {
         val enabled = enableAs(name, localPart)
         val email = configManager.config.email
         val chosen = !name.isNullOrBlank() || !localPart.isNullOrBlank()
+
+        if (strictFrom && !chosen && !from.isNullOrBlank() && !allowedSender(enabled.status, from)) {
+            throw InvalidData(extras = mapOf("field" to "from"))
+        }
 
         email.provider = MailManager.PROVIDER_PANO_MAIL
         email.enabled = true
@@ -419,6 +424,7 @@ class PanoMailService internal constructor(
                 "usage" to status?.getJsonObject("usage"),
                 "freePlan" to freePlan,
                 "sender" to senderView(config, status),
+                "senders" to sendersView(status),
                 "manageUrl" to manageUrl(config)
             )
         }
@@ -449,6 +455,26 @@ class PanoMailService internal constructor(
             if (localPart.length > 64 || !LOCAL_PART.matches(localPart)) {
                 throw InvalidData(extras = mapOf("field" to "localPart"))
             }
+        }
+
+        /** The domains this account may send from, `[{domain, kind}]`; empty when the website's status is unknown. */
+        fun sendersView(status: JsonObject?): List<Map<String, Any?>> =
+            (status?.getJsonArray("senders") ?: io.vertx.core.json.JsonArray()).mapNotNull { it as? JsonObject }
+                .mapNotNull { sender ->
+                    sender.getString("domain")?.takeIf { it.isNotBlank() }?.let { mapOf("domain" to it, "kind" to sender.getString("kind")) }
+                }
+
+        /** Whether [address] is `<local part>@<a domain of [status]' senders>`. */
+        fun allowedSender(status: JsonObject?, address: String): Boolean {
+            val bare = bareAddress(address)
+            val at = bare.lastIndexOf('@')
+
+            if (at <= 0) return false
+
+            val local = bare.substring(0, at)
+            val domain = bare.substring(at + 1).lowercase()
+
+            return local.length <= 64 && LOCAL_PART.matches(local) && sendersView(status).any { (it["domain"] as String).lowercase() == domain }
         }
 
         /** `{name, zone, localPart}` for the sender pickers; null when the website's status is unknown or has no `subdomain`. */

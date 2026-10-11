@@ -192,6 +192,25 @@ class PanoMailTest {
     }
 
     @Test
+    fun `a strict sender must be at one of the account's sender domains`() = runBlocking {
+        val senders = io.vertx.core.json.JsonArray()
+            .add(JsonObject().put("domain", "mysite.mail.panomc.site").put("kind", "SUBDOMAIN"))
+            .add(JsonObject().put("domain", "play.example.com").put("kind", "OWN"))
+        answers["/host/connected/mail/enable"] = ok(status.copy().put("senders", senders))
+
+        service().activate("hello@Play.example.com", strictFrom = true)
+        assertEquals("hello@Play.example.com", configManager.config.email.sender)
+
+        assertThrows<InvalidData> { runBlocking { service().activate("hello@other.example", strictFrom = true) } }
+        assertThrows<InvalidData> { runBlocking { service().activate("bad local@play.example.com", strictFrom = true) } }
+        assertEquals("hello@Play.example.com", configManager.config.email.sender)
+
+        val view = PanoMailService.panelView(configManager.config, status.copy().put("senders", senders), null)
+        assertEquals(listOf("mysite.mail.panomc.site", "play.example.com"), (view["senders"] as List<*>).map { (it as Map<*, *>)["domain"] })
+        assertEquals(emptyList<Any>(), PanoMailService.panelView(configManager.config, null, null)["senders"])
+    }
+
+    @Test
     fun `activate refuses without an account and reports website failures`() = runBlocking {
         configManager.config.panoAccount.accessToken = ""
         assertThrows<PanoMailConnectRequired> { runBlocking { service().activate(null) } }

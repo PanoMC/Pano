@@ -11,6 +11,7 @@ import io.vertx.core.json.JsonObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertArrayEquals
@@ -77,6 +78,7 @@ class PanoRemoteBackupServiceTest {
         host.transferPendingReads = 0
         host.transferFails = false
         host.transferCompleteQuota = 0
+        host.transferProgress = null
         host.aborted.clear()
         host.snapshotRepo.reset()
         host.tokens.add(FakePanoHost.TOKEN)
@@ -115,7 +117,7 @@ class PanoRemoteBackupServiceTest {
         assertNull(offline.getValue("account"))
         assertNull(offline.getValue("plan"))
         assertEquals(PanoHostException.CONNECT_REQUIRED, awaitJob(service.startUpload()).error)
-        assertEquals(PanoHostException.CONNECT_REQUIRED, awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID)).error)
+        assertEquals(PanoHostException.CONNECT_REQUIRED, awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_GRANT)).error)
         assertEquals(PanoHostException.CONNECT_REQUIRED, assertThrows<PanoHostException> { runBlocking { service.listBackups() } }.code)
 
         token = FakePanoHost.TOKEN
@@ -160,7 +162,7 @@ class PanoRemoteBackupServiceTest {
         assertEquals(PanoBackupJob.Status.DONE, plain.status, plain.error)
         val plainBytes = host.store.read("backups/${plain.remoteId}")!!
         assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, PanoArchive.verify(ByteArrayInputStream(plainBytes), PanoArcKeys.NONE).kind)
-        assertEquals(listOf(false), runner.archived)
+        assertEquals(listOf(false, false), runner.archived) // the refused grant archived once too
         service.deleteBackup(plain.remoteId!!)
         runner.archived.clear()
 
@@ -284,25 +286,31 @@ class PanoRemoteBackupServiceTest {
     @Test
     fun `transfer pushes a plain archive, then follows the restore until it is done or failed`(): Unit = runBlocking {
         assertEquals(FakePanoHost.WORKLOAD_ID, service.listWorkloads().getJsonArray("workloads").getJsonObject(0).getString("id"))
-        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startTransfer("p-other0001")).error)
+        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startTransfer("p-other0001", FakePanoHost.TRANSFER_GRANT)).error)
 
         host.transferPendingReads = 2
 
-        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+        // The code is e-mailed, checked at Pano Host, and only its grant starts a transfer.
+        assertEquals("a***@y*****.com", service.requestTransferCode(FakePanoHost.WORKLOAD_ID).getString("email"))
+        assertEquals("TRANSFER_CODE_INVALID", assertThrows<PanoHostException> { service.verifyTransferCode(FakePanoHost.WORKLOAD_ID, "000000") }.code)
+        assertEquals(FakePanoHost.TRANSFER_GRANT, service.verifyTransferCode(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_CODE))
+        assertEquals("TRANSFER_CODE_REQUIRED", awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, "nope", pollIntervalMs = 10)).error)
+
+        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_GRANT, pollIntervalMs = 10))
 
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
 
         val transferId = job.remoteId!!
         val bytes = host.store.read("imports/$transferId")!!
 
-        assertEquals(listOf(false), runner.archived)
+        assertEquals(listOf(false, false), runner.archived) // the refused grant archived once too
         assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, PanoArchive.verify(ByteArrayInputStream(bytes), PanoArcKeys.NONE).kind)
         assertEquals("DONE", service.getTransfer(transferId).getString("status"))
         assertEquals(transferId, service.listTransfers().getJsonArray("transfers").getJsonObject(0).getString("id"))
 
         // A restore that failed on Pano Host fails the job with its message.
         host.transferFails = true
-        val failed = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+        val failed = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_GRANT, pollIntervalMs = 10))
 
         assertEquals(PanoRemoteBackupService.TRANSFER_FAILED_CODE, failed.error)
         assertEquals("Restore failed.", failed.message)
@@ -310,17 +318,43 @@ class PanoRemoteBackupServiceTest {
         // One that never ends times out; the job keeps no temp file.
         host.transferFails = false
         host.transferPendingReads = Int.MAX_VALUE
-        val timedOut = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10, timeoutMs = -1))
+        val timedOut = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_GRANT, pollIntervalMs = 10, timeoutMs = -1))
 
         assertEquals(PanoRemoteBackupService.TRANSFER_TIMEOUT_CODE, timedOut.error)
         assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
     }
 
     @Test
+    fun `a transfer reports the percent Pano Host gives while it restores, and nothing when it gives none`(): Unit = runBlocking {
+        host.transferPendingReads = 2
+        host.transferProgress = 40
+
+        val seen = mutableListOf<Int?>()
+        val job = service.startTransfer(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_GRANT, pollIntervalMs = 40)
+
+        while (job.status == PanoBackupJob.Status.RUNNING) {
+            if (job.phase == PanoRemoteBackupService.PHASE_TRANSFER_RESTORING) seen.add(job.percent)
+
+            delay(5)
+        }
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
+        assertTrue(seen.contains(40), "percent seen: $seen")
+        assertEquals(0L, job.bytesTotal)
+
+        host.transferProgress = null
+
+        val plain = service.startTransfer(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_GRANT, pollIntervalMs = 10)
+
+        assertEquals(PanoBackupJob.Status.DONE, awaitJob(plain).status)
+        assertNull(plain.percent)
+    }
+
+    @Test
     fun `a transfer the archive does not fit is refused with the size and cancels itself`(): Unit = runBlocking {
         host.transferCompleteQuota = 1234
 
-        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+        val job = awaitJob(service.startTransfer(FakePanoHost.WORKLOAD_ID, FakePanoHost.TRANSFER_GRANT, pollIntervalMs = 10))
 
         assertEquals("QUOTA_EXCEEDED", job.error)
         assertEquals(1234L, job.details?.getLong("maxBytes"))

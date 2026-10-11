@@ -69,6 +69,9 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     @Volatile var transferFails = false
     @Volatile var transferCompleteQuota = 0L
     private var transferReads = 0
+
+    /** The percent a RESTORING transfer view reports (`progress {percent, phase}`), or null for none. */
+    @Volatile var transferProgress: Int? = null
     val calls = CopyOnWriteArrayList<String>()
 
     /** `X-Pano-Instance-Id` / `-Name` of every connected call. */
@@ -126,6 +129,8 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         const val TOKEN = "platform-jwt-test"
         const val ACCOUNT_ID = "0b8e4f6e-3c5d-4a2b-9f1e-2d3c4b5a6f70"
         const val WORKLOAD_ID = "p-test00001"
+        const val TRANSFER_CODE = "123456"
+        const val TRANSFER_GRANT = "grant-abc"
     }
 
     fun start(): FakePanoHost {
@@ -342,10 +347,23 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         val mine = { transferId: String? -> transfers[transferId]?.takeIf { it.getString("instanceId") == instanceId } ?: throw Failure(404, "TRANSFER_NOT_FOUND") }
 
         return when {
+            id == "code" && action == null && method == "POST" -> {
+                if (body.getString("workloadId") != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+
+                JsonObject().put("email", "a***@y*****.com").put("expiresAt", 1_800_000_900_000L).put("resendAfter", 1_800_000_060_000L)
+            }
+
+            id == "code" && action == "verify" -> {
+                if (body.getString("code") != TRANSFER_CODE) throw Failure(400, "TRANSFER_CODE_INVALID")
+
+                JsonObject().put("grant", TRANSFER_GRANT).put("expiresAt", 1_800_007_200_000L)
+            }
+
             id == null && method == "GET" -> JsonObject().put("transfers", JsonArray(transfers.values.filter { it.getString("instanceId") == instanceId }))
 
             id == null && method == "POST" -> {
                 if (body.getString("workloadId") != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+                if (body.getString("grant") != TRANSFER_GRANT) throw Failure(400, "TRANSFER_CODE_REQUIRED")
 
                 val transferId = UUID.randomUUID().toString()
                 val size = body.getLong("size")
@@ -374,6 +392,8 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
             method == "GET" && id != null -> mine(id).let { transfer ->
                 if (transfer.getString("status") == "RESTORING" && transferReads-- <= 0) {
                     if (transferFails) transfer.put("status", "FAILED").put("error", "Restore failed.") else transfer.put("status", "DONE")
+                } else if (transferProgress != null) {
+                    transfer.put("progress", JsonObject().put("percent", transferProgress).put("phase", "Importing the database"))
                 }
 
                 JsonObject().put("transfer", transfer)

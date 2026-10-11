@@ -108,6 +108,10 @@ data class PanoBackupJob(
     @Volatile var bytesTotal: Long = 0,
     /** Id on the remote side (Pano Backup backup id, transfer id) once known. */
     @Volatile var remoteId: String? = null,
+    /** Progress the remote side reports for a phase this Pano cannot measure (`0..100`), or null. */
+    @Volatile var percent: Int? = null,
+    /** The remote side's own name of what it is doing (Pano Host's transfer restore), or null. */
+    @Volatile var remotePhase: String? = null,
     /** Extra fields of a Pano Host error (`reason`, `nextAllowedAt`, `quotaBytes`, …). */
     @Volatile var details: JsonObject? = null
 ) {
@@ -128,6 +132,8 @@ data class PanoBackupJob(
         .put("bytesDone", bytesDone)
         .put("bytesTotal", bytesTotal)
         .put("remoteId", remoteId)
+        .put("percent", percent)
+        .put("remotePhase", remotePhase)
         .put("details", details)
 }
 

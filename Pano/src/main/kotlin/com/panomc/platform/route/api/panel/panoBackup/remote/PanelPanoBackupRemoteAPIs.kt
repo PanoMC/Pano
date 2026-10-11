@@ -7,7 +7,9 @@ import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
 import com.panomc.platform.auth.panel.permission.ManageServerBackupsPermission
 import com.panomc.platform.backup.McServerBackupSources
 import com.panomc.platform.backup.PanoBackupAudit
+import com.panomc.platform.backup.PanoBackupException
 import com.panomc.platform.backup.PanoBackupManager
+import com.panomc.platform.backup.PanoBackupService
 import com.panomc.platform.backup.remote.PanoHostException
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.backup.remote.PassphraseFile
@@ -372,20 +374,22 @@ class PanelPanoBackupRemoteSnapshotDownloadAPI(
 /**
  * Transfer to Pano Host: `GET …/remote/workloads` → `{workloads[{id, name, label, state, maxBytes}]}`
  * (the account's Pano workloads); `GET …/remote/transfers` → `{transfers}` (pushed by this Pano);
- * `POST …/remote/transfers {workloadId, currentPassword}` → `{job}` (the password is the confirmation: plain
- * archive pushed, Pano Host restores it at once and the job follows it until DONE / FAILED); `GET …/remote/transfers/:id` → `{transfer}`; `DELETE …/remote/transfers/:id` cancels a
+ * `POST …/remote/transfers/code {workloadId}` → `{email (masked), expiresAt, resendAfter}` (Pano Host e-mails
+ * the account owner a code); `POST …/remote/transfers {workloadId, code}` → `{job}` (the code is the confirmation:
+ * checked at Pano Host first, so a wrong one fails this request before anything is archived; then a plain archive is
+ * pushed, Pano Host restores it at once and the job follows it until DONE / FAILED); `GET …/remote/transfers/:id` → `{transfer}`; `DELETE …/remote/transfers/:id` cancels a
  * one that has not started restoring.
  */
 @Endpoint
 class PanelPanoBackupRemoteTransfersAPI(
     authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager,
     private val panoBackupManager: PanoBackupManager,
     private val panoBackupAudit: PanoBackupAudit
 ) : PanoBackupRemoteApi(authProvider) {
     override val paths = listOf(
         Path("/pano-backups/remote/workloads", RouteType.GET),
         Path("/pano-backups/remote/transfers", RouteType.ROUTE),
+        Path("/pano-backups/remote/transfers/code", RouteType.POST),
         Path("/pano-backups/remote/transfers/:id", RouteType.ROUTE)
     )
 
@@ -396,6 +400,14 @@ class PanelPanoBackupRemoteTransfersAPI(
 
         if (context.normalizedPath().endsWith("/workloads")) {
             return Successful(host { remote.listWorkloads() }.map)
+        }
+
+        if (context.normalizedPath().endsWith("/transfers/code")) {
+            val workloadId = workloadId(body(context).getValue("workloadId") as? String)
+
+            requireReady(remote, passphrase = false)
+
+            return Successful(host { remote.requestTransferCode(workloadId) }.map)
         }
 
         val single = context.pathParam("id") != null
@@ -412,15 +424,16 @@ class PanelPanoBackupRemoteTransfersAPI(
 
                 val body = body(context)
                 val workloadId = workloadId(body.getValue("workloadId") as? String)
-                val userId = authProvider.getUserIdFromRoutingContext(context)
-
-                if (!databaseManager.userDao.isPasswordCorrectWithId(userId, body.getString("currentPassword") ?: "", getSqlClient())) {
-                    throw CurrentPasswordNotCorrect()
-                }
+                val code = (body.getValue("code") as? String)?.trim()?.takeIf { it.length in 4..12 } ?: throw BadRequest(extras = mapOf("field" to "code"))
 
                 requireReady(remote, passphrase = false)
 
-                val job = job { remote.startTransfer(workloadId) }
+                // A busy Pano is refused before the code is spent.
+                if (panoBackupManager.service.isBusy()) PanoBackupRoutes.startJob { throw PanoBackupException(PanoBackupService.BUSY) }
+
+                val grant = host { remote.verifyTransferCode(workloadId, code) }
+
+                val job = job { remote.startTransfer(workloadId, grant) }
 
                 panoBackupAudit.log(context, PanoBackupActionLog.ACTION_TRANSFER)
 

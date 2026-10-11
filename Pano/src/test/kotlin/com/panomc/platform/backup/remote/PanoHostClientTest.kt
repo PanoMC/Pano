@@ -76,7 +76,7 @@ class PanoHostClientTest {
         }
 
         assertEquals(FakePanoHost.WORKLOAD_ID, client.listWorkloads().getJsonArray("workloads").getJsonObject(0).getString("id"))
-        assertEquals("WORKLOAD_NOT_FOUND", assertThrows<PanoHostException> { runBlocking { client.startTransfer("p-other0001", 10) } }.code)
+        assertEquals("WORKLOAD_NOT_FOUND", assertThrows<PanoHostException> { runBlocking { client.startTransfer("p-other0001", 10, FakePanoHost.TRANSFER_GRANT) } }.code)
 
         val down = PanoHostClient({ "http://127.0.0.1:18479" }, { "t" }, { identity }, RetryPolicy(1, 1))
         assertEquals(PanoHostException.UNAVAILABLE, assertThrows<PanoHostException> { runBlocking { down.listBackups() } }.code)

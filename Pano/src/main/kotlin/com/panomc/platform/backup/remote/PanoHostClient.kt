@@ -244,8 +244,17 @@ class PanoHostClient(
     /** `{transfers}` pushed by this Pano. */
     suspend fun listTransfers(): JsonObject = call("GET", "/host/connected/transfers")
 
-    suspend fun startTransfer(workloadId: String, size: Long): UploadSession = UploadSession.from(
-        call("POST", "/host/connected/transfers", JsonObject().put("workloadId", workloadId).put("size", size)),
+    /** E-mails a confirmation code to the account owner: `{email (masked), expiresAt, resendAfter}`; `TRANSFER_CODE_COOLDOWN` when asked too early. */
+    suspend fun requestTransferCode(workloadId: String): JsonObject =
+        call("POST", "/host/connected/transfers/code", JsonObject().put("workloadId", workloadId))
+
+    /** Checks the e-mailed code: the single-use `grant` (valid 2 h) that starts a transfer; `TRANSFER_CODE_INVALID` otherwise. */
+    suspend fun verifyTransferCode(workloadId: String, code: String): String =
+        call("POST", "/host/connected/transfers/code/verify", JsonObject().put("workloadId", workloadId).put("code", code)).getString("grant")
+            ?: throw PanoHostException(PanoHostException.UNAVAILABLE, message = "No grant in the answer.")
+
+    suspend fun startTransfer(workloadId: String, size: Long, grant: String): UploadSession = UploadSession.from(
+        call("POST", "/host/connected/transfers", JsonObject().put("workloadId", workloadId).put("size", size).put("grant", grant)),
         "transferId"
     )
 

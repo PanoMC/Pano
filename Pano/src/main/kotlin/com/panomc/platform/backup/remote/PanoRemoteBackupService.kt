@@ -401,6 +401,8 @@ class PanoRemoteBackupService(
             }
 
             job.phase = PanoBackupService.PHASE_RESTORING
+            job.bytesDone = 0
+            job.bytesTotal = 0
             job.backupId = service.restoreFrom(temp, null, safetyArchive, maintenance)?.id
         }
     }
@@ -507,6 +509,8 @@ class PanoRemoteBackupService(
             client.download(url, temp, export.getLong("sizeBytes"), null) { job.bytesDone = it }
 
             job.phase = PanoBackupService.PHASE_RESTORING
+            job.bytesDone = 0
+            job.bytesTotal = 0
             job.backupId = service.restoreFrom(temp, null, safetyArchive, maintenance)?.id
         }
     }
@@ -534,6 +538,8 @@ class PanoRemoteBackupService(
             target.fetch(id, temp) { job.bytesDone = it }
 
             job.phase = PanoBackupService.PHASE_RESTORING
+            job.bytesDone = 0
+            job.bytesTotal = 0
             job.backupId = service.restoreFrom(temp, key, safetyArchive, maintenance)?.id
         }
     }
@@ -560,20 +566,36 @@ class PanoRemoteBackupService(
         return client.getTransfer(id)
     }
 
+    /** E-mails the owner a transfer code for [workloadId]; `{email, expiresAt, resendAfter}`. */
+    suspend fun requestTransferCode(workloadId: String): JsonObject {
+        requireConnected()
+
+        return client.requestTransferCode(workloadId)
+    }
+
+    /** Checks [code] at Pano Host; the returned single-use grant is passed to [startTransfer]. */
+    suspend fun verifyTransferCode(workloadId: String, code: String): String {
+        requireConnected()
+
+        return client.verifyTransferCode(workloadId, code)
+    }
+
     suspend fun cancelTransfer(id: String) {
         requireConnected()
         client.cancelTransfer(id)
     }
 
     /**
-     * Pushes a plain archive of this Pano into workload [workloadId]. Completing the upload makes Pano Host start
-     * the restore at once (`RESTORING`; the admin confirmed in the panel), and the job follows the transfer every
+     * Pushes a plain archive of this Pano into workload [workloadId]; [grant] is what [verifyTransferCode] returned (the
+     * admin confirmed with the e-mailed code). Completing the upload makes Pano Host start the restore at once
+     * (`RESTORING`), and the job follows the transfer every
      * [pollIntervalMs] until Pano Host says `DONE` (job DONE) or `FAILED` (job FAILED with `TRANSFER_FAILED`), or
      * [timeoutMs] runs out (`TRANSFER_TIMEOUT`; the restore itself is not stopped). Jobs live in memory, so a
      * restart of this Pano ends the job; the transfer goes on at Pano Host and shows in [listTransfers].
      */
     fun startTransfer(
         workloadId: String,
+        grant: String,
         pollIntervalMs: Long = TRANSFER_POLL_MS,
         timeoutMs: Long = TRANSFER_TIMEOUT_MS
     ): PanoBackupJob {
@@ -595,7 +617,7 @@ class PanoRemoteBackupService(
             job.phase = PanoBackupService.PHASE_UPLOADING
             job.bytesTotal = temp.length()
 
-            val session = client.startTransfer(workloadId, temp.length())
+            val session = client.startTransfer(workloadId, temp.length(), grant)
 
             job.remoteId = session.id
 
@@ -614,6 +636,7 @@ class PanoRemoteBackupService(
             job.phase = PHASE_TRANSFER_RESTORING
             job.bytesDone = 0
             job.bytesTotal = 0
+            reportTransfer(job, transfer)
 
             val deadline = clock() + timeoutMs
 
@@ -631,8 +654,17 @@ class PanoRemoteBackupService(
                 delay(pollIntervalMs)
 
                 transfer = client.getTransfer(session.id)
+                reportTransfer(job, transfer)
             }
         }
+    }
+
+    /** Takes the optional `progress {percent, phase}` of a transfer view; nothing is invented when it is absent. */
+    private fun reportTransfer(job: PanoBackupJob, transfer: JsonObject) {
+        val progress = transfer.getValue("progress") as? JsonObject
+
+        job.percent = (progress?.getValue("percent") as? Number)?.toInt()?.coerceIn(0, 100)
+        job.remotePhase = progress?.getString("phase")
     }
 
     // MC server backups

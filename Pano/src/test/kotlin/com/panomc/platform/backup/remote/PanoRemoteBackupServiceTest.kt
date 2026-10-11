@@ -162,7 +162,7 @@ class PanoRemoteBackupServiceTest {
         assertEquals(PanoBackupJob.Status.DONE, plain.status, plain.error)
         val plainBytes = host.store.read("backups/${plain.remoteId}")!!
         assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, PanoArchive.verify(ByteArrayInputStream(plainBytes), PanoArcKeys.NONE).kind)
-        assertEquals(listOf(false, false), runner.archived) // the refused grant archived once too
+        assertEquals(listOf(false), runner.archived)
         service.deleteBackup(plain.remoteId!!)
         runner.archived.clear()
 

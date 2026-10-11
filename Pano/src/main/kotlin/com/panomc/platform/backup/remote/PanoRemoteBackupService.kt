@@ -350,7 +350,7 @@ class PanoRemoteBackupService(
             .put("repository", own.getJsonObject("repository") ?: JsonObject().put("storedBytes", 0L))
     }
 
-    /** One page of the account's rows (archives and snapshots of every Pano), see [RemoteBackupListing]. */
+    /** One page of this Pano's rows (archives and snapshots), see [RemoteBackupListing]. */
     suspend fun listAccount(page: PageRequest): Map<String, Any?> {
         val backups = listBackups()
 

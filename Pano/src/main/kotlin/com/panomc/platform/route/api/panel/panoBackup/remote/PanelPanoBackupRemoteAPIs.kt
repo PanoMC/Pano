@@ -300,11 +300,10 @@ class PanelPanoBackupRemoteSnapshotsAPI(
 }
 
 /**
- * `GET …/remote/list[?page=1&pageSize=10]` → `{items[row], page {number, size, totalItems, totalPages}, instanceId,
- * groups[{instanceId, instanceName, current, connected, usedBytes, lastBackupAt, count}]}`: the account's full archives and
- * snapshots of every Pano, this Pano's first and newest first, paged here (a row has `type` `archive` | `snapshot`
- * and the fields of its [PanelPanoBackupRemoteBackupsAPI] / [PanelPanoBackupRemoteSnapshotsAPI] entry). `groups` are
- * all the account's Panos, not only the ones on the page; a page beyond the last is 404 `PAGE_NOT_FOUND`.
+ * `GET …/remote/list[?page=1&pageSize=10]` → `{items[row], page {number, size, totalItems, totalPages}, instanceId}`:
+ * this Pano's full archives and snapshots only, newest first, paged here (a row has `type` `archive` | `snapshot` and
+ * the fields of its [PanelPanoBackupRemoteBackupsAPI] / [PanelPanoBackupRemoteSnapshotsAPI] entry); a page beyond the
+ * last is 404 `PAGE_NOT_FOUND`.
  */
 @Endpoint
 class PanelPanoBackupRemoteListAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :

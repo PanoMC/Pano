@@ -39,32 +39,27 @@ class RemoteBackupListingTest {
     private fun ids(body: Map<String, Any?>) = (body["items"] as List<JsonObject>).map { it.getString("id") }
 
     @Test
-    fun `rows are grouped this Pano first, newest first, archives and snapshots mixed`() {
+    fun `only this Pano's rows, newest first, archives and snapshots mixed`() {
         val body = RemoteBackupListing.build(backups, snapshots, PageRequest(1, 50))
 
-        assertEquals(listOf("s1", "a2", "s2", "a1", "s3"), ids(body))
+        assertEquals(listOf("s1", "a2", "s2"), ids(body))
         assertEquals("me", body["instanceId"])
-
-        val groups = (body["groups"] as List<*>).map { it as JsonObject }
-
-        assertEquals(listOf("me", "other", "third"), groups.map { it.getString("instanceId") })
-        assertEquals(listOf(3, 1, 1), groups.map { it.getInteger("count") })
-        assertEquals(listOf(30L, 7L, 5L), groups.map { it.getLong("usedBytes") })
-        assertEquals(listOf("snapshot", "archive", "snapshot", "archive", "snapshot"), (body["items"] as List<*>).map { (it as JsonObject).getString("type") })
+        assertEquals(false, body.containsKey("groups"))
+        assertEquals(listOf("snapshot", "archive", "snapshot"), (body["items"] as List<*>).map { (it as JsonObject).getString("type") })
+        assertEquals(listOf("me"), (body["items"] as List<*>).map { (it as JsonObject).getString("instanceId") }.distinct())
     }
 
     @Test
     fun `the page is cut on the server`() {
         val first = RemoteBackupListing.build(backups, snapshots, PageRequest(1, 2))
-        val last = RemoteBackupListing.build(backups, snapshots, PageRequest(3, 2))
+        val last = RemoteBackupListing.build(backups, snapshots, PageRequest(2, 2))
 
         assertEquals(listOf("s1", "a2"), ids(first))
-        assertEquals(listOf("s3"), ids(last))
+        assertEquals(listOf("s2"), ids(last))
         val info = last["page"] as Map<*, *>
 
-        assertEquals("3 2 5 3", listOf("number", "size", "totalItems", "totalPages").joinToString(" ") { info[it].toString() })
-        assertEquals(3, (last["groups"] as List<*>).size, "groups are the whole account's")
-        assertThrows<PageNotFound> { RemoteBackupListing.build(backups, snapshots, PageRequest(4, 2)) }
+        assertEquals("2 2 3 2", listOf("number", "size", "totalItems", "totalPages").joinToString(" ") { info[it].toString() })
+        assertThrows<PageNotFound> { RemoteBackupListing.build(backups, snapshots, PageRequest(3, 2)) }
     }
 
     @Test

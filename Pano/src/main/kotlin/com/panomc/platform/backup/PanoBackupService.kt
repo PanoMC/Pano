@@ -111,7 +111,7 @@ data class PanoBackupJob(
     /** Extra fields of a Pano Host error (`reason`, `nextAllowedAt`, `quotaBytes`, …). */
     @Volatile var details: JsonObject? = null
 ) {
-    enum class Type { CREATE, RESTORE, UPLOAD, TRANSFER, MC_UPLOAD, SNAPSHOT }
+    enum class Type { CREATE, RESTORE, UPLOAD, TRANSFER, MC_UPLOAD, SNAPSHOT, DOWNLOAD }
     enum class Status { RUNNING, DONE, FAILED }
 
     fun toJson(): JsonObject = JsonObject()

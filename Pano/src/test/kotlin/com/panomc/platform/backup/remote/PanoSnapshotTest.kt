@@ -207,6 +207,47 @@ class PanoSnapshotTest {
     }
 
     @Test
+    fun `a snapshot downloads as the plain archive a restore would take, once, and the scratch goes`(): Unit = runBlocking {
+        val taken = snapshot()
+        val job = awaitJob(service.startSnapshotDownload(taken.remoteId!!))
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error + " " + job.message)
+        assertEquals(PanoBackupJob.Type.DOWNLOAD, job.type)
+        assertTrue(runner.restored.isEmpty(), "nothing is restored by a download")
+
+        val download = service.takeDownload(job.id)!!
+
+        assertTrue(download.fileName.endsWith(".panoarc"), download.fileName)
+        assertTrue(download.file.isFile && download.file.length() > 0)
+        assertEquals(listOf(download.file.name), leftovers(), "only the archive is left, no work folder")
+        assertNull(service.takeDownload("00000000-0000-4000-8000-000000000000"), "another job id gets nothing")
+
+        service.discardDownload(job.id)
+
+        assertNull(service.takeDownload(job.id))
+        assertTrue(leftovers().isEmpty(), "removed once sent: ${leftovers()}")
+    }
+
+    @Test
+    fun `a download expires, a failed one leaves nothing`(): Unit = runBlocking {
+        val job = awaitJob(service.startSnapshotDownload(host.snapshotRepo.plantOther("other", "x")))
+
+        // The planted snapshot has no manifest to open: the job fails and cleans up.
+        assertEquals(PanoBackupJob.Status.FAILED, job.status)
+        assertNull(service.takeDownload(job.id))
+        assertTrue(leftovers().isEmpty(), "${leftovers()}")
+
+        val ok = awaitJob(service.startSnapshotDownload(snapshot().remoteId!!))
+
+        assertNotNull(service.takeDownload(ok.id))
+        assertNull(service.takeDownload(ok.id, now + PanoRemoteBackupService.DOWNLOAD_TTL_MS + 1))
+
+        service.tick(now + PanoRemoteBackupService.DOWNLOAD_TTL_MS + 1)
+
+        assertTrue(leftovers().isEmpty(), "swept: ${leftovers()}")
+    }
+
+    @Test
     fun `a second snapshot of unchanged content uploads no pack, a changed file only its chunks`(): Unit = runBlocking {
         val first = snapshot()
         val packs = host.snapshotRepo.packPuts.size

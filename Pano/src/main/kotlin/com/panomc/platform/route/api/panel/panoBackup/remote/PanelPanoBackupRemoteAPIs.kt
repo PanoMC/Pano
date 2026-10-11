@@ -15,6 +15,7 @@ import com.panomc.platform.backup.remote.RemoteBackupSettings
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.CurrentPasswordNotCorrect
+import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.PanoHostError
 import com.panomc.platform.model.*
 import com.panomc.platform.route.api.panel.panoBackup.PanoBackupRoutes
@@ -295,6 +296,77 @@ class PanelPanoBackupRemoteSnapshotsAPI(
 
     private companion object {
         const val MAX_NAME_LENGTH = 100
+    }
+}
+
+/**
+ * `GET …/remote/list[?page=1&pageSize=10]` → `{items[row], page {number, size, totalItems, totalPages}, instanceId,
+ * groups[{instanceId, instanceName, current, connected, usedBytes, lastBackupAt, count}]}`: the account's full archives and
+ * snapshots of every Pano, this Pano's first and newest first, paged here (a row has `type` `archive` | `snapshot`
+ * and the fields of its [PanelPanoBackupRemoteBackupsAPI] / [PanelPanoBackupRemoteSnapshotsAPI] entry). `groups` are
+ * all the account's Panos, not only the ones on the page; a page beyond the last is 404 `PAGE_NOT_FOUND`.
+ */
+@Endpoint
+class PanelPanoBackupRemoteListAPI(authProvider: AuthProvider, private val panoBackupManager: PanoBackupManager) :
+    PanoBackupRemoteApi(authProvider) {
+    override val paths = listOf(Path("/pano-backups/remote/list", RouteType.GET))
+
+    override suspend fun handle(context: RoutingContext): Result {
+        requireManage(context)
+
+        val page = Paging.request(context)
+
+        return Successful(host { panoBackupManager.remote.listAccount(page) })
+    }
+}
+
+/**
+ * Downloads a snapshot as a plain `.panoarc` (the format of a full backup): `POST …/remote/snapshots/:id/download` →
+ * `{job}` (type `DOWNLOAD`: any finished snapshot of the account is rebuilt into an archive, nothing is restored);
+ * when the job is DONE, `GET …/remote/downloads/:jobId` streams the archive (kept 30 minutes, removed once sent).
+ */
+@Endpoint
+class PanelPanoBackupRemoteSnapshotDownloadAPI(
+    authProvider: AuthProvider,
+    private val panoBackupManager: PanoBackupManager,
+    private val panoBackupAudit: PanoBackupAudit
+) : PanoBackupRemoteApi(authProvider) {
+    override val paths = listOf(
+        Path("/pano-backups/remote/snapshots/:id/download", RouteType.POST),
+        Path("/pano-backups/remote/downloads/:jobId", RouteType.GET)
+    )
+
+    override suspend fun handle(context: RoutingContext): Result? {
+        requireManage(context)
+
+        val remote = panoBackupManager.remote
+
+        if (method(context) == HttpMethod.POST) {
+            val id = remoteId(context)
+
+            requireReady(remote, passphrase = false)
+
+            val job = job { remote.startSnapshotDownload(id) }
+
+            panoBackupAudit.log(context, PanoBackupActionLog.ACTION_DOWNLOAD, id)
+
+            return Successful(mapOf("job" to job.toJson()))
+        }
+
+        val jobId = remoteId(context, "jobId")
+        val download = remote.takeDownload(jobId) ?: throw NotExists()
+
+        context.response()
+            .putHeader("Content-Type", "application/octet-stream")
+            .putHeader("Content-Disposition", "attachment; filename=\"${download.fileName}\"")
+            .putHeader("X-Content-Type-Options", "nosniff")
+            .putHeader("Cache-Control", "no-store")
+            .sendFile(download.file.absolutePath)
+            .coAwait()
+
+        remote.discardDownload(jobId)
+
+        return null
     }
 }
 

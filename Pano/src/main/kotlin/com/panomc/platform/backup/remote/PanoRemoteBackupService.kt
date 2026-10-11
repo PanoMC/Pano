@@ -4,6 +4,8 @@ import com.panomc.platform.backup.PanoBackupException
 import com.panomc.platform.backup.PanoBackupJob
 import com.panomc.platform.backup.PanoBackupRunner
 import com.panomc.platform.backup.PanoBackupService
+import com.panomc.platform.backup.PanoBackupStore
+import com.panomc.platform.model.PageRequest
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +45,9 @@ data class ConnectedAccount(val username: String, val platformId: String) {
  * Every archive/restore/upload runs as the one [PanoBackupService] job (single flight). Not
  * connected → [PanoHostException.CONNECT_REQUIRED].
  */
+/** A snapshot rebuilt into a plain archive, waiting to be downloaded until [expiresAt]. */
+class SnapshotDownload(val jobId: String, val file: File, val fileName: String, val expiresAt: Long)
+
 class PanoRemoteBackupService(
     private val client: PanoHostClient,
     private val stateStore: RemoteStateStore,
@@ -69,6 +74,10 @@ class PanoRemoteBackupService(
 
     @Volatile
     private var lastScheduledFailureAt: Long? = null
+
+    /** The archive of the last snapshot download job, waiting to be fetched by the panel. */
+    @Volatile
+    private var download: SnapshotDownload? = null
 
     /** A scheduled run the storage refused (full, or no plan): the next attempt is the next slot, or earlier when the overview changes. */
     private class StorageRefusal(val at: Long, val tierId: String?, val freeBytes: Long?) {
@@ -341,6 +350,21 @@ class PanoRemoteBackupService(
             .put("repository", own.getJsonObject("repository") ?: JsonObject().put("storedBytes", 0L))
     }
 
+    /** One page of the account's rows (archives and snapshots of every Pano), see [RemoteBackupListing]. */
+    suspend fun listAccount(page: PageRequest): Map<String, Any?> {
+        val backups = listBackups()
+
+        // The snapshots are an add-on to the list: a failure to read them leaves the archives, as before.
+        val snapshots = try {
+            listSnapshots()
+        } catch (e: PanoHostException) {
+            logger.warn("Could not read the snapshots for the Pano Backup list: ${e.code}")
+            JsonObject()
+        }
+
+        return RemoteBackupListing.build(backups, snapshots, page)
+    }
+
     suspend fun deleteSnapshot(id: String) {
         requireConnected()
         client.deleteSnapshot(id)
@@ -379,6 +403,51 @@ class PanoRemoteBackupService(
             job.phase = PanoBackupService.PHASE_RESTORING
             job.backupId = service.restoreFrom(temp, null, safetyArchive, maintenance)?.id
         }
+    }
+
+    /**
+     * Builds snapshot [id] (any finished snapshot of the account) into a plain `.panoarc` for the admin to download: the
+     * same rebuild as [startSnapshotRestore], but nothing is restored. The file waits in the temp folder for
+     * [takeDownload] for [DOWNLOAD_TTL_MS] (one at a time: the next download job replaces it).
+     */
+    fun startSnapshotDownload(id: String): PanoBackupJob {
+        val temp = tempFile("snapshot-download")
+        val dir = workDir("snapshot-download")
+        var ready = false
+
+        return backups.startTask(PanoBackupJob.Type.DOWNLOAD, cleanup = { deleteTree(dir); if (!ready) delete(temp) }) { job ->
+            requireConnected()
+            discardDownload()
+
+            job.remoteId = id
+            job.phase = PanoBackupService.PHASE_DOWNLOADING
+
+            val session = client.openSnapshot(id)
+
+            withContext(Dispatchers.IO) {
+                SnapshotRestoreArchive(client, session, dir) { done, total ->
+                    job.bytesDone = done
+                    job.bytesTotal = total
+                }.build(temp)
+            }
+
+            ready = true
+            download = SnapshotDownload(job.id, temp, "pano-snapshot-${id.take(8)}${PanoBackupStore.EXTENSION}", clock() + DOWNLOAD_TTL_MS)
+        }
+    }
+
+    /** The archive built by download job [jobId], or null when it is not (or no longer) there. */
+    fun takeDownload(jobId: String, now: Long = clock()): SnapshotDownload? =
+        download?.takeIf { it.jobId == jobId && it.expiresAt > now && it.file.isFile }
+
+    /** Removes the pending download file, once it was sent or when it is replaced or expired. */
+    fun discardDownload(jobId: String? = null) {
+        val current = download ?: return
+
+        if (jobId != null && current.jobId != jobId) return
+
+        download = null
+        current.file.delete()
     }
 
     // Moving out of Pano Host
@@ -605,6 +674,8 @@ class PanoRemoteBackupService(
      * waits for the next scheduled slot, or for a change of plan / free space seen in the overview.
      */
     suspend fun tick(now: Long = clock()) {
+        download?.takeIf { it.expiresAt <= now }?.let { discardDownload(it.jobId) }
+
         settleScheduled()
 
         val state = state()
@@ -803,6 +874,9 @@ class PanoRemoteBackupService(
         const val PHASE_EXPORTING = "EXPORTING"
         private const val EXPORT_DONE = "DONE"
         private const val EXPORT_FAILED = "FAILED"
+        /** How long a built snapshot download waits to be fetched. */
+        const val DOWNLOAD_TTL_MS = 30L * 60 * 1000
+
         const val EXPORT_POLL_MS = 5_000L
         const val EXPORT_TIMEOUT_MS = 60L * 60 * 1000
         const val NOT_AVAILABLE = "NOT_AVAILABLE"

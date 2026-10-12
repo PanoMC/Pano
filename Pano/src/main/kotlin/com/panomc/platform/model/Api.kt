@@ -300,7 +300,7 @@ abstract class Api : Route() {
     protected open fun csrfProbe(): CsrfProbe = defaultCsrfProbe
 
     private val defaultCsrfProbe by lazy {
-        AuthCsrfProbe(applicationContext.getBean(AuthProvider::class.java))
+        AuthCsrfProbe(applicationContext.getBean(AuthProvider::class.java)) { setupManager.isSetupDone() }
     }
 
     /** Extra checks (e.g. a permission) for [authorizedBodyHandler], run before the body is read. */
@@ -375,12 +375,23 @@ interface CsrfProbe {
     suspend fun isLoggedIn(context: RoutingContext): Boolean
 }
 
-private class AuthCsrfProbe(private val authProvider: AuthProvider) : CsrfProbe {
+internal class AuthCsrfProbe(private val authProvider: AuthProvider, private val isSetupDone: () -> Boolean) : CsrfProbe {
     override fun credentialSource(context: RoutingContext) = authProvider.credentialSource(context)
 
     override fun isCsrfSafe(context: RoutingContext) = authProvider.isCsrfSafe(context)
 
-    override suspend fun isLoggedIn(context: RoutingContext) = authProvider.isLoggedIn(context)
+    /**
+     * Until the set-up is finished there is no account, so nobody is signed in, and no database to ask: a session
+     * cookie another Pano left on this host (a re-install, another port of the same address) used to reach the
+     * database here, which threw "The database is not configured yet" outside any answer and left the set-up's
+     * request hanging.
+     */
+    override suspend fun isLoggedIn(context: RoutingContext) = AuthCsrfProbe.isLoggedIn(isSetupDone()) { authProvider.isLoggedIn(context) }
+
+    companion object {
+        /** The decision of [isLoggedIn]: [ask] (the database) is reached only once the set-up is done. */
+        internal suspend fun isLoggedIn(setupDone: Boolean, ask: suspend () -> Boolean): Boolean = setupDone && ask()
+    }
 }
 
 /** The request body is bigger than the route's body limit (HTTP 413, error code PAYLOAD_TOO_LARGE). */

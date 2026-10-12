@@ -1,7 +1,9 @@
 package com.panomc.platform.auth
 
 import com.panomc.platform.AppConstants
+import com.panomc.platform.model.AuthCsrfProbe
 import io.vertx.core.http.HttpMethod
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -81,5 +83,17 @@ class CsrfPolicyTest {
         assertEquals("good-token", AuthProvider.bearerToken("Bearer good-token"))
         assertEquals(null, AuthProvider.bearerToken(null))
         assertEquals(null, AuthProvider.bearerToken("Token abc"))
+    }
+
+    @Test
+    fun `nobody is signed in before the set-up is finished and the database is not asked`() = runBlocking {
+        var asked = 0
+
+        assertFalse(AuthCsrfProbe.isLoggedIn(setupDone = false) { asked++; true }, "a cookie another Pano left on this host is not a session")
+        assertEquals(0, asked, "there is no database to ask during the set-up")
+
+        assertTrue(AuthCsrfProbe.isLoggedIn(setupDone = true) { asked++; true })
+        assertFalse(AuthCsrfProbe.isLoggedIn(setupDone = true) { asked++; false })
+        assertEquals(2, asked)
     }
 }

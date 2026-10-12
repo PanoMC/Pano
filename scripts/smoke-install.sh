@@ -21,8 +21,13 @@ wait_until() { # $1 description, then a command
   die "timed out after ${timeout}s waiting for $what"
 }
 
+# Every request that changes something carries what a browser would send that has been on this address before: an Origin
+# and the session cookies of an older Pano. Until the set-up is done nobody is signed in, so they must change nothing;
+# they once reached the database before it was configured and the first step answered 500.
+stale=(-H "Origin: $url" -H 'Cookie: pano_auth_token_http=left.by.another-pano; pano_csrf_token_http=old')
+
 step_json() { curl -fsS "$url/api/v1/setup/step"; }
-put_step() { curl -fsS -X PUT -H 'Content-Type: application/json' --data "$1" "$url/api/v1/setup/step"; }
+put_step() { curl -fsS "${stale[@]}" -X PUT -H 'Content-Type: application/json' --data "$1" "$url/api/v1/setup/step"; }
 current_step() { step_json | jq -r '.step'; }
 
 wait_until "the setup API" step_json >/dev/null 2>&1
@@ -38,7 +43,7 @@ if [ "$step" = 2 ]; then
   body=$(jq -nc --arg host "$db_host" --arg db "${PANO_DB_NAME:-pano}" --arg user "${PANO_DB_USER:-pano}" \
     --arg pass "${PANO_DB_PASSWORD:-}" '{host: $host, dbName: $db, username: $user, password: $pass}')
   # success is a 2xx with no `error` (the envelope is { "error": { "code" } }, doc 04 section 3); curl -f turns the 4xx into a failure
-  curl -fsS -X POST -H 'Content-Type: application/json' --data "$body" "$url/api/v1/setup/steps/2/verify" >/dev/null \
+  curl -fsS "${stale[@]}" -X POST -H 'Content-Type: application/json' --data "$body" "$url/api/v1/setup/steps/2/verify" >/dev/null \
     || die "the database from env did not verify"
   put_step "$(jq -c '. + {clientStep: 2, dbType: "mariadb"}' <<<"$body")" >/dev/null
   step=$(current_step)
@@ -53,7 +58,7 @@ fi
 [ -z "${SMOKE_EXPECT_MANAGED_MAIL:-}" ] || say "mail step skipped (env-managed mail)"
 
 say "finishing the install"
-finish=$(curl -sS -X POST -H 'Content-Type: application/json' \
+finish=$(curl -sS "${stale[@]}" -X POST -H 'Content-Type: application/json' \
   --data "$(jq -nc --arg pass "${SMOKE_ADMIN_PASSWORD:-Sm0ke-Test-Passw0rd}" \
     '{username: "smokeadmin", email: "smoke@example.com", password: $pass, setupLocale: "en-US", telemetryEnabled: false}')" \
   "$url/api/v1/setup/finish")

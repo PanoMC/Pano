@@ -6,8 +6,6 @@ import com.panomc.platform.PanoManifestPluginDescriptorFinder
 import com.panomc.platform.PanoPluginDescriptor
 import com.panomc.platform.PluginManager
 import com.panomc.platform.SpringConfig
-import com.panomc.platform.api.ExternalUrl
-import com.panomc.platform.api.ExternalUrlProvider
 import com.panomc.platform.api.PanoPlugin
 import com.panomc.platform.db.model.Node
 import com.panomc.platform.db.model.Server
@@ -694,25 +692,6 @@ class ReconcilerTest {
     }
 
     @Test
-    fun `external urls come from the plugins' providers and a throwing provider is skipped`() {
-        val good = object : ExternalUrlProvider {
-            override fun urls() = listOf(ExternalUrl("Microsoft redirect URL", "https://example.com/callback"))
-        }
-        val bad = object : ExternalUrlProvider {
-            override fun urls(): List<ExternalUrl> = throw IllegalStateException("boom")
-        }
-
-        val rows = CompatibilityPayload.externalUrls(
-            mapOf("pano-plugin-premium-login" to listOf(good, bad), "pano-plugin-empty" to emptyList())
-        )
-
-        assertEquals(1, rows.size)
-        assertEquals("pano-plugin-premium-login", rows.single()["pluginId"])
-        assertEquals("Microsoft redirect URL", rows.single()["label"])
-        assertEquals("https://example.com/callback", rows.single()["url"])
-    }
-
-    @Test
     fun `the compatibility body has the documented shape`() = runBlocking {
         installedJar("market", 0, "1.0.0")
 
@@ -722,9 +701,9 @@ class ReconcilerTest {
         manager.loadPlugins()
         reconciler.reconcile(atBoot = true)
 
-        val body = CompatibilityPayload.build(reconciler, listOf(server(3, 2)), emptyList(), emptyMap())
+        val body = CompatibilityPayload.build(reconciler, listOf(server(3, 2)), emptyList())
 
-        assertEquals(setOf("apiLevel", "resources", "agents", "externalUrls", "reconcile"), body.keys)
+        assertEquals(setOf("apiLevel", "resources", "agents", "reconcile"), body.keys)
         assertEquals(mapOf("min" to 1, "current" to 1), body["apiLevel"])
 
         @Suppress("UNCHECKED_CAST")

@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.panel.compatibility
 
-import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -21,8 +20,7 @@ import io.vertx.json.schema.SchemaRepository
 class PanelReconcileCompatibilityAPI(
     private val authProvider: AuthProvider,
     private val reconciler: CompatibilityReconciler,
-    private val databaseManager: DatabaseManager,
-    private val pluginManager: PluginManager
+    private val databaseManager: DatabaseManager
 ) : PanelApi() {
     override val paths = listOf(Path("/compatibility/reconcile", RouteType.POST))
 
@@ -36,6 +34,6 @@ class PanelReconcileCompatibilityAPI(
         reconciler.reconcile(atBoot = false)
         reconciler.announceRefusals()
 
-        return Successful(PanelGetCompatibilityAPI.payload(databaseManager, pluginManager, reconciler))
+        return Successful(PanelGetCompatibilityAPI.payload(databaseManager, reconciler))
     }
 }

@@ -1,7 +1,6 @@
 package com.panomc.platform.route.api.panel.compatibility
 
 import com.panomc.platform.ApiLevel
-import com.panomc.platform.api.ExternalUrlProvider
 import com.panomc.platform.db.model.Node
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.gate.CompatibilityReconciler
@@ -16,7 +15,7 @@ import org.slf4j.LoggerFactory
 
 /**
  * The body of `GET /api/v1/panel/compatibility` and of the plan's `agents` (doc 04 section 7), computed from the
- * installed resources, the last reconcile report, the stored protocol versions and the plugins' address lists.
+ * installed resources, the last reconcile report and the stored protocol versions.
  * No table: nothing here is persisted.
  */
 object CompatibilityPayload {
@@ -81,20 +80,6 @@ object CompatibilityPayload {
         return local.enabled && local.jarPath.isNullOrBlank() && systemProperty.isNullOrBlank()
     }
 
-    /** The addresses the started plugins list, each with the plugin that listed it. A provider that throws is skipped. */
-    fun externalUrls(providers: Map<String, List<ExternalUrlProvider>>): List<Map<String, Any?>> =
-        providers.entries.sortedBy { it.key }.flatMap { (pluginId, list) ->
-            list.flatMap { provider ->
-                try {
-                    provider.urls().map { linkedMapOf<String, Any?>("pluginId" to pluginId, "label" to it.label, "url" to it.url) }
-                } catch (e: Exception) {
-                    logger.error("External URL provider {} of '{}' failed; skipped", provider.javaClass.name, pluginId, e)
-
-                    emptyList()
-                }
-            }
-        }
-
     /** The `heldBy` object of the plugin payloads: the root-cause plugin, its verdict and the direct dependency. */
     fun heldByJson(pluginId: String, verdict: String, via: String, name: String?): Map<String, Any?> =
         linkedMapOf("pluginId" to pluginId, "name" to name, "verdict" to verdict, "via" to via)
@@ -122,7 +107,6 @@ object CompatibilityPayload {
         reconciler: CompatibilityReconciler,
         servers: List<Server>,
         nodes: List<Node>,
-        externalUrls: Map<String, List<ExternalUrlProvider>>,
         localNodeManaged: Boolean = true
     ): Map<String, Any?> {
         val report = reconciler.report
@@ -131,7 +115,6 @@ object CompatibilityPayload {
             "apiLevel" to linkedMapOf("min" to ApiLevel.MIN_SUPPORTED, "current" to ApiLevel.CURRENT),
             "resources" to resources(reconciler.installed(), report),
             "agents" to agents(servers, nodes, localNodeManaged),
-            "externalUrls" to externalUrls(externalUrls),
             "reconcile" to linkedMapOf(
                 "running" to reconciler.running,
                 "ranAt" to report.ranAt,

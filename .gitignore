@@ -37,6 +37,8 @@ bin
 
 Pano/src/main/resources/licenses.json
 Pano/certificates
+webhook.key
+webhook.key.*
 Pano/data
 Pano/maintenance
 

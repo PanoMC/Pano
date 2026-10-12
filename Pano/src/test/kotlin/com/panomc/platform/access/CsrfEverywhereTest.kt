@@ -7,6 +7,7 @@ import com.panomc.platform.auth.CredentialSource
 import com.panomc.platform.auth.PermissionManager
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
+import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.FrontendKeyDao
 import com.panomc.platform.db.dao.TokenDao
@@ -159,6 +160,7 @@ class CsrfEverywhereTest {
     private lateinit var origins: OriginPolicy
     private lateinit var tickets: WsTicketStore
     private var previousContext: AnnotationConfigApplicationContext? = null
+    private lateinit var setupConfig: PanoConfig.Companion.SetupConfig
     private var port = 0
 
     @BeforeEach
@@ -187,6 +189,9 @@ class CsrfEverywhereTest {
 
         setField(config, "jwtKey", Base64.getEncoder().encodeToString("csrf-everywhere-test-secret".toByteArray()))
         setField(config, "websiteUrl", "")
+        // an installed Pano: until the set-up is done Api.checkCsrf treats nobody as signed in
+        setupConfig = PanoConfig.Companion.SetupConfig(step = 5)
+        setField(config, "setup", setupConfig)
         setField(configManager, "config", config)
 
         tokenProvider = TokenProvider(databaseManager, configManager)
@@ -198,10 +203,11 @@ class CsrfEverywhereTest {
 
         previousContext = runCatching { Main.applicationContext }.getOrNull()
 
-        // Api.checkCsrf reads the AuthProvider bean and the failure handler logs through the Logger bean.
+        // Api.checkCsrf reads the AuthProvider and SetupManager beans and the failure handler logs through the Logger bean.
         Main.applicationContext = AnnotationConfigApplicationContext().apply {
             registerBean(Logger::class.java, java.util.function.Supplier { LoggerFactory.getLogger("CsrfEverywhereTest") })
             registerBean(AuthProvider::class.java, java.util.function.Supplier { authProvider })
+            registerBean(SetupManager::class.java, java.util.function.Supplier { SetupManager(configManager, this) })
             refresh()
         }
 
@@ -436,6 +442,21 @@ class CsrfEverywhereTest {
     }
 
     // ---- slice 8: CSRF in the Api wrapper -------------------------------------------------------------------
+
+    @Test
+    fun `during the set-up a session cookie is no session, so a mutation needs no csrf header`() {
+        val browser = browser()
+
+        setupConfig.step = 1
+
+        // A cookie an older Pano left on this host: before the set-up is finished there is no account and maybe no
+        // database, so nothing is asked and nothing is refused.
+        assertEquals(200, post("/cart/items", browser.headers()).status)
+
+        setupConfig.step = 5
+
+        assertEquals(403, post("/cart/items", browser.headers()).status, "installed again: the header is needed")
+    }
 
     @Test
     fun `a logged-in mutation without the header is 403, with it 200`() {

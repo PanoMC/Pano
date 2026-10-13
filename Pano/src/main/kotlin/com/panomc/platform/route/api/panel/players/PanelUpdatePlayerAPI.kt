@@ -92,7 +92,7 @@ class PanelUpdatePlayerAPI(
         }
 
         if (localeCode != null && localeCode.isNotBlank()) {
-            val localeExists = databaseManager.localeDao.existsByCode(localeCode, sqlClient)
+            val localeExists = databaseManager.localeDao.isEnabledByCode(localeCode, sqlClient)
 
             if (!localeExists) {
                 throw NotExists()

@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.locale
 
 
+import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.UpdateLocaleLog
@@ -38,6 +39,7 @@ class PanelUpdateLocaleAPI(
                         .requiredProperty("name", stringSchema())
                         .requiredProperty("dateFnsCode", stringSchema())
                         .requiredProperty("derivatives", arraySchema().items(stringSchema()))
+                        .optionalProperty("enabled", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -55,15 +57,25 @@ class PanelUpdateLocaleAPI(
         val name = data.getString("name")
         val dateFnsCode = data.getString("dateFnsCode")
         val derivatives = data.getJsonArray("derivatives").map { it.toString() }
+        val enabled = data.getBoolean("enabled")
 
         validateInput(code, name, dateFnsCode, derivatives)
 
         val sqlClient = getSqlClient()
 
         val locale = databaseManager.localeDao.byId(id, sqlClient) ?: throw NotExists()
+        val isSystem = locale.definedBy == Locale.Companion.DefinedBy.SYSTEM
 
-        if (locale.definedBy == Locale.Companion.DefinedBy.SYSTEM) {
+        // A language Pano ships is fixed: only whether it is on can change.
+        if (isSystem && (code != locale.code || name != locale.name || dateFnsCode != locale.dateFnsCode || derivatives != locale.derivatives)) {
             throw NoPermission()
+        }
+
+        // English is what every missing text falls back to, and the website's own language is what visitors get.
+        if (enabled == false && locale.enabled &&
+            (locale.code == AppConstants.DEFAULT_LOCALE_CODE || locale.code == configManager.config.locale)
+        ) {
+            throw LocaleCannotBeDisabled()
         }
 
         val oldCode = "" + locale.code
@@ -71,6 +83,10 @@ class PanelUpdateLocaleAPI(
         locale.name = name
         locale.dateFnsCode = dateFnsCode
         locale.derivatives = derivatives
+
+        if (enabled != null) {
+            locale.enabled = enabled
+        }
 
         databaseManager.localeDao.update(locale, sqlClient)
 

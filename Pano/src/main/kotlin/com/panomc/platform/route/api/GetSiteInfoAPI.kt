@@ -116,7 +116,8 @@ class GetSiteInfoAPI(
 
             val userLocaleCode = databaseManager.userDao.getLocaleCodeById(userId, sqlClient)
 
-            if (userLocaleCode != null) {
+            // A language that was turned off after the user picked it: they get the website's language again.
+            if (userLocaleCode != null && databaseManager.localeDao.isEnabledByCode(userLocaleCode, sqlClient)) {
                 locale = userLocaleCode
             }
 
@@ -124,7 +125,7 @@ class GetSiteInfoAPI(
         }
 
         if (config.allowUserLocaleSelection) {
-            response["locales"] = databaseManager.localeDao.getAll(sqlClient)
+            response["locales"] = databaseManager.localeDao.getAllEnabled(sqlClient)
         }
 
         response["locale"] = locale

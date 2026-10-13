@@ -65,7 +65,7 @@ class UpdateProfileAPI(
                 throw NoPermission()
             }
 
-            val localeExists = databaseManager.localeDao.existsByCode(localeCode, sqlClient)
+            val localeExists = databaseManager.localeDao.isEnabledByCode(localeCode, sqlClient)
 
             if (!localeExists) {
                 throw NotExists()

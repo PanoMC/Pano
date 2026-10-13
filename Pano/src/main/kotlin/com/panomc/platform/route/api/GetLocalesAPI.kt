@@ -33,7 +33,7 @@ class GetLocalesAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val sqlClient = getSqlClient()
 
-        val locales = databaseManager.localeDao.getAll(sqlClient)
+        val locales = databaseManager.localeDao.getAllEnabled(sqlClient)
 
         return Successful(payload(locales))
     }

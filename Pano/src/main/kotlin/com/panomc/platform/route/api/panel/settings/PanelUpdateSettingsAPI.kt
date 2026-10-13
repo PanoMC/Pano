@@ -307,7 +307,7 @@ class PanelUpdateSettingsAPI(
         }
 
         if (locale != null) {
-            if (!databaseManager.localeDao.existsByCode(locale, sqlClient)) {
+            if (!databaseManager.localeDao.isEnabledByCode(locale, sqlClient)) {
                 throw InvalidLocaleCode()
             }
 

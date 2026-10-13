@@ -398,7 +398,12 @@ class PanoBackupService(
         val keys = PanoArcKeys(passphrase = passphrase?.takeIf { it.isNotEmpty() })
 
         // Everything that can reject the archive happens here, before anything is changed.
-        val staged = withContext(Dispatchers.IO) { source.inputStream().buffered(256 * 1024).use { restorer.stage(it, keys) } }
+        val running = job
+        progress(PHASE_VERIFYING, withContext(Dispatchers.IO) { source.length() })
+
+        val staged = withContext(Dispatchers.IO) {
+            CountingInputStream(source.inputStream()) { running?.bytesDone = it }.buffered(256 * 1024).use { restorer.stage(it, keys) }
+        }
 
         try {
             adoptArchivedDatabase(staged)
@@ -411,12 +416,17 @@ class PanoBackupService(
                 // Before maintenance mode goes on: the safety archive holds the config too, and
                 // one taken with the switch on left Pano in maintenance mode when it was restored.
                 safety = try {
-                    if (safetyArchive) createLocked(null, PanoBackupTag.PRE_RESTORE, null) else null
+                    if (safetyArchive) {
+                        progress(PHASE_SAFETY_BACKUP)
+                        createLocked(null, PanoBackupTag.PRE_RESTORE, null)
+                    } else null
                 } catch (e: Throwable) {
                     throw PanoBackupException(SAFETY_BACKUP_FAILED, e.message, cause = e)
                 }
 
                 val previousMaintenance = if (maintenance) host.setMaintenance(true) else null
+
+                progress(PHASE_APPLYING)
 
                 try {
                     restorer.apply(staged, connection) { host.applyConfig(forTarget(it)) }
@@ -439,6 +449,15 @@ class PanoBackupService(
             return safety
         } finally {
             withContext(Dispatchers.IO) { restorer.discard(staged) }
+        }
+    }
+
+    /** Tells the running job which step of a restore it is at; [total] > 0 when the step counts bytes. */
+    private fun progress(phase: String, total: Long = 0) {
+        job?.let {
+            it.bytesDone = 0
+            it.bytesTotal = total
+            it.phase = phase
         }
     }
 
@@ -540,6 +559,11 @@ class PanoBackupService(
         const val PHASE_RESTORING = "RESTORING"
         const val PHASE_FETCHING = "FETCHING"
 
+        /** The steps of a restore, in order: the archive is read and checked, the safety backup is taken, the backup is put in place. */
+        const val PHASE_VERIFYING = "VERIFYING"
+        const val PHASE_SAFETY_BACKUP = "SAFETY_BACKUP"
+        const val PHASE_APPLYING = "APPLYING"
+
         /** Stable error code for the UI + whether the rollback put the previous state back. */
         fun describe(error: Throwable): Pair<String, Boolean> = when (error) {
             is PanoArcException -> error.code.name to false
@@ -552,6 +576,20 @@ class PanoBackupService(
             }
 
             else -> INTERNAL to false
+        }
+    }
+}
+
+/** Reports how many bytes were read so far (a restore's progress through its archive). */
+private class CountingInputStream(input: java.io.InputStream, private val onRead: (Long) -> Unit) : java.io.FilterInputStream(input) {
+    private var count = 0L
+
+    override fun read(): Int = super.read().also { if (it >= 0) onRead(++count) }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int = super.read(buffer, offset, length).also {
+        if (it > 0) {
+            count += it
+            onRead(count)
         }
     }
 }

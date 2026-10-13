@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.ticket.TicketSettings
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
@@ -9,6 +10,7 @@ import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.error.CategoryNotExists
 import com.panomc.platform.error.MessageCantBeEmpty
+import com.panomc.platform.error.TicketCategoryRequired
 import com.panomc.platform.error.TitleCantBeEmpty
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
@@ -37,7 +39,12 @@ class CreateTicketAPI(
         summary = "Opens a ticket with its first message.",
         tag = "tickets",
         response = objectSchema().requiredProperty("id", intSchema()),
-        errors = listOf(TitleCantBeEmpty::class, MessageCantBeEmpty::class, CategoryNotExists::class)
+        errors = listOf(
+            TitleCantBeEmpty::class,
+            MessageCantBeEmpty::class,
+            CategoryNotExists::class,
+            TicketCategoryRequired::class
+        )
     )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -67,11 +74,14 @@ class CreateTicketAPI(
         val sqlClient = getSqlClient()
 
         if (categoryId != -1L) {
-            val isCategoryExists = databaseManager.ticketCategoryDao.existsById(categoryId, sqlClient)
+            // A category that is turned off takes no new ticket: to the form it is not there.
+            val category = databaseManager.ticketCategoryDao.getById(categoryId, sqlClient)
 
-            if (!isCategoryExists) {
+            if (category == null || !category.enabled) {
                 throw CategoryNotExists()
             }
+        } else if (!TicketSettings.noCategoryPossible(databaseManager, sqlClient)) {
+            throw TicketCategoryRequired()
         }
 
         val id = databaseManager.ticketDao.add(

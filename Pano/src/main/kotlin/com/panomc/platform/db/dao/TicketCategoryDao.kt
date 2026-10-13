@@ -42,6 +42,11 @@ abstract class TicketCategoryDao : Dao<TicketCategory>(TicketCategory::class.jav
 
     abstract suspend fun count(sqlClient: SqlClient): Long
 
+    /** The categories a new ticket can be opened in. */
+    abstract suspend fun countEnabled(sqlClient: SqlClient): Long
+
+    abstract suspend fun getEnabledList(limit: Int, offset: Long, sqlClient: SqlClient): List<TicketCategory>
+
     abstract suspend fun countBySearch(
         search: String,
         sqlClient: SqlClient

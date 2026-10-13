@@ -6,5 +6,7 @@ data class TicketCategory(
     val id: Long = -1,
     val title: String = "-",
     val description: String = "",
-    val url: String = "-"
+    val url: String = "-",
+    /** Off: its tickets stay, no new ticket can be opened in it. */
+    val enabled: Boolean = true
 ) : DBEntity()

@@ -38,6 +38,7 @@ class PanelUpdateTicketCategoryAPI(
                     objectSchema()
                         .requiredProperty("title", stringSchema())
                         .requiredProperty("description", stringSchema())
+                        .optionalProperty("enabled", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -52,6 +53,7 @@ class PanelUpdateTicketCategoryAPI(
         val id = parameters.pathParameter("id").long
         val title = data.getString("title")
         val description = data.getString("description")
+        val enabled = data.getBoolean("enabled") ?: true
 
         validateForm(title)
 
@@ -63,7 +65,7 @@ class PanelUpdateTicketCategoryAPI(
             throw NotExists()
         }
 
-        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description), sqlClient)
+        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description, enabled = enabled), sqlClient)
 
         val url = TextUtil.convertStringToUrl(title, 32)
 

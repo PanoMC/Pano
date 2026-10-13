@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.ticket.TicketSettings
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -36,13 +37,17 @@ class GetTicketCategoriesAPI(
 
         val sqlClient = getSqlClient()
 
-        val count = databaseManager.ticketCategoryDao.count(sqlClient)
+        val count = databaseManager.ticketCategoryDao.countEnabled(sqlClient)
 
         Paging.requireInRange(page, count)
 
-        val categories = databaseManager.ticketCategoryDao.getList(page.limit, page.offset, sqlClient)
+        val categories = databaseManager.ticketCategoryDao.getEnabledList(page.limit, page.offset, sqlClient)
 
-        return Successful(Paging.response(categories, count, page))
+        // Next to the list: whether the form may offer "no category" at all.
+        return Successful(
+            Paging.response(categories, count, page) +
+                    mapOf("allowNoCategory" to TicketSettings.noCategoryPossible(databaseManager, sqlClient))
+        )
     }
 
     companion object {

@@ -546,6 +546,15 @@ class ServerDaoImpl : ServerDao() {
             .coAwait()
     }
 
+    override suspend fun updatePluginBuildById(id: Long, protocolVersion: Int, pluginVersion: String?, sqlClient: SqlClient) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `protocolVersion` = ?, `pluginVersion` = COALESCE(?, `pluginVersion`) WHERE `id` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(protocolVersion, pluginVersion, id))
+            .coAwait()
+    }
+
     override suspend fun updateInstallErrorById(id: Long, installError: String?, sqlClient: SqlClient) {
         val query = "UPDATE `${getTablePrefix() + tableName}` SET `installError` = ? WHERE `id` = ?"
 

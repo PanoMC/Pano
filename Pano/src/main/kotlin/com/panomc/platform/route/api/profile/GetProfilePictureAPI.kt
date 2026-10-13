@@ -34,6 +34,11 @@ class GetProfilePictureAPI(
 
     companion object {
         private const val CACHE_TTL_SECONDS = 5 * 60 // 5 minutes
+
+        private val MINECRAFT_NAME = Regex("^[a-zA-Z0-9_]{1,16}$")
+
+        /** The head shown when there is nobody to show. */
+        const val DEFAULT_PICTURE_URL = "https://minotar.net/avatar/MHF_Steve"
     }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -48,7 +53,13 @@ class GetProfilePictureAPI(
         val sqlClient = getSqlClient()
         val user = databaseManager.userDao.getByUsername(username, sqlClient)
 
-        var redirectUrl = "https://minotar.net/avatar/$username"
+        // A name that cannot be a Minecraft name ("-", what a post or ticket carries when its author is gone)
+        // has no head, and the avatar service answers 404 for it: such a picture is Steve.
+        var redirectUrl = if (user == null && !username.matches(MINECRAFT_NAME)) {
+            DEFAULT_PICTURE_URL
+        } else {
+            "https://minotar.net/avatar/$username"
+        }
 
         if (user != null) {
             // Let plugins override the profile picture URL

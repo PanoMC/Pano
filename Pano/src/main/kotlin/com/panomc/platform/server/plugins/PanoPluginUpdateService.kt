@@ -12,11 +12,14 @@ import com.panomc.platform.node.ServerTaskStatus
 import com.panomc.platform.node.dto.ScannedPluginData
 import com.panomc.platform.node.message.InstallPluginMessage
 import com.panomc.platform.node.message.PluginScanMessage
+import com.panomc.platform.node.message.PowerMessage as NodePowerMessage
 import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.route.ApiPaths
 import com.panomc.platform.server.ServerActiveTaskStore
 import com.panomc.platform.server.ServerCapability
 import com.panomc.platform.server.ServerManager
+import com.panomc.platform.server.ServerPowerAction
+import com.panomc.platform.server.ServerProtocol
 import com.panomc.platform.server.message.PanoPluginUpdateMessage
 import com.panomc.platform.server.plugins.PanoPluginUpdatePlan.Mode
 import io.vertx.sqlclient.SqlClient
@@ -26,6 +29,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Starts an update of the Pano plugin on one server, by whichever route that server can take.
@@ -64,6 +68,9 @@ class PanoPluginUpdateService(
     private val activeTaskStore: ServerActiveTaskStore,
     private val logger: Logger
 ) {
+    /** The updates a node is carrying out right now: task uuid to the version being installed ("" when unknown). */
+    private val nodeUpdates = ConcurrentHashMap<String, String>()
+
     /** What one attempt came to. */
     sealed interface Attempt {
         data class Started(
@@ -174,7 +181,11 @@ class PanoPluginUpdateService(
             val task = managedServerImportService.linkPlugin(server, node, userId, sqlClient, panoPluginUpdate = true)
                 ?: return Attempt.Refused(PanoPluginUpdatePlan.REASON_JAR_UNAVAILABLE)
 
-            return Attempt.Started(task, Mode.NODE, server.pluginVersion, panoPluginJarProvider.latestVersion(server.type, server.pluginVersion))
+            val latest = panoPluginJarProvider.latestVersion(server.type, server.pluginVersion)
+
+            nodeUpdates[task.uuid] = latest.orEmpty()
+
+            return Attempt.Started(task, Mode.NODE, server.pluginVersion, latest)
         }
 
         val jar = panoPluginJarProvider.prepare(server.type, server.pluginVersion)
@@ -205,7 +216,57 @@ class PanoPluginUpdateService(
             return Attempt.Refused(PanoPluginUpdatePlan.REASON_SEND_FAILED)
         }
 
+        nodeUpdates[task.uuid] = jar.version.orEmpty()
+
         return Attempt.Started(task, Mode.NODE, server.pluginVersion, jar.version)
+    }
+
+    /**
+     * A node's task has ended. When it was one of this service's updates and it succeeded, the new jar is on
+     * the disk, so two things follow that the admin used to be left to do or to wonder about:
+     *
+     * - The row stops describing the old plugin (its protocol and version are the new jar's), so the "outdated"
+     *   and "too old to reach this Pano" notices go away now rather than at the next connection.
+     * - A server that is running loads the new jar only when it starts again, so it is restarted. A stopped
+     *   server is left alone: it loads the new jar whenever it is started.
+     *
+     * Anything else (another task, a failed update) is none of this.
+     */
+    suspend fun onNodeTaskFinished(taskUuid: String, serverId: Long?, status: ServerTaskStatus, sqlClient: SqlClient) {
+        val version = nodeUpdates.remove(taskUuid) ?: return
+
+        if (status != ServerTaskStatus.DONE || serverId == null) {
+            return
+        }
+
+        val server = databaseManager.serverDao.getById(serverId, sqlClient) ?: return
+
+        try {
+            databaseManager.serverDao.updatePluginBuildById(
+                serverId,
+                ServerProtocol.CURRENT_PROTOCOL_VERSION,
+                version.ifEmpty { null },
+                sqlClient
+            )
+
+            panelRealtimeHub.notifyServerUpdated(serverId)
+        } catch (e: Exception) {
+            logger.warn("Could not record the updated Pano plugin of server $serverId: ${e.message}")
+        }
+
+        val nodeId = server.nodeId
+        val uuid = server.uuid
+
+        if (server.processState?.isAlive == true && nodeId != null && uuid != null) {
+            val sent = nodeManager.sendMessage(
+                nodeId,
+                NodePowerMessage(uuid, ServerPowerAction.RESTART.name, UUID.randomUUID().toString(), RESTART_ISSUER)
+            )
+
+            if (!sent) {
+                logger.warn("Could not restart server $serverId after its Pano plugin update; it loads the new plugin at its next start.")
+            }
+        }
     }
 
     /**
@@ -331,5 +392,8 @@ class PanoPluginUpdateService(
 
         /** How long the node gets to list the plugin directory before the update is refused. */
         private const val SCAN_TIMEOUT_MS = 10_000L
+
+        /** Who the console names as the sender of the restart that loads an updated plugin. */
+        private const val RESTART_ISSUER = "pano-plugin-update"
     }
 }

@@ -255,6 +255,10 @@
     "code": "LOCAL_NODE_JAVA_MISSING",
     "status": 400
   },
+  "com.panomc.platform.error.LocaleCannotBeDisabled": {
+    "code": "LOCALE_CANNOT_BE_DISABLED",
+    "status": 422
+  },
   "com.panomc.platform.error.LoginEmailNotVerified": {
     "code": "LOGIN_EMAIL_NOT_VERIFIED",
     "status": 422
@@ -542,6 +546,10 @@
   "com.panomc.platform.error.ThemeLicenseRequired": {
     "code": "THEME_LICENSE_REQUIRED",
     "status": 400
+  },
+  "com.panomc.platform.error.TicketCategoryRequired": {
+    "code": "TICKET_CATEGORY_REQUIRED",
+    "status": 422
   },
   "com.panomc.platform.error.TicketIsClosed": {
     "code": "TICKET_IS_CLOSED",

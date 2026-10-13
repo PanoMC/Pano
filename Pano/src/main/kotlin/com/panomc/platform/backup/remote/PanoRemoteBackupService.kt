@@ -203,15 +203,16 @@ class PanoRemoteBackupService(
 
     /**
      * Archives this Pano (encrypted with the saved passphrase, plain without one) and uploads it;
-     * throws BUSY when a job runs.
+     * throws BUSY when a job runs. [scheduled]: started by the schedule, not by an admin (told to the account's storage
+     * as the archive's `trigger`, so the lists can show it).
      */
-    fun startUpload(): PanoBackupJob {
+    fun startUpload(scheduled: Boolean = false): PanoBackupJob {
         val temp = tempFile("upload")
 
-        return backups.startTask(PanoBackupJob.Type.UPLOAD, cleanup = { delete(temp) }) { job -> upload(job, temp) }
+        return backups.startTask(PanoBackupJob.Type.UPLOAD, cleanup = { delete(temp) }) { job -> upload(job, temp, scheduled) }
     }
 
-    private suspend fun upload(job: PanoBackupJob, temp: File) {
+    private suspend fun upload(job: PanoBackupJob, temp: File, scheduled: Boolean) {
         requireConnected()
 
         val passphrase = passphraseFile?.read()
@@ -230,6 +231,7 @@ class PanoRemoteBackupService(
         val summary = JsonObject()
             .put("panoVersion", panoVersion)
             .put("encrypted", encrypted)
+            .put("trigger", if (scheduled) TRIGGER_SCHEDULED else TRIGGER_MANUAL)
 
         try {
             job.remoteId = target.put(
@@ -779,7 +781,7 @@ class PanoRemoteBackupService(
                 tryStart {
                     when (state.settings.mode) {
                         RemoteBackupSettings.Mode.SNAPSHOT -> startSnapshot(SNAPSHOT_SCHEDULED)
-                        RemoteBackupSettings.Mode.FULL -> startUpload()
+                        RemoteBackupSettings.Mode.FULL -> startUpload(scheduled = true)
                     }.also { watchScheduled(it, now, list) }
                 }
             }
@@ -932,6 +934,10 @@ class PanoRemoteBackupService(
         private const val SNAPSHOT_DONE = "DONE"
         private const val SNAPSHOT_MANUAL = "Manual"
         private const val SNAPSHOT_SCHEDULED = "Scheduled"
+
+        /** `trigger` of an archive's summary: how the upload was started. */
+        const val TRIGGER_MANUAL = "MANUAL"
+        const val TRIGGER_SCHEDULED = "SCHEDULED"
 
         /** A move out of Pano Host: its export failed, vanished or took too long. */
         const val EXPORT_FAILED_CODE = "EXPORT_FAILED"

@@ -184,6 +184,8 @@ class PanoRemoteBackupServiceTest {
         assertEquals("pano-instance", backup.getString("kind"))
         assertEquals(INSTANCE_ID, backup.getString("instanceId"))
         assertEquals(sha256Hex(bytes), backup.getString("sha256"))
+        // Started from the panel: the summary says so (the lists show manual / scheduled).
+        assertEquals(PanoRemoteBackupService.TRIGGER_MANUAL, backup.getJsonObject("manifest").getString("trigger"))
         assertTrue(bytes.size > 4096 * 4, "several parts")
         assertEquals(bytes.size.toLong(), job.bytesDone)
         assertEquals(listOf(true), runner.archived)
@@ -459,6 +461,7 @@ class PanoRemoteBackupServiceTest {
         service.tick(now)
         assertEquals(PanoBackupJob.Status.DONE, awaitJob(runner.job!!).status)
         assertEquals(1, host.backups.size)
+        assertEquals(PanoRemoteBackupService.TRIGGER_SCHEDULED, host.backups.values.single().getJsonObject("manifest").getString("trigger"))
         assertTrue(service.state().lastFullBytes!! > 0, "the size of the last full archive is remembered")
 
         val first = runner.job

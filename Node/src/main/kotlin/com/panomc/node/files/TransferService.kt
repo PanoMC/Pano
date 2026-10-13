@@ -252,11 +252,10 @@ class TransferService(
             return FileService.failure(FileService.ERROR_PATH_DENIED)
         }
 
+        // No ceiling on a file pushed into the server's folder: a world or a backup is as big as it is, and
+        // Pano only sends what a person who may write these files uploaded. What is checked is that no more
+        // arrives than was announced.
         val declared = message.size ?: 0L
-
-        if (declared > MAX_TRANSFER_BYTES) {
-            return FileService.failure(FileService.ERROR_TOO_LARGE)
-        }
 
         val target = try {
             PathSafety.resolveRelative(server.directory, message.path)
@@ -304,7 +303,7 @@ class TransferService(
 
                         copied += read
 
-                        if (copied > MAX_TRANSFER_BYTES) {
+                        if (declared > 0 && copied > declared) {
                             throw IllegalStateException(FileService.ERROR_TOO_LARGE)
                         }
 
@@ -427,7 +426,7 @@ class TransferService(
     }
 
     companion object {
-        /** Ceiling for one transfer, in either direction. */
+        /** Ceiling for one download or archive. A file pushed into the server's folder has none. */
         const val MAX_TRANSFER_BYTES = 1024L * 1024 * 1024
 
         const val TRANSFER_PATH = NodePaths.TRANSFER

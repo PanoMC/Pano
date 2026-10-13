@@ -37,6 +37,13 @@ class ServerActionRateLimiter {
         POWER(6, 60_000L),
         FILE_WRITE(60, 60_000L),
         UPLOAD(10, 60_000L),
+
+        /**
+         * Files put into a server's folder. A dropped folder is one upload per file, hundreds in a row, so the
+         * limit of [UPLOAD] (ten a minute, meant for a single icon or plugin jar) stopped every folder with more
+         * than ten files in it. Ten a second is what the panel's own request budget refills at.
+         */
+        FILE_UPLOAD(600, 60_000L),
         BACKUP(3, 10L * 60_000L),
         PLUGIN_INSTALL(10, 10L * 60_000L),
 
@@ -84,6 +91,26 @@ class ServerActionRateLimiter {
             timestamps.addLast(now)
 
             return true
+        }
+    }
+
+    /**
+     * How many seconds until [tryAcquire] can succeed again for this key: the answer a refused client is
+     * told to wait (at least one second, so a client that waits it and comes back is not refused again).
+     */
+    fun retryAfterSeconds(
+        action: Action,
+        userId: Long,
+        serverId: Long,
+        now: Long = System.currentTimeMillis()
+    ): Int {
+        val timestamps = hits[Key(action, userId, serverId)] ?: return 1
+
+        synchronized(timestamps) {
+            val oldest = timestamps.firstOrNull() ?: return 1
+            val waitMs = oldest + action.windowMs - now
+
+            return ((waitMs + 999) / 1000).toInt().coerceAtLeast(1)
         }
     }
 

@@ -111,6 +111,7 @@ class ServerActionRateLimiterTest {
         assertEquals(6 to 60_000L, Action.POWER.limit to Action.POWER.windowMs)
         assertEquals(60 to 60_000L, Action.FILE_WRITE.limit to Action.FILE_WRITE.windowMs)
         assertEquals(10 to 60_000L, Action.UPLOAD.limit to Action.UPLOAD.windowMs)
+        assertEquals(600 to 60_000L, Action.FILE_UPLOAD.limit to Action.FILE_UPLOAD.windowMs)
         assertEquals(3 to 600_000L, Action.BACKUP.limit to Action.BACKUP.windowMs)
         assertEquals(10 to 600_000L, Action.PLUGIN_INSTALL.limit to Action.PLUGIN_INSTALL.windowMs)
     }
@@ -128,5 +129,21 @@ class ServerActionRateLimiterTest {
         // Another user has a window of their own, and the window moves on.
         assertTrue(limiter.tryAcquireForUser(Action.JAVA_RUNTIME, 2, now = 1_000))
         assertTrue(limiter.tryAcquireForUser(Action.JAVA_RUNTIME, 1, now = 1_000 + Action.JAVA_RUNTIME.windowMs))
+    }
+
+    @Test
+    fun `a refusal says how long to wait, and waiting that long is enough`() {
+        val limiter = ServerActionRateLimiter()
+        val start = 1_000_000L
+
+        repeat(Action.UPLOAD.limit) { limiter.tryAcquire(Action.UPLOAD, 1, 1, start + it) }
+
+        assertFalse(limiter.tryAcquire(Action.UPLOAD, 1, 1, start + 500))
+
+        val wait = limiter.retryAfterSeconds(Action.UPLOAD, 1, 1, start + 500)
+
+        assertEquals(60, wait)
+        assertTrue(limiter.tryAcquire(Action.UPLOAD, 1, 1, start + 500 + wait * 1000L))
+        assertEquals(1, limiter.retryAfterSeconds(Action.UPLOAD, 2, 2, start))
     }
 }

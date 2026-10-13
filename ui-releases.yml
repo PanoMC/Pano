@@ -1,5 +1,5 @@
-panel-ui: v1.0.0-dev.612
-vanilla-theme: v1.0.0-dev.277
+panel-ui: v1.0.0-dev.613
+vanilla-theme: v1.0.0-dev.278
 setup-ui: v1.0.0-dev.83
 
 # widget-runtime (doc 06 section 3.3): the web-component runtime from theme-core/packages/widget-host.

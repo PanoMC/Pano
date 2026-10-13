@@ -32,6 +32,8 @@ class PanelGetMaintenancePageAPI(
         return Successful(
             mapOf(
                 "templates" to templates,
+                // What "reset" in the editor puts back into the drafts (nothing is written until they are saved).
+                "defaults" to maintenanceModeManager.defaultTemplates().mapKeys { it.key.name },
                 "customPage" to maintenanceModeManager.settings().customPage
             )
         )

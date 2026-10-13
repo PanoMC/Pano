@@ -64,11 +64,20 @@ class PanelSaveMaintenancePageAPI(
             configManager.config.maintenance = it
         }
 
-        maintenanceConfig.customPage = true
+        // Every block saved as Pano ships it (the editor's "reset", then save): the page is handed back to Pano
+        // like the reset route does, so future releases update it again.
+        val defaults = maintenanceModeManager.defaultTemplates()
+        val allDefault = updates.size == PageTemplate.entries.size && updates.all { (template, html) -> html == defaults[template] }
+
+        maintenanceConfig.customPage = !allDefault
 
         configManager.saveConfig()
 
-        updates.forEach { (template, html) -> maintenanceModeManager.saveTemplateSource(template, html) }
+        if (allDefault) {
+            maintenanceModeManager.resetTemplates()
+        } else {
+            updates.forEach { (template, html) -> maintenanceModeManager.saveTemplateSource(template, html) }
+        }
 
         return Successful()
     }

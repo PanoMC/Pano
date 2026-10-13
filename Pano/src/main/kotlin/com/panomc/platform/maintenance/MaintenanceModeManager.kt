@@ -74,6 +74,9 @@ class MaintenanceModeManager(
         const val SKIP_PATH = "/maintenance/skip"
         const val EXIT_PATH = "/maintenance/exit"
 
+        /** The page as a visitor gets it, for an admin (see `MaintenancePreviewAPI`; under the panel API). */
+        const val PREVIEW_PATH = "/maintenance/preview-page"
+
         const val LOGIN_USERNAME_FIELD = "usernameOrEmail"
         const val LOGIN_PASSWORD_FIELD = "password"
         const val LOGIN_NONCE_FIELD = "_nonce"
@@ -869,6 +872,14 @@ class MaintenanceModeManager(
         writeAtomically(templateFile(template), html, PAGE_FILE_PERMISSIONS)
 
         invalidatePageCache()
+    }
+
+    /**
+     * Every block as Pano ships it (the page composed from the current settings), with no side effects: what the
+     * editor compares its drafts with and what "reset" puts back into them.
+     */
+    fun defaultTemplates(): Map<PageTemplate, String> = PageTemplate.entries.associateWith {
+        if (it == PageTemplate.PAGE) composePage(settings()).orEmpty() else readBundled(it.resource).orEmpty()
     }
 
     /** Restores every block, including the page, to the design Pano ships. */

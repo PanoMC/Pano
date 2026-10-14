@@ -61,6 +61,7 @@ class DatabaseManager(
     @Lazy val bannedIpDao: BannedIpDao,
     @Lazy val onlinePlayerHistoryDao: OnlinePlayerHistoryDao,
     @Lazy val pendingAuthSessionDao: PendingAuthSessionDao,
+    @Lazy val mailTemplateDao: MailTemplateDao,
 ) {
 
     @Autowired

@@ -4,10 +4,22 @@ import com.panomc.platform.AppConstants
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 
-/** A `mail-templates/index.json`: the mails an owner (core or a plugin) declares. */
-data class MailTemplateIndex(val mails: List<MailDefinition>) {
+/**
+ * A `mail-templates/index.json`: the mails an owner (core or a plugin) declares, and the layouts it ships
+ * (`layouts/<key>.hbs`, id `<owner>:<key>`).
+ */
+data class MailTemplateIndex(val mails: List<MailDefinition>, val layouts: List<LayoutDefinition> = emptyList()) {
     companion object {
         val KEY_PATTERN = Regex("^[a-z0-9-]+$")
+
+        /** `<owner>:<key>`; the owner is `core`, `custom` or a plugin id. */
+        val LAYOUT_ID_PATTERN = Regex("^[A-Za-z0-9._-]+:[a-z0-9-]+$")
+
+        /** A mail's layout choice meaning "no layout": the rendered body is the whole mail. */
+        const val NO_LAYOUT = "none"
+
+        /** The main layout (`mail/layout.hbs`): always there, never deletable. */
+        const val DEFAULT_LAYOUT = "core:default"
 
         /**
          * Parses an index. A mail or variant with an invalid key, or a duplicate, is an error: the whole
@@ -26,8 +38,21 @@ data class MailTemplateIndex(val mails: List<MailDefinition>) {
 
             require(duplicate == null) { "Mail '$duplicate' is declared twice" }
 
-            return MailTemplateIndex(mails)
+            val layouts = (json.getValue("layouts") as? JsonArray ?: JsonArray()).map { layout ->
+                require(layout is JsonObject) { "Every entry of 'layouts' must be an object" }
+
+                LayoutDefinition.parse(layout)
+            }
+
+            val duplicateLayout = layouts.groupBy { it.key }.entries.firstOrNull { it.value.size > 1 }?.key
+
+            require(duplicateLayout == null) { "Layout '$duplicateLayout' is declared twice" }
+
+            return MailTemplateIndex(mails, layouts)
         }
+
+        /** Whether [value] is a valid mail layout choice: `none` or a layout id. */
+        fun isLayoutChoice(value: String): Boolean = value == NO_LAYOUT || LAYOUT_ID_PATTERN.matches(value)
 
         /** [map] in [locale], else en-US, else [fallback]. */
         fun localized(map: Map<String, String>, locale: String, fallback: String): String =
@@ -49,7 +74,9 @@ data class MailDefinition(
     val key: String,
     val name: Map<String, String>,
     val description: Map<String, String>,
-    val variants: List<VariantDefinition>
+    val variants: List<VariantDefinition>,
+    /** The layout the mail uses unless the admin picks another: a layout id or `none`. */
+    val layout: String = MailTemplateIndex.DEFAULT_LAYOUT
 ) {
     fun variant(key: String): VariantDefinition? = variants.firstOrNull { it.key == key }
 
@@ -69,12 +96,30 @@ data class MailDefinition(
 
             require(duplicate == null) { "Variant '$duplicate' of mail '$key' is declared twice" }
 
+            val layout = json.getString("layout")?.takeIf { it.isNotBlank() } ?: MailTemplateIndex.DEFAULT_LAYOUT
+
+            require(MailTemplateIndex.isLayoutChoice(layout)) { "Invalid layout '$layout' of mail '$key'" }
+
             return MailDefinition(
                 key,
                 MailTemplateIndex.localizedMap(json, "name"),
                 MailTemplateIndex.localizedMap(json, "description"),
-                variants
+                variants,
+                layout
             )
+        }
+    }
+}
+
+/** A layout an owner ships as `mail-templates/layouts/<key>.hbs`. */
+data class LayoutDefinition(val key: String, val name: Map<String, String>) {
+    companion object {
+        fun parse(json: JsonObject): LayoutDefinition {
+            val key = json.getString("key").orEmpty()
+
+            require(MailTemplateIndex.KEY_PATTERN.matches(key)) { "Invalid layout key '$key'" }
+
+            return LayoutDefinition(key, MailTemplateIndex.localizedMap(json, "name"))
         }
     }
 }

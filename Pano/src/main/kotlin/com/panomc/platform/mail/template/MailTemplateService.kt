@@ -11,6 +11,8 @@ import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.stereotype.Service
+import org.slf4j.LoggerFactory
+import java.text.Normalizer
 import java.time.Year
 
 /**
@@ -29,15 +31,24 @@ import java.time.Year
 class MailTemplateService internal constructor(
     private val registry: MailTemplateRegistry,
     private val overrides: suspend (sqlClient: SqlClient?, owner: String, key: String, variant: String, locale: String) -> MailTemplate?,
-    private val defaultLayoutProvider: () -> String
+    private val defaultLayoutProvider: () -> String,
+    private val layoutStore: MailLayoutStore
 ) {
+    /** Without a database: bundled layouts and the mails' own layout defaults only (tests, plugin tests). */
+    internal constructor(
+        registry: MailTemplateRegistry,
+        overrides: suspend (sqlClient: SqlClient?, owner: String, key: String, variant: String, locale: String) -> MailTemplate?,
+        defaultLayoutProvider: () -> String
+    ) : this(registry, overrides, defaultLayoutProvider, MailLayoutStore.EMPTY)
+
     @Autowired
     constructor(registry: MailTemplateRegistry, databaseManager: ObjectProvider<DatabaseManager>) : this(
         registry,
         { sqlClient, owner, key, variant, locale ->
             sqlClient?.let { databaseManager.getObject().mailTemplateDao.get(owner, key, variant, locale, it) }
         },
-        { readLayoutResource() }
+        { readLayoutResource() },
+        MailLayoutStore.database(databaseManager)
     )
 
     private val htmlHandlebars = Handlebars()
@@ -59,7 +70,37 @@ class MailTemplateService internal constructor(
         internal val cacheId: String
     )
 
-    data class Layout(val body: String, val customized: Boolean, internal val cacheId: String)
+    /** A layout's body as mails are wrapped in it. */
+    data class Layout(
+        val body: String,
+        val customized: Boolean,
+        internal val cacheId: String,
+        val id: String = MailTemplateIndex.DEFAULT_LAYOUT
+    )
+
+    /**
+     * One layout the panel lists: `core:default`, a layout core or a started plugin ships, or a custom one
+     * (owner `custom`, only in the database).
+     */
+    data class LayoutInfo(
+        val id: String,
+        val owner: String,
+        val key: String,
+        val pluginId: String?,
+        val pluginName: String?,
+        /** Localised names of a bundled layout; empty for custom ones. */
+        private val names: Map<String, String>,
+        /** The name an admin gave a custom layout. */
+        private val customName: String?,
+        /** Core or a plugin ships it: it can be reset, never deleted. */
+        val builtIn: Boolean,
+        /** A bundled layout with a panel override. */
+        val customized: Boolean
+    ) {
+        val deletable get() = !builtIn
+
+        fun name(locale: String): String = customName ?: MailTemplateIndex.localized(names, locale, key)
+    }
 
     data class RenderedMail(val subject: String, val html: String, val text: String)
 
@@ -115,21 +156,128 @@ class MailTemplateService internal constructor(
         return Resolved(MailTemplateContent.parse(source), locale, false, "res:$owner/$key/$variant/$locale")
     }
 
-    /** The layout override, else the bundled `mail/layout.hbs`. */
-    suspend fun layout(sqlClient: SqlClient?): Layout {
-        val row = overrides(
-            sqlClient,
-            MailTemplate.LAYOUT_OWNER,
-            MailTemplate.LAYOUT_KEY,
-            MailTemplate.LAYOUT_VARIANT,
-            MailTemplate.LAYOUT_LOCALE
+    /** The bundled `mail/layout.hbs` (`core:default` without its override). */
+    fun defaultLayout(): String = defaultLayout
+
+    /** Every layout: `core:default` first, then the ones core and the plugins ship, then custom ones by name. */
+    suspend fun layouts(sqlClient: SqlClient?): List<LayoutInfo> {
+        val rows = layoutStore.layouts(sqlClient)
+        val overridden = rows.map { it.owner to it.layoutKey }.toSet()
+
+        val main = LayoutInfo(
+            MailTemplateIndex.DEFAULT_LAYOUT, MailTemplateRegistry.CORE, DEFAULT_LAYOUT_KEY, null, null,
+            DEFAULT_LAYOUT_NAMES, null, builtIn = true,
+            customized = (MailTemplateRegistry.CORE to DEFAULT_LAYOUT_KEY) in overridden
         )
 
-        return if (row != null) Layout(row.body, true, "db:layout@${row.updatedAt}")
-        else Layout(defaultLayout, false, "res:layout")
+        val bundled = registry.owners().flatMap { owner ->
+            owner.index.layouts
+                .filter { !(owner.id == MailTemplateRegistry.CORE && it.key == DEFAULT_LAYOUT_KEY) }
+                .map { layout ->
+                    LayoutInfo(
+                        "${owner.id}:${layout.key}", owner.id, layout.key, owner.pluginId, owner.pluginName,
+                        layout.name, null, builtIn = true, customized = (owner.id to layout.key) in overridden
+                    )
+                }
+        }
+
+        val custom = rows.filter { it.owner == CUSTOM_OWNER }
+            .sortedBy { it.name.lowercase() }
+            .map {
+                LayoutInfo(
+                    "$CUSTOM_OWNER:${it.layoutKey}", CUSTOM_OWNER, it.layoutKey, null, null,
+                    emptyMap(), it.name.ifBlank { it.layoutKey }, builtIn = false, customized = false
+                )
+            }
+
+        return listOf(main) + bundled + custom
     }
 
-    fun defaultLayout(): String = defaultLayout
+    suspend fun layoutInfo(id: String, sqlClient: SqlClient?): LayoutInfo? = layouts(sqlClient).firstOrNull { it.id == id }
+
+    /** The bundled body of a built-in layout, null for a custom or unknown one. */
+    fun bundledLayout(id: String): String? {
+        if (id == MailTemplateIndex.DEFAULT_LAYOUT) return defaultLayout
+
+        val (owner, key) = splitLayoutId(id) ?: return null
+
+        if (owner == CUSTOM_OWNER) return null
+
+        return registry.owner(owner)?.readLayout(key)
+    }
+
+    /** The layout [id] as mails get it (its override, else its bundled body), null when it does not exist. */
+    suspend fun layout(id: String, sqlClient: SqlClient?): Layout? {
+        val (owner, key) = splitLayoutId(id) ?: return null
+        val row = layoutStore.layout(sqlClient, owner, key)
+
+        if (owner == CUSTOM_OWNER) {
+            return row?.let { Layout(it.body, false, "db:layout:$id@${it.updatedAt}", id) }
+        }
+
+        val bundled = bundledLayout(id) ?: return null
+
+        return if (row != null) Layout(row.body, true, "db:layout:$id@${row.updatedAt}", id)
+        else Layout(bundled, false, "res:layout:$id", id)
+    }
+
+    /** What the mail is set to: the admin's choice, else the mail's own default (a layout id or `none`). */
+    suspend fun mailLayoutChoice(owner: String, key: String, sqlClient: SqlClient?): String =
+        layoutStore.mailSetting(sqlClient, owner, key)
+            ?: registry.mail(owner, key)?.layout
+            ?: MailTemplateIndex.DEFAULT_LAYOUT
+
+    /**
+     * The layout the mail is sent with: [override] (an unsaved choice in the panel) or the mail's choice. `none`
+     * stays `none`; a layout that no longer exists (a deleted custom one, an unloaded plugin's) falls back to
+     * `core:default`.
+     */
+    suspend fun effectiveLayoutId(owner: String, key: String, sqlClient: SqlClient?, override: String? = null): String {
+        val choice = override ?: mailLayoutChoice(owner, key, sqlClient)
+
+        if (choice == MailTemplateIndex.NO_LAYOUT || choice == MailTemplateIndex.DEFAULT_LAYOUT) return choice
+
+        if (layout(choice, sqlClient) != null) return choice
+
+        logger.warn("Mail $owner/$key uses the layout '$choice' that does not exist; it falls back to ${MailTemplateIndex.DEFAULT_LAYOUT}")
+
+        return MailTemplateIndex.DEFAULT_LAYOUT
+    }
+
+    /** The layout the mail is wrapped in, null for `none`. */
+    suspend fun layoutForMail(owner: String, key: String, sqlClient: SqlClient?, override: String? = null): Layout? {
+        val id = effectiveLayoutId(owner, key, sqlClient, override)
+
+        if (id == MailTemplateIndex.NO_LAYOUT) return null
+
+        return layout(id, sqlClient) ?: layout(MailTemplateIndex.DEFAULT_LAYOUT, sqlClient)
+    }
+
+    /** The effective layout of every registered mail (`owner` to `key`), from one read of the settings. */
+    suspend fun effectiveLayouts(sqlClient: SqlClient?): Map<Pair<String, String>, String> {
+        val existing = layouts(sqlClient).map { it.id }.toSet()
+        val settings = layoutStore.mailSettings(sqlClient).associate { (it.owner to it.mailKey) to it.layout }
+
+        return registry.owners().flatMap { owner ->
+            owner.index.mails.map { mail ->
+                val choice = settings[owner.id to mail.key] ?: mail.layout
+                val effective = if (choice == MailTemplateIndex.NO_LAYOUT || choice in existing) choice
+                else MailTemplateIndex.DEFAULT_LAYOUT
+
+                (owner.id to mail.key) to effective
+            }
+        }.toMap()
+    }
+
+    /** A free custom layout key for [name]: its slug, with `-2`, `-3`, … when taken. */
+    suspend fun newCustomLayoutKey(name: String, sqlClient: SqlClient?): String {
+        val taken = layoutStore.layouts(sqlClient).filter { it.owner == CUSTOM_OWNER }.map { it.layoutKey }.toSet()
+        val base = slug(name)
+
+        if (base !in taken) return base
+
+        return generateSequence(2) { it + 1 }.map { "${base.take(MAX_LAYOUT_KEY - 4)}-$it" }.first { it !in taken }
+    }
 
     /**
      * Renders the mail a sender asked for.
@@ -151,14 +299,14 @@ class MailTemplateService internal constructor(
         val resolved = resolve(owner, key, variant, locale, sqlClient)
             ?: throw TemplateNotFoundException("No template for mail $owner/$key/$variant in $locale or en-US")
 
-        val layout = if (resolved.content.mode == MailTemplateContent.Mode.FIELDS) layout(sqlClient) else null
+        val layout = if (resolved.content.mode == MailTemplateContent.Mode.FIELDS) layoutForMail(owner, key, sqlClient) else null
 
         return render(resolved.content, layout, variables, system, resolved.cacheId)
     }
 
     /**
-     * Renders [content] with [system] + [variables]. [layout] is required in fields mode. [cacheId] (null for
-     * unsaved content) keys the compiled templates.
+     * Renders [content] with [system] + [variables]. In fields mode the results go into [layout]; without one (`none`)
+     * the rendered body is the whole mail. [cacheId] (null for unsaved content) keys the compiled templates.
      */
     fun render(
         content: MailTemplateContent,
@@ -184,8 +332,6 @@ class MailTemplateService internal constructor(
             return RenderedMail(subject, html, toPlainText(html))
         }
 
-        requireNotNull(layout) { "A layout is required in fields mode" }
-
         val preheader = field(MailTemplateContent.FIELD_PREHEADER, content.preheader, html = false)
         val body = field(MailTemplateContent.FIELD_BODY, content.body, html = true)
         val buttonLabel = field(MailTemplateContent.FIELD_BUTTON_LABEL, content.buttonLabel, html = false)
@@ -201,7 +347,7 @@ class MailTemplateService internal constructor(
             put(MailTemplateContent.FIELD_FOOTER, footer)
         }
 
-        val html = compile(layout.cacheId, layout.body, html = true).apply(layoutContext)
+        val html = if (layout == null) body else compile(layout.cacheId, layout.body, html = true).apply(layoutContext)
 
         return RenderedMail(subject, html, plainText(body, buttonLabel, buttonUrl, footer))
     }
@@ -209,10 +355,11 @@ class MailTemplateService internal constructor(
     /**
      * [content] as one complete HTML template, the starting point of the panel's advanced (HTML) mode: the layout with
      * the field templates put into its slots as they are (their `{{variables}}` stay, so the result is still a
-     * template) and the system variables left as `{{name}}`. HTML mode content is returned as it is.
+     * template) and the system variables left as `{{name}}`. HTML mode content, and any content without a layout
+     * (`none`), is the body as it is.
      */
-    fun compose(content: MailTemplateContent, layout: Layout): String {
-        if (content.mode == MailTemplateContent.Mode.HTML) return content.body
+    fun compose(content: MailTemplateContent, layout: Layout?): String {
+        if (content.mode == MailTemplateContent.Mode.HTML || layout == null) return content.body
 
         val slots = HashMap<String, Any?>().apply {
             listOf(SYSTEM_WEBSITE_NAME, SYSTEM_WEBSITE_URL, SYSTEM_WEBSITE_LOGO, SYSTEM_YEAR, SYSTEM_LOCALE)
@@ -293,11 +440,14 @@ class MailTemplateService internal constructor(
     fun evict(owner: String, key: String, variant: String, locale: String) = synchronized(cache) {
         val prefix = "db:$owner/$key/$variant/$locale@"
 
-        cache.keys.removeIf { it.startsWith(prefix) }
+        cache.keys.removeIf { it.substringAfter(':').startsWith(prefix) }
     }
 
-    fun evictLayout() = synchronized(cache) {
-        cache.keys.removeIf { it.startsWith("db:layout@") }
+    /** Drops the compiled templates of one layout's override (after a save, a reset or a delete). */
+    fun evictLayout(id: String) = synchronized(cache) {
+        val prefix = "db:layout:$id@"
+
+        cache.keys.removeIf { it.substringAfter(':').startsWith(prefix) }
     }
 
     private fun compile(cacheKey: String?, source: String, html: Boolean): Template {
@@ -334,6 +484,40 @@ class MailTemplateService internal constructor(
         const val LOGO_CID = "cid:logo"
 
         const val LAYOUT_RESOURCE = "mail/layout.hbs"
+
+        /** The owner of admin-made layouts. */
+        const val CUSTOM_OWNER = "custom"
+
+        const val DEFAULT_LAYOUT_KEY = "default"
+
+        const val MAX_LAYOUT_NAME = 100
+        private const val MAX_LAYOUT_KEY = 64
+
+        private val DEFAULT_LAYOUT_NAMES = mapOf("en-US" to "Main layout", "tr" to "Ana düzen", "ru" to "Основной макет")
+
+        private val logger = LoggerFactory.getLogger(MailTemplateService::class.java)
+
+        /** `owner` and `key` of a layout id, null when it is not one. */
+        fun splitLayoutId(id: String): Pair<String, String>? {
+            if (!MailTemplateIndex.LAYOUT_ID_PATTERN.matches(id)) return null
+
+            return id.substringBeforeLast(':') to id.substringAfterLast(':')
+        }
+
+        /** [name] as a layout key: lower case ASCII letters and digits apart by `-`; `layout` when nothing is left. */
+        fun slug(name: String): String {
+            val ascii = Normalizer.normalize(
+                name.replace('ı', 'i').replace('İ', 'I').replace('ß', 's'),
+                Normalizer.Form.NFD
+            ).replace(Regex("\\p{M}+"), "")
+
+            return ascii.lowercase()
+                .replace(Regex("[^a-z0-9]+"), "-")
+                .trim('-')
+                .take(MAX_LAYOUT_KEY)
+                .trim('-')
+                .ifEmpty { "layout" }
+        }
 
         private const val FIELD_SUBJECT = MailTemplateContent.FIELD_SUBJECT
         private const val LAYOUT_CONTENT = "content"

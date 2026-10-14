@@ -6,9 +6,11 @@ import com.panomc.platform.db.model.MailTemplate
 object MailTemplateTestSupport {
     /** The real core templates of the build (`mail-templates/` + `mail/layout.hbs` on the test classpath). */
     fun coreService(overrides: Map<List<String>, MailTemplate> = emptyMap()): MailTemplateService =
-        MailTemplateService(coreRegistry(), { _, owner, key, variant, locale -> overrides[listOf(owner, key, variant, locale)] }) {
-            MailTemplateService.readLayoutResource()
-        }
+        MailTemplateService(
+            coreRegistry(),
+            { _, owner, key, variant, locale -> overrides[listOf(owner, key, variant, locale)] },
+            { MailTemplateService.readLayoutResource() }
+        )
 
     fun coreRegistry(): MailTemplateRegistry = MailTemplateRegistry({
         MailTemplateRegistry.classpathOwner(

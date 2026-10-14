@@ -170,7 +170,16 @@ class MailTemplateOwner(
         return reader("$key/$variant/$locale.hbs")
     }
 
+    /** The bundled `layouts/<key>.hbs`, null when the owner does not declare or ship it. */
+    fun readLayout(key: String): String? {
+        if (index.layouts.none { it.key == key }) return null
+
+        return reader("$LAYOUTS_DIR/$key.hbs")
+    }
+
     companion object {
         private val LOCALE_PATTERN = Regex("^[A-Za-z0-9_-]{1,16}$")
+
+        const val LAYOUTS_DIR = "layouts"
     }
 }

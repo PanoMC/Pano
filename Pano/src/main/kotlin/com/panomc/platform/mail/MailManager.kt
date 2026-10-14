@@ -235,15 +235,21 @@ class MailManager(
         deliver(sqlClient, userId, options, strict = true) { locale, system -> templateContent(mail, null, locale, system, sqlClient) }
     }
 
-    /** The panel's "send test": [draft] (unsaved) rendered with [mail]'s variables, strict. */
+    /**
+     * The panel's "send test": [draft] (unsaved) rendered with [mail]'s variables, strict. [layout] is an unsaved
+     * layout choice (a layout id or `none`); null uses the mail's own.
+     */
     internal suspend fun sendRequiredDraft(
         sqlClient: SqlClient,
         userId: Long?,
         mail: TemplateMail,
         draft: MailTemplateContent,
-        options: MailOptions
+        options: MailOptions,
+        layout: String? = null
     ) {
-        deliver(sqlClient, userId, options, strict = true) { locale, system -> templateContent(mail, draft, locale, system, sqlClient) }
+        deliver(sqlClient, userId, options, strict = true) { locale, system ->
+            templateContent(mail, draft, locale, system, sqlClient, layout)
+        }
     }
 
     /** What one send puts into the message, decided once the recipient's locale is known. */
@@ -293,7 +299,8 @@ class MailManager(
         draft: MailTemplateContent?,
         locale: String,
         system: SystemParameters,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        layoutOverride: String? = null
     ): PreparedMail {
         val service = mailTemplateService ?: throw IllegalStateException("Mail templates are not available")
 
@@ -304,7 +311,9 @@ class MailManager(
             if (draft == null) {
                 service.renderForSend(mail.owner, mail.key, mail.variant, locale, variables, systemVariables, sqlClient)
             } else {
-                val layout = if (draft.mode == MailTemplateContent.Mode.FIELDS) service.layout(sqlClient) else null
+                val layout = if (draft.mode == MailTemplateContent.Mode.FIELDS) {
+                    service.layoutForMail(mail.owner, mail.key, sqlClient, layoutOverride)
+                } else null
 
                 service.render(draft, layout, variables, systemVariables)
             }

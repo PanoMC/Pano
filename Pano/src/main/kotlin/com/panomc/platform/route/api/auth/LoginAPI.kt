@@ -268,6 +268,6 @@ class LoginAPI(
 
         tokenProvider.saveToken(tokenGenerated, userId.toString(), ActivationTokenType, expireDate, sqlClient)
 
-        mailManager.sendMail(sqlClient, userId, ActivationMail(tokenGenerated, user.username, user.email!!,""))
+        mailManager.sendTemplate(sqlClient, userId, ActivationMail(tokenGenerated, user.username, user.email!!,""))
     }
 }

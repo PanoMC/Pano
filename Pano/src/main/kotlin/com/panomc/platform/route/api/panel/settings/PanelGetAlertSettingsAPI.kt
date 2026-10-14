@@ -13,9 +13,8 @@ import com.panomc.platform.util.UsageMode
 /**
  * The alert switch grid, and whether the e-mail column means anything in this build.
  *
- * `emailAvailable` is false until a `serverAlert` mail template ships with the platform, and the
- * panel shows the e-mail switches disabled with a hint rather than offering a toggle that would
- * silently do nothing.
+ * `emailAvailable` is always true now that the `server-alert` mail template ships with the core
+ * mail templates; it stays in the answer because the panel reads it.
  */
 @Endpoint
 class PanelGetAlertSettingsAPI(

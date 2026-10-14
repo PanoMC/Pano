@@ -60,7 +60,7 @@ class SendResetPasswordEmailAPI(
             sqlClient
         )
 
-        mailManager.sendMail(sqlClient, userId, ResetPasswordMail(token, ""))
+        mailManager.sendTemplate(sqlClient, userId, ResetPasswordMail(token, ""))
 
         return Successful()
     }

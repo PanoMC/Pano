@@ -59,8 +59,11 @@ class AlertManager(
 
     private val tpsWindow = TpsLowWindow()
 
-    /** Whether this build can send alert e-mail at all, which the settings page reports. */
-    val isEmailAvailable: Boolean by lazy { ServerAlertMail.isAvailable() }
+    /**
+     * Whether this build can send alert e-mail at all, which the settings page reports. Always true since the
+     * `server-alert` mail template ships with the core mail templates; kept because the panel reads it.
+     */
+    val isEmailAvailable: Boolean = true
 
     /** The stored switch grid, or the defaults when nothing has been saved. */
     suspend fun settings(sqlClient: SqlClient): Map<ServerAlertKind, AlertSetting> =
@@ -366,7 +369,7 @@ class AlertManager(
     /**
      * Sends the alert to the same people the notification went to, each in their own language.
      *
-     * The message is still keys and values at this point on purpose: [ServerAlertMail] renders it
+     * The message is still raw values at this point on purpose: [ServerAlertMail] renders it
      * once per recipient against the locale that recipient reads Pano in.
      *
      * One failed address must not stop the rest, and none of them may stop the alert itself: the
@@ -403,7 +406,7 @@ class AlertManager(
 
         recipients.forEach { userId ->
             try {
-                mailManager.sendMail(
+                mailManager.sendTemplate(
                     sqlClient,
                     userId,
                     ServerAlertMail(

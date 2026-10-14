@@ -1,31 +1,13 @@
 package com.panomc.platform.mail.templates
 
-import com.panomc.platform.i18n.I18nManager
-import com.panomc.platform.mail.Mail
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.MailParameters
+import com.panomc.platform.mail.TemplateMail
 
-class PasswordUpdatedMail(private val username: String) : Mail {
-    override val templatePath = "mail/password-updated.hbs"
-    override val subject = "mail.password-updated.subject"
-
-    override suspend fun generateParameters(
-        systemParameters: MailManager.Companion.SystemParameters,
-        i18nManager: I18nManager,
-        locale: String,
-    ) = PasswordUpdatedMailParameters(
-        username,
-        systemParameters.websiteUrl,
-        getTranslations(
-            i18nManager, locale, "mail.password-updated"
+/** Core mail `password-updated`: tells the user their password was changed. */
+class PasswordUpdatedMail(private val username: String) : TemplateMail(ActivationMail.OWNER, "password-updated") {
+    override suspend fun variables(locale: String, system: MailManager.Companion.SystemParameters): Map<String, Any?> =
+        mapOf(
+            "username" to username,
+            "loginLink" to system.linkTo("auth.login", emptyMap(), "/login")
         )
-    )
-
-    companion object {
-        data class PasswordUpdatedMailParameters(
-            val username: String,
-            val loginLİnk: String,
-            val translation: Map<String, Any?>
-        ) : MailParameters
-    }
 }

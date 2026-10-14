@@ -1,35 +1,23 @@
 package com.panomc.platform.mail.templates
 
-import com.panomc.platform.i18n.I18nManager
-import com.panomc.platform.mail.Mail
 import com.panomc.platform.mail.MailManager
-import com.panomc.platform.mail.MailParameters
+import com.panomc.platform.mail.TemplateMail
 
-class ResetPasswordMail(private val token: String, private val resetCode: String) : Mail {
-    override val templatePath = "mail/reset-password.hbs"
-    override val subject = "mail.reset-password.subject"
-
-    override suspend fun generateParameters(
-        systemParameters: MailManager.Companion.SystemParameters,
-        i18nManager: I18nManager,
-        locale: String,
-    ) = ResetPasswordMailParameters(
-        resetLink(systemParameters),
-        resetCode,
-        getTranslations(
-            i18nManager, locale, "mail.reset-password", mapOf("reset-password-expires" to mapOf("minutes" to 30))
+/** Core mail `reset-password`: the link (and optional code) to set a new password. */
+class ResetPasswordMail(private val token: String, private val resetCode: String) :
+    TemplateMail(ActivationMail.OWNER, "reset-password") {
+    override suspend fun variables(locale: String, system: MailManager.Companion.SystemParameters): Map<String, Any?> =
+        mapOf(
+            "resetLink" to resetLink(system),
+            "resetCode" to resetCode,
+            "expiresInMinutes" to EXPIRES_IN_MINUTES
         )
-    )
 
     /** Where the visitor sets a new password: target `auth.renew-password` of the front-end URL map. */
     internal fun resetLink(systemParameters: MailManager.Companion.SystemParameters) =
         systemParameters.linkTo("auth.renew-password", mapOf("token" to token), "/renew-password?token=$token")
 
     companion object {
-        data class ResetPasswordMailParameters(
-            val resetLink: String,
-            val resetCode: String,
-            val translation: Map<String, Any?>
-        ) : MailParameters
+        const val EXPIRES_IN_MINUTES = 30
     }
 }

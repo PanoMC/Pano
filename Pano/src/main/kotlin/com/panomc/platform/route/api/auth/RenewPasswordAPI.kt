@@ -95,7 +95,7 @@ class RenewPasswordAPI(
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
-        mailManager.sendMail(sqlClient, userId, PasswordUpdatedMail(username))
+        mailManager.sendTemplate(sqlClient, userId, PasswordUpdatedMail(username))
 
         return Successful()
     }

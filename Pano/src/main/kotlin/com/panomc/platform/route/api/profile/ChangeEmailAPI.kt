@@ -8,6 +8,7 @@ import com.panomc.platform.error.CurrentPasswordNotCorrect
 import com.panomc.platform.error.InvalidEmail
 import com.panomc.platform.error.NewEmailExists
 import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.MailOptions
 import com.panomc.platform.mail.templates.ChangeEmailMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
@@ -101,7 +102,7 @@ class ChangeEmailAPI(
 
         val user = databaseManager.userDao.getById(userId, sqlClient)!!
 
-        mailManager.sendMail(sqlClient, userId, ChangeEmailMail(token, user.username, newEmail), newEmail)
+        mailManager.sendTemplate(sqlClient, userId, ChangeEmailMail(token, user.username, newEmail), MailOptions(email = newEmail))
 
         return Successful()
     }

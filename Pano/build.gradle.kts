@@ -290,32 +290,21 @@ tasks {
             }
             println("Downloaded mail templates saved to: ${outputFile.absolutePath}")
 
-            // Extract the zip file to src/main/resources/mail
+            // The release holds the shared layout only (the per-mail texts live in mail-templates/);
+            // only layout.hbs is taken, so an older release cannot bring back per-mail files.
             val mailDir = File(mailTemplatesOutputDir, "mail")
 
-            // Delete existing mail directory contents if it exists
-            if (mailDir.exists()) {
-                println("Deleting existing mail directory contents...")
-                mailDir.deleteRecursively()
-            }
-
-            // Create mail directory
             mailDir.mkdirs()
 
-            // Extract zip file
-            println("Extracting mail templates to: ${mailDir.absolutePath}")
+            var layoutFound = false
+
             FileInputStream(outputFile).use { fis ->
                 ZipInputStream(fis).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
-                        val file = File(mailDir, entry.name)
-                        if (entry.isDirectory) {
-                            file.mkdirs()
-                        } else {
-                            file.parentFile?.mkdirs()
-                            file.outputStream().use { fos ->
-                                zis.copyTo(fos)
-                            }
+                        if (!entry.isDirectory && entry.name.substringAfterLast('/') == "layout.hbs") {
+                            File(mailDir, "layout.hbs").outputStream().use { fos -> zis.copyTo(fos) }
+                            layoutFound = true
                         }
                         zis.closeEntry()
                         entry = zis.nextEntry
@@ -323,9 +312,14 @@ tasks {
                 }
             }
 
+            if (!layoutFound) {
+                outputFile.delete()
+                throw IllegalStateException("The latest release of $repo has no layout.hbs")
+            }
+
             // Delete the zip file after extraction
             outputFile.delete()
-            println("Mail templates extracted successfully")
+            println("Mail layout extracted to ${File(mailDir, "layout.hbs").absolutePath}")
         }
     }
 

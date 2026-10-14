@@ -9,6 +9,7 @@ import com.panomc.platform.mail.template.MailTemplateContent
 import com.panomc.platform.mail.template.MailTemplateRegistry
 import com.panomc.platform.mail.template.MailTemplateService
 import com.panomc.platform.mail.template.VariantDefinition
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.json.schema.common.dsl.ObjectSchemaBuilder
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
@@ -77,6 +78,24 @@ class PanelMailTemplateSupport(
 
         fun invalid(fields: Map<String, String>, message: String?): InvalidFields =
             InvalidFields(fields, if (message == null) mapOf() else mapOf("message" to message))
+
+        /**
+         * The variables a preview renders with: the variant's [samples], each overridden by [overrides] (the preview
+         * window's own test data). Undeclared keys are kept; JSON objects and arrays become plain maps and lists.
+         */
+        fun previewVariables(samples: Map<String, Any?>, overrides: JsonObject?): Map<String, Any?> {
+            if (overrides == null || overrides.isEmpty) return samples
+
+            return LinkedHashMap(samples).apply {
+                overrides.forEach { (name, value) -> put(name, plain(value)) }
+            }
+        }
+
+        private fun plain(value: Any?): Any? = when (value) {
+            is JsonObject -> value.associateTo(LinkedHashMap<String, Any?>()) { (name, item) -> name to plain(item) }
+            is JsonArray -> value.map { plain(it) }
+            else -> value
+        }
 
         /** The panel's "template" object as a JSON schema; every field but `subject` and `body` is optional. */
         fun templateSchema(): ObjectSchemaBuilder = objectSchema()

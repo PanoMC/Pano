@@ -14,7 +14,10 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
-/** Renders an unsaved template with the variant's sample variables: `{ subject, html, text }`. */
+/**
+ * Renders an unsaved template with the variant's sample variables: `{ subject, html, text }`. An optional `variables`
+ * object (the preview window's test data) overrides the samples; keys the mail does not declare are kept.
+ */
 @Endpoint
 class PanelPreviewMailTemplateAPI(
     private val authProvider: AuthProvider,
@@ -24,7 +27,7 @@ class PanelPreviewMailTemplateAPI(
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
-            .body(json(draftSchema()))
+            .body(json(draftSchema().optionalProperty("variables", objectSchema())))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -45,7 +48,10 @@ class PanelPreviewMailTemplateAPI(
             val layout = if (content.mode == MailTemplateContent.Mode.FIELDS) support.service.layout(sqlClient) else null
 
             support.service.render(
-                content, layout, target.variant.sampleVariables(), support.previewSystemVariables(target.locale)
+                content,
+                layout,
+                PanelMailTemplateSupport.previewVariables(target.variant.sampleVariables(), body.getJsonObject("variables")),
+                support.previewSystemVariables(target.locale)
             )
         } catch (e: Exception) {
             throw PanelMailTemplateSupport.invalid(

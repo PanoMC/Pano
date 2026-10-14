@@ -212,7 +212,8 @@ the Bun runtime); set `init-ui = true` to serve any UI — required when develop
 - **Mail templates**: every mail is a `TemplateMail(owner, key, variant)` sent with `MailManager.sendTemplate` /
   `sendRequiredTemplate`. Texts are per-language files `mail-templates/<key>/<variant>/<locale>.hbs` (front-matter
   `subject`/`preheader`/`buttonLabel`/`buttonUrl`/`footer`/`mode`, then the body) declared in `mail-templates/index.json`
-  (core in `Pano/src/main/resources`, plugins in their own jar); `MailTemplateRegistry` collects them, `MailTemplateService`
+  (core in `Pano/src/main/resources`, plugins in their own jar; variable types `text|url|number|boolean|html`, plus `list` with
+  row `fields` and an array `sample` for `{{#each}}` tables); `MailTemplateRegistry` collects them, `MailTemplateService`
   resolves (DB override `mail_template` → bundled locale → language → en-US) and renders into the shared layout
   `mail/layout.hbs` (built by `pano-email`). Panel: `/mail-templates` endpoints, permission `ManageMailTemplatesPermission`.
   The legacy `Mail` + `sendMail` API is deprecated but kept binary compatible.

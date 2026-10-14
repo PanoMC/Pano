@@ -392,6 +392,7 @@ class MailTemplateService internal constructor(
         private val LINE_BREAKS = Regex("(?i)<br\\s*/?>")
         private val BLOCK_ENDS = Regex("(?i)</(p|div|h[1-6]|li|tr|table|blockquote|ul|ol)\\s*>")
         private val LIST_ITEMS = Regex("(?i)<li\\b[^>]*>")
+        private val CELL_ENDS = Regex("(?i)</t[dh]\\s*>")
         private val TAGS = Regex("<[^>]+>")
         private val ENTITIES = Regex("&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z]+);")
         private val NAMED_ENTITIES = mapOf(
@@ -399,7 +400,7 @@ class MailTemplateService internal constructor(
             "mdash" to "—", "ndash" to "–", "hellip" to "…", "copy" to "©", "laquo" to "«", "raquo" to "»"
         )
 
-        /** Tags stripped, `<br>` and block ends as line breaks, entities decoded, blank runs collapsed. */
+        /** Tags stripped, `<br>` and block ends (table rows too) as line breaks, table cells apart by a space, entities decoded, blank runs collapsed. */
         fun toPlainText(html: String): String {
             val text = html
                 .replace(DROPPED_BLOCKS, "")
@@ -408,6 +409,7 @@ class MailTemplateService internal constructor(
                 .replace(LINE_BREAKS, "\n")
                 .replace(LIST_ITEMS, "- ")
                 .replace(BLOCK_ENDS, "\n")
+                .replace(CELL_ENDS, " ")
                 .replace(TAGS, "")
                 .let { decodeEntities(it) }
 

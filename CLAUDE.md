@@ -209,6 +209,13 @@ the Bun runtime); set `init-ui = true` to serve any UI — required when develop
 - **SSL**: `AcmeManager` (Let's Encrypt/ACME via acme4j) or manual certs; HTTP→HTTPS redirect.
 - **Console**: JLine REPL + optional Swing GUI; commands are `CommandExecutor` beans registered by
   `CommandManager` (`command/impl`). `-bg` respawns detached with no terminal.
+- **Mail templates**: every mail is a `TemplateMail(owner, key, variant)` sent with `MailManager.sendTemplate` /
+  `sendRequiredTemplate`. Texts are per-language files `mail-templates/<key>/<variant>/<locale>.hbs` (front-matter
+  `subject`/`preheader`/`buttonLabel`/`buttonUrl`/`footer`/`mode`, then the body) declared in `mail-templates/index.json`
+  (core in `Pano/src/main/resources`, plugins in their own jar); `MailTemplateRegistry` collects them, `MailTemplateService`
+  resolves (DB override `mail_template` → bundled locale → language → en-US) and renders into the shared layout
+  `mail/layout.hbs` (built by `pano-email`). Panel: `/mail-templates` endpoints, permission `ManageMailTemplatesPermission`.
+  The legacy `Mail` + `sendMail` API is deprecated but kept binary compatible.
 - **Updater**: `:Updater` builds a tiny dependency-free jar, zipped and embedded into Pano's
   resources; `UpdateManager` drives self-update.
 

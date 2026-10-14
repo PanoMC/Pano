@@ -9,7 +9,7 @@ import com.panomc.platform.db.model.MailTemplate
 import com.panomc.platform.mail.MailOptions
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.context.annotation.Lazy
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.stereotype.Service
 import java.time.Year
 
@@ -32,10 +32,10 @@ class MailTemplateService internal constructor(
     private val defaultLayoutProvider: () -> String
 ) {
     @Autowired
-    constructor(registry: MailTemplateRegistry, @Lazy databaseManager: DatabaseManager) : this(
+    constructor(registry: MailTemplateRegistry, databaseManager: ObjectProvider<DatabaseManager>) : this(
         registry,
         { sqlClient, owner, key, variant, locale ->
-            sqlClient?.let { databaseManager.mailTemplateDao.get(owner, key, variant, locale, it) }
+            sqlClient?.let { databaseManager.getObject().mailTemplateDao.get(owner, key, variant, locale, it) }
         },
         { readLayoutResource() }
     )

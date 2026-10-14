@@ -207,6 +207,28 @@ class MailTemplateService internal constructor(
     }
 
     /**
+     * [content] as one complete HTML template, the starting point of the panel's advanced (HTML) mode: the layout with
+     * the field templates put into its slots as they are (their `{{variables}}` stay, so the result is still a
+     * template) and the system variables left as `{{name}}`. HTML mode content is returned as it is.
+     */
+    fun compose(content: MailTemplateContent, layout: Layout): String {
+        if (content.mode == MailTemplateContent.Mode.HTML) return content.body
+
+        val slots = HashMap<String, Any?>().apply {
+            listOf(SYSTEM_WEBSITE_NAME, SYSTEM_WEBSITE_URL, SYSTEM_WEBSITE_LOGO, SYSTEM_YEAR, SYSTEM_LOCALE)
+                .forEach { put(it, "{{$it}}") }
+            put(FIELD_SUBJECT, content.subject.trim())
+            put(MailTemplateContent.FIELD_PREHEADER, content.preheader.trim())
+            put(LAYOUT_CONTENT, content.body.trim())
+            put(MailTemplateContent.FIELD_BUTTON_LABEL, content.buttonLabel.trim().ifBlank { content.buttonUrl.trim() })
+            put(MailTemplateContent.FIELD_BUTTON_URL, content.buttonUrl.trim())
+            put(MailTemplateContent.FIELD_FOOTER, content.footer.trim())
+        }
+
+        return textHandlebars.compileInline(layout.body).apply(slots)
+    }
+
+    /**
      * Checks [content] the way the panel's save does: a subject that is not blank and at most 255 characters
      * after sanitising, and every field compiling and rendering with [sampleVariables].
      */

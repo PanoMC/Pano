@@ -52,11 +52,15 @@ class PanelGetMailTemplateAPI(
         val customized = current != null && current.customized && current.locale == target.locale
         val empty = MailTemplateContent(subject = "", body = "")
         val adminLocale = support.adminLocale(userId, sqlClient)
+        val layout = service.layout(sqlClient)
 
         return Successful(
             mapOf(
                 "template" to (current?.content ?: empty).toMap(),
                 "default" to (default?.content ?: empty).toMap(),
+                // The same two as one complete HTML template, for the advanced mode.
+                "templateHtml" to service.compose(current?.content ?: empty, layout),
+                "defaultHtml" to service.compose(default?.content ?: empty, layout),
                 "customized" to customized,
                 "defaultLocale" to default?.locale,
                 "variables" to target.variant.variables.map { it.toMap(adminLocale) }

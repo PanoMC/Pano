@@ -122,6 +122,54 @@ class MailTemplateServiceTest {
     }
 
     @Test
+    fun `compose puts the field templates into the layout and renders like fields mode`() {
+        val fields = MailTemplateContent(
+            subject = "{{websiteName}} — hi {{username}}",
+            preheader = "Pre {{username}}",
+            body = "<p>Hello <strong>{{username}}</strong></p>",
+            buttonLabel = "Open",
+            buttonUrl = "https://x.example/u/{{username}}",
+            footer = "Bye {{username}}"
+        )
+        val service = service(emptyMap())
+        val testLayout = MailTemplateService.Layout(layout, false, "test")
+
+        val composed = service.compose(fields, testLayout)
+
+        assertTrue(composed.contains("<title>{{websiteName}} — hi {{username}}</title>"), composed)
+        assertTrue(composed.contains("<main><p>Hello <strong>{{username}}</strong></p></main>"), composed)
+        assertTrue(composed.contains("lang=\"{{locale}}\""), composed)
+        assertFalse(composed.contains("{{#if"), composed)
+
+        val variables = mapOf("username" to "<Bob>")
+        val asFields = service.render(fields, testLayout, variables, system)
+        val asHtml = service.render(
+            MailTemplateContent(mode = MailTemplateContent.Mode.HTML, subject = fields.subject, body = composed),
+            null,
+            variables,
+            system
+        )
+
+        assertEquals(asFields.html, asHtml.html)
+        assertEquals(asFields.subject, asHtml.subject)
+    }
+
+    @Test
+    fun `compose leaves out empty optional blocks and returns html mode content as it is`() {
+        val service = service(emptyMap())
+        val testLayout = MailTemplateService.Layout(layout, false, "test")
+
+        val composed = service.compose(MailTemplateContent(subject = "S", body = "<p>b</p>"), testLayout)
+
+        assertFalse(composed.contains("<a "), composed)
+        assertFalse(composed.contains("<footer>"), composed)
+
+        val html = MailTemplateContent(mode = MailTemplateContent.Mode.HTML, subject = "S", body = "<html>x</html>")
+
+        assertEquals("<html>x</html>", service.compose(html, testLayout))
+    }
+
+    @Test
     fun `html mode renders the body alone, without the layout`() {
         val rendered = service(emptyMap()).render(
             MailTemplateContent(mode = MailTemplateContent.Mode.HTML, subject = "S", body = "<html><body>Hi {{username}}</body></html>"),

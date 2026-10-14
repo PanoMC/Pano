@@ -315,7 +315,7 @@ class FrontendUrlMapTest {
 
     @Test
     fun `the activation mail follows an override and a renamed route`() {
-        val mail = ActivationMail("tok", "u", "e@x", "123456")
+        val mail = ActivationMail("tok", "u", "e@x")
 
         assertEquals("https://site.example/activate?token=tok", mail.activationLink(mailParameters()))
 
@@ -332,7 +332,7 @@ class FrontendUrlMapTest {
     fun `the reset and change-email mails use their targets`() {
         inputs.mode = FrontendMode.NONE
 
-        assertEquals("https://pano.example/_pano/auth.renew-password?token=r", ResetPasswordMail("r", "1").resetLink(mailParameters()))
+        assertEquals("https://pano.example/_pano/auth.renew-password?token=r", ResetPasswordMail("r").resetLink(mailParameters()))
         assertEquals("https://pano.example/_pano/auth.activate-new-email?token=c", ChangeEmailMail("c", "u", "n@x").confirmationLink(mailParameters()))
     }
 
@@ -340,7 +340,7 @@ class FrontendUrlMapTest {
     fun `without a map a mail link is the old one`() {
         val plain = MailManager.Companion.SystemParameters("Site", "https://pano.example")
 
-        assertEquals("https://pano.example/activate?token=t", ActivationMail("t", "u", "e", "1").activationLink(plain))
+        assertEquals("https://pano.example/activate?token=t", ActivationMail("t", "u", "e").activationLink(plain))
     }
 }
 

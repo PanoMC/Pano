@@ -7,15 +7,13 @@ import com.panomc.platform.mail.TemplateMail
 class ActivationMail(
     private val token: String,
     private val username: String,
-    private val email: String,
-    private val activationCode: String
+    private val email: String
 ) : TemplateMail(OWNER, "activation") {
     override suspend fun variables(locale: String, system: MailManager.Companion.SystemParameters): Map<String, Any?> =
         mapOf(
             "username" to username,
             "email" to email,
             "activationLink" to activationLink(system),
-            "activationCode" to activationCode,
             "expiresInMinutes" to EXPIRES_IN_MINUTES
         )
 

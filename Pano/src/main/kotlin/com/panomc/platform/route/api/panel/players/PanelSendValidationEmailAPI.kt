@@ -79,7 +79,7 @@ class PanelSendValidationEmailAPI(
         tokenProvider.saveToken(token, playerId.toString(), ActivationTokenType, expireDate, sqlClient)
 
         // Strict: with e-mail off or Pano Mail refusing, the admin must not be told it was sent.
-        mailManager.sendRequiredTemplate(sqlClient, playerId, ActivationMail(token, user.username, user.email!!, ""), MailOptions(email = user.email))
+        mailManager.sendRequiredTemplate(sqlClient, playerId, ActivationMail(token, user.username, user.email!!), MailOptions(email = user.email))
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

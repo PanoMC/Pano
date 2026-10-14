@@ -152,7 +152,7 @@ class RegisterAPI(
             mailManager.sendTemplate(
                 sqlClient,
                 userId,
-                ActivationMail(linkActivationToken, user.username, email, "")
+                ActivationMail(linkActivationToken, user.username, email)
             )
 
             return Successful(
@@ -218,7 +218,7 @@ class RegisterAPI(
 
         tokenProvider.saveToken(tokenGenerated, userId.toString(), ActivationTokenType, expireDate, sqlClient)
 
-        mailManager.sendTemplate(sqlClient, userId, ActivationMail(tokenGenerated, username, email,""))
+        mailManager.sendTemplate(sqlClient, userId, ActivationMail(tokenGenerated, username, email))
 
         return Successful()
     }

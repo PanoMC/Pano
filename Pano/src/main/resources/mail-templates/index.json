@@ -52,16 +52,6 @@
               "sample": "https://example.com/activate?token=abc123"
             },
             {
-              "name": "activationCode",
-              "type": "text",
-              "label": {
-                "en-US": "Activation code",
-                "tr": "Etkinleştirme kodu",
-                "ru": "Код активации"
-              },
-              "sample": "ABC123"
-            },
-            {
               "name": "expiresInMinutes",
               "type": "number",
               "label": {
@@ -215,16 +205,6 @@
                 "ru": "Ссылка для сброса"
               },
               "sample": "https://example.com/renew-password?token=abc123"
-            },
-            {
-              "name": "resetCode",
-              "type": "text",
-              "label": {
-                "en-US": "Reset code",
-                "tr": "Sıfırlama kodu",
-                "ru": "Код сброса"
-              },
-              "sample": "XYZ789"
             },
             {
               "name": "expiresInMinutes",

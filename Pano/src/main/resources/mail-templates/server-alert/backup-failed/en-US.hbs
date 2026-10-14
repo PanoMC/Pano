@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Server alert: Backup failed
+preheader: A backup of "{{serverName}}" failed
+buttonLabel: Open in panel
+buttonUrl: {{link}}
+footer: You are receiving this e-mail because alert e-mails are turned on. You can turn them off in the panel's alert settings.
+---
+<h2>Backup failed</h2>
+<p>A backup of "{{serverName}}" failed.</p>
+{{#if error}}
+<p>Error: <code>{{error}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Server:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Node:</strong> {{nodeName}}<br>{{/if}}<strong>Occurred at:</strong> {{occurredAt}}</p>

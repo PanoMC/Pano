@@ -1,0 +1,10 @@
+---
+subject: {{websiteName}} — Server alert: Server is running slowly
+preheader: "{{serverName}}" is running at {{tps}} TPS
+buttonLabel: Open in panel
+buttonUrl: {{link}}
+footer: You are receiving this e-mail because alert e-mails are turned on. You can turn them off in the panel's alert settings.
+---
+<h2>Server is running slowly</h2>
+<p>"{{serverName}}" has been running at {{tps}} TPS.</p>
+<p>{{#if serverName}}<strong>Server:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Node:</strong> {{nodeName}}<br>{{/if}}<strong>Occurred at:</strong> {{occurredAt}}</p>

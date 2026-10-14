@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Sunucu uyarısı: Zamanlanmış görev başarısız oldu
+preheader: "{{scheduleName}}" zamanlanmış görevi başarısız oldu
+buttonLabel: Panelde aç
+buttonUrl: {{link}}
+footer: Bu e-postayı uyarı e-postaları açık olduğu için alıyorsun. Panelin uyarı ayarlarından kapatabilirsin.
+---
+<h2>Zamanlanmış görev başarısız oldu</h2>
+<p>"{{serverName}}" sunucusundaki "{{scheduleName}}" zamanlanmış görevi başarısız oldu.</p>
+{{#if error}}
+<p>Hata: <code>{{error}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Sunucu:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Düğüm:</strong> {{nodeName}}<br>{{/if}}<strong>Gerçekleşme zamanı:</strong> {{occurredAt}}</p>

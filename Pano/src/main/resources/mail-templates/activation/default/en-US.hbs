@@ -1,0 +1,14 @@
+---
+subject: {{websiteName}} — Activate your e-mail
+preheader: Confirm your e-mail address to finish signing up
+buttonLabel: Activate e-mail
+buttonUrl: {{activationLink}}
+footer: This link expires in {{expiresInMinutes}} minutes. If you didn't create an account, you can safely ignore this e-mail.
+---
+<h2>Activate your account</h2>
+<p>Hello <strong>{{username}}</strong>,</p>
+<p>Thanks for signing up! Click the button below to confirm <strong>{{email}}</strong> and activate your account.</p>
+{{#if activationCode}}
+<p>Or enter this activation code:</p>
+<p><code>{{activationCode}}</code></p>
+{{/if}}

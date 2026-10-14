@@ -13,6 +13,8 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.PanoMailConnectRequired
 import com.panomc.platform.error.PanoMailUnavailable
 import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.mail.template.MailTemplateContent
+import com.panomc.platform.mail.template.MailTemplateService
 import com.panomc.platform.model.Error
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.ImageCompressionUtil
@@ -42,7 +44,8 @@ class MailManager(
     private val vertx: Vertx,
     private val i18nManager: I18nManager,
     private val frontendUrlMap: FrontendUrlMap? = null,
-    private val panoMailService: PanoMailService? = null
+    private val panoMailService: PanoMailService? = null,
+    private val mailTemplateService: MailTemplateService? = null
 ) {
     // Handlebars instance for rendering mail templates
     private val handlebars by lazy { Handlebars() }
@@ -177,7 +180,9 @@ class MailManager(
      * Kept with its exact JVM signature (and its `$default` bridge): shipped plugins link against it.
      * Delegates to the [MailOptions] overload and ignores the result.
      */
+    @Deprecated("Use a TemplateMail with sendTemplate")
     suspend fun sendMail(sqlClient: SqlClient, userId: Long?, mail: Mail, email: String? = null) {
+        @Suppress("DEPRECATION")
         sendMail(sqlClient, userId, mail, MailOptions(email = email))
     }
 
@@ -188,8 +193,9 @@ class MailManager(
      * @throws IllegalArgumentException when the attachments violate the limits (before any SMTP work)
      * @return [MailResult.DISABLED] when e-mail is turned off, [MailResult.SENT] otherwise; SMTP failures throw
      */
+    @Deprecated("Use a TemplateMail with sendTemplate")
     suspend fun sendMail(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions): MailResult =
-        deliver(sqlClient, userId, mail, options, strict = false)
+        deliver(sqlClient, userId, options, strict = false) { locale, system -> legacyContent(mail, locale, system) }
 
     /**
      * [sendMail] for an action whose whole point is the e-mail (an admin sending one on purpose): a message that did not
@@ -200,11 +206,128 @@ class MailManager(
      * @throws PanoMailUnavailable when Pano Mail did not take the message (limit used up, paused, website unreachable);
      *   `extras.reason` says why
      */
+    @Deprecated("Use a TemplateMail with sendRequiredTemplate")
     suspend fun sendRequiredMail(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions) {
-        deliver(sqlClient, userId, mail, options, strict = true)
+        deliver(sqlClient, userId, options, strict = true) { locale, system -> legacyContent(mail, locale, system) }
     }
 
-    private suspend fun deliver(sqlClient: SqlClient, userId: Long?, mail: Mail, options: MailOptions, strict: Boolean): MailResult {
+    /**
+     * Sends [mail] rendered from its template in the recipient's language (`options.locale` > the user's locale >
+     * the site locale). Recipient: `options.email`, else the user's address. `options.subject` / `options.text`
+     * override the rendered subject / plain-text alternative.
+     *
+     * @throws IllegalArgumentException when the attachments violate the limits (before any SMTP work)
+     * @throws MailTemplateService.TemplateNotFoundException when the mail is not registered or has no template
+     * @return [MailResult.DISABLED] when e-mail is turned off, [MailResult.FAILED] when Pano Mail did not take it,
+     *   [MailResult.SENT] otherwise; SMTP failures throw
+     */
+    suspend fun sendTemplate(sqlClient: SqlClient, userId: Long?, mail: TemplateMail, options: MailOptions = MailOptions()): MailResult =
+        deliver(sqlClient, userId, options, strict = false) { locale, system -> templateContent(mail, null, locale, system, sqlClient) }
+
+    /**
+     * [sendTemplate] for an action whose whole point is the e-mail: a message that did not go out is an error.
+     *
+     * @throws MailDisabled when e-mail is turned off
+     * @throws PanoMailConnectRequired when Pano Mail is chosen and this Pano is not connected
+     * @throws PanoMailUnavailable when Pano Mail did not take the message; `extras.reason` says why
+     */
+    suspend fun sendRequiredTemplate(sqlClient: SqlClient, userId: Long?, mail: TemplateMail, options: MailOptions = MailOptions()) {
+        deliver(sqlClient, userId, options, strict = true) { locale, system -> templateContent(mail, null, locale, system, sqlClient) }
+    }
+
+    /** The panel's "send test": [draft] (unsaved) rendered with [mail]'s variables, strict. */
+    internal suspend fun sendRequiredDraft(
+        sqlClient: SqlClient,
+        userId: Long?,
+        mail: TemplateMail,
+        draft: MailTemplateContent,
+        options: MailOptions
+    ) {
+        deliver(sqlClient, userId, options, strict = true) { locale, system -> templateContent(mail, draft, locale, system, sqlClient) }
+    }
+
+    /** What one send puts into the message, decided once the recipient's locale is known. */
+    private class PreparedMail(val subject: String, val html: String, val text: String?)
+
+    fun systemParameters(): SystemParameters {
+        val config = configManager.config
+
+        return SystemParameters(
+            config.websiteName,
+            config.websiteUrl,
+            frontendUrlMap?.let { map -> { target, params -> map.url(target, params) } } ?: { _, _ -> null }
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private suspend fun legacyContent(mail: Mail, locale: String, system: SystemParameters): PreparedMail {
+        val config = configManager.config
+
+        val subject = MailOptions.resolveSubject(
+            null,
+            {
+                i18nManager.translate(
+                    mail.subjectTranslationType,
+                    locale,
+                    mail.subject,
+                    mapOf("websiteName" to config.websiteName)
+                )
+            },
+            config.websiteName
+        )
+
+        val mailParameters = mail.generateParameters(system, i18nManager, locale)
+
+        // Convert MailParameters to Map<String, Any> using JsonObject
+        val parameters = JsonObject(gson.toJson(mailParameters)).map.toMutableMap()
+
+        parameters["websiteUrl"] = config.websiteUrl
+        parameters["websiteLogo"] = MailTemplateService.LOGO_CID // Use Content-ID reference instead of URL
+        parameters["websiteName"] = config.websiteName
+
+        return PreparedMail(subject, mail.getTemplate(handlebars).apply(parameters), null)
+    }
+
+    private suspend fun templateContent(
+        mail: TemplateMail,
+        draft: MailTemplateContent?,
+        locale: String,
+        system: SystemParameters,
+        sqlClient: SqlClient
+    ): PreparedMail {
+        val service = mailTemplateService ?: throw IllegalStateException("Mail templates are not available")
+
+        val variables = mail.variables(locale, system)
+        val systemVariables = MailTemplateService.systemVariables(system.websiteName, system.websiteUrl, locale)
+
+        val rendered = try {
+            if (draft == null) {
+                service.renderForSend(mail.owner, mail.key, mail.variant, locale, variables, systemVariables, sqlClient)
+            } else {
+                val layout = if (draft.mode == MailTemplateContent.Mode.FIELDS) service.layout(sqlClient) else null
+
+                service.render(draft, layout, variables, systemVariables)
+            }
+        } catch (e: MailTemplateService.TemplateNotFoundException) {
+            logger.error("Could not send mail ${mail.owner}/${mail.key}/${mail.variant}: ${e.message}")
+
+            throw e
+        }
+
+        return PreparedMail(rendered.subject, rendered.html, rendered.text)
+    }
+
+    /**
+     * Shared by every send: recipient and locale resolution, the inline logo, attachments, and SMTP or Pano Mail.
+     * [prepare] renders subject / HTML / text for the resolved locale.
+     */
+    private suspend fun deliver(
+        sqlClient: SqlClient,
+        userId: Long?,
+        options: MailOptions,
+        strict: Boolean,
+        prepare: suspend (locale: String, system: SystemParameters) -> PreparedMail
+    ): MailResult {
         val config = configManager.config
         val emailConfig = config.email
 
@@ -222,106 +345,22 @@ class MailManager(
             ?: throw NotExists()
         val locale = MailOptions.resolveLocale(options.locale, user?.localeCode, config.locale)
 
+        val prepared = prepare(locale, systemParameters())
+
         val message = MailMessage()
 
         message.from = emailConfig.sender
-        message.subject = MailOptions.resolveSubject(
-            options.subject,
-            {
-                i18nManager.translate(
-                    mail.subjectTranslationType,
-                    locale,
-                    mail.subject,
-                    mapOf("websiteName" to config.websiteName)
-                )
-            },
-            config.websiteName
-        )
+        message.subject = MailOptions.sanitizeSubject(options.subject) ?: prepared.subject
         message.setTo(emailAddress)
 
         MailOptions.sanitizeReplyTo(options.replyTo)?.let { message.addHeader("Reply-To", it) }
 
-        val mailParameters =
-            mail.generateParameters(
-                SystemParameters(
-                    config.websiteName,
-                    config.websiteUrl,
-                    frontendUrlMap?.let { map -> { target, params -> map.url(target, params) } }
-                        ?: { _, _ -> null }
-                ),
-                i18nManager,
-                locale
-            )
-
-        // Setup cache directory
-        val cacheDir = File(config.fileUploadsFolder + File.separator + CACHE_FOLDER_NAME)
-
-        // Load logo file for attachment
-        val (logoData, logoMimeType) = if (config.filePaths.websiteLogoFile == null) {
-            // Use default logo
-            val logoStream = systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!
-            val logoBytes = logoStream.readBytes()
-            logoStream.close()
-            val mimeType = MimeTypeUtil.getMimeTypeFromFileName(DEFAULT_WEBSITE_LOGO_FILE)
-            
-            // Calculate hash and get cached/compressed version
-            val logoHash = logoBytes.inputStream().use { it.hash() }
-            val (cachedBytes, finalMimeType) = getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
-            Buffer.buffer(cachedBytes) to finalMimeType
-        } else {
-            // Use custom logo
-            val logoFile = config.filePaths.websiteLogoFile!!
-            val path = config.fileUploadsFolder + File.separator + logoFile.path
-            val file = File(path)
-            
-            if (!file.exists()) {
-                // Fallback to default if custom logo doesn't exist
-                val logoStream = systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!
-                val logoBytes = logoStream.readBytes()
-                logoStream.close()
-                val mimeType = MimeTypeUtil.getMimeTypeFromFileName(DEFAULT_WEBSITE_LOGO_FILE)
-                
-                // Calculate hash and get cached/compressed version
-                val logoHash = logoBytes.inputStream().use { it.hash() }
-                val (cachedBytes, finalMimeType) = getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
-                Buffer.buffer(cachedBytes) to finalMimeType
-            } else {
-                val logoBytes = file.readBytes()
-                val mimeType = MimeTypeUtil.getMimeTypeFromFileName(path)
-                
-                // Use hash from config if available, otherwise calculate
-                val logoHash = logoFile.hash.ifEmpty { 
-                    logoBytes.inputStream().use { it.hash() }
-                }
-                
-                // Get cached/compressed version
-                val (cachedBytes, finalMimeType) = getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
-                Buffer.buffer(cachedBytes) to finalMimeType
-            }
-        }
-
         // Add logo as inline attachment with Content-ID "logo"
-        val logoAttachment = MailAttachment.create()
-            .setData(logoData)
-            .setName("logo")
-            .setContentType(logoMimeType)
-            .setDisposition("inline")
-            .setContentId("<logo>")
-        
-        message.inlineAttachment = listOf(logoAttachment)
+        message.inlineAttachment = listOf(logoAttachment())
 
-        // Convert MailParameters to Map<String, Any> using JsonObject
-        val jsonObject = JsonObject(gson.toJson(mailParameters))
-        val parameters = jsonObject.map.toMutableMap()
+        message.html = prepared.html
 
-        parameters["websiteUrl"] = config.websiteUrl
-        parameters["websiteLogo"] = "cid:logo" // Use Content-ID reference instead of URL
-        parameters["websiteName"] = config.websiteName
-
-        val template = mail.getTemplate(handlebars)
-        message.html = template.apply(parameters)
-
-        MailOptions.sanitizeText(options.text)?.let { message.text = it }
+        (MailOptions.sanitizeText(options.text) ?: MailOptions.sanitizeText(prepared.text))?.let { message.text = it }
 
         if (attachments.isNotEmpty()) {
             message.attachment = attachments.map {
@@ -348,6 +387,54 @@ class MailManager(
         }
 
         return MailResult.SENT
+    }
+
+    /** The website logo (or the default one), compressed and cached, as the `cid:logo` inline attachment. */
+    private fun logoAttachment(): MailAttachment {
+        val config = configManager.config
+        val cacheDir = File(config.fileUploadsFolder + File.separator + CACHE_FOLDER_NAME)
+
+        fun defaultLogo(): Pair<Buffer, String> {
+            val logoBytes = systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!.use { it.readBytes() }
+            val mimeType = MimeTypeUtil.getMimeTypeFromFileName(DEFAULT_WEBSITE_LOGO_FILE)
+
+            // Calculate hash and get cached/compressed version
+            val logoHash = logoBytes.inputStream().use { it.hash() }
+            val (cachedBytes, finalMimeType) = getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
+
+            return Buffer.buffer(cachedBytes) to finalMimeType
+        }
+
+        val logoFile = config.filePaths.websiteLogoFile
+
+        val (logoData, logoMimeType) = if (logoFile == null) {
+            defaultLogo()
+        } else {
+            val path = config.fileUploadsFolder + File.separator + logoFile.path
+            val file = File(path)
+
+            if (!file.exists()) {
+                // Fallback to default if custom logo doesn't exist
+                defaultLogo()
+            } else {
+                val logoBytes = file.readBytes()
+                val mimeType = MimeTypeUtil.getMimeTypeFromFileName(path)
+
+                // Use hash from config if available, otherwise calculate
+                val logoHash = logoFile.hash.ifEmpty { logoBytes.inputStream().use { it.hash() } }
+
+                val (cachedBytes, finalMimeType) = getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
+
+                Buffer.buffer(cachedBytes) to finalMimeType
+            }
+        }
+
+        return MailAttachment.create()
+            .setData(logoData)
+            .setName("logo")
+            .setContentType(logoMimeType)
+            .setDisposition("inline")
+            .setContentId("<logo>")
     }
 
     /**

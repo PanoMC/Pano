@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Оповещение сервера: Резервное копирование не удалось
+preheader: Не удалось создать резервную копию «{{serverName}}»
+buttonLabel: Открыть в панели
+buttonUrl: {{link}}
+footer: Вы получили это письмо, потому что включены письма об оповещениях. Отключить их можно в настройках оповещений панели.
+---
+<h2>Резервное копирование не удалось</h2>
+<p>Не удалось создать резервную копию сервера «{{serverName}}».</p>
+{{#if error}}
+<p>Ошибка: <code>{{error}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Сервер:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Узел:</strong> {{nodeName}}<br>{{/if}}<strong>Время события:</strong> {{occurredAt}}</p>

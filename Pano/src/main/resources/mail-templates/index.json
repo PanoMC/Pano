@@ -1,0 +1,744 @@
+{
+  "mails": [
+    {
+      "key": "activation",
+      "name": {
+        "en-US": "Account activation",
+        "tr": "Hesap etkinleştirme",
+        "ru": "Активация аккаунта"
+      },
+      "description": {
+        "en-US": "Sent after registration so the user confirms their e-mail address.",
+        "tr": "Kayıttan sonra kullanıcının e-posta adresini doğrulaması için gönderilir.",
+        "ru": "Отправляется после регистрации, чтобы пользователь подтвердил адрес почты."
+      },
+      "variants": [
+        {
+          "key": "default",
+          "name": {
+            "en-US": "Default",
+            "tr": "Varsayılan",
+            "ru": "По умолчанию"
+          },
+          "variables": [
+            {
+              "name": "username",
+              "type": "text",
+              "label": {
+                "en-US": "Username",
+                "tr": "Kullanıcı adı",
+                "ru": "Имя пользователя"
+              },
+              "sample": "Steve"
+            },
+            {
+              "name": "email",
+              "type": "text",
+              "label": {
+                "en-US": "E-mail address",
+                "tr": "E-posta adresi",
+                "ru": "Адрес почты"
+              },
+              "sample": "steve@example.com"
+            },
+            {
+              "name": "activationLink",
+              "type": "url",
+              "label": {
+                "en-US": "Activation link",
+                "tr": "Etkinleştirme bağlantısı",
+                "ru": "Ссылка активации"
+              },
+              "sample": "https://example.com/activate?token=abc123"
+            },
+            {
+              "name": "activationCode",
+              "type": "text",
+              "label": {
+                "en-US": "Activation code",
+                "tr": "Etkinleştirme kodu",
+                "ru": "Код активации"
+              },
+              "sample": "ABC123"
+            },
+            {
+              "name": "expiresInMinutes",
+              "type": "number",
+              "label": {
+                "en-US": "Expires in (minutes)",
+                "tr": "Geçerlilik süresi (dakika)",
+                "ru": "Срок действия (мин.)"
+              },
+              "sample": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "change-email",
+      "name": {
+        "en-US": "E-mail change",
+        "tr": "E-posta değişikliği",
+        "ru": "Смена почты"
+      },
+      "description": {
+        "en-US": "Sent to the new address when a user changes their e-mail address.",
+        "tr": "Kullanıcı e-posta adresini değiştirdiğinde yeni adrese gönderilir.",
+        "ru": "Отправляется на новый адрес, когда пользователь меняет почту."
+      },
+      "variants": [
+        {
+          "key": "default",
+          "name": {
+            "en-US": "Default",
+            "tr": "Varsayılan",
+            "ru": "По умолчанию"
+          },
+          "variables": [
+            {
+              "name": "username",
+              "type": "text",
+              "label": {
+                "en-US": "Username",
+                "tr": "Kullanıcı adı",
+                "ru": "Имя пользователя"
+              },
+              "sample": "Steve"
+            },
+            {
+              "name": "newEmail",
+              "type": "text",
+              "label": {
+                "en-US": "New e-mail address",
+                "tr": "Yeni e-posta adresi",
+                "ru": "Новый адрес почты"
+              },
+              "sample": "steve.new@example.com"
+            },
+            {
+              "name": "confirmationLink",
+              "type": "url",
+              "label": {
+                "en-US": "Confirmation link",
+                "tr": "Onay bağlantısı",
+                "ru": "Ссылка подтверждения"
+              },
+              "sample": "https://example.com/activate-new-email?token=abc123"
+            },
+            {
+              "name": "expiresInMinutes",
+              "type": "number",
+              "label": {
+                "en-US": "Expires in (minutes)",
+                "tr": "Geçerlilik süresi (dakika)",
+                "ru": "Срок действия (мин.)"
+              },
+              "sample": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "password-updated",
+      "name": {
+        "en-US": "Password changed",
+        "tr": "Şifre değişti",
+        "ru": "Пароль изменён"
+      },
+      "description": {
+        "en-US": "Sent after a user's password was changed.",
+        "tr": "Kullanıcının şifresi değiştirildikten sonra gönderilir.",
+        "ru": "Отправляется после смены пароля пользователя."
+      },
+      "variants": [
+        {
+          "key": "default",
+          "name": {
+            "en-US": "Default",
+            "tr": "Varsayılan",
+            "ru": "По умолчанию"
+          },
+          "variables": [
+            {
+              "name": "username",
+              "type": "text",
+              "label": {
+                "en-US": "Username",
+                "tr": "Kullanıcı adı",
+                "ru": "Имя пользователя"
+              },
+              "sample": "Steve"
+            },
+            {
+              "name": "loginLink",
+              "type": "url",
+              "label": {
+                "en-US": "Login link",
+                "tr": "Giriş bağlantısı",
+                "ru": "Ссылка для входа"
+              },
+              "sample": "https://example.com/login"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "reset-password",
+      "name": {
+        "en-US": "Password reset",
+        "tr": "Şifre sıfırlama",
+        "ru": "Сброс пароля"
+      },
+      "description": {
+        "en-US": "Sent when a user asks to reset a forgotten password.",
+        "tr": "Kullanıcı unuttuğu şifreyi sıfırlamak istediğinde gönderilir.",
+        "ru": "Отправляется, когда пользователь запрашивает сброс забытого пароля."
+      },
+      "variants": [
+        {
+          "key": "default",
+          "name": {
+            "en-US": "Default",
+            "tr": "Varsayılan",
+            "ru": "По умолчанию"
+          },
+          "variables": [
+            {
+              "name": "resetLink",
+              "type": "url",
+              "label": {
+                "en-US": "Reset link",
+                "tr": "Sıfırlama bağlantısı",
+                "ru": "Ссылка для сброса"
+              },
+              "sample": "https://example.com/renew-password?token=abc123"
+            },
+            {
+              "name": "resetCode",
+              "type": "text",
+              "label": {
+                "en-US": "Reset code",
+                "tr": "Sıfırlama kodu",
+                "ru": "Код сброса"
+              },
+              "sample": "XYZ789"
+            },
+            {
+              "name": "expiresInMinutes",
+              "type": "number",
+              "label": {
+                "en-US": "Expires in (minutes)",
+                "tr": "Geçerlilik süresi (dakika)",
+                "ru": "Срок действия (мин.)"
+              },
+              "sample": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "banned",
+      "name": {
+        "en-US": "Account banned",
+        "tr": "Hesap yasaklandı",
+        "ru": "Аккаунт заблокирован"
+      },
+      "description": {
+        "en-US": "Sent to a player whose account was banned.",
+        "tr": "Hesabı yasaklanan oyuncuya gönderilir.",
+        "ru": "Отправляется игроку, чей аккаунт заблокирован."
+      },
+      "variants": [
+        {
+          "key": "default",
+          "name": {
+            "en-US": "Default",
+            "tr": "Varsayılan",
+            "ru": "По умолчанию"
+          },
+          "variables": [
+            {
+              "name": "username",
+              "type": "text",
+              "label": {
+                "en-US": "Username",
+                "tr": "Kullanıcı adı",
+                "ru": "Имя пользователя"
+              },
+              "sample": "Steve"
+            },
+            {
+              "name": "reason",
+              "type": "text",
+              "label": {
+                "en-US": "Reason",
+                "tr": "Sebep",
+                "ru": "Причина"
+              },
+              "sample": "Griefing"
+            },
+            {
+              "name": "bannedUntil",
+              "type": "text",
+              "label": {
+                "en-US": "Banned until",
+                "tr": "Yasak bitişi",
+                "ru": "Блокировка до"
+              },
+              "sample": "31/12/2026 18:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "server-alert",
+      "name": {
+        "en-US": "Server alert",
+        "tr": "Sunucu uyarısı",
+        "ru": "Оповещение сервера"
+      },
+      "description": {
+        "en-US": "Sent to admins when an alert with e-mail turned on is raised. One variant per alert kind.",
+        "tr": "E-postası açık bir uyarı oluştuğunda yöneticilere gönderilir. Her uyarı türünün kendi varyantı vardır.",
+        "ru": "Отправляется администраторам при оповещении с включённой почтой. Свой вариант для каждого типа оповещения."
+      },
+      "variants": [
+        {
+          "key": "server-crashed",
+          "name": {
+            "en-US": "Server crashed",
+            "tr": "Sunucu çöktü",
+            "ru": "Сервер упал"
+          },
+          "variables": [
+            {
+              "name": "serverName",
+              "type": "text",
+              "label": {
+                "en-US": "Server name",
+                "tr": "Sunucu adı",
+                "ru": "Имя сервера"
+              },
+              "sample": "Lobby"
+            },
+            {
+              "name": "exitCode",
+              "type": "number",
+              "label": {
+                "en-US": "Exit code",
+                "tr": "Çıkış kodu",
+                "ru": "Код выхода"
+              },
+              "sample": "1"
+            },
+            {
+              "name": "reason",
+              "type": "text",
+              "label": {
+                "en-US": "Last console line",
+                "tr": "Son konsol satırı",
+                "ru": "Последняя строка консоли"
+              },
+              "sample": "java.lang.OutOfMemoryError: Java heap space"
+            },
+            {
+              "name": "nodeName",
+              "type": "text",
+              "label": {
+                "en-US": "Node name",
+                "tr": "Düğüm adı",
+                "ru": "Имя узла"
+              },
+              "sample": "eu-west-1"
+            },
+            {
+              "name": "occurredAt",
+              "type": "text",
+              "label": {
+                "en-US": "Occurred at",
+                "tr": "Gerçekleşme zamanı",
+                "ru": "Время события"
+              },
+              "sample": "14/10/2026 21:30"
+            },
+            {
+              "name": "link",
+              "type": "url",
+              "label": {
+                "en-US": "Panel link",
+                "tr": "Panel bağlantısı",
+                "ru": "Ссылка на панель"
+              },
+              "sample": "https://example.com/panel/servers/1"
+            }
+          ]
+        },
+        {
+          "key": "node-offline",
+          "name": {
+            "en-US": "Node offline",
+            "tr": "Düğüm çevrimdışı",
+            "ru": "Узел отключился"
+          },
+          "variables": [
+            {
+              "name": "nodeName",
+              "type": "text",
+              "label": {
+                "en-US": "Node name",
+                "tr": "Düğüm adı",
+                "ru": "Имя узла"
+              },
+              "sample": "eu-west-1"
+            },
+            {
+              "name": "serverCount",
+              "type": "number",
+              "label": {
+                "en-US": "Unreachable servers",
+                "tr": "Ulaşılamayan sunucu sayısı",
+                "ru": "Недоступных серверов"
+              },
+              "sample": 3
+            },
+            {
+              "name": "occurredAt",
+              "type": "text",
+              "label": {
+                "en-US": "Occurred at",
+                "tr": "Gerçekleşme zamanı",
+                "ru": "Время события"
+              },
+              "sample": "14/10/2026 21:30"
+            },
+            {
+              "name": "link",
+              "type": "url",
+              "label": {
+                "en-US": "Panel link",
+                "tr": "Panel bağlantısı",
+                "ru": "Ссылка на панель"
+              },
+              "sample": "https://example.com/panel/servers/1"
+            }
+          ]
+        },
+        {
+          "key": "backup-failed",
+          "name": {
+            "en-US": "Backup failed",
+            "tr": "Yedekleme başarısız",
+            "ru": "Сбой резервного копирования"
+          },
+          "variables": [
+            {
+              "name": "serverName",
+              "type": "text",
+              "label": {
+                "en-US": "Server name",
+                "tr": "Sunucu adı",
+                "ru": "Имя сервера"
+              },
+              "sample": "Lobby"
+            },
+            {
+              "name": "error",
+              "type": "text",
+              "label": {
+                "en-US": "Error",
+                "tr": "Hata",
+                "ru": "Ошибка"
+              },
+              "sample": "no space left on device"
+            },
+            {
+              "name": "nodeName",
+              "type": "text",
+              "label": {
+                "en-US": "Node name",
+                "tr": "Düğüm adı",
+                "ru": "Имя узла"
+              },
+              "sample": "eu-west-1"
+            },
+            {
+              "name": "occurredAt",
+              "type": "text",
+              "label": {
+                "en-US": "Occurred at",
+                "tr": "Gerçekleşme zamanı",
+                "ru": "Время события"
+              },
+              "sample": "14/10/2026 21:30"
+            },
+            {
+              "name": "link",
+              "type": "url",
+              "label": {
+                "en-US": "Panel link",
+                "tr": "Panel bağlantısı",
+                "ru": "Ссылка на панель"
+              },
+              "sample": "https://example.com/panel/servers/1"
+            }
+          ]
+        },
+        {
+          "key": "disk-low",
+          "name": {
+            "en-US": "Low disk space",
+            "tr": "Disk alanı az",
+            "ru": "Мало места на диске"
+          },
+          "variables": [
+            {
+              "name": "nodeName",
+              "type": "text",
+              "label": {
+                "en-US": "Node name",
+                "tr": "Düğüm adı",
+                "ru": "Имя узла"
+              },
+              "sample": "eu-west-1"
+            },
+            {
+              "name": "percent",
+              "type": "number",
+              "label": {
+                "en-US": "Disk usage (%)",
+                "tr": "Disk kullanımı (%)",
+                "ru": "Заполнение диска (%)"
+              },
+              "sample": 93
+            },
+            {
+              "name": "occurredAt",
+              "type": "text",
+              "label": {
+                "en-US": "Occurred at",
+                "tr": "Gerçekleşme zamanı",
+                "ru": "Время события"
+              },
+              "sample": "14/10/2026 21:30"
+            },
+            {
+              "name": "link",
+              "type": "url",
+              "label": {
+                "en-US": "Panel link",
+                "tr": "Panel bağlantısı",
+                "ru": "Ссылка на панель"
+              },
+              "sample": "https://example.com/panel/servers/1"
+            }
+          ]
+        },
+        {
+          "key": "tps-low",
+          "name": {
+            "en-US": "Low TPS",
+            "tr": "Düşük TPS",
+            "ru": "Низкий TPS"
+          },
+          "variables": [
+            {
+              "name": "serverName",
+              "type": "text",
+              "label": {
+                "en-US": "Server name",
+                "tr": "Sunucu adı",
+                "ru": "Имя сервера"
+              },
+              "sample": "Lobby"
+            },
+            {
+              "name": "tps",
+              "type": "text",
+              "label": {
+                "en-US": "TPS",
+                "tr": "TPS",
+                "ru": "TPS"
+              },
+              "sample": "8.4"
+            },
+            {
+              "name": "nodeName",
+              "type": "text",
+              "label": {
+                "en-US": "Node name",
+                "tr": "Düğüm adı",
+                "ru": "Имя узла"
+              },
+              "sample": "eu-west-1"
+            },
+            {
+              "name": "occurredAt",
+              "type": "text",
+              "label": {
+                "en-US": "Occurred at",
+                "tr": "Gerçekleşme zamanı",
+                "ru": "Время события"
+              },
+              "sample": "14/10/2026 21:30"
+            },
+            {
+              "name": "link",
+              "type": "url",
+              "label": {
+                "en-US": "Panel link",
+                "tr": "Panel bağlantısı",
+                "ru": "Ссылка на панель"
+              },
+              "sample": "https://example.com/panel/servers/1"
+            }
+          ]
+        },
+        {
+          "key": "schedule-failed",
+          "name": {
+            "en-US": "Schedule failed",
+            "tr": "Zamanlanmış görev başarısız",
+            "ru": "Сбой задачи по расписанию"
+          },
+          "variables": [
+            {
+              "name": "serverName",
+              "type": "text",
+              "label": {
+                "en-US": "Server name",
+                "tr": "Sunucu adı",
+                "ru": "Имя сервера"
+              },
+              "sample": "Lobby"
+            },
+            {
+              "name": "scheduleName",
+              "type": "text",
+              "label": {
+                "en-US": "Schedule name",
+                "tr": "Zamanlanmış görev adı",
+                "ru": "Имя задачи"
+              },
+              "sample": "Nightly restart"
+            },
+            {
+              "name": "error",
+              "type": "text",
+              "label": {
+                "en-US": "Error",
+                "tr": "Hata",
+                "ru": "Ошибка"
+              },
+              "sample": "no space left on device"
+            },
+            {
+              "name": "nodeName",
+              "type": "text",
+              "label": {
+                "en-US": "Node name",
+                "tr": "Düğüm adı",
+                "ru": "Имя узла"
+              },
+              "sample": "eu-west-1"
+            },
+            {
+              "name": "occurredAt",
+              "type": "text",
+              "label": {
+                "en-US": "Occurred at",
+                "tr": "Gerçekleşme zamanı",
+                "ru": "Время события"
+              },
+              "sample": "14/10/2026 21:30"
+            },
+            {
+              "name": "link",
+              "type": "url",
+              "label": {
+                "en-US": "Panel link",
+                "tr": "Panel bağlantısı",
+                "ru": "Ссылка на панель"
+              },
+              "sample": "https://example.com/panel/servers/1"
+            }
+          ]
+        },
+        {
+          "key": "plugin-updates",
+          "name": {
+            "en-US": "Plugin updates",
+            "tr": "Eklenti güncellemeleri",
+            "ru": "Обновления плагинов"
+          },
+          "variables": [
+            {
+              "name": "serverName",
+              "type": "text",
+              "label": {
+                "en-US": "Server name",
+                "tr": "Sunucu adı",
+                "ru": "Имя сервера"
+              },
+              "sample": "Lobby"
+            },
+            {
+              "name": "count",
+              "type": "number",
+              "label": {
+                "en-US": "Plugin count",
+                "tr": "Eklenti sayısı",
+                "ru": "Количество плагинов"
+              },
+              "sample": 3
+            },
+            {
+              "name": "names",
+              "type": "text",
+              "label": {
+                "en-US": "Plugin names",
+                "tr": "Eklenti adları",
+                "ru": "Имена плагинов"
+              },
+              "sample": "EssentialsX, WorldEdit, LuckPerms"
+            },
+            {
+              "name": "nodeName",
+              "type": "text",
+              "label": {
+                "en-US": "Node name",
+                "tr": "Düğüm adı",
+                "ru": "Имя узла"
+              },
+              "sample": "eu-west-1"
+            },
+            {
+              "name": "occurredAt",
+              "type": "text",
+              "label": {
+                "en-US": "Occurred at",
+                "tr": "Gerçekleşme zamanı",
+                "ru": "Время события"
+              },
+              "sample": "14/10/2026 21:30"
+            },
+            {
+              "name": "link",
+              "type": "url",
+              "label": {
+                "en-US": "Panel link",
+                "tr": "Panel bağlantısı",
+                "ru": "Ссылка на панель"
+              },
+              "sample": "https://example.com/panel/servers/1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

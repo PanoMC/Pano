@@ -16,7 +16,8 @@ import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaRepository
 
 /**
- * Sends an unsaved template, rendered with the variant's sample variables, to the admin's own address. Strict:
+ * Sends an unsaved template (with an optional unsaved `layout` choice), rendered with the variant's sample variables,
+ * to the admin's own address. Strict:
  * `MAIL_DISABLED`, `PANO_MAIL_UNAVAILABLE` and `PANO_MAIL_CONNECT_REQUIRED` surface as errors.
  */
 @Endpoint
@@ -47,6 +48,8 @@ class PanelSendTestMailTemplateAPI(
 
         support.requireValid(content, target, templateErrorsOnly = true)
 
+        val layout = support.requireLayoutChoice(body.getString("layout"), sqlClient)
+
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val email = databaseManager.userDao.getById(userId, sqlClient)?.email?.takeIf { it.isNotBlank() }
             ?: throw NotExists()
@@ -56,7 +59,8 @@ class PanelSendTestMailTemplateAPI(
             userId,
             TemplateMail.of(target.owner, target.mail.key, target.variant.key, target.variant.sampleVariables()),
             content,
-            MailOptions(email = email, locale = target.locale)
+            MailOptions(email = email, locale = target.locale),
+            layout
         )
 
         return Successful(mapOf("email" to email))

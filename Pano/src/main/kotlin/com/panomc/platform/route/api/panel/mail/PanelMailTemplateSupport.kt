@@ -7,6 +7,7 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.template.MailDefinition
 import com.panomc.platform.mail.template.MailTemplateContent
+import com.panomc.platform.mail.template.MailTemplateIndex
 import com.panomc.platform.mail.template.MailTemplateRegistry
 import com.panomc.platform.mail.template.MailTemplateService
 import com.panomc.platform.mail.template.VariantDefinition
@@ -83,6 +84,78 @@ class PanelMailTemplateSupport(
 
         if (fields.isNotEmpty()) throw invalid(fields, result.message)
     }
+
+    /**
+     * The mails that use each layout (`layoutId` to `{ owner, key, name }` in [locale]), from their effective
+     * layouts; `none` is left out.
+     */
+    suspend fun layoutUsage(locale: String, sqlClient: SqlClient): Map<String, List<Map<String, Any?>>> {
+        val effective = service.effectiveLayouts(sqlClient)
+
+        return registry.owners().flatMap { owner ->
+            owner.index.mails.mapNotNull { mail ->
+                val layout = effective[owner.id to mail.key] ?: return@mapNotNull null
+
+                layout to mailRef(owner.id, mail, locale)
+            }
+        }.filter { it.first != MailTemplateIndex.NO_LAYOUT }.groupBy({ it.first }, { it.second })
+    }
+
+    fun mailRef(owner: String, mail: MailDefinition, locale: String): Map<String, Any?> = mapOf(
+        "owner" to owner,
+        "key" to mail.key,
+        "name" to MailTemplateIndex.localized(mail.name, locale, mail.key)
+    )
+
+    /** One layout as the list shows it. */
+    fun layoutSummary(info: MailTemplateService.LayoutInfo, locale: String, usedBy: List<Map<String, Any?>>): Map<String, Any?> =
+        linkedMapOf(
+            "id" to info.id,
+            "owner" to info.owner,
+            "pluginId" to info.pluginId,
+            "pluginName" to info.pluginName,
+            "key" to info.key,
+            "name" to info.name(locale),
+            "builtIn" to info.builtIn,
+            "customized" to info.customized,
+            "deletable" to info.deletable,
+            "usedBy" to usedBy
+        )
+
+    /**
+     * One layout with its body, what the layout editor loads.
+     *
+     * @throws NotExists for an unknown layout
+     */
+    suspend fun layoutDetails(id: String, userId: Long, sqlClient: SqlClient): Map<String, Any?> {
+        val info = service.layoutInfo(id, sqlClient) ?: throw NotExists()
+        val layout = service.layout(id, sqlClient) ?: throw NotExists()
+        val locale = adminLocale(userId, sqlClient)
+
+        return layoutSummary(info, locale, layoutUsage(locale, sqlClient)[id].orEmpty()) + mapOf(
+            "body" to layout.body,
+            "default" to service.bundledLayout(id),
+            "websiteLogo" to previewLogo(),
+            "websiteName" to websiteName
+        )
+    }
+
+    /**
+     * A layout choice sent by the panel: `none` or an existing layout id; null stays null.
+     *
+     * @throws InvalidFields `{ layout: "NOT_EXISTS" }` otherwise
+     */
+    suspend fun requireLayoutChoice(value: String?, sqlClient: SqlClient): String? {
+        if (value == null || value == MailTemplateIndex.NO_LAYOUT) return value
+
+        if (service.layout(value, sqlClient) == null) throw InvalidFields(mapOf("layout" to "NOT_EXISTS"))
+
+        return value
+    }
+
+    /** The display name of a layout for activity logs: in the configured language. */
+    suspend fun layoutName(id: String, sqlClient: SqlClient): String =
+        service.layoutInfo(id, sqlClient)?.name(configManager.config.locale) ?: id
 
     companion object {
         const val PREVIEW_LOGO = "/api/v1/website-logo"

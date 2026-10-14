@@ -4,12 +4,14 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageMailTemplatesPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.model.MailTemplate
 import com.panomc.platform.mail.template.MailTemplateIndex
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 
-/** Every mail of core and the started plugins, their variants and variables, and which languages are customised. */
+/**
+ * Every mail of core and the started plugins (variants, variables, customised languages, layout), every layout and
+ * the mails that use it.
+ */
 @Endpoint
 class PanelGetMailTemplatesAPI(
     private val authProvider: AuthProvider,
@@ -28,9 +30,9 @@ class PanelGetMailTemplatesAPI(
         val keys = databaseManager.mailTemplateDao.getAllKeys(sqlClient)
         val customized = keys.groupBy({ Triple(it.owner, it.mailKey, it.variant) }, { it.localeCode })
 
-        val layoutCustomized = keys.any {
-            it.owner == MailTemplate.LAYOUT_OWNER && it.mailKey == MailTemplate.LAYOUT_KEY
-        }
+        val layouts = support.service.layouts(sqlClient)
+        val effective = support.service.effectiveLayouts(sqlClient)
+        val usage = support.layoutUsage(locale, sqlClient)
 
         val items = support.registry.owners().flatMap { owner ->
             owner.index.mails.map { mail ->
@@ -41,6 +43,9 @@ class PanelGetMailTemplatesAPI(
                     "key" to mail.key,
                     "name" to MailTemplateIndex.localized(mail.name, locale, mail.key),
                     "description" to MailTemplateIndex.localized(mail.description, locale, ""),
+                    // The layout the mail is sent with (an id or "none") and the one it uses unless the admin picks another.
+                    "layout" to (effective[owner.id to mail.key] ?: MailTemplateIndex.DEFAULT_LAYOUT),
+                    "layoutDefault" to mail.layout,
                     "variants" to mail.variants.map { variant ->
                         mapOf(
                             "key" to variant.key,
@@ -59,7 +64,8 @@ class PanelGetMailTemplatesAPI(
             mapOf(
                 "items" to items,
                 "locales" to locales,
-                "layoutCustomized" to layoutCustomized
+                "layouts" to layouts.map { support.layoutSummary(it, locale, usage[it.id].orEmpty()) },
+                "layoutCustomized" to layouts.first { it.id == MailTemplateIndex.DEFAULT_LAYOUT }.customized
             )
         )
     }

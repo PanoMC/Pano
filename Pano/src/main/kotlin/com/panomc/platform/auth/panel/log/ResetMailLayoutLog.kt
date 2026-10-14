@@ -6,8 +6,12 @@ import io.vertx.core.json.JsonObject
 class ResetMailLayoutLog(
     userId: Long,
     username: String,
+    layoutId: String,
+    layoutName: String,
 ) : PanelActivityLog(
     userId = userId,
     details = JsonObject()
         .put("username", username)
+        .put("layoutId", layoutId)
+        .put("layoutName", layoutName)
 )

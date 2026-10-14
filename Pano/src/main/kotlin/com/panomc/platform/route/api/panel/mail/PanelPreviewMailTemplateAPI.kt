@@ -15,8 +15,10 @@ import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 /**
- * Renders an unsaved template with the variant's sample variables: `{ subject, html, text }`. An optional `variables`
- * object (the preview window's test data) overrides the samples; keys the mail does not declare are kept.
+ * Renders an unsaved template with the variant's sample variables: `{ subject, html, text, templateHtml }`
+ * (`templateHtml` = the unsaved fields composed with the layout, where the advanced mode starts). An optional
+ * `variables` object (the preview window's test data) overrides the samples; keys the mail does not declare are kept.
+ * An optional `layout` (an id or `none`) previews an unsaved layout choice.
  */
 @Endpoint
 class PanelPreviewMailTemplateAPI(
@@ -44,12 +46,13 @@ class PanelPreviewMailTemplateAPI(
 
         support.requireValid(content, target, templateErrorsOnly = true)
 
-        val rendered = try {
-            val layout = if (content.mode == MailTemplateContent.Mode.FIELDS) support.service.layout(sqlClient) else null
+        val layoutChoice = support.requireLayoutChoice(body.getString("layout"), sqlClient)
+        val layout = support.service.layoutForMail(target.owner, target.mail.key, sqlClient, layoutChoice)
 
+        val rendered = try {
             support.service.render(
                 content,
-                layout,
+                layout.takeIf { content.mode == MailTemplateContent.Mode.FIELDS },
                 PanelMailTemplateSupport.previewVariables(target.variant.sampleVariables(), body.getJsonObject("variables")),
                 support.previewSystemVariables(target.locale)
             )
@@ -59,12 +62,20 @@ class PanelPreviewMailTemplateAPI(
             )
         }
 
-        return Successful(mapOf("subject" to rendered.subject, "html" to rendered.html, "text" to rendered.text))
+        return Successful(
+            mapOf(
+                "subject" to rendered.subject,
+                "html" to rendered.html,
+                "text" to rendered.text,
+                "templateHtml" to support.service.compose(content, layout)
+            )
+        )
     }
 
     companion object {
-        /** `{ owner, key, variant, locale, template }`, shared with the test send. */
+        /** `{ owner, key, variant, locale, template, layout? }`, shared with the test send. */
         fun draftSchema() = objectSchema()
+            .optionalProperty("layout", stringSchema().nullable())
             .requiredProperty("owner", stringSchema())
             .requiredProperty("key", stringSchema())
             .requiredProperty("variant", stringSchema())

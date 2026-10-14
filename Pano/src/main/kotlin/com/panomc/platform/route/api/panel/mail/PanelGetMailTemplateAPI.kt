@@ -4,6 +4,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageMailTemplatesPermission
 import com.panomc.platform.mail.template.MailTemplateContent
+import com.panomc.platform.mail.template.MailTemplateIndex
 import com.panomc.platform.model.*
 import com.panomc.platform.schema.dsl.Parameters.param
 import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
@@ -52,13 +53,17 @@ class PanelGetMailTemplateAPI(
         val customized = current != null && current.customized && current.locale == target.locale
         val empty = MailTemplateContent(subject = "", body = "")
         val adminLocale = support.adminLocale(userId, sqlClient)
-        val layout = service.layout(sqlClient)
+        val layoutId = service.effectiveLayoutId(target.owner, target.mail.key, sqlClient)
+        val layout = if (layoutId == MailTemplateIndex.NO_LAYOUT) null else service.layout(layoutId, sqlClient)
 
         return Successful(
             mapOf(
                 "template" to (current?.content ?: empty).toMap(),
                 "default" to (default?.content ?: empty).toMap(),
-                // The same two as one complete HTML template, for the advanced mode.
+                // The layout the mail is sent with ("none" or an id) and the one it uses unless the admin picks another.
+                "layout" to layoutId,
+                "layoutDefault" to target.mail.layout,
+                // The same two as one complete HTML template (with that layout), for the advanced mode.
                 "templateHtml" to service.compose(current?.content ?: empty, layout),
                 "defaultHtml" to service.compose(default?.content ?: empty, layout),
                 "customized" to customized,

@@ -391,23 +391,40 @@ class MailManager(
 
     /** The website logo (or the default one), compressed and cached, as the `cid:logo` inline attachment. */
     private fun logoAttachment(): MailAttachment {
+        val (logoData, logoMimeType) = logo()
+
+        return MailAttachment.create()
+            .setData(Buffer.buffer(logoData))
+            .setName("logo")
+            .setContentType(logoMimeType)
+            .setDisposition("inline")
+            .setContentId("<logo>")
+    }
+
+    /** The same logo as a `data:` URI, for previews shown in the panel (they cannot resolve `cid:logo`). */
+    fun logoDataUri(): String {
+        val (data, mimeType) = logo()
+
+        return "data:$mimeType;base64," + java.util.Base64.getEncoder().encodeToString(data)
+    }
+
+    /** The website logo (or the default one), compressed and cached: bytes and MIME type. */
+    private fun logo(): Pair<ByteArray, String> {
         val config = configManager.config
         val cacheDir = File(config.fileUploadsFolder + File.separator + CACHE_FOLDER_NAME)
 
-        fun defaultLogo(): Pair<Buffer, String> {
+        fun defaultLogo(): Pair<ByteArray, String> {
             val logoBytes = systemClassLoader.getResourceAsStream(DEFAULT_WEBSITE_LOGO_FILE)!!.use { it.readBytes() }
             val mimeType = MimeTypeUtil.getMimeTypeFromFileName(DEFAULT_WEBSITE_LOGO_FILE)
 
             // Calculate hash and get cached/compressed version
             val logoHash = logoBytes.inputStream().use { it.hash() }
-            val (cachedBytes, finalMimeType) = getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
-
-            return Buffer.buffer(cachedBytes) to finalMimeType
+            return getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
         }
 
         val logoFile = config.filePaths.websiteLogoFile
 
-        val (logoData, logoMimeType) = if (logoFile == null) {
+        return if (logoFile == null) {
             defaultLogo()
         } else {
             val path = config.fileUploadsFolder + File.separator + logoFile.path
@@ -423,18 +440,9 @@ class MailManager(
                 // Use hash from config if available, otherwise calculate
                 val logoHash = logoFile.hash.ifEmpty { logoBytes.inputStream().use { it.hash() } }
 
-                val (cachedBytes, finalMimeType) = getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
-
-                Buffer.buffer(cachedBytes) to finalMimeType
+                getCachedLogo(logoHash, logoBytes, mimeType, cacheDir)
             }
         }
-
-        return MailAttachment.create()
-            .setData(logoData)
-            .setName("logo")
-            .setContentType(logoMimeType)
-            .setDisposition("inline")
-            .setContentId("<logo>")
     }
 
     /**

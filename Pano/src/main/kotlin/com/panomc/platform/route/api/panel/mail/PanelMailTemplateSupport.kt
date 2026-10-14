@@ -4,6 +4,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InvalidFields
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.template.MailDefinition
 import com.panomc.platform.mail.template.MailTemplateContent
 import com.panomc.platform.mail.template.MailTemplateRegistry
@@ -25,7 +26,8 @@ class PanelMailTemplateSupport(
     val registry: MailTemplateRegistry,
     val service: MailTemplateService,
     private val databaseManager: DatabaseManager,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val mailManager: MailManager
 ) {
     data class Target(
         val owner: String,
@@ -53,12 +55,21 @@ class PanelMailTemplateSupport(
         databaseManager.userDao.getById(userId, sqlClient)?.localeCode?.takeIf { it.isNotBlank() }
             ?: configManager.config.locale
 
-    /** System variables for a preview shown in the panel: the logo is the public URL, not the mail's `cid:logo`. */
+    /**
+     * System variables for a preview shown in the panel: the logo is embedded as a `data:` URI (the mail's `cid:logo`
+     * means nothing there, and a URL would resolve against the panel's origin inside the sandboxed frame).
+     */
     fun previewSystemVariables(locale: String): Map<String, Any?> {
         val config = configManager.config
 
-        return MailTemplateService.systemVariables(config.websiteName, config.websiteUrl, locale, PREVIEW_LOGO)
+        return MailTemplateService.systemVariables(config.websiteName, config.websiteUrl, locale, previewLogo())
     }
+
+    /** The logo previews show; the public URL when the logo cannot be read. */
+    fun previewLogo(): String = runCatching { mailManager.logoDataUri() }.getOrDefault(PREVIEW_LOGO)
+
+    val websiteName: String
+        get() = configManager.config.websiteName
 
     /** Throws [InvalidFields] when [content] does not validate; with [templateErrorsOnly] only render errors count. */
     fun requireValid(content: MailTemplateContent, target: Target, templateErrorsOnly: Boolean = false) {

@@ -23,7 +23,10 @@ class PanelGetMailLayoutAPI(
             mapOf(
                 "body" to layout.body,
                 "default" to support.service.defaultLayout(),
-                "customized" to layout.customized
+                "customized" to layout.customized,
+                // What the panel fills the layout preview with.
+                "websiteLogo" to support.previewLogo(),
+                "websiteName" to support.websiteName
             )
         )
     }

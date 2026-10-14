@@ -3,8 +3,7 @@ package com.panomc.platform.db.model
 import com.panomc.platform.db.DBEntity
 
 /**
- * A panel override of one mail × variant × language (`mail_template`). The shared layout override is the row
- * `owner = 'core', mailKey = '_layout', variant = 'default', localeCode = '*'` with the HTML in [body].
+ * A panel override of one mail × variant × language (`mail_template`). Layouts live in `mail_layout` ([MailLayout]).
  *
  * Columns are snake_case (`mail_key`, `locale_code`, …); the DAO aliases them to these field names.
  */
@@ -22,11 +21,4 @@ data class MailTemplate(
     val buttonUrl: String? = null,
     val footer: String? = null,
     val updatedAt: Long = System.currentTimeMillis()
-) : DBEntity() {
-    companion object {
-        const val LAYOUT_OWNER = "core"
-        const val LAYOUT_KEY = "_layout"
-        const val LAYOUT_VARIANT = "default"
-        const val LAYOUT_LOCALE = "*"
-    }
-}
+) : DBEntity()

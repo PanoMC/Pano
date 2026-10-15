@@ -4,6 +4,8 @@ import com.panomc.platform.ApiLevel
 import com.panomc.platform.db.model.Node
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.node.NodeKind
+import com.panomc.platform.server.ServerKind
+import com.panomc.platform.server.ServerProcessState
 import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.ServerType
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -32,6 +34,30 @@ class ServerFeatureUnreachableTest {
     @Test
     fun `a plugin at the minimum is reachable even when older than the current protocol`() {
         assertFalse(ServerFeatureResolver.unreachablePlugin(server(ApiLevel.MIN_MC_PROTOCOL)))
+    }
+
+    private fun managed(pluginVersion: String?, protocol: Int = 1, state: ServerProcessState? = ServerProcessState.RUNNING, startedAt: Long? = 0L) =
+        server(protocol).copy(
+            kind = ServerKind.MANAGED, nodeId = 3, pluginVersion = pluginVersion, processState = state, processStartedAt = startedAt
+        )
+
+    @Test
+    fun `a managed server whose plugin never announced itself is not too old`() {
+        assertFalse(ServerFeatureResolver.unreachablePlugin(managed(pluginVersion = null)))
+        assertTrue(ServerFeatureResolver.unreachablePlugin(managed(pluginVersion = "alpha.10")))
+    }
+
+    @Test
+    fun `a managed server is missing its plugin only after it ran for a while without one`() {
+        val grace = ServerFeatureResolver.MISSING_PLUGIN_GRACE_MS
+
+        assertTrue(ServerFeatureResolver.missingPlugin(managed(null), connected = false, now = grace))
+        assertFalse(ServerFeatureResolver.missingPlugin(managed(null), connected = false, now = grace - 1))
+        assertFalse(ServerFeatureResolver.missingPlugin(managed(null, startedAt = null), connected = false, now = grace))
+        assertFalse(ServerFeatureResolver.missingPlugin(managed(null, state = ServerProcessState.INSTALLING), connected = false, now = grace))
+        assertFalse(ServerFeatureResolver.missingPlugin(managed("alpha.65"), connected = false, now = grace))
+        assertFalse(ServerFeatureResolver.missingPlugin(managed(null), connected = true, now = grace))
+        assertFalse(ServerFeatureResolver.missingPlugin(server(1).copy(pluginVersion = null), connected = false, now = grace))
     }
 
     @Test

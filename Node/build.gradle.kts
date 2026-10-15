@@ -2,8 +2,8 @@ import java.security.MessageDigest
 
 val appMainClass = "com.panomc.node.Main"
 
-val vertxVersion: String by project
-val gsonVersion: String by project
+val vertxVersion = property("vertxVersion") as String
+val gsonVersion = property("gsonVersion") as String
 
 plugins {
     kotlin("jvm") version "2.4.21"

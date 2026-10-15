@@ -8,16 +8,15 @@ import java.net.URI
 import java.net.URLEncoder
 import java.util.zip.ZipInputStream
 
-val vertxVersion: String by project
-val gsonVersion: String by project
-val springContextVersion: String by project
-val handlebarsVersion: String by project
+val vertxVersion = property("vertxVersion") as String
+val gsonVersion = property("gsonVersion") as String
+val springContextVersion = property("springContextVersion") as String
 val log4jVersion = "2.26.1"
 val appMainClass = "com.panomc.platform.Main"
-val pf4jVersion: String by project
-val panoApiLevel: String by project
-val panoMinApiLevel: String by project
-val pluginsDir: File? by rootProject.extra
+val pf4jVersion = property("pf4jVersion") as String
+val panoApiLevel = property("panoApiLevel") as String
+val panoMinApiLevel = property("panoMinApiLevel") as String
+val pluginsDir = rootProject.extra["pluginsDir"] as File?
 
 plugins {
     kotlin("jvm") version "2.4.21"
@@ -37,15 +36,14 @@ require(panoMinApiLevel.toInt() in 1..panoApiLevel.toInt()) {
     "panoMinApiLevel ($panoMinApiLevel) must be between 1 and panoApiLevel ($panoApiLevel)"
 }
 
-val generateApiLevel by tasks.registering(WriteProperties::class) {
+val generateApiLevel = tasks.register<WriteProperties>("generateApiLevel") {
     destinationFile.set(layout.buildDirectory.file("generated/api-level/pano-api-level.properties"))
     property("current", panoApiLevel.toInt())
     property("min", panoMinApiLevel.toInt())
 }
 
 val buildType = project.findProperty("buildType") as String? ?: "alpha"
-val timeStamp: String by project
-val buildDir by extra { file("${rootProject.layout.buildDirectory.get()}/libs") }
+val libsDir = file("${rootProject.layout.buildDirectory.get()}/libs")
 
 repositories {
     mavenCentral()
@@ -82,15 +80,15 @@ dependencies {
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
     implementation("com.auth0:java-jwt:4.6.2")
 
-    implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = log4jVersion)
-    implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = log4jVersion)
-    implementation(group = "org.apache.logging.log4j", name = "log4j-slf4j2-impl", version = log4jVersion)
+    implementation("org.apache.logging.log4j:log4j-api:$log4jVersion")
+    implementation("org.apache.logging.log4j:log4j-core:$log4jVersion")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:$log4jVersion")
 
     // recaptcha v2 1.0.4
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.23.0")
+    implementation("commons-codec:commons-codec:1.23.0")
 
     // https://mvnrepository.com/artifact/commons-io/commons-io
     implementation("commons-io:commons-io:2.22.0")
@@ -325,11 +323,11 @@ tasks {
     }
 
     register("copyJar") {
-        if (shadowJar.get().archiveFile.get().asFile.parentFile.absolutePath != buildDir.absolutePath) {
+        if (shadowJar.get().archiveFile.get().asFile.parentFile.absolutePath != libsDir.absolutePath) {
             doLast {
                 copy {
                     from(shadowJar.get().archiveFile.get().asFile.absolutePath)
-                    into(buildDir)
+                    into(libsDir)
                 }
             }
         }
@@ -385,7 +383,7 @@ tasks {
         mustRunAfter("copyJar")
 
         val jarFile = shadowJar.flatMap { it.archiveFile }
-        val checksumFile = jarFile.map { File(buildDir, it.asFile.name + ".sha256") }
+        val checksumFile = jarFile.map { File(libsDir, it.asFile.name + ".sha256") }
 
         inputs.file(jarFile)
         outputs.file(checksumFile)
@@ -417,7 +415,7 @@ tasks {
     // build/libs/pano-api-level.json, published next to the jar: the Pano side (the update plan) and the store read the
     // level a release implements without downloading it. The numbers are the ones in gradle.properties.
     register("panoApiLevelJson") {
-        val out = File(buildDir, "pano-api-level.json")
+        val out = File(libsDir, "pano-api-level.json")
         val current = panoApiLevel.toInt()
         val min = panoMinApiLevel.toInt()
 

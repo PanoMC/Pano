@@ -1,4 +1,5 @@
-val pluginsDir by extra { file("${layout.buildDirectory.get()}/plugins") }
+val pluginsDir = file("${layout.buildDirectory.get()}/plugins")
+extra["pluginsDir"] = pluginsDir
 
 buildscript {
     repositories {

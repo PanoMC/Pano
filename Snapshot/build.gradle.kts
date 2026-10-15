@@ -1,4 +1,4 @@
-val gsonVersion: String by project
+val gsonVersion = property("gsonVersion") as String
 
 plugins {
     kotlin("jvm") version "2.4.21"

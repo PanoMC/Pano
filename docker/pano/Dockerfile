@@ -8,7 +8,7 @@
 # CI copies build/libs/Pano-<version>.jar (+ .sha256) into docker/pano/release/ first:
 #   docker build --build-arg RUNTIME=ghcr.io/panomc/pano:runtime-jre11 \
 #     -t ghcr.io/panomc/pano:dev docker/pano
-#   docker run -p 8088:8088 -v pano-data:/data -e PANO_DB_HOST=... ghcr.io/panomc/pano:dev
+#   docker run -p 80:8088 -v pano-data:/data -e PANO_DB_HOST=... ghcr.io/panomc/pano:dev
 ARG RUNTIME=ghcr.io/panomc/pano:runtime-jre11
 FROM ${RUNTIME}
 

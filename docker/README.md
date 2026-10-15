@@ -24,14 +24,14 @@ echo "PANO_DB_PASSWORD=$(openssl rand -hex 24)" > .env
 docker compose up -d
 ```
 
-Then open `http://<server>:8088` and finish the setup wizard; the database step is already filled
+Then open `http://<server>` and finish the setup wizard; the database step is already filled
 from the environment (the password field stays empty: the unauthenticated setup API never returns
 `PANO_DB_PASSWORD`, and an empty password keeps it). `PANO_TAG` (in `.env`) picks the tag, `PANO_PORT` the host port.
 
 Plain `docker run` against an existing MariaDB/MySQL:
 
 ```sh
-docker run -d --name pano --restart unless-stopped -p 8088:8088 -v pano-data:/data \
+docker run -d --name pano --restart unless-stopped -p 80:8088 -v pano-data:/data \
   -e PANO_DB_HOST=db.example.com -e PANO_DB_NAME=pano -e PANO_DB_USER=pano -e PANO_DB_PASSWORD=... \
   ghcr.io/panomc/pano:latest
 ```

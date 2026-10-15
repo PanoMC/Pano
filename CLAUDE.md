@@ -32,7 +32,7 @@ auto-included as a subproject by `settings.gradle.kts`). JDK notes that bite in 
 # Before the first run, fetch the front-end bundles into resources/UIFiles:
 ./gradlew downloadUIReleases   # versions pinned in ui-releases.yml; GITHUB_TOKEN/TOKEN_GITHUB
                                # is optional (only used to dodge GitHub's anonymous rate limit)
-./gradlew downloadMailTemplates                     # fetches + unzips email templates
+./gradlew downloadMailTemplates                     # mail layout of the pano-email pin in ui-releases.yml
 
 # Build a release fat jar (build/libs/Pano-<version>.jar via shadowJar)
 ./gradlew build                # 'release' style; runs generateLicenses (hits Maven Central)
@@ -190,7 +190,8 @@ referenced classes are present). Server-side events (`@Event`) live under `serve
 There are **no front-end sources in this repo**. `UIManager` reverse-proxies requests to the
 SvelteKit apps (`panel-ui`, `setup-ui`, active theme) running as Bun/adapter-node upstreams.
 Production bundles are pinned in `ui-releases.yml` and pulled by `downloadUIReleases` into
-`Pano/src/main/resources/UIFiles`. `scripts/aggregate-ui-changelog.js` builds the UI changelog
+`Pano/src/main/resources/UIFiles` (the `pano-email` pin is the mail layout, pulled by `downloadMailTemplates`). A `main`
+release (`-PbuildType=release`) fails on any prerelease pin, so pin stable tags before releasing `main`. `scripts/aggregate-ui-changelog.js` builds the UI changelog
 section appended to GitHub releases. The **`init-ui` config flag** (`config.conf`, default `false`)
 gates whether `UIManager` actually launches the setup/panel/theme engines at startup (and downloads
 the Bun runtime); set `init-ui = true` to serve any UI — required when developing UI or plugin UIs.

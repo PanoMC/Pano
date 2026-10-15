@@ -155,42 +155,52 @@ val repoMapping = mapOf(
     "vanilla-theme" to "$organization/vanilla-theme"
 )
 val mailTemplatesRepo = "$organization/pano-email"
+// The ui-releases.yml row of the mail layout, which downloadMailTemplates reads and downloadUIReleases skips.
+val mailTemplatesComponent = "pano-email"
 val outputDir = file("src/main/resources/UIFiles")
 val mailTemplatesOutputDir = file("src/main/resources")
+
+/**
+ * The pins of ui-releases.yml (simple `key: value` lines). A stable release (main, -PbuildType=release) never bundles a
+ * prerelease UI or mail layout, so it fails on any pin with a prerelease suffix: pin the stable tags first.
+ */
+fun readReleasePins(): Map<String, String> {
+    println("Reading release pins from ${uiReleasesFile.absolutePath}")
+
+    if (!uiReleasesFile.exists()) {
+        throw IllegalStateException("ui-releases.yml not found at ${uiReleasesFile.absolutePath}")
+    }
+
+    val versions = mutableMapOf<String, String>()
+    uiReleasesFile.readLines().forEach { line ->
+        val trimmed = line.trim()
+        if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+            val parts = trimmed.split(":", limit = 2)
+            if (parts.size == 2) {
+                versions[parts[0].trim()] = parts[1].trim()
+            }
+        }
+    }
+
+    if (buildType == "release") {
+        val prereleases = versions.filterValues { it.contains('-') }
+
+        if (prereleases.isNotEmpty()) {
+            throw IllegalStateException(
+                "A release build cannot bundle prereleases; pin stable tags in ui-releases.yml: $prereleases"
+            )
+        }
+    }
+
+    return versions
+}
 
 tasks {
     register("downloadUIReleases") {
         doFirst {
-            println("Reading UI release versions from ${uiReleasesFile.absolutePath}")
-
-            if (!uiReleasesFile.exists()) {
-                throw IllegalStateException("ui-releases.yml not found at ${uiReleasesFile.absolutePath}")
-            }
-
-            // Parse the YAML file (simple key: value format)
-            val versions = mutableMapOf<String, String>()
-            uiReleasesFile.readLines().forEach { line ->
-                val trimmed = line.trim()
-                if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
-                    val parts = trimmed.split(":", limit = 2)
-                    if (parts.size == 2) {
-                        versions[parts[0].trim()] = parts[1].trim()
-                    }
-                }
-            }
+            val versions = readReleasePins() - mailTemplatesComponent
 
             println("Versions to download: $versions")
-
-            // A stable release (main, -PbuildType=release) never bundles a prerelease UI: pin the stable tags first.
-            if (buildType == "release") {
-                val prereleases = versions.filterValues { it.contains('-') }
-
-                if (prereleases.isNotEmpty()) {
-                    throw IllegalStateException(
-                        "A release build cannot bundle prerelease UIs; pin stable tags in ui-releases.yml: $prereleases"
-                    )
-                }
-            }
 
             // Create the assets directory (if exists, delete old zip files)
             if (outputDir.exists()) {
@@ -254,7 +264,10 @@ tasks {
 
     register("downloadMailTemplates") {
         doFirst {
-            println("Fetching latest release for mail templates...")
+            val version = readReleasePins()[mailTemplatesComponent]
+                ?: throw IllegalStateException("No $mailTemplatesComponent pin in ui-releases.yml")
+
+            println("Fetching mail templates $version...")
 
             // Create the resources directory if it doesn't exist
             if (!mailTemplatesOutputDir.exists()) {
@@ -264,20 +277,22 @@ tasks {
             val repo = mailTemplatesRepo
             println("Processing repository: $repo")
 
-            // GitHub API URL
-            val apiUrl = "https://api.github.com/repos/$repo/releases"
+            val apiUrl = "https://api.github.com/repos/$repo/releases/tags/$version"
 
-            // Send API request
             val connection = URI(apiUrl).toURL().openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
 
-            // Read the response
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
-            val releases = JsonParser.parseString(response).asJsonArray
+            val ghToken = System.getenv("GITHUB_TOKEN") ?: System.getenv("TOKEN_GITHUB")
+            if (!ghToken.isNullOrBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer $ghToken")
+            }
 
-            // Get the latest release (including prereleases)
-            val latestRelease = releases.firstOrNull()?.asJsonObject
-                ?: throw IllegalStateException("No releases found in repository: $repo")
+            if (connection.responseCode != 200) {
+                throw IllegalStateException("Failed to fetch release $version for $repo: HTTP ${connection.responseCode}")
+            }
+
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val latestRelease = JsonParser.parseString(response).asJsonObject
 
             // Check asset files and get the first zip file
             val assets = latestRelease["assets"].asJsonArray
@@ -285,7 +300,7 @@ tasks {
                 val name = asset.asJsonObject["name"].asString
                 name.endsWith(".zip")
             }
-                ?: throw IllegalStateException("No zip file found in the latest release of $repo")
+                ?: throw IllegalStateException("No zip file found in release $version of $repo")
 
             // Get the download URL
             val downloadUrl = asset.asJsonObject["browser_download_url"].asString
@@ -324,7 +339,7 @@ tasks {
 
             if (!layoutFound) {
                 outputFile.delete()
-                throw IllegalStateException("The latest release of $repo has no layout.hbs")
+                throw IllegalStateException("Release $version of $repo has no layout.hbs")
             }
 
             // Delete the zip file after extraction

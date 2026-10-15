@@ -4,6 +4,7 @@ import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.UIManager
+import com.panomc.platform.TelemetryManager
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -41,6 +42,7 @@ class FinishAPI(
     @get:Lazy private val i18nManager: I18nManager,
     @get:Lazy private val panoHostManager: PanoHostManager,
     @get:Lazy private val panoBackupManager: PanoBackupManager,
+    @get:Lazy private val telemetryManager: TelemetryManager,
     @get:Lazy private val panoMailService: com.panomc.platform.mail.PanoMailService
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/finish", RouteType.POST))
@@ -148,6 +150,10 @@ class FinishAPI(
         }
 
         panoHostManager.announceCapabilities()
+
+        // The boot starts usage data reporting only on an installed Pano; one set up in this run starts it here,
+        // or it would stay silent until the next restart.
+        telemetryManager.init()
 
         try {
             updateManager.checkUpdates(true)

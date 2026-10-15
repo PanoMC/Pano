@@ -1,7 +1,6 @@
 package com.panomc.platform
 
 import org.pf4j.DefaultPluginDescriptor
-import org.pf4j.PluginDescriptor
 
 class PanoPluginDescriptor : DefaultPluginDescriptor() {
     lateinit var name: String
@@ -42,7 +41,7 @@ class PanoPluginDescriptor : DefaultPluginDescriptor() {
         return super.setPluginId(pluginId)
     }
 
-    public override fun setPluginClass(pluginClassName: String?): PluginDescriptor {
+    public override fun setPluginClass(pluginClassName: String?): DefaultPluginDescriptor {
         return super.setPluginClass(pluginClassName)
     }
 
@@ -50,11 +49,11 @@ class PanoPluginDescriptor : DefaultPluginDescriptor() {
         return super.setPluginVersion(version)
     }
 
-    public override fun setDependencies(dependencies: String?): PluginDescriptor {
+    public override fun setDependencies(dependencies: String?): DefaultPluginDescriptor {
         return super.setDependencies(dependencies)
     }
 
-    public override fun setRequires(requires: String?): PluginDescriptor {
+    public override fun setRequires(requires: String?): DefaultPluginDescriptor {
         return super.setRequires(requires)
     }
 }

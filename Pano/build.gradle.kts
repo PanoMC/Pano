@@ -12,7 +12,7 @@ val vertxVersion: String by project
 val gsonVersion: String by project
 val springContextVersion: String by project
 val handlebarsVersion: String by project
-val log4jVersion = "2.25.0"
+val log4jVersion = "2.26.1"
 val appMainClass = "com.panomc.platform.Main"
 val pf4jVersion: String by project
 val panoApiLevel: String by project
@@ -20,9 +20,9 @@ val panoMinApiLevel: String by project
 val pluginsDir: File? by rootProject.extra
 
 plugins {
-    kotlin("jvm") version "2.2.21"
-    kotlin("kapt") version "2.2.21"
-    id("com.gradleup.shadow") version "9.2.2"
+    kotlin("jvm") version "2.4.21"
+    kotlin("kapt") version "2.4.21"
+    id("com.gradleup.shadow") version "9.6.1"
     application
     `maven-publish`
 }
@@ -49,7 +49,6 @@ val buildDir by extra { file("${rootProject.layout.buildDirectory.get()}/libs") 
 
 repositories {
     mavenCentral()
-    maven("https://oss.sonatype.org/content/repositories/iovertx-3720/")
     maven("https://jitpack.io")
 }
 
@@ -57,12 +56,12 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation(kotlin("reflect"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.3")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     // Gradle 9 requires the JUnit Platform launcher to be declared explicitly on the
     // test runtime classpath; without it `gradle test` errors with "Failed to load
     // JUnit Platform" even when jupiter-api + jupiter-engine are present.
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -77,9 +76,11 @@ dependencies {
     implementation("io.vertx:vertx-web-validation:$vertxVersion")
     implementation("io.vertx:vertx-json-schema:$vertxVersion")
     implementation("io.vertx:vertx-web-proxy:$vertxVersion")
+    // Vert.x types carry io.vertx.codegen.annotations.Nullable; Kotlin 2.4 needs the annotation on the compile classpath
+    compileOnly("io.vertx:vertx-codegen-api:$vertxVersion")
 
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
-    implementation("com.auth0:java-jwt:4.5.0")
+    implementation("com.auth0:java-jwt:4.6.2")
 
     implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = log4jVersion)
     implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = log4jVersion)
@@ -89,13 +90,13 @@ dependencies {
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.20.0")
+    implementation(group = "commons-codec", name = "commons-codec", version = "1.23.0")
 
     // https://mvnrepository.com/artifact/commons-io/commons-io
-    implementation("commons-io:commons-io:2.21.0")
+    implementation("commons-io:commons-io:2.22.0")
 
     // https://mvnrepository.com/artifact/org.apache.tika/tika-core
-    implementation("org.apache.tika:tika-core:2.9.4")
+    implementation("org.apache.tika:tika-core:3.3.3")
 
     // https://mvnrepository.com/artifact/org.springframework/spring-context
     implementation("org.springframework:spring-context:$springContextVersion")
@@ -109,7 +110,7 @@ dependencies {
     implementation("org.pf4j:pf4j:${pf4jVersion}")
     kapt("org.pf4j:pf4j:${pf4jVersion}")
 
-    implementation("com.typesafe:config:1.4.3")
+    implementation("com.typesafe:config:1.4.9")
 
     // Cron parsing, validation and next-run calculation for server schedules. The node ships the
     // same library so both sides agree on what an expression means, down to the DST edge cases.
@@ -121,30 +122,30 @@ dependencies {
     // WebP decoding for the server icon upload (ImageIO has no WebP reader of its own). Read-only,
     // pure Java; registered explicitly in ServerIconImage because the fat jar does not merge
     // META-INF/services files.
-    implementation("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
+    implementation("com.twelvemonkeys.imageio:imageio-webp:3.15.3")
 
     // Let's Encrypt / ACME
-    implementation("org.shredzone.acme4j:acme4j-client:3.5.0")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
+    implementation("org.shredzone.acme4j:acme4j-client:3.5.1")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.86")
     
     // JLine and terminal support
-    implementation("org.jline:jline:3.29.0")
-    implementation("org.fusesource.jansi:jansi:2.4.1")
-    implementation("net.java.dev.jna:jna:5.16.0")
+    implementation("org.jline:jline:4.4.8")
+    implementation("org.fusesource.jansi:jansi:2.4.3")
+    implementation("net.java.dev.jna:jna:5.19.1")
 
     // AuthMe Migration support
-    implementation("org.xerial:sqlite-jdbc:3.49.1.0")
-    implementation("org.yaml:snakeyaml:2.4")
+    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
+    implementation("org.yaml:snakeyaml:2.7")
 
     // LuckPerms Migration support (H2 database — must use 2.1.x to read LP's format-2 files)
     implementation("com.h2database:h2:2.1.214")
 
     // SSH client for bootstrapping a node on a remote host from the panel. Pure Java, so there
     // is no dependency on an ssh binary being present on the machine Pano runs on.
-    implementation("com.hierynomus:sshj:0.39.0")
+    implementation("com.hierynomus:sshj:0.41.2")
 
     // Password hashing
-    implementation("de.mkammerer:argon2-jvm:2.11")
+    implementation("de.mkammerer:argon2-jvm:2.12")
     implementation("org.mindrot:jbcrypt:0.4")
 }
 

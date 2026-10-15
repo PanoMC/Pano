@@ -6,8 +6,8 @@ val vertxVersion: String by project
 val gsonVersion: String by project
 
 plugins {
-    kotlin("jvm") version "2.2.21"
-    id("com.gradleup.shadow") version "9.2.2"
+    kotlin("jvm") version "2.4.21"
+    id("com.gradleup.shadow") version "9.6.1"
     application
 }
 
@@ -32,15 +32,15 @@ dependencies {
     implementation("com.google.code.gson:gson:$gsonVersion")
 
     // HOCON, so config.conf looks and reads exactly like Pano's and the plugin's.
-    implementation("com.typesafe:config:1.4.3")
+    implementation("com.typesafe:config:1.4.9")
 
     // The same cron library Pano validates schedules with, so a schedule saved in the panel and
     // the schedule this daemon runs can never disagree about when "0 4 * * 0" is.
     implementation("com.cronutils:cron-utils:9.2.1")
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.3")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.3")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
 }
 
 tasks {

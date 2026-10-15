@@ -163,10 +163,8 @@ class DatabaseManager(
             if (lastSchemeVersion != null) {
                 throw PlatformAlreadyInstalled()
             }
-        } catch (e: Exception) {
-            if (e is PlatformAlreadyInstalled) {
-                throw e
-            }
+        } catch (_: Exception) {
+            // PlatformAlreadyInstalled is a Throwable, not an Exception, so it is never caught here
         }
 
         val databaseInitProcessHandlers = getDatabaseInitList()

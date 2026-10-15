@@ -157,7 +157,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}
         run: |
-          ./gradlew downloadUIReleases
+          ./gradlew downloadUIReleases \
+            -PbuildType=${{ steps.extract_branch.outputs.branch == 'main' && 'release' || steps.extract_branch.outputs.branch }}
 
       - name: Build
         run: |

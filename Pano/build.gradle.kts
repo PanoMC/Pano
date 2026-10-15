@@ -181,6 +181,17 @@ tasks {
 
             println("Versions to download: $versions")
 
+            // A stable release (main, -PbuildType=release) never bundles a prerelease UI: pin the stable tags first.
+            if (buildType == "release") {
+                val prereleases = versions.filterValues { it.contains('-') }
+
+                if (prereleases.isNotEmpty()) {
+                    throw IllegalStateException(
+                        "A release build cannot bundle prerelease UIs; pin stable tags in ui-releases.yml: $prereleases"
+                    )
+                }
+            }
+
             // Create the assets directory (if exists, delete old zip files)
             if (outputDir.exists()) {
                 outputDir.listFiles()?.forEach { file ->

@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class RegisterUsernameEmpty(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("REGISTER_USERNAME_EMPTY", 422, statusMessage, extras)

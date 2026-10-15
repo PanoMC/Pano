@@ -10,6 +10,7 @@ import com.panomc.platform.error.NotExists
 import com.panomc.platform.error.ServerOffline
 import com.panomc.platform.model.*
 import com.panomc.platform.node.NodeManager
+import com.panomc.platform.model.CursorPaging
 import com.panomc.platform.node.message.ConsoleSearchMessage as NodeConsoleSearchMessage
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.console.ConsoleDeepSearch
@@ -20,11 +21,10 @@ import com.panomc.platform.server.feature.ServerFeatureSource
 import com.panomc.platform.server.message.ConsoleSearchMessage as PluginConsoleSearchMessage
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
@@ -59,15 +59,14 @@ class PanelSearchServerConsoleAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/console/search", RouteType.GET))
+    override val paths = listOf(Path("/servers/:id/console/search", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .pathParameter(param("id", numberSchema()))
-            .queryParameter(optionalParam("query", stringSchema()))
-            .queryParameter(optionalParam("cursor", stringSchema()))
-            .queryParameter(optionalParam("limit", intSchema()))
-            .build()
+        CursorPaging.params(
+            ValidationHandlerBuilder.create(schemaRepository)
+                .pathParameter(param("id", numberSchema()))
+                .queryParameter(optionalParam("query", stringSchema()))
+        ).build()
 
     override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
@@ -95,7 +94,7 @@ class PanelSearchServerConsoleAPI(
             else -> throw ConsoleDeepSearch.unavailable()
         }
 
-        return Successful(page.toMap(query))
+        return Successful(payload(page, query, limit))
     }
 
     /** One page from the node running [server]. Offline or silent is [NodeOffline], as everywhere. */
@@ -128,6 +127,25 @@ class PanelSearchServerConsoleAPI(
     }
 
     companion object {
+        /**
+         * The response body: the matches as `items`, `page: { size, nextCursor }` (the cursor to send back, null
+         * when the search is finished) and the progress of the search beside them.
+         */
+        fun payload(page: ConsoleDeepSearch.Page, query: String, limit: Int): Map<String, Any?> =
+            CursorPaging.response(
+                page.lines.map { it.line.toJsonObject().put("f", it.file) },
+                limit,
+                page.cursor,
+                mapOf(
+                    "query" to query,
+                    "done" to page.done,
+                    "scannedFiles" to page.scannedFiles,
+                    "totalFiles" to page.totalFiles,
+                    "scannedBytes" to page.scannedBytes,
+                    "capped" to page.capped
+                )
+            )
+
         /**
          * Generous next to a history page's five seconds: the source spends up to its time budget
          * reading, a single file bigger than the budget may run past it once, and then the page

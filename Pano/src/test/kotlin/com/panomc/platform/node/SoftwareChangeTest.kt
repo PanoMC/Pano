@@ -179,8 +179,8 @@ class SoftwareChangeTest {
 
         val encoded = JsonObject(KeepIncompatible(extras = mapOf("keep" to listOf("plugins"))).encode(emptyMap()))
 
-        assertEquals("KEEP_INCOMPATIBLE", encoded.getString("error"))
-        assertEquals(listOf("plugins"), encoded.getJsonArray("keep").list)
+        assertEquals("KEEP_INCOMPATIBLE", encoded.getJsonObject("error").getString("code"))
+        assertEquals(listOf("plugins"), encoded.getJsonObject("error").getJsonObject("details").getJsonArray("keep").list)
     }
 
     @Test

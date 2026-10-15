@@ -13,10 +13,12 @@ import com.panomc.platform.token.ActivationTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class VerifyEmailAPI(
@@ -24,7 +26,14 @@ class VerifyEmailAPI(
     private val tokenProvider: TokenProvider,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/auth/verifyEmail", RouteType.POST))
+    override val paths = listOf(Path("/auth/verify-email", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Confirms an e-mail address with the token from the activation mail.",
+        tag = "auth",
+        response = objectSchema(),
+        errors = listOf(InvalidLink::class, PluginDeniedLogin::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

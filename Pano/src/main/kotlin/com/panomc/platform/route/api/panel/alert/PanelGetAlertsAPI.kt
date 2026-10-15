@@ -4,18 +4,20 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.ServerAlert
 import com.panomc.platform.model.*
-import io.vertx.core.json.JsonArray
+import com.panomc.platform.model.CursorPaging
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * The most recent alerts, newest first.
+ * The most recent alerts, newest first, a page at a time: `limit` and `cursor` in, `{ items, page: { size,
+ * nextCursor } }` out.
  *
  * The durable half of alerting: notifications get read and dismissed, and this is what is left to
  * look at afterwards. Rows carry the server and node names resolved so the panel can render a list
@@ -28,11 +30,10 @@ class PanelGetAlertsAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/alerts", RouteType.GET))
+    override val paths = listOf(Path("/alerts", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .queryParameter(optionalParam("limit", numberSchema()))
+        CursorPaging.params(ValidationHandlerBuilder.create(schemaRepository))
             .queryParameter(optionalParam("serverId", numberSchema()))
             .build()
 
@@ -47,15 +48,21 @@ class PanelGetAlertsAPI(
             authProvider.requirePermission(ManageServersPermission(), context, serverId)
         }
 
-        val limit = (parameters.queryParameter("limit")?.integer ?: DEFAULT_LIMIT).coerceIn(1, MAX_LIMIT)
+        val limit = CursorPaging.limit(context, DEFAULT_LIMIT, MAX_LIMIT)
+
+        val before = CursorPaging.idCursor(context)
 
         val sqlClient = getSqlClient()
 
-        val alerts = if (serverId == null) {
-            databaseManager.serverAlertDao.getLatest(limit, sqlClient)
-        } else {
-            databaseManager.serverAlertDao.getLatestByServerId(serverId, limit, sqlClient)
-        }
+        // One row more than the page, to know whether an older page exists without a count.
+        val (alerts, nextCursor) = CursorPaging.split(
+            if (serverId == null) {
+                databaseManager.serverAlertDao.getLatest(limit + 1, before, sqlClient)
+            } else {
+                databaseManager.serverAlertDao.getLatestByServerId(serverId, limit + 1, before, sqlClient)
+            },
+            limit
+        ) { it.id }
 
         // Names resolved once per distinct id rather than once per row: a burst of alerts about
         // one server is the common case, and it should not be one query each.
@@ -67,20 +74,27 @@ class PanelGetAlertsAPI(
             databaseManager.nodeDao.getById(id, sqlClient)?.name
         }
 
-        return Successful(
-            mapOf(
-                "alerts" to JsonArray(
-                    alerts.map { alert ->
-                        alert.toPublicJsonObject()
-                            .put("serverName", alert.serverId?.let { serverNames[it] })
-                            .put("nodeName", alert.nodeId?.let { nodeNames[it] })
-                    }
-                )
-            )
-        )
+        return Successful(payload(alerts, serverNames, nodeNames, limit, nextCursor))
     }
 
     companion object {
+        /** The whole response body: `{ items, page: { size, nextCursor } }`, each row with its server and node name. */
+        fun payload(
+            alerts: List<ServerAlert>,
+            serverNames: Map<Long, String?>,
+            nodeNames: Map<Long, String?>,
+            limit: Int,
+            nextCursor: String?
+        ): Map<String, Any?> = CursorPaging.response(
+            alerts.map { alert ->
+                alert.toPublicJsonObject()
+                    .put("serverName", alert.serverId?.let { serverNames[it] })
+                    .put("nodeName", alert.nodeId?.let { nodeNames[it] })
+            },
+            limit,
+            nextCursor
+        )
+
         private const val DEFAULT_LIMIT = 50
 
         /** Enough to fill a page of history without letting one request read the whole table. */

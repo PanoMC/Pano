@@ -10,23 +10,20 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PanelActivityLog
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
-import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import com.panomc.platform.util.JsonObjectUtil
 import com.panomc.platform.util.PluginDevUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.SqlClient
 import org.pf4j.PluginState
 import java.util.*
-import kotlin.math.ceil
 
 @Endpoint
 class PanelGetActivityLogsAPI(
@@ -37,11 +34,10 @@ class PanelGetActivityLogsAPI(
     private val pluginManager: PluginManager,
     private val configManager: ConfigManager,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/logs/activity", RouteType.GET))
+    override val paths = listOf(Path("/logs/activity", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .queryParameter(optionalParam("page", intSchema()))
+        Paging.params(ValidationHandlerBuilder.create(schemaRepository))
             .queryParameter(optionalParam("search", stringSchema()))
             .queryParameter(optionalParam("locale", stringSchema()))
             .build()
@@ -49,7 +45,7 @@ class PanelGetActivityLogsAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val parameters = getParameters(context)
 
-        val page = parameters.queryParameter("page")?.long ?: 1
+        val page = Paging.request(context)
         val search = parameters.queryParameter("search")?.string?.trim()?.takeIf { it.isNotEmpty() }
         var localeCode = parameters.queryParameter("locale")?.string?.trim()?.takeIf { it.isNotEmpty() }
             ?: AppConstants.DEFAULT_LOCALE_CODE
@@ -64,7 +60,7 @@ class PanelGetActivityLogsAPI(
             localeCode = AppConstants.DEFAULT_LOCALE_CODE
         }
 
-        var platforms: List<PanelActivityLog> = emptyList()
+        val platforms: List<PanelActivityLog>
         val totalCount: Long
 
         if (search == null) {
@@ -72,6 +68,13 @@ class PanelGetActivityLogsAPI(
                 databaseManager.panelActivityLogDao.count(sqlClient)
             else
                 databaseManager.panelActivityLogDao.count(userId, sqlClient)
+
+            Paging.requireInRange(page, totalCount)
+
+            platforms = if (hasPermission)
+                databaseManager.panelActivityLogDao.getAll(page.limit, page.offset, sqlClient)
+            else
+                databaseManager.panelActivityLogDao.byUserId(userId, page.limit, page.offset, sqlClient)
         } else {
             val translations = getPanelSearchTranslations(localeCode, sqlClient)
             val allLogs = if (hasPermission)
@@ -85,41 +88,15 @@ class PanelGetActivityLogsAPI(
             }
 
             totalCount = filteredLogs.size.toLong()
-            val offset = ((page - 1) * PAGE_SIZE).toInt()
-            platforms = filteredLogs.drop(offset).take(PAGE_SIZE.toInt())
-        }
 
-        var totalPage = ceil(totalCount.toDouble() / PAGE_SIZE).toLong()
+            Paging.requireInRange(page, totalCount)
 
-        if (totalPage < 1) {
-            totalPage = 1
-        }
-
-        if (page > totalPage || page < 1) {
-            throw PageNotFound()
-        }
-
-        if (search == null) {
-            platforms = if (hasPermission)
-                databaseManager.panelActivityLogDao.getAll(page, sqlClient)
-            else
-                databaseManager.panelActivityLogDao.byUserId(userId, page, sqlClient)
+            platforms = filteredLogs.drop(page.offset.toInt()).take(page.limit)
         }
 
         withServerNames(platforms, sqlClient)
 
-        val response = mutableMapOf(
-            "data" to platforms,
-            "meta" to mapOf(
-                "filteredCount" to totalCount,
-                "totalCount" to totalCount,
-                "totalPage" to totalPage
-            )
-        )
-
-        return Successful(
-            response,
-        )
+        return Successful(payload(platforms, totalCount, page))
     }
 
     /**
@@ -293,7 +270,10 @@ class PanelGetActivityLogsAPI(
     }
 
     companion object {
-        private const val PAGE_SIZE = 10L
+        /** The whole response body: `{ items, page }`. */
+        fun payload(logs: List<PanelActivityLog>, totalItems: Long, page: PageRequest): Map<String, Any?> =
+            Paging.response(logs, totalItems, page)
+
         private const val SERVER_ID_KEY = "serverId"
         private const val SERVER_NAME_KEY = "serverName"
         private val PLACEHOLDER_REGEX = Regex("\\{([^{}]+)}")

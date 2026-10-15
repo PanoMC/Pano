@@ -12,9 +12,9 @@ import com.panomc.platform.server.plugins.PluginSourceId
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
@@ -30,10 +30,10 @@ class PanelGetPluginCatalogueVersionsAPI(
     private val authProvider: AuthProvider,
     private val pluginSourceCatalog: PluginSourceCatalog
 ) : PanelApi() {
-    // Same reason as the catalogue search: `/api/panel/plugins/:pluginId` must not win this path.
+    // Same reason as the catalogue search: `/api/v1/panel/addons/:pluginId` must not win this path.
     override val order = 0
 
-    override val paths = listOf(Path("/api/panel/plugins/search/:source/:projectId/versions", RouteType.GET))
+    override val paths = listOf(Path("/addons/search/:source/:projectId/versions", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

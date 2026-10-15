@@ -3,28 +3,24 @@ package com.panomc.platform.route.api.panel.maintenance
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
-import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import kotlin.math.ceil
 
 @Endpoint
 class PanelGetMaintenanceBannedIpsAPI(
     private val authProvider: AuthProvider,
     private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/maintenance/banned-ips", RouteType.GET))
+    override val paths = listOf(Path("/maintenance/banned-ips", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .queryParameter(optionalParam("page", numberSchema()))
+        Paging.params(ValidationHandlerBuilder.create(schemaRepository))
             .queryParameter(optionalParam("search", stringSchema()))
             .build()
 
@@ -33,7 +29,7 @@ class PanelGetMaintenanceBannedIpsAPI(
 
         val parameters = getParameters(context)
 
-        val page = parameters.queryParameter("page")?.long ?: 1L
+        val page = Paging.request(context, DEFAULT_PAGE_SIZE)
         val search = parameters.queryParameter("search")?.string?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
 
         // The ban store is an in-memory map capped at 10 000 entries, so filtering and paging here
@@ -47,29 +43,19 @@ class PanelGetMaintenanceBannedIpsAPI(
 
         val count = bannedIps.size.toLong()
 
-        var totalPage = ceil(count.toDouble() / PAGE_SIZE).toLong()
-
-        if (totalPage < 1) {
-            totalPage = 1
-        }
-
-        if (page !in 1..totalPage) {
-            throw PageNotFound()
-        }
+        Paging.requireInRange(page, count)
 
         return Successful(
-            mapOf(
-                "bannedIps" to bannedIps
-                    .drop(((page - 1) * PAGE_SIZE).toInt())
-                    .take(PAGE_SIZE)
-                    .map { it.toJson() },
-                "count" to count,
-                "totalPage" to totalPage
+            Paging.response(
+                bannedIps.drop(page.offset.toInt()).take(page.limit).map { it.toJson() },
+                count,
+                page
             )
         )
     }
 
     companion object {
-        private const val PAGE_SIZE = 25
+        /** Entries per page when the client sends no `pageSize` (as before the page shape). */
+        const val DEFAULT_PAGE_SIZE = 25
     }
 }

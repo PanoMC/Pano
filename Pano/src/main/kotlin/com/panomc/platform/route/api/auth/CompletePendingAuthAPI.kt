@@ -9,15 +9,17 @@ import com.panomc.platform.error.LoginUserIsBanned
 import com.panomc.platform.error.PluginDeniedLogin
 import com.panomc.platform.model.*
 import com.panomc.platform.util.BanUtil
-import com.panomc.platform.util.CSRFTokenGenerator
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
+import com.panomc.platform.schema.EndpointDoc
+import com.panomc.platform.error.UsernameRequired
+import com.panomc.platform.schema.CoreSchemas
 
 /**
  * Completes a pending auth session. The session was minted by an entry adapter (social login,
@@ -27,7 +29,7 @@ import io.vertx.json.schema.common.dsl.Schemas
  *
  * Body: `{pendingToken, …}`. Any extra fields are passed through the routing context body so
  * AuthEventListener implementations can read their own challenge fields (e.g. `totpCode`) exactly
- * as they would in the core `/api/auth/login` flow.
+ * as they would in the core `/api/v1/auth/login` flow.
  *
  * On a hook deny the token is kept alive so the user can retry the challenge (e.g. mistyped TOTP).
  * Only a successful completion or an explicit timeout removes the token.
@@ -40,7 +42,14 @@ class CompletePendingAuthAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : Api() {
-    override val paths = listOf(Path("/api/auth/complete-pending", RouteType.POST))
+    override val paths = listOf(Path("/auth/complete-pending", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Turns a verified pending sign-in (social login, magic link) into a session.",
+        tag = "auth",
+        response = CoreSchemas.session,
+        errors = listOf(InvalidToken::class, LoginUserIsBanned::class, PluginDeniedLogin::class, UsernameRequired::class)
+    )
 
     override fun isAllowedInDemo(method: HttpMethod) = true
 
@@ -86,19 +95,12 @@ class CompletePendingAuthAPI(
 
         authProvider.consumePendingSession(pendingToken, sqlClient)
 
-        val authToken = authProvider.login(user.username, context, sqlClient)
+        val issuedSession = authProvider.issueSession(user.username, context, sqlClient)
         databaseManager.userDao.updateLastLoginDate(user.id, sqlClient)
-
-        val csrfToken = CSRFTokenGenerator.nextToken()
-        authProvider.setCookies(context, authToken, csrfToken)
 
         val updatedUser = databaseManager.userDao.getById(user.id, sqlClient)!!
         authProvider.runOnAfterLogin(updatedUser, context, sqlClient)
 
-        return Successful(
-            mapOf(
-                "csrfToken" to csrfToken
-            )
-        )
+        return Successful(issuedSession)
     }
 }

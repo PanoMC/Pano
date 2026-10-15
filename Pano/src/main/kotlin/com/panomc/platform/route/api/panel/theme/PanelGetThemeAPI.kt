@@ -16,8 +16,8 @@ import com.panomc.platform.util.FileUtil.getSize
 import com.panomc.platform.util.ResourceHashStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.File
@@ -33,7 +33,7 @@ class PanelGetThemeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/themes/:themeId", RouteType.GET))
+    override val paths = listOf(Path("/themes/:themeId", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -86,6 +86,9 @@ class PanelGetThemeAPI(
                     "updateState" to updateInfo?.getString("state"),
                     "premium" to theme.premium,
                     "licenseStatus" to deriveThemeLicenseStatusLabel(theme, licenseManager),
+                    // The API level gate, as on the list: the detail page shows the level and a refusal.
+                    "apiLevel" to theme.apiLevel,
+                    "verdict" to uiManager.themeVerdict(theme.id).name,
                 )
             )
         )

@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.post
 
 
+import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.UpdatedPostStatusLog
@@ -12,9 +13,9 @@ import com.panomc.platform.util.PostStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import com.panomc.platform.util.UsageMode
@@ -26,7 +27,7 @@ class PanelUpdatePostStatusAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/posts/:id/status", RouteType.PUT))
+    override val paths = listOf(Path("/posts/:id/status", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -65,6 +66,14 @@ class PanelUpdatePostStatusAPI(
 
         if (moveTo == PostStatus.PUBLISHED) {
             databaseManager.postDao.publishById(id, userId, sqlClient)
+        }
+
+        if (moveTo == PostStatus.PUBLISHED && post.status != PostStatus.PUBLISHED) {
+            val published = databaseManager.postDao.getById(id, sqlClient)
+
+            if (published != null) {
+                WebhookCoreEvents.fire { postPublished(published, sqlClient) }
+            }
         }
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

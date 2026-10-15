@@ -20,7 +20,7 @@ class PanelReloadThemesAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/themes", RouteType.PUT))
+    override val paths = listOf(Path("/themes", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 

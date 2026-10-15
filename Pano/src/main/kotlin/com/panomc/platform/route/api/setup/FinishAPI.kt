@@ -1,8 +1,10 @@
 package com.panomc.platform.route.api.setup
 
+import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.AppConstants.AVAILABLE_LOCALES
 import com.panomc.platform.UIManager
+import com.panomc.platform.TelemetryManager
 import com.panomc.platform.UpdateManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -19,8 +21,8 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.kotlin.coroutines.coAwait
@@ -38,9 +40,12 @@ class FinishAPI(
     private val mariaDBManager: MariaDBManager,
     private val logger: Logger,
     @get:Lazy private val i18nManager: I18nManager,
-    @get:Lazy private val panoHostManager: PanoHostManager
+    @get:Lazy private val panoHostManager: PanoHostManager,
+    @get:Lazy private val panoBackupManager: PanoBackupManager,
+    @get:Lazy private val telemetryManager: TelemetryManager,
+    @get:Lazy private val panoMailService: com.panomc.platform.mail.PanoMailService
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/finish", RouteType.POST))
+    override val paths = listOf(Path("/setup/finish", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -57,6 +62,9 @@ class FinishAPI(
                         // Absent means the wizard is an older setup-ui build that never asked:
                         // usage data stays on, which is the documented default.
                         .optionalProperty("telemetryEnabled", booleanSchema())
+                        // true + a connected account: the remote (Pano Backup) schedule is switched on, daily.
+                        // Without an account it is ignored; false / absent leaves the settings untouched.
+                        .optionalProperty("dailyBackup", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -75,6 +83,7 @@ class FinishAPI(
         val password = data.getString("password")
         val setupLocale = data.getString("setupLocale")
         val telemetryEnabled = data.getBoolean("telemetryEnabled") ?: true
+        val dailyBackup = data.getBoolean("dailyBackup") ?: false
 
         val remoteIP = authProvider.getRemoteIP(context)
 
@@ -119,9 +128,32 @@ class FinishAPI(
 
         databaseManager.panelActivityLogDao.add(InstalledPlatformLog(userId, username), sqlClient)
 
+        if (dailyBackup) {
+            panoBackupManager.enableDailyRemoteBackup()
+        }
+
         setupManager.finishSetup()
 
+        // Pano Mail is switched on at the website only now, under the id this Pano keeps from now on (the wizard
+        // only checked it). The account exists by this point, so a refusal does not fail the set-up: this Pano
+        // goes back to SMTP with e-mail off and the answer says why.
+        val panoMailError = panoMailService.enableChosen()
+
+        if (panoMailError != null) {
+            logger.warn("Pano Mail could not be switched on after the set-up: $panoMailError")
+        }
+
+        try {
+            panoBackupManager.start()
+        } catch (e: Exception) {
+            logger.warn("The Pano Backup schedule could not be started after the set-up: ${e.message}")
+        }
+
         panoHostManager.announceCapabilities()
+
+        // The boot starts usage data reporting only on an installed Pano; one set up in this run starts it here,
+        // or it would stay silent until the next restart.
+        telemetryManager.init()
 
         try {
             updateManager.checkUpdates(true)
@@ -142,9 +174,12 @@ class FinishAPI(
         authProvider.setCookies(context, token, csrfToken)
 
         return Successful(
-            mapOf(
-                "jwt" to token
-            )
+            buildMap {
+                put("jwt", token)
+
+                // Only present when the Pano Mail chosen in the wizard was refused at the end (e-mail is off then).
+                panoMailError?.let { put("panoMailError", it) }
+            }
         )
     }
 }

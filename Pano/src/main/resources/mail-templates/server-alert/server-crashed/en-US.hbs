@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Server alert: Server stopped unexpectedly
+preheader: "{{serverName}}" stopped on its own
+buttonLabel: Open in panel
+buttonUrl: {{link}}
+footer: You are receiving this e-mail because alert e-mails are turned on. You can turn them off in the panel's alert settings.
+---
+<h2>Server stopped unexpectedly</h2>
+<p>"{{serverName}}" stopped on its own{{#if exitCode}} (exit code {{exitCode}}){{/if}}.</p>
+{{#if reason}}
+<p>Last console line: <code>{{reason}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Server:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Node:</strong> {{nodeName}}<br>{{/if}}<strong>Occurred at:</strong> {{occurredAt}}</p>

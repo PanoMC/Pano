@@ -41,7 +41,7 @@ class PanelLuckPermsMigrationUploadAPI(
         private const val GROUP_NODE_PREFIX = "group."
     }
 
-    override val paths = listOf(Path("/api/panel/migration/luckperms/upload", RouteType.POST))
+    override val paths = listOf(Path("/migration/luckperms/upload", RouteType.POST))
 
     override fun bodyHandler(): Handler<RoutingContext> =
         BodyHandler.create()

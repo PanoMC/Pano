@@ -11,14 +11,14 @@ import io.vertx.json.schema.SchemaRepository
 
 /**
  * Servers that have asked to connect and are still waiting to be approved
- * (`GET /api/panel/servers/pending`).
+ * (`GET /api/v1/panel/servers/pending`).
  *
- * Separate from `GET /api/panel/servers`, which lists only approved ones: a pending server is not
+ * Separate from `GET /api/v1/panel/servers`, which lists only approved ones: a pending server is not
  * something the panel can select, show a console for or send a command to, it is a decision an
  * admin has to make, and mixing the two lists is how a server nobody approved ends up looking
  * connected.
  *
- * Registered at route order 0, like `nodes/pairing-code`, because `/api/panel/servers/:id` would
+ * Registered at route order 0, like `nodes/pairing-code`, because `/api/v1/panel/servers/:id` would
  * otherwise match `pending` first and reject it as a non-numeric id -- Vert.x fails the first
  * matching route instead of trying the next one.
  */
@@ -29,7 +29,7 @@ class PanelGetPendingServersAPI(
 ) : PanelApi() {
     override val order = 0
 
-    override val paths = listOf(Path("/api/panel/servers/pending", RouteType.GET))
+    override val paths = listOf(Path("/servers/pending", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -45,7 +45,7 @@ class PanelGetPendingServersAPI(
 
         return Successful(
             mapOf(
-                "servers" to JsonArray(pending),
+                "items" to JsonArray(pending),
                 "count" to pending.size
             )
         )

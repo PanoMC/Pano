@@ -542,7 +542,7 @@ class AgentModeTest {
     fun `the address check tells a Pano from an old one, from anything else, and from nothing`() {
         val timeout = Duration.ofSeconds(5)
         val pano = stub(mapOf(AgentAddress.PROBE_PATH to (200 to checksum)))
-        val panoWithoutJar = stub(mapOf(AgentAddress.PROBE_PATH to (404 to "{\"result\":\"error\",\"error\":\"NOT_EXISTS\"}")))
+        val panoWithoutJar = stub(mapOf(AgentAddress.PROBE_PATH to (404 to "{\"error\":{\"code\":\"NOT_EXISTS\"}}")))
         val oldPano = stub(mapOf(AgentAddress.NODE_PROBE_PATH to (200 to checksum)))
         val website = stub(emptyMap())
         val moved = stub(mapOf("redirect:${AgentAddress.PROBE_PATH}" to (301 to pano.url() + AgentAddress.PROBE_PATH)))

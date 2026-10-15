@@ -9,10 +9,12 @@ import com.panomc.platform.auth.panel.log.PanoBackupSystemLog
 import com.panomc.platform.backup.remote.ConnectedAccount
 import com.panomc.platform.backup.remote.MemoryRemoteStateStore
 import com.panomc.platform.backup.remote.PanoHostClient
+import com.panomc.platform.backup.remote.RemoteBackupSettings
 import com.panomc.platform.backup.remote.PanoIdentity
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.backup.remote.PassphraseFile
 import com.panomc.platform.backup.remote.RemoteBackupState
+import com.panomc.platform.backup.remote.TransferEstimate
 import com.panomc.platform.backup.remote.RemoteStateStore
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
@@ -127,6 +129,9 @@ class PanoBackupManager(
         PanoHostClient({ hostApiUrl() }, ::connectionToken, { PanoIdentity(id, instanceName()) })
     }
 
+    /** The control-plane client for Pano Mail: the persisted instance id once set-up is done, else the set-up one. */
+    fun mailClient(): PanoHostClient = if (setupManager.isSetupDone()) hostClient else setupHostClient
+
     /** Pano Backup + transfer of the running Pano over its platform connection; settings in the database. */
     val remote by lazy {
         PanoRemoteBackupService(
@@ -142,6 +147,32 @@ class PanoBackupManager(
         )
     }
 
+    /** The size a transfer of this Pano would carry (files per the archive rules + the tables' data and index length), cached. */
+    val transferEstimate by lazy {
+        TransferEstimate(
+            scope = scope,
+            layout = { InstanceLayout.current(configManager.config) },
+            databaseBytes = ::databaseBytes,
+            logger = logger
+        )
+    }
+
+    /** `data_length + index_length` of this Pano's tables (the configured prefix): what the database holds, uncompressed, estimated by MariaDB. */
+    private suspend fun databaseBytes(): Long? {
+        val prefix = configManager.config.database.prefix
+        val escaped = prefix.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%")
+
+        val rows = databaseManager.getSqlClient()
+            .preparedQuery(
+                "SELECT COALESCE(SUM(data_length + index_length), 0) FROM information_schema.tables " +
+                    "WHERE table_schema = DATABASE() AND table_name LIKE ?"
+            )
+            .execute(io.vertx.sqlclient.Tuple.of("$escaped%"))
+            .coAwait()
+
+        return rows.firstOrNull()?.getLong(0)
+    }
+
     /** setup-ui "import from Pano Backup": uses the account connected in setup step 4. */
     val setupRemote by lazy {
         PanoRemoteBackupService(
@@ -154,6 +185,27 @@ class PanoBackupManager(
             instanceName = ::instanceName,
             panoVersion = Main.VERSION
         )
+    }
+
+    /**
+     * Setup's "daily backups with free Pano Backup": switches the remote backup schedule to DAILY with deduplicated snapshots (the saved hour,
+     * default 03:00 local, and the saved managed MC servers stay) when the account is connected. Needs the database
+     * (setup's finish route calls it after creating it). Returns whether it was switched on; never throws.
+     */
+    suspend fun enableDailyRemoteBackup(): Boolean {
+        return try {
+            if (!remote.isConnected()) {
+                return false
+            }
+
+            remote.saveSettings(remote.state().settings.copy(schedule = RemoteBackupSettings.Schedule.DAILY, mode = RemoteBackupSettings.Mode.SNAPSHOT))
+
+            true
+        } catch (e: Exception) {
+            logger.warn("Could not switch on the daily Pano Backup: ${e.message}")
+
+            false
+        }
     }
 
     /** A managed MC server backup is READY: uploaded to Pano Backup when that server is selected. */
@@ -204,8 +256,17 @@ class PanoBackupManager(
     var setupService: PanoBackupService? = null
         private set
 
-    /** Starts the schedule tick; setup must be done. */
+    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Starts the schedule tick once (boot of an installed Pano, or the end of the set-up wizard: without the
+     * second call a freshly set-up Pano would take no scheduled backup until its next restart).
+     */
     fun start() {
+        if (!started.compareAndSet(false, true)) {
+            return
+        }
+
         store.cleanParts()
 
         vertx.setPeriodic(TICK_INTERVAL_MS) {
@@ -292,7 +353,7 @@ class PanoBackupManager(
     }
 
     /** The running Pano ([panel]) or setup mode with an explicit target database. */
-    private inner class PlatformHost(private val databaseOverride: JsonObject?, private val panel: Boolean) : PanoBackupHost {
+    private inner class PlatformHost(@Volatile private var databaseOverride: JsonObject?, private val panel: Boolean) : PanoBackupHost {
         override val layout: InstanceLayout get() = InstanceLayout.current(configManager.config)
 
         override val panoVersion: String get() = Main.VERSION
@@ -301,6 +362,7 @@ class PanoBackupManager(
 
         override fun targetConfig(): JsonObject {
             val config = JsonObject(configManager.config.toString())
+            val databaseOverride = databaseOverride
 
             if (databaseOverride != null) {
                 val database = config.getJsonObject("database")?.copy() ?: JsonObject()
@@ -329,8 +391,32 @@ class PanoBackupManager(
 
         // A dedicated connection, never one of the shared pool's: the dumper and the importer
         // change session state (time zone, sql_mode, foreign_key_checks) that must not leak.
-        override suspend fun connect(): SqlConnection =
-            MySQLConnection.connect(vertx, connectOptions(targetConfig().getJsonObject("database") ?: JsonObject())).coAwait()
+        override suspend fun connect(): SqlConnection {
+            val options = connectOptions(targetConfig().getJsonObject("database") ?: JsonObject())
+
+            // The client throws this one inside its own context, where nobody is waiting: the connect
+            // future would never complete and the restore would hold the lock for good.
+            require(!options.host.isNullOrBlank()) { "No database host is configured." }
+
+            return MySQLConnection.connect(vertx, options).coAwait()
+        }
+
+        override fun adoptDatabase(database: JsonObject): Boolean {
+            // The running Pano always has its own; a portable database is managed by Pano itself.
+            if (panel || configManager.config.database.type == "portable") {
+                return false
+            }
+
+            databaseOverride = database.copy()
+
+            return true
+        }
+
+        override suspend fun restoreFailed(code: String) {
+            if (panel) {
+                audit.writeFailedRestore(code)
+            }
+        }
 
         override suspend fun setMaintenance(enabled: Boolean): Boolean {
             if (!panel) {

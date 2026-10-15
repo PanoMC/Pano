@@ -16,8 +16,8 @@ import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.ResourceStatusType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import java.io.File
@@ -33,7 +33,7 @@ class PanelGetThemesAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/themes", RouteType.GET))
+    override val paths = listOf(Path("/themes", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -77,8 +77,8 @@ class PanelGetThemesAPI(
         val updates = updateManager.getResourcesUpdateList()
 
         return Successful(
-            mapOf(
-                "data" to themes.map { theme ->
+            payload(
+                themes.map { theme ->
                     val themeFolder = File(THEMES_FOLDER_PATH, theme.id)
                     val updateInfo = updates.find { it.getString("id") == theme.id }
 
@@ -104,9 +104,17 @@ class PanelGetThemesAPI(
                         "updateState" to updateInfo?.getString("state"),
                         "premium" to theme.premium,
                         "licenseStatus" to deriveThemeLicenseStatusLabel(theme, licenseManager),
+                        // The API level gate (doc 04 section 7): a theme outside the range is not served.
+                        "apiLevel" to theme.apiLevel,
+                        "verdict" to uiManager.themeVerdict(theme.id).name,
                     )
                 }
             )
         )
+    }
+
+    companion object {
+        /** The response body: the list under `items` (doc 04 section 4). */
+        fun payload(items: List<Map<String, Any?>>): Map<String, Any?> = mapOf("items" to items)
     }
 }

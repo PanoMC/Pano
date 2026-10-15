@@ -31,13 +31,15 @@ abstract class BanHistoryDao : Dao<BanHistory>(BanHistory::class.java) {
     ): List<BanHistory>
 
     abstract suspend fun getAllByPage(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BanHistory>
 
     abstract suspend fun getAllByPageAndSearch(
-        page: Long,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BanHistory>
 

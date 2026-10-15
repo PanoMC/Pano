@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * The `pano-node.jar` this Pano ships with, as the daemon it hands out.
  *
- * Everything Pano gives to a node or a Pano Agent -- the bytes behind `GET /api/node/pano-node.jar`,
+ * Everything Pano gives to a node or a Pano Agent -- the bytes behind `GET /api/v1/node/pano-node.jar`,
  * the checksum next to them, the "update available" a hello is answered with -- comes straight from
  * the `pano-node.zip` bundled in the Pano jar ([NodeJarBundle]), never from a file on disk. That is
  * the entire point of bundling it: a node installed from this Pano speaks the protocol this Pano

@@ -1,0 +1,5982 @@
+{
+  "components": {
+    "headers": {
+      "PanoApiLevel": {
+        "description": "The API level this Pano implements.",
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "responses": {
+      "Error400": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Bad request: BAD_REQUEST",
+        "x-pano-error-codes": [
+          "BAD_REQUEST"
+        ]
+      },
+      "Error401": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Not logged in: NOT_LOGGED_IN",
+        "x-pano-error-codes": [
+          "NOT_LOGGED_IN"
+        ]
+      },
+      "Error403": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Forbidden: INVALID_CSRF_TOKEN, NO_PERMISSION",
+        "x-pano-error-codes": [
+          "INVALID_CSRF_TOKEN",
+          "NO_PERMISSION"
+        ]
+      },
+      "Error429": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Too many requests: RATE_LIMIT_EXCEEDED",
+        "x-pano-error-codes": [
+          "RATE_LIMIT_EXCEEDED"
+        ]
+      },
+      "Error500": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Internal server error: INTERNAL_SERVER_ERROR",
+        "x-pano-error-codes": [
+          "INTERNAL_SERVER_ERROR"
+        ]
+      },
+      "Error503": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Service unavailable: MAINTENANCE_MODE_ENABLED",
+        "x-pano-error-codes": [
+          "MAINTENANCE_MODE_ENABLED"
+        ]
+      }
+    },
+    "schemas": {
+      "Error": {
+        "description": "The body of every non-2xx answer.",
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "description": "A stable, declared code.",
+                "pattern": "^[A-Z][A-Z0-9_]*$",
+                "type": "string"
+              },
+              "details": {
+                "additionalProperties": true,
+                "description": "Extra facts about the failure.",
+                "type": "object"
+              },
+              "fields": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Field name to code, for a rejected form.",
+                "type": "object"
+              },
+              "message": {
+                "description": "Optional English text.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "Locale": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "dateFnsCode": {
+            "type": "string"
+          },
+          "definedBy": {
+            "enum": [
+              "SYSTEM",
+              "USER"
+            ]
+          },
+          "derivatives": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "dateFnsCode",
+          "derivatives",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "Notification": {
+        "properties": {
+          "createdAt": {
+            "type": "integer"
+          },
+          "details": {
+            "type": "object"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "isPersonal": {
+            "type": "boolean"
+          },
+          "pluginId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "NOT_READ",
+              "READ"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "createdAt",
+          "details",
+          "id",
+          "isPersonal",
+          "pluginId",
+          "status",
+          "type",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "Page": {
+        "description": "Where a list stands: page numbers start at 1, `pageSize` is at most 100.",
+        "properties": {
+          "number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "size": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "totalItems": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "totalPages": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "number",
+          "size",
+          "totalItems",
+          "totalPages"
+        ],
+        "type": "object"
+      },
+      "Post": {
+        "properties": {
+          "category": {
+            "properties": {
+              "color": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "date": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "PUBLISHED",
+              "DRAFT",
+              "TRASH"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "views": {
+            "type": "integer"
+          },
+          "writer": {
+            "properties": {
+              "username": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "username"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "category",
+          "date",
+          "id",
+          "status",
+          "text",
+          "thumbnailUrl",
+          "title",
+          "url",
+          "views",
+          "writer"
+        ],
+        "type": "object"
+      },
+      "PostDetail": {
+        "properties": {
+          "nextPost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "url"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "post": {
+            "$ref": "#/components/schemas/Post"
+          },
+          "previousPost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "url"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "nextPost",
+          "post",
+          "previousPost"
+        ],
+        "type": "object"
+      },
+      "PostSummary": {
+        "properties": {
+          "category": {
+            "properties": {
+              "color": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "date": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "views": {
+            "type": "integer"
+          },
+          "writer": {
+            "properties": {
+              "username": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "username"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "category",
+          "date",
+          "id",
+          "text",
+          "thumbnailUrl",
+          "title",
+          "url",
+          "views",
+          "writer"
+        ],
+        "type": "object"
+      },
+      "Server": {
+        "properties": {
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "main": {
+            "type": "boolean"
+          },
+          "maxPlayerCount": {
+            "type": "integer"
+          },
+          "motd": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "playerCount": {
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "BUNGEECORD",
+              "FABRIC",
+              "FOLIA",
+              "PAPER",
+              "SPIGOT",
+              "BUKKIT",
+              "VELOCITY",
+              "VANILLA",
+              "PURPUR",
+              "WATERFALL",
+              "QUILT",
+              "FORGE",
+              "NEOFORGE"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "iconUrl",
+          "id",
+          "main",
+          "maxPlayerCount",
+          "motd",
+          "name",
+          "online",
+          "playerCount",
+          "type",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Session": {
+        "properties": {
+          "csrfToken": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "integer"
+          },
+          "sessionToken": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Ticket": {
+        "properties": {
+          "category": {
+            "properties": {
+              "color": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "date": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "lastUpdate": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "NEW",
+              "REPLIED",
+              "CLOSED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "writer": {
+            "properties": {
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "username"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "category",
+          "date",
+          "id",
+          "lastUpdate",
+          "status",
+          "title",
+          "writer"
+        ],
+        "type": "object"
+      },
+      "TicketCategory": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "id",
+          "title",
+          "url"
+        ],
+        "type": "object"
+      },
+      "TicketDetail": {
+        "properties": {
+          "category": {
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "url"
+            ],
+            "type": "object"
+          },
+          "date": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "messageCount": {
+            "type": "integer"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/TicketMessage"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "NEW",
+              "REPLIED",
+              "CLOSED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "date",
+          "id",
+          "messageCount",
+          "messages",
+          "status",
+          "title",
+          "username"
+        ],
+        "type": "object"
+      },
+      "TicketMessage": {
+        "properties": {
+          "date": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "panel": {
+            "type": "integer"
+          },
+          "ticketId": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "id",
+          "message",
+          "panel",
+          "ticketId",
+          "userId",
+          "username"
+        ],
+        "type": "object"
+      },
+      "User": {
+        "properties": {
+          "lastLoginDate": {
+            "type": "integer"
+          },
+          "registerDate": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "registerDate"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "description": "A site session token, sent by a server-side front-end that holds a front-end key. Not valid on the panel API.",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "sessionCookie": {
+        "description": "The session cookie set by login. A mutation also repeats the `pano_csrf_token` cookie in the `X-CSRF-Token` header. Behind a plain-http origin the cookie names end in `_http`.",
+        "in": "cookie",
+        "name": "pano_auth_token",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "description": "The public API of a Pano site. Operations here are additive-only: nothing is removed or renamed, and no response field changes type or disappears.",
+    "summary": "Pano API",
+    "title": "Pano API",
+    "version": "1",
+    "x-pano-api-level": 1,
+    "x-pano-scope": "core"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/auth/complete-pending": {
+      "post": {
+        "operationId": "CompletePendingAuth",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "pendingToken": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "pendingToken"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not logged in: INVALID_TOKEN",
+            "x-pano-error-codes": [
+              "INVALID_TOKEN"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: PLUGIN_DENIED_LOGIN, USERNAME_REQUIRED",
+            "x-pano-error-codes": [
+              "PLUGIN_DENIED_LOGIN",
+              "USERNAME_REQUIRED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: LOGIN_USER_IS_BANNED",
+            "x-pano-error-codes": [
+              "LOGIN_USER_IS_BANNED"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Turns a verified pending sign-in (social login, magic link) into a session.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/credentials": {
+      "get": {
+        "operationId": "GetCredentials",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "admin": {
+                      "type": "boolean"
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "panelAccess": {
+                      "type": "boolean"
+                    },
+                    "permissions": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "username": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "admin",
+                    "email",
+                    "panelAccess",
+                    "permissions",
+                    "username"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Who the signed-in user is: name, e-mail, panel access and permissions.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/csrf": {
+      "get": {
+        "operationId": "GetCsrfToken",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The CSRF token of the current cookie session (null for a Bearer token).",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "Login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "newUsername": {
+                    "type": "string"
+                  },
+                  "panel": {
+                    "type": "boolean"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "registerEmail": {
+                    "type": "string"
+                  },
+                  "usernameOrEmail": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "usernameOrEmail"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: LINK_CODE_REQUIRED, NO_PANEL_ACCESS, PLUGIN_DENIED_LOGIN, REGISTER_EMAIL_REQUIRED, USERNAME_REQUIRED",
+            "x-pano-error-codes": [
+              "LINK_CODE_REQUIRED",
+              "NO_PANEL_ACCESS",
+              "PLUGIN_DENIED_LOGIN",
+              "REGISTER_EMAIL_REQUIRED",
+              "USERNAME_REQUIRED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: IP_IS_BANNED, LOGIN_EMAIL_NOT_VERIFIED, LOGIN_IS_INVALID, LOGIN_USER_IS_BANNED, REGISTER_EMAIL_NOT_AVAILABLE, REGISTER_INVALID_EMAIL, REGISTER_INVALID_USERNAME, REGISTER_USERNAME_NOT_AVAILABLE, REGISTER_USERNAME_TOO_LONG, REGISTER_USERNAME_TOO_SHORT",
+            "x-pano-error-codes": [
+              "IP_IS_BANNED",
+              "LOGIN_EMAIL_NOT_VERIFIED",
+              "LOGIN_IS_INVALID",
+              "LOGIN_USER_IS_BANNED",
+              "REGISTER_EMAIL_NOT_AVAILABLE",
+              "REGISTER_INVALID_EMAIL",
+              "REGISTER_INVALID_USERNAME",
+              "REGISTER_USERNAME_NOT_AVAILABLE",
+              "REGISTER_USERNAME_TOO_LONG",
+              "REGISTER_USERNAME_TOO_SHORT"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Signs in with a user name or e-mail and a password.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "Logout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Ends the current session and clears its cookies.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "Register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "agreement": {
+                    "type": "boolean"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "passwordRepeat": {
+                    "type": "string"
+                  },
+                  "registerWithLinkToken": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "agreement",
+                  "email",
+                  "password",
+                  "passwordRepeat"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "csrfToken": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "emailVerificationRequired": {
+                      "type": "boolean"
+                    },
+                    "expiresAt": {
+                      "type": "integer"
+                    },
+                    "login": {
+                      "type": "boolean"
+                    },
+                    "sessionToken": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not logged in: INVALID_TOKEN",
+            "x-pano-error-codes": [
+              "INVALID_TOKEN"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: PLUGIN_DENIED_LOGIN",
+            "x-pano-error-codes": [
+              "PLUGIN_DENIED_LOGIN"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: IP_IS_BANNED, PASSWORD_EMPTY, PASSWORD_TOO_LONG, PASSWORD_TOO_SHORT, REGISTER_EMAIL_EMPTY, REGISTER_EMAIL_NOT_AVAILABLE, REGISTER_INVALID_EMAIL, REGISTER_INVALID_USERNAME, REGISTER_NOT_ACCEPTED_AGREEMENT, REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME, REGISTER_USERNAME_EMPTY, REGISTER_USERNAME_NOT_AVAILABLE, REGISTER_USERNAME_TOO_LONG, REGISTER_USERNAME_TOO_SHORT",
+            "x-pano-error-codes": [
+              "IP_IS_BANNED",
+              "PASSWORD_EMPTY",
+              "PASSWORD_TOO_LONG",
+              "PASSWORD_TOO_SHORT",
+              "REGISTER_EMAIL_EMPTY",
+              "REGISTER_EMAIL_NOT_AVAILABLE",
+              "REGISTER_INVALID_EMAIL",
+              "REGISTER_INVALID_USERNAME",
+              "REGISTER_NOT_ACCEPTED_AGREEMENT",
+              "REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME",
+              "REGISTER_USERNAME_EMPTY",
+              "REGISTER_USERNAME_NOT_AVAILABLE",
+              "REGISTER_USERNAME_TOO_LONG",
+              "REGISTER_USERNAME_TOO_SHORT"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Creates an account; signs the new user in when e-mail verification is not required.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/renew-password": {
+      "post": {
+        "operationId": "RenewPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "captchaToken": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string"
+                  },
+                  "newPasswordRepeat": {
+                    "type": "string"
+                  },
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "newPassword",
+                  "newPasswordRepeat",
+                  "token"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: PLUGIN_DENIED_LOGIN",
+            "x-pano-error-codes": [
+              "PLUGIN_DENIED_LOGIN"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: INVALID_LINK, NEW_PASSWORD_EMPTY, NEW_PASSWORD_REPEAT_DOESNT_MATCH, NEW_PASSWORD_TOO_LONG, NEW_PASSWORD_TOO_SHORT",
+            "x-pano-error-codes": [
+              "INVALID_LINK",
+              "NEW_PASSWORD_EMPTY",
+              "NEW_PASSWORD_REPEAT_DOESNT_MATCH",
+              "NEW_PASSWORD_TOO_LONG",
+              "NEW_PASSWORD_TOO_SHORT"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Sets a new password with the token from the reset mail.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "operationId": "ResetPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "captchaToken": {
+                    "type": "string"
+                  },
+                  "usernameOrEmail": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "usernameOrEmail"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: PLUGIN_DENIED_LOGIN",
+            "x-pano-error-codes": [
+              "PLUGIN_DENIED_LOGIN"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: CANT_RESET_PASSWORD_WAIT5MINUTES",
+            "x-pano-error-codes": [
+              "CANT_RESET_PASSWORD_WAIT5MINUTES"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Mails a password reset link to the account of a user name or e-mail.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/verify-email": {
+      "post": {
+        "operationId": "VerifyEmail",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "captchaToken": {
+                    "type": "string"
+                  },
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: PLUGIN_DENIED_LOGIN",
+            "x-pano-error-codes": [
+              "PLUGIN_DENIED_LOGIN"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: INVALID_LINK",
+            "x-pano-error-codes": [
+              "INVALID_LINK"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Confirms an e-mail address with the token from the activation mail.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/verify-link-code": {
+      "post": {
+        "operationId": "VerifyLinkCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "captchaToken": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "username"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "username": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "username"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: PLUGIN_DENIED_LOGIN",
+            "x-pano-error-codes": [
+              "PLUGIN_DENIED_LOGIN"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: REGISTER_LINK_CODE_INVALID",
+            "x-pano-error-codes": [
+              "REGISTER_LINK_CODE_INVALID"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Checks the code a player got in the game; answers a token for finishing the registration.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/verify-new-email": {
+      "post": {
+        "operationId": "VerifyNewEmail",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "captchaToken": {
+                    "type": "string"
+                  },
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: PLUGIN_DENIED_LOGIN",
+            "x-pano-error-codes": [
+              "PLUGIN_DENIED_LOGIN"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: INVALID_LINK",
+            "x-pano-error-codes": [
+              "INVALID_LINK"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Confirms a changed e-mail address with the token from the mail.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/auth/ws-ticket": {
+      "post": {
+        "operationId": "CreateWsTicket",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "expiresIn": {
+                      "type": "integer"
+                    },
+                    "ticket": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "expiresIn",
+                    "ticket"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A one-time ticket for opening the website WebSocket.",
+        "tags": [
+          "auth"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/favicon": {
+      "get": {
+        "operationId": "GetFavicon",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hash",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The site icon; redirects to the URL with its hash first.",
+        "tags": [
+          "site"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/frontend/settings": {
+      "get": {
+        "operationId": "GetFrontendSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "files": {
+                      "type": "object"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "settings": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "files",
+                    "id",
+                    "settings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The settings of the active front-end, defaults filled in.",
+        "tags": [
+          "frontend"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/frontend/urls": {
+      "get": {
+        "operationId": "GetFrontendUrls",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "siteUrl": {
+                      "type": "string"
+                    },
+                    "urls": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "siteUrl",
+                    "urls"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Where each page Pano links to lives on the site; paths keep their {name} placeholders.",
+        "tags": [
+          "frontend"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Answers 200 with an empty object while Pano is running; no login, never gated by setup or maintenance.",
+        "tags": [
+          "health"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/locales": {
+      "get": {
+        "operationId": "GetLocales",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Locale"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The languages of the site.",
+        "tags": [
+          "locales"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/locales/{code}/translations/types/{type}": {
+      "get": {
+        "operationId": "GetTranslations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "properties": {
+                        "pluginAdminKeys": {
+                          "type": "object"
+                        },
+                        "totalCount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "pluginAdminKeys",
+                        "totalCount"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The texts of one locale and type, with the admin's edits applied.",
+        "tags": [
+          "locales"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/notifications": {
+      "delete": {
+        "operationId": "DeleteAllNotification",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Deletes every notification of the signed-in user.",
+        "tags": [
+          "notifications"
+        ],
+        "x-pano-stability": "public"
+      },
+      "get": {
+        "operationId": "GetNotifications",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/Page"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad request: BAD_REQUEST, INVALID_FIELDS",
+            "x-pano-error-codes": [
+              "BAD_REQUEST",
+              "INVALID_FIELDS"
+            ]
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: PAGE_NOT_FOUND",
+            "x-pano-error-codes": [
+              "PAGE_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The signed-in user's notifications, newest first; marks the page read.",
+        "tags": [
+          "notifications"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/notifications/quick": {
+      "get": {
+        "operationId": "GetQuickNotifications",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      },
+                      "type": "array"
+                    },
+                    "notificationCount": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "properties": {
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "size": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "nextCursor",
+                        "size"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "notificationCount",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The last five notifications and the number of unread ones, for a dropdown.",
+        "tags": [
+          "notifications"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/notifications/quick/mark-as-read": {
+      "post": {
+        "operationId": "MarkQuickNotificationsAsRead",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "notificationCount": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "notificationCount"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Marks the last five notifications read and answers the unread count.",
+        "tags": [
+          "notifications"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/notifications/{id}": {
+      "delete": {
+        "operationId": "DeleteNotification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Deletes one notification of the signed-in user; an unknown or foreign id is ignored.",
+        "tags": [
+          "notifications"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/notifications/{id}/more": {
+      "get": {
+        "operationId": "GetMoreNotifications",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      },
+                      "type": "array"
+                    },
+                    "notificationCount": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "properties": {
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "size": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "nextCursor",
+                        "size"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "notificationCount",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad request: BAD_REQUEST, INVALID_FIELDS",
+            "x-pano-error-codes": [
+              "BAD_REQUEST",
+              "INVALID_FIELDS"
+            ]
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Ten notifications older than the given id, as a cursor page; marks them read.",
+        "tags": [
+          "notifications"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/notifications/{id}/read": {
+      "post": {
+        "operationId": "MarkNotificationAsRead",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Marks one notification read; an unknown or foreign id is ignored.",
+        "tags": [
+          "notifications"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "GetOpenApi",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "components": {
+                      "type": "object"
+                    },
+                    "info": {
+                      "type": "object"
+                    },
+                    "openapi": {
+                      "type": "string"
+                    },
+                    "paths": {
+                      "type": "object"
+                    },
+                    "servers": {
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "components",
+                    "info",
+                    "openapi",
+                    "paths",
+                    "servers"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The OpenAPI 3.1 document of the public core API",
+        "tags": [
+          "openapi"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/plugin-packages": {
+      "get": {
+        "operationId": "GetPluginPackages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "plugins": {
+                      "additionalProperties": {
+                        "type": "object"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "plugins"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The pano-plugin.json of every plugin whose site UI Pano serves.",
+        "tags": [
+          "plugins"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/plugins/{pluginId}/_/openapi.json": {
+      "get": {
+        "operationId": "GetPluginOpenApi",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pluginId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "components": {
+                      "type": "object"
+                    },
+                    "info": {
+                      "type": "object"
+                    },
+                    "openapi": {
+                      "type": "string"
+                    },
+                    "paths": {
+                      "type": "object"
+                    },
+                    "servers": {
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "components",
+                    "info",
+                    "openapi",
+                    "paths",
+                    "servers"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The OpenAPI 3.1 document of one plugin's public API",
+        "tags": [
+          "openapi"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/plugins/{pluginId}/_/translations/{locale}": {
+      "get": {
+        "operationId": "GetPluginTranslations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pluginId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "locale": {
+                      "type": "string"
+                    },
+                    "translations": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "locale",
+                    "translations"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "One plugin's texts in one locale, with the admin's edits applied.",
+        "tags": [
+          "plugins"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/plugins/{pluginId}/_/ui/*": {
+      "get": {
+        "operationId": "GetPluginUiFile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pluginId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "One file of a plugin's built package (pano-plugin.json, contract, controllers, samples, widgets).",
+        "tags": [
+          "plugins"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/posts": {
+      "get": {
+        "operationId": "GetPosts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoryUrl",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/PostSummary"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/Page"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad request: BAD_REQUEST, INVALID_FIELDS",
+            "x-pano-error-codes": [
+              "BAD_REQUEST",
+              "INVALID_FIELDS"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: CATEGORY_NOT_EXISTS, PAGE_NOT_FOUND",
+            "x-pano-error-codes": [
+              "CATEGORY_NOT_EXISTS",
+              "PAGE_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Published posts, newest first, optionally of one category.",
+        "tags": [
+          "posts"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/posts/previews/{id}": {
+      "get": {
+        "operationId": "GetPostPreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDetail"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: POST_NOT_FOUND",
+            "x-pano-error-codes": [
+              "POST_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A post by id, draft or not, for a person who may use the panel; same body as a published post.",
+        "tags": [
+          "posts"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/posts/thumbnails/{filename}": {
+      "get": {
+        "operationId": "GetPostThumbnail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "A post thumbnail file.",
+        "tags": [
+          "posts"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/posts/{url}": {
+      "get": {
+        "operationId": "GetPostDetail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "url",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDetail"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: POST_NOT_FOUND",
+            "x-pano-error-codes": [
+              "POST_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "One published post with the posts before and after it by date.",
+        "tags": [
+          "posts"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/posts/{url}/view": {
+      "post": {
+        "operationId": "TrackPostView",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "url",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "counted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "counted"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: POST_NOT_FOUND",
+            "x-pano-error-codes": [
+              "POST_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Counts one view of a post; a bot or a repeat view inside the window is not counted.",
+        "tags": [
+          "posts"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/profile": {
+      "get": {
+        "operationId": "GetProfile",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The signed-in user's own profile, with the last login date.",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      },
+      "put": {
+        "operationId": "UpdateProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "localeCode": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Changes the signed-in user's language.",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/profile/change-email": {
+      "post": {
+        "operationId": "ChangeEmail",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "currentPassword": {
+                    "type": "string"
+                  },
+                  "newEmail": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "currentPassword",
+                  "newEmail"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: CANT_CHANGE_EMAIL_WAIT15MINUTES, CURRENT_PASSWORD_NOT_CORRECT, INVALID_EMAIL, NEW_EMAIL_EXISTS",
+            "x-pano-error-codes": [
+              "CANT_CHANGE_EMAIL_WAIT15MINUTES",
+              "CURRENT_PASSWORD_NOT_CORRECT",
+              "INVALID_EMAIL",
+              "NEW_EMAIL_EXISTS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Starts an e-mail change: stores the new address as pending and mails a confirmation link.",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/profile/picture/{username}": {
+      "get": {
+        "operationId": "GetProfilePicture",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Redirects (302) to the picture of a user.",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/profile/reset-password": {
+      "post": {
+        "operationId": "SendResetPasswordEmail",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: CANT_RESET_PASSWORD_WAIT5MINUTES",
+            "x-pano-error-codes": [
+              "CANT_RESET_PASSWORD_WAIT5MINUTES"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Mails the signed-in user a password reset link.",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/profile/sessions": {
+      "get": {
+        "operationId": "GetMySessions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "properties": {
+                          "expireDate": {
+                            "type": "integer"
+                          },
+                          "id": {
+                            "type": "integer"
+                          },
+                          "ip": {
+                            "type": "string"
+                          },
+                          "isCurrent": {
+                            "type": "boolean"
+                          },
+                          "lastActivityTime": {
+                            "type": "integer"
+                          },
+                          "userAgent": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "expireDate",
+                          "id",
+                          "ip",
+                          "isCurrent",
+                          "lastActivityTime",
+                          "userAgent"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The signed-in user's open sessions, whole (unpaged).",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/profile/sessions/{id}": {
+      "delete": {
+        "operationId": "LogoutMySession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Ends one of the signed-in user's sessions; an id that is not theirs is ignored.",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/profiles/{username}": {
+      "get": {
+        "operationId": "GetPlayerProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The public profile of a user.",
+        "tags": [
+          "profile"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/register-agreement": {
+      "get": {
+        "operationId": "GetRegisterAgreement",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "registerAgreement": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "registerAgreement"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The text a new user must accept when registering.",
+        "tags": [
+          "site"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/servers": {
+      "get": {
+        "operationId": "GetServers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Server"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "address",
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The accepted game servers of the site, the main one first; never a host, port or key.",
+        "tags": [
+          "servers"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/sidebars/home": {
+      "get": {
+        "operationId": "HomeSidebar",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ipAddress": {
+                      "type": "string"
+                    },
+                    "lastRegisteredUsers": {
+                      "items": {
+                        "properties": {
+                          "lastActivityTime": {
+                            "type": "integer"
+                          },
+                          "registerDate": {
+                            "type": "integer"
+                          },
+                          "username": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "lastActivityTime",
+                          "registerDate",
+                          "username"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "mainServer": {
+                      "properties": {
+                        "maxPlayerCount": {
+                          "type": "integer"
+                        },
+                        "playerCount": {
+                          "type": "integer"
+                        },
+                        "status": {
+                          "enum": [
+                            "ONLINE",
+                            "OFFLINE"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "maxPlayerCount",
+                        "playerCount",
+                        "status"
+                      ],
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "serverGameVersion": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ipAddress",
+                    "lastRegisteredUsers",
+                    "mainServer",
+                    "serverGameVersion"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The home page sidebar: server address, main server status and the newest members.",
+        "tags": [
+          "sidebars"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/sidebars/profile": {
+      "get": {
+        "operationId": "ProfileSidebar",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "inGame": {
+                      "type": "boolean"
+                    },
+                    "lastActivityTime": {
+                      "type": "integer"
+                    },
+                    "permissionGroupName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "inGame",
+                    "lastActivityTime",
+                    "permissionGroupName"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The signed-in user's own profile sidebar.",
+        "tags": [
+          "sidebars"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/sidebars/profile/{username}": {
+      "get": {
+        "operationId": "PlayerProfileSidebar",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "banned": {
+                      "type": "boolean"
+                    },
+                    "inGame": {
+                      "type": "boolean"
+                    },
+                    "lastActivityTime": {
+                      "type": "integer"
+                    },
+                    "permissionGroupName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "banned",
+                    "inGame",
+                    "lastActivityTime",
+                    "permissionGroupName"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The profile page sidebar of a user.",
+        "tags": [
+          "sidebars"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/sidebars/support": {
+      "get": {
+        "operationId": "SupportSidebar",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The support page sidebar: the staff members who are online.",
+        "tags": [
+          "sidebars"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/site-info": {
+      "get": {
+        "operationId": "GetSiteInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "allowUserLocaleSelection": {
+                      "type": "boolean"
+                    },
+                    "developmentMode": {
+                      "type": "boolean"
+                    },
+                    "emailEnabled": {
+                      "type": "boolean"
+                    },
+                    "faviconHash": {
+                      "type": "string"
+                    },
+                    "hasRegisterAgreement": {
+                      "type": "boolean"
+                    },
+                    "homePage": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ipAddress": {
+                      "type": "string"
+                    },
+                    "isDemo": {
+                      "type": "boolean"
+                    },
+                    "keywords": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "locale": {
+                      "type": "string"
+                    },
+                    "locales": {
+                      "items": {
+                        "$ref": "#/components/schemas/Locale"
+                      },
+                      "type": "array"
+                    },
+                    "panoVersion": {
+                      "type": "string"
+                    },
+                    "platformLocale": {
+                      "type": "string"
+                    },
+                    "plugins": {
+                      "additionalProperties": {
+                        "properties": {
+                          "dependencies": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "uiHash": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "dependencies",
+                          "uiHash",
+                          "version"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "object"
+                    },
+                    "supportEmail": {
+                      "type": "string"
+                    },
+                    "themeSettings": {
+                      "type": "object"
+                    },
+                    "usageMode": {
+                      "enum": [
+                        "WEBSITE",
+                        "SERVERS",
+                        "BOTH"
+                      ]
+                    },
+                    "userLocaleCode": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "websiteDescription": {
+                      "type": "string"
+                    },
+                    "websiteLogoHash": {
+                      "type": "string"
+                    },
+                    "websiteName": {
+                      "type": "string"
+                    },
+                    "websiteUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "allowUserLocaleSelection",
+                    "developmentMode",
+                    "emailEnabled",
+                    "faviconHash",
+                    "hasRegisterAgreement",
+                    "homePage",
+                    "ipAddress",
+                    "isDemo",
+                    "keywords",
+                    "locale",
+                    "panoVersion",
+                    "platformLocale",
+                    "plugins",
+                    "supportEmail",
+                    "themeSettings",
+                    "usageMode",
+                    "websiteDescription",
+                    "websiteLogoHash",
+                    "websiteName",
+                    "websiteUrl"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "What a front-end needs to boot: language, site texts, mode, plugins and theme settings.",
+        "tags": [
+          "site"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/sitemap": {
+      "get": {
+        "operationId": "GetSitemap",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "properties": {
+                          "params": {
+                            "type": "object"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "params",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/Page"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad request: BAD_REQUEST, INVALID_FIELDS",
+            "x-pano-error-codes": [
+              "BAD_REQUEST",
+              "INVALID_FIELDS"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: PAGE_NOT_FOUND",
+            "x-pano-error-codes": [
+              "PAGE_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Every public page of the site, core and plugins, for building a sitemap.",
+        "tags": [
+          "site"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/theme/file/{filename}": {
+      "get": {
+        "operationId": "GetThemeSettingResource",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "A file the admin uploaded in the theme settings.",
+        "tags": [
+          "frontend"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/ticket-categories": {
+      "get": {
+        "operationId": "GetTicketCategories",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/TicketCategory"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/Page"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad request: BAD_REQUEST, INVALID_FIELDS",
+            "x-pano-error-codes": [
+              "BAD_REQUEST",
+              "INVALID_FIELDS"
+            ]
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: PAGE_NOT_FOUND",
+            "x-pano-error-codes": [
+              "PAGE_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The ticket categories a new ticket can be filed under.",
+        "tags": [
+          "tickets"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/tickets": {
+      "get": {
+        "operationId": "GetTickets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "pageType",
+            "required": false,
+            "schema": {
+              "items": {
+                "enum": [
+                  "ALL",
+                  "WAITING_REPLY",
+                  "CLOSED"
+                ]
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoryUrl",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Ticket"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/Page"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad request: BAD_REQUEST, INVALID_FIELDS",
+            "x-pano-error-codes": [
+              "BAD_REQUEST",
+              "INVALID_FIELDS"
+            ]
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS, PAGE_NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_EXISTS",
+              "PAGE_NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The signed-in user's tickets, filtered by page type or category.",
+        "tags": [
+          "tickets"
+        ],
+        "x-pano-stability": "public"
+      },
+      "post": {
+        "operationId": "CreateTicket",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "categoryId": {
+                    "type": "number"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "categoryId",
+                  "message",
+                  "title"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: CATEGORY_NOT_EXISTS",
+            "x-pano-error-codes": [
+              "CATEGORY_NOT_EXISTS"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: MESSAGE_CANT_BE_EMPTY, TITLE_CANT_BE_EMPTY",
+            "x-pano-error-codes": [
+              "MESSAGE_CANT_BE_EMPTY",
+              "TITLE_CANT_BE_EMPTY"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Opens a ticket with its first message.",
+        "tags": [
+          "tickets"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/tickets/{id}": {
+      "get": {
+        "operationId": "GetTicket",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ticket": {
+                      "$ref": "#/components/schemas/TicketDetail"
+                    }
+                  },
+                  "required": [
+                    "ticket"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One ticket of the signed-in user with its messages.",
+        "tags": [
+          "tickets"
+        ],
+        "x-pano-stability": "public"
+      },
+      "put": {
+        "operationId": "UpdateTicket",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "NEW",
+                      "REPLIED",
+                      "CLOSED"
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Changes the status of a ticket of the signed-in user (closing it).",
+        "tags": [
+          "tickets"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/tickets/{id}/messages": {
+      "get": {
+        "operationId": "GetTicketMessages",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lastMessageId",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "messages": {
+                      "items": {
+                        "$ref": "#/components/schemas/TicketMessage"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "messages"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION",
+            "x-pano-error-codes": [
+              "NO_PERMISSION"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The messages of a ticket that came after a given message.",
+        "tags": [
+          "tickets"
+        ],
+        "x-pano-stability": "public"
+      },
+      "post": {
+        "operationId": "SendTicketMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/TicketMessage"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_EXISTS",
+            "x-pano-error-codes": [
+              "NOT_EXISTS"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: MESSAGE_CANT_BE_EMPTY, TICKET_IS_CLOSED",
+            "x-pano-error-codes": [
+              "MESSAGE_CANT_BE_EMPTY",
+              "TICKET_IS_CLOSED"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Adds a message to an open ticket of the signed-in user.",
+        "tags": [
+          "tickets"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/visitor-visit": {
+      "post": {
+        "operationId": "VisitorVisit",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error 422: INVALID_IP_ADDRESS",
+            "x-pano-error-codes": [
+              "INVALID_IP_ADDRESS"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "Counts one visit of the caller's IP address for today.",
+        "tags": [
+          "site"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/website-logo": {
+      "get": {
+        "operationId": "GetWebsiteLogo",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hash",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The site logo; redirects to the URL with its hash first.",
+        "tags": [
+          "site"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/widgets/index.json": {
+      "get": {
+        "operationId": "GetWidgetIndex",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "runtime": {
+                      "properties": {
+                        "hash": {
+                          "type": "string"
+                        },
+                        "svelte": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "hash",
+                        "svelte"
+                      ],
+                      "type": "object"
+                    },
+                    "site": {
+                      "properties": {
+                        "locale": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "locale",
+                        "name",
+                        "url"
+                      ],
+                      "type": "object"
+                    },
+                    "widgets": {
+                      "additionalProperties": {
+                        "type": "object"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "runtime",
+                    "site",
+                    "widgets"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "What the widget loader needs: the runtime pin, the site, and every widget tag of the active plugins.",
+        "tags": [
+          "widgets"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/widgets/loader.js": {
+      "get": {
+        "operationId": "GetWidgetLoader",
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "The one JavaScript file a page includes to use Pano's web-component widgets (not JSON).",
+        "tags": [
+          "widgets"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/widgets/runtime/*": {
+      "get": {
+        "operationId": "GetWidgetRuntimeFile",
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found: NOT_FOUND",
+            "x-pano-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "summary": "One file of the widget runtime (Svelte, host modules, styles, fonts); the answer is the file, not JSON.",
+        "tags": [
+          "widgets"
+        ],
+        "x-pano-stability": "public"
+      }
+    },
+    "/ws": {
+      "get": {
+        "operationId": "WebsiteWebSocket",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ticket",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {
+              "Pano-Api-Level": {
+                "$ref": "#/components/headers/PanoApiLevel"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not logged in: INVALID_WS_TICKET, NOT_LOGGED_IN",
+            "x-pano-error-codes": [
+              "INVALID_WS_TICKET",
+              "NOT_LOGGED_IN"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden: NO_PERMISSION, ORIGIN_NOT_ALLOWED",
+            "x-pano-error-codes": [
+              "NO_PERMISSION",
+              "ORIGIN_NOT_ALLOWED"
+            ]
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Opens the realtime WebSocket of the signed-in user (notification refresh nudges). Not a JSON answer: a successful call upgrades the connection (101) and then sends text frames, the first being {\"type\":\"ready\"}. Sign in with the one-time `ticket` from `POST /auth/ws-ticket`, an `Authorization: Bearer` header, or the session cookie (same or allowed origin only).",
+        "tags": [
+          "realtime"
+        ],
+        "x-pano-stability": "public"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth"
+    },
+    {
+      "name": "frontend"
+    },
+    {
+      "name": "health"
+    },
+    {
+      "name": "locales"
+    },
+    {
+      "name": "notifications"
+    },
+    {
+      "name": "openapi"
+    },
+    {
+      "name": "plugins"
+    },
+    {
+      "name": "posts"
+    },
+    {
+      "name": "profile"
+    },
+    {
+      "name": "realtime"
+    },
+    {
+      "name": "servers"
+    },
+    {
+      "name": "sidebars"
+    },
+    {
+      "name": "site"
+    },
+    {
+      "name": "tickets"
+    },
+    {
+      "name": "widgets"
+    }
+  ]
+}

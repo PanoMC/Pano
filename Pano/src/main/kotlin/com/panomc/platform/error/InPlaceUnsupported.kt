@@ -11,4 +11,4 @@ import com.panomc.platform.model.Error
 class InPlaceUnsupported(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("IN_PLACE_UNSUPPORTED", 409, statusMessage, extras)

@@ -1,0 +1,135 @@
+package gen
+
+import com.google.gson.GsonBuilder
+import com.panomc.node.backup.BackupScopeKind
+import com.panomc.node.backup.ResolvedScope
+import com.panomc.node.backup.snapshot.FastCdc
+import com.panomc.node.backup.snapshot.SnapshotRepository
+import com.panomc.node.files.BackupExcludeMatcher
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.FileTime
+import java.util.zip.GZIPInputStream
+import javax.crypto.Cipher
+import javax.crypto.Mac
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
+/** SplitMix64 byte stream: each draw written little-endian, truncated to [length]. */
+fun splitMixBytes(seed: Long, length: Int): ByteArray {
+    val out = ByteArray(length)
+    var state = seed
+    var i = 0
+    while (i < length) {
+        state += -0x61c8864680b583ebL
+        var z = state
+        z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+        z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+        z = z xor (z ushr 31)
+        for (b in 0 until 8) {
+            if (i < length) out[i++] = (z ushr (8 * b)).toByte()
+        }
+    }
+    return out
+}
+
+fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
+fun unhex(s: String) = ByteArray(s.length / 2) { s.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+
+fun cuts(chunker: FastCdc, data: ByteArray): String {
+    val sb = StringBuilder()
+    chunker.split(ByteArrayInputStream(data)) { buffer, offset, length ->
+        sb.append(length).append(' ').append(SnapshotRepository.sha256Hex(buffer, offset, length)).append('\n')
+    }
+    return sb.toString()
+}
+
+fun hmac(key: ByteArray, data: ByteArray): ByteArray =
+    Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)
+
+/** RFC 5869, empty salt = 32 zero bytes, L = 32 (one block). Independent of the agent's code. */
+fun hkdf32(ikm: ByteArray, info: String): ByteArray {
+    val prk = hmac(ByteArray(32), ikm)
+    return hmac(prk, info.toByteArray(Charsets.US_ASCII) + byteArrayOf(1))
+}
+
+fun seal(master: ByteArray, keyId: String, path: String, nonce: ByteArray, plain: ByteArray): ByteArray {
+    val kid = keyId.toByteArray(Charsets.UTF_8)
+    val header = "PSNAP".toByteArray(Charsets.US_ASCII) + byteArrayOf(1, kid.size.toByte()) + kid
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(hkdf32(master, "pano-snapshot-v1"), "AES"), GCMParameterSpec(128, nonce))
+    cipher.updateAAD(header + path.toByteArray(Charsets.UTF_8))
+    return header + nonce + cipher.doFinal(plain)
+}
+
+fun main(args: Array<String>) {
+    val out = File(args[0]).apply { deleteRecursively(); mkdirs() }
+
+    File(out, "gear.txt").writeText(FastCdc.GEAR.joinToString("\n", postfix = "\n") { "%016x".format(it) })
+
+    File(out, "cuts-default.txt").writeText(cuts(FastCdc(), splitMixBytes(1, 12 * 1024 * 1024 + 12345)))
+    File(out, "cuts-small.txt").writeText(cuts(FastCdc(64, 256, 1024), splitMixBytes(2, 64 * 1024 + 77)))
+    File(out, "cuts-mixed-small.txt").writeText(
+        cuts(FastCdc(64, 256, 1024), splitMixBytes(3, 3000) + ByteArray(5000) + splitMixBytes(4, 3000))
+    )
+
+    // A repository written by the real SnapshotRepository with small chunker parameters.
+    val work = Files.createTempDirectory("snapgen").toFile()
+    val tree = File(work, "tree")
+    val repo = File(out, "repo")
+    val lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. "
+    val files = linkedMapOf(
+        "app/config.conf" to (1..60).joinToString("") { "key-$it = \"$lorem\"\n" }.toByteArray(),
+        "app/plugins/plugin.jar" to splitMixBytes(5, 2500),
+        "app/themes/a&b=<c> ş.txt" to "hello".toByteArray(),
+        "app/empty.txt" to ByteArray(0),
+        "db/dump.sql" to (1..80).joinToString("") { "INSERT INTO `pano_x` VALUES ($it,'$lorem');\n" }.toByteArray(),
+        "meta/pano.json" to """{"panoVersion":"1.0.0-alpha.516","dbPrefix":"pano_"}""".toByteArray()
+    )
+    var t = 1_790_000_000_000L
+    files.forEach { (p, bytes) -> File(tree, p).apply { parentFile.mkdirs(); writeBytes(bytes) } }
+    File(tree, "app/maintenance").mkdirs()
+    files.keys.forEach { p -> Files.setLastModifiedTime(File(tree, p).toPath(), FileTime.fromMillis(t)); t += 1000 }
+    listOf("app/plugins", "app/themes", "app/maintenance", "app", "db", "meta").forEach { d ->
+        Files.setLastModifiedTime(File(tree, d).toPath(), FileTime.fromMillis(t)); t += 1000
+    }
+    repo.mkdirs()
+    File(repo, "config.json").writeText("""{"version":1,"chunker":"fastcdc","min":64,"avg":256,"max":1024}""")
+    val exclude = listOf("app/file-uploads/cache", "app/file-uploads/temp", "app/file-uploads/transfer", "app/themes/**/.pano-license.jwt")
+    val result = SnapshotRepository(repo).create(
+        tree, "snap-golden", "DAILY", 1_790_000_000_000L,
+        ResolvedScope(BackupScopeKind.PANO_INSTANCE, listOf("app", "db", "meta"), false),
+        emptyList(), BackupExcludeMatcher(exclude)
+    )
+    tree.copyRecursively(File(out, "tree"))
+    File(out, "tree-mtimes.txt").writeText(
+        tree.walkTopDown().filter { it != tree }.sortedBy { it.path }
+            .joinToString("\n", postfix = "\n") { "${it.relativeTo(tree).invariantSeparatorsPath} ${it.lastModified()}" }
+    )
+    val manifestGz = File(repo, "snapshots/snap-golden.json.gz").readBytes()
+    File(out, "manifest.json").writeBytes(GZIPInputStream(ByteArrayInputStream(manifestGz)).readBytes())
+    File(out, "repo-summary.txt").writeText("newChunks=${result.newChunks}\ntotalChunks=${result.totalChunks}\nstoredBytes=${result.storedBytes}\n")
+
+    // Sealed-object vectors (fixed nonces) over a few plaintexts, independent AES-GCM + HKDF.
+    val master = ByteArray(32) { it.toByte() }
+    val chunkId = result.manifest.chunkIds().first()
+    val chunkPath = "data/${chunkId.substring(0, 2)}/$chunkId"
+    val cases = listOf(
+        Triple("k1", "config.json", File(repo, "config.json").readBytes()),
+        Triple("k1", chunkPath, File(repo, chunkPath).readBytes()),
+        Triple("2026-09-27.v2", "snapshots/snap-golden.json.gz", manifestGz),
+        Triple("k1", "data/00/empty", ByteArray(0))
+    )
+    val sb = StringBuilder("# keyHex keyId path nonceHex plainHex sealedHex (key derived with HKDF-SHA256 info pano-snapshot-v1)\n")
+    cases.forEachIndexed { i, (keyId, path, plain) ->
+        val nonce = ByteArray(12) { (0xA0 + i + it).toByte() }
+        sb.append(hex(master)).append(' ').append(keyId).append(' ').append(path).append(' ')
+            .append(hex(nonce)).append(' ').append(hex(plain).ifEmpty { "-" }).append(' ')
+            .append(hex(seal(master, keyId, path, nonce, plain))).append('\n')
+    }
+    File(out, "seal.txt").writeText(sb.toString())
+    File(out, "derived-key.txt").writeText(hex(hkdf32(master, "pano-snapshot-v1")) + "\n")
+    work.deleteRecursively()
+    println("ok ${result.newChunks} chunks")
+}

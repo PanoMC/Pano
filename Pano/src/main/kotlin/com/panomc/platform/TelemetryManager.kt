@@ -151,12 +151,17 @@ class TelemetryManager(
             return false
         }
 
-        if (Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT) {
+        // Only a run from the Pano checkout (`./gradlew run` sets EnvironmentType) stays quiet. Not
+        // Main.ENVIRONMENT: the alpha / beta jars are built with `buildDev` (MODE = DEVELOPMENT in the
+        // manifest), so that check silenced every install of a prerelease.
+        if (runningFromSource()) {
             return false
         }
 
         return safely("version", LOCAL_BUILD_VERSION) { Main.VERSION } != LOCAL_BUILD_VERSION
     }
+
+    private fun runningFromSource(): Boolean = !System.getenv("EnvironmentType").isNullOrEmpty()
 
     private fun logEnabledNotice() {
         if (loggedEnabledNotice || !reportingAllowed()) {

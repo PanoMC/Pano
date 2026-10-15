@@ -6,7 +6,7 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 
 /**
- * What `GET /api/panel/nodes/:id/java` answers, built out of a node's `JAVA_CATALOG` reply or out of
+ * What `GET /api/v1/panel/nodes/:id/java` answers, built out of a node's `JAVA_CATALOG` reply or out of
  * the runtimes Pano has stored when there is no reply to be had (SM-63, §2.4.28).
  *
  * Every answer has the same shape, so the panel's Java card never has to ask which kind it got:

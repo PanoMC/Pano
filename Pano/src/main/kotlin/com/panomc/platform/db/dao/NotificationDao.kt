@@ -25,8 +25,11 @@ abstract class NotificationDao : Dao<Notification>(Notification::class.java) {
         sqlClient: SqlClient
     ): Long
 
-    abstract suspend fun getLast10ByUserId(
+    /** Notifications of one user, newest first: [limit] rows after skipping [offset]. */
+    abstract suspend fun getListByUserId(
         userId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Notification>
 
@@ -36,8 +39,10 @@ abstract class NotificationDao : Dao<Notification>(Notification::class.java) {
         sqlClient: SqlClient
     ): List<Notification>
 
-    abstract suspend fun markReadLast10(
+    /** Marks the given notifications of [userId] as read. */
+    abstract suspend fun markReadByIds(
         userId: Long,
+        ids: List<Long>,
         sqlClient: SqlClient
     )
 

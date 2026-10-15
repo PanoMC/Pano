@@ -7,15 +7,39 @@ import com.panomc.platform.model.*
 import com.panomc.platform.token.AuthenticationTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
+import io.vertx.json.schema.common.dsl.Schemas.intSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 
 @Endpoint
 class GetMySessionsAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/profile/sessions", RouteType.GET))
+    override val paths = listOf(Path("/profile/sessions", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The signed-in user's open sessions, whole (unpaged).",
+        tag = "profile",
+        response = objectSchema()
+            .requiredProperty(
+                "items",
+                arraySchema().items(
+                    objectSchema()
+                        .requiredProperty("id", intSchema())
+                        .requiredProperty("ip", stringSchema())
+                        .requiredProperty("userAgent", stringSchema())
+                        .requiredProperty("lastActivityTime", intSchema())
+                        .requiredProperty("expireDate", intSchema())
+                        .requiredProperty("isCurrent", booleanSchema())
+                )
+            )
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -36,7 +60,7 @@ class GetMySessionsAPI(
                     "isCurrent" to (it == 1)
                 )
             }
-            return Successful(mapOf("sessions" to sessions))
+            return Successful(mapOf("items" to sessions))
         }
 
         val tokens = databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
@@ -54,6 +78,6 @@ class GetMySessionsAPI(
             )
         }
 
-        return Successful(mapOf("sessions" to sessions))
+        return Successful(mapOf("items" to sessions))
     }
 }

@@ -14,4 +14,4 @@ import com.panomc.platform.model.Error
 class ThemeLicenseRequired(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("THEME_LICENSE_REQUIRED", 400, statusMessage, extras)

@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class RegisterPasswordAndPasswordRepeatNotSame(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME", 422, statusMessage, extras)

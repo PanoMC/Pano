@@ -12,14 +12,14 @@ import com.panomc.platform.node.ssh.NodeSshBootstrapService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import com.panomc.platform.util.UsageMode
 
 /**
- * Starts installing the node daemon on a host over SSH (`POST /api/panel/nodes/ssh-bootstrap`).
+ * Starts installing the node daemon on a host over SSH (`POST /api/v1/panel/nodes/ssh-bootstrap`).
  *
  * Answers with the host key fingerprint and installs nothing yet. The credential is held in
  * memory against the returned task and only used once somebody has confirmed the fingerprint,
@@ -42,7 +42,7 @@ class PanelSshBootstrapNodeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/ssh-bootstrap", RouteType.POST))
+    override val paths = listOf(Path("/nodes/ssh-bootstrap", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

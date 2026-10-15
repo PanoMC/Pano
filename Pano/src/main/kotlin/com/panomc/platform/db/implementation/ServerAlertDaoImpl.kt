@@ -57,20 +57,31 @@ class ServerAlertDaoImpl : ServerAlertDao() {
         return rows.property(MySQLClient.LAST_INSERTED_ID)
     }
 
-    override suspend fun getLatest(limit: Int, sqlClient: SqlClient): List<ServerAlert> {
+    override suspend fun getLatest(limit: Int, beforeId: Long?, sqlClient: SqlClient): List<ServerAlert> {
         val query = "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` " +
+                (if (beforeId == null) "" else "WHERE `id` < ? ") +
                 "ORDER BY `createdAt` DESC, `id` DESC LIMIT ?"
 
-        val rows: RowSet<Row> = sqlClient.preparedQuery(query).execute(Tuple.of(limit)).coAwait()
+        val parameters = if (beforeId == null) Tuple.of(limit) else Tuple.of(beforeId, limit)
+
+        val rows: RowSet<Row> = sqlClient.preparedQuery(query).execute(parameters).coAwait()
 
         return rows.toEntities()
     }
 
-    override suspend fun getLatestByServerId(serverId: Long, limit: Int, sqlClient: SqlClient): List<ServerAlert> {
+    override suspend fun getLatestByServerId(
+        serverId: Long,
+        limit: Int,
+        beforeId: Long?,
+        sqlClient: SqlClient
+    ): List<ServerAlert> {
         val query = "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` " +
-                "WHERE `serverId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT ?"
+                "WHERE `serverId` = ? " + (if (beforeId == null) "" else "AND `id` < ? ") +
+                "ORDER BY `createdAt` DESC, `id` DESC LIMIT ?"
 
-        val rows: RowSet<Row> = sqlClient.preparedQuery(query).execute(Tuple.of(serverId, limit)).coAwait()
+        val parameters = if (beforeId == null) Tuple.of(serverId, limit) else Tuple.of(serverId, beforeId, limit)
+
+        val rows: RowSet<Row> = sqlClient.preparedQuery(query).execute(parameters).coAwait()
 
         return rows.toEntities()
     }

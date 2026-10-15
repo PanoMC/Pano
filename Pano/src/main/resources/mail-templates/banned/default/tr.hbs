@@ -1,0 +1,16 @@
+---
+subject: {{websiteName}} — Hesabın yasaklandı
+preheader: {{websiteName}} hesabın yasaklandı
+footer: Bu kararla ilgili soruların varsa destek ekibimizle iletişime geçebilirsin.
+---
+<h2>Hesabın yasaklandı</h2>
+<p>Merhaba <strong>{{username}}</strong>,</p>
+<p>Hesabının yasaklandığını bildirmek isteriz.</p>
+{{#if reason}}
+<p><strong>Sebep:</strong> {{reason}}</p>
+{{/if}}
+{{#if bannedUntil}}
+<p><strong>Yasak bitişi:</strong> {{bannedUntil}}</p>
+{{else}}
+<p>Bu yasak kalıcıdır.</p>
+{{/if}}

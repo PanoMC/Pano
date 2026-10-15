@@ -3,6 +3,7 @@ package com.panomc.platform.backup.remote
 import com.panomc.platform.archive.ArchiveManifest
 import com.panomc.platform.archive.PanoArcEncryption
 import com.panomc.platform.archive.PanoArchive
+import com.panomc.platform.archive.instance.InstanceLayout
 import com.panomc.platform.backup.PanoBackupException
 import com.panomc.platform.backup.PanoBackupInfo
 import com.panomc.platform.backup.PanoBackupJob
@@ -62,6 +63,15 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     val tokens: MutableSet<String> = ConcurrentHashMap.newKeySet<String>().apply { add(TOKEN) }
     val backups = ConcurrentHashMap<String, JsonObject>()
     val transfers = ConcurrentHashMap<String, JsonObject>()
+
+    /** Reads of a RESTORING transfer before it ends; [transferFails] ends it FAILED instead of DONE. */
+    @Volatile var transferPendingReads = 0
+    @Volatile var transferFails = false
+    @Volatile var transferCompleteQuota = 0L
+    private var transferReads = 0
+
+    /** The percent a RESTORING transfer view reports (`progress {percent, phase}`), or null for none. */
+    @Volatile var transferProgress: Int? = null
     val calls = CopyOnWriteArrayList<String>()
 
     /** `X-Pano-Instance-Id` / `-Name` of every connected call. */
@@ -76,9 +86,16 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     @Volatile
     var quotaBytes = 10L shl 30
 
+    /** The free quota of an account without a paid plan (`tier` null + a quota = the free plan); null = no free plan. */
+    @Volatile
+    var freeQuotaBytes: Long? = null
+
     /** Called on every part PUT (`key`, part number) before it is stored (e.g. to stop the backup there). */
     @Volatile
     var onPart: (String, Int) -> Unit = { _, _ -> }
+
+    /** Deduplicated snapshots of connected Panos (host-api.md "Snapshots of connected Panos"). */
+    val snapshotRepo = FakeSnapshotRepo(this)
 
     // In-memory S3 state
     val parts = ConcurrentHashMap<String, ConcurrentHashMap<Int, ByteArray>>()
@@ -112,6 +129,8 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         const val TOKEN = "platform-jwt-test"
         const val ACCOUNT_ID = "0b8e4f6e-3c5d-4a2b-9f1e-2d3c4b5a6f70"
         const val WORKLOAD_ID = "p-test00001"
+        const val TRANSFER_CODE = "123456"
+        const val TRANSFER_GRANT = "grant-abc"
     }
 
     fun start(): FakePanoHost {
@@ -133,7 +152,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         server.close().toCompletionStage().toCompletableFuture().get()
     }
 
-    private class Failure(val status: Int, val code: String, val extras: JsonObject = JsonObject()) : Exception(code)
+    class Failure(val status: Int, val code: String, val extras: JsonObject = JsonObject()) : Exception(code)
 
     private fun answer(context: RoutingContext) {
         val method = context.request().method().name()
@@ -186,6 +205,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
             !path.startsWith("/host/connected") -> throw Failure(404, "NOT_FOUND")
             segments.isEmpty() -> JsonObject().put("accountId", ACCOUNT_ID).put("platformId", "p1").put("username", "tester")
                 .put("instanceId", instance(context, false)).put("instanceName", context.request().getHeader("X-Pano-Instance-Name"))
+            segments[0] == "snapshots" -> snapshotRepo.route(method, segments, instance(context, true)!!, body)
             segments[0] == "backups" -> backupsRoute(method, segments, instance(context, true)!!, body)
             segments[0] == "exports" -> JsonObject().put(
                 "workloads",
@@ -200,7 +220,9 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
     private fun tier() = JsonObject().put("id", "backup-10").put("name", "10 GB").put("storageGb", 10).put("priceMonthly", 100).put("graceDays", 7)
 
-    private fun usedBytes() = backups.values.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") }
+    private fun freeQuota(): Long? = if (lapsed) null else freeQuotaBytes
+
+    private fun usedBytes() = backups.values.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") } + snapshotRepo.storedBytes()
 
     private fun backupsRoute(method: String, segments: List<String>, instanceId: String, body: JsonObject): JsonObject {
         val id = segments.getOrNull(1)
@@ -214,25 +236,31 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                     JsonObject().put("instanceId", instance).put("instanceName", list.first().getString("instanceName")).put("current", instance == instanceId)
                         .put("usedBytes", list.filter { it.getString("status") == "DONE" }.sumOf { it.getLong("sizeBytes") })
                         .put("backups", JsonArray(list.sortedByDescending { it.getLong("createdAt") }))
+                        .put("snapshots", JsonArray(snapshotRepo.views(instance)))
+                } + snapshotRepo.instancesWithoutBackups(visible.map { it.getString("instanceId") }.toSet()).map { other ->
+                    JsonObject().put("instanceId", other).put("instanceName", "Other Pano").put("current", other == instanceId).put("usedBytes", 0)
+                        .put("backups", JsonArray()).put("snapshots", JsonArray(snapshotRepo.views(other)))
                 }
 
                 JsonObject()
                     .put("instanceId", instanceId)
                     .put("tier", if (active) tier() else null)
                     .put("subscription", if (active) JsonObject().put("tierId", "backup-10").put("status", "ACTIVE") else null)
-                    .put("usage", JsonObject().put("usedBytes", usedBytes()).put("reservedBytes", 0).put("quotaBytes", if (active) quotaBytes else null)
-                        .put("freeBytes", if (active) maxOf(0L, quotaBytes - usedBytes()) else null))
+                    .put("usage", JsonObject().put("usedBytes", usedBytes()).put("reservedBytes", snapshotRepo.reservedBytes()).put("quotaBytes", if (active) quotaBytes else freeQuota())
+                        .put("freeBytes", if (active) maxOf(0L, quotaBytes - usedBytes()) else freeQuota()?.let { maxOf(0L, it - usedBytes()) }))
+                    .put("free", JsonObject().put("quotaBytes", freeQuotaBytes ?: 0L))
                     .put("panos", JsonArray(panos))
             }
 
             id == null && method == "POST" -> {
                 if (lapsed) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "LAPSED").put("graceUntil", 1L))
-                if (!subscription) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "NO_SUBSCRIPTION"))
+                if (!subscription && freeQuotaBytes == null) throw Failure(402, "PAYMENT_REQUIRED", JsonObject().put("reason", "NO_SUBSCRIPTION"))
 
                 val size = body.getLong("size")
+                val quota = if (subscription) quotaBytes else freeQuotaBytes!!
 
-                if (usedBytes() + size > quotaBytes) {
-                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("reason", "QUOTA").put("quotaBytes", quotaBytes).put("usedBytes", usedBytes()))
+                if (usedBytes() + size > quota) {
+                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("reason", "QUOTA").put("quotaBytes", quota).put("usedBytes", usedBytes()))
                 }
 
                 val backupId = UUID.randomUUID().toString()
@@ -319,10 +347,23 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         val mine = { transferId: String? -> transfers[transferId]?.takeIf { it.getString("instanceId") == instanceId } ?: throw Failure(404, "TRANSFER_NOT_FOUND") }
 
         return when {
+            id == "code" && action == null && method == "POST" -> {
+                if (body.getString("workloadId") != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+
+                JsonObject().put("email", "a***@y*****.com").put("expiresAt", 1_800_000_900_000L).put("resendAfter", 1_800_000_060_000L)
+            }
+
+            id == "code" && action == "verify" -> {
+                if (body.getString("code") != TRANSFER_CODE) throw Failure(400, "TRANSFER_CODE_INVALID")
+
+                JsonObject().put("grant", TRANSFER_GRANT).put("expiresAt", 1_800_007_200_000L)
+            }
+
             id == null && method == "GET" -> JsonObject().put("transfers", JsonArray(transfers.values.filter { it.getString("instanceId") == instanceId }))
 
             id == null && method == "POST" -> {
                 if (body.getString("workloadId") != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+                if (body.getString("grant") != TRANSFER_GRANT) throw Failure(400, "TRANSFER_CODE_REQUIRED")
 
                 val transferId = UUID.randomUUID().toString()
                 val size = body.getLong("size")
@@ -338,12 +379,25 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                 val transfer = mine(id)
 
                 store.complete("imports/$id") ?: throw Failure(400, "INVALID_INPUT", JsonObject().put("reason", "not_uploaded"))
-                transfer.put("status", "AWAITING_CONFIRMATION")
+                if (transferCompleteQuota > 0) {
+                    throw Failure(400, "QUOTA_EXCEEDED", JsonObject().put("maxBytes", transferCompleteQuota))
+                }
+
+                transfer.put("status", "RESTORING")
+                transferReads = transferPendingReads
 
                 JsonObject().put("transfer", transfer)
             }
 
-            method == "GET" -> JsonObject().put("transfer", mine(id))
+            method == "GET" && id != null -> mine(id).let { transfer ->
+                if (transfer.getString("status") == "RESTORING" && transferReads-- <= 0) {
+                    if (transferFails) transfer.put("status", "FAILED").put("error", "Restore failed.") else transfer.put("status", "DONE")
+                } else if (transferProgress != null) {
+                    transfer.put("progress", JsonObject().put("percent", transferProgress).put("phase", "Importing the database"))
+                }
+
+                JsonObject().put("transfer", transfer)
+            }
 
             method == "DELETE" -> {
                 mine(id).put("status", "CANCELED")
@@ -365,6 +419,15 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
     private fun s3Put(context: RoutingContext) {
         val key = context.request().path().removePrefix("/s3/")
+
+        if (key.startsWith("snap/")) {
+            val status = if (failAllPuts) 500 else snapshotRepo.put(key, context.body().buffer()?.bytes ?: ByteArray(0))
+
+            context.response().setStatusCode(status).end()
+
+            return
+        }
+
         val partNumber = context.request().getParam("partNumber")?.toInt() ?: 1
         onPart(key, partNumber)
 
@@ -388,8 +451,12 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         context.response().putHeader("ETag", "\"$partNumber\"").end()
     }
 
+    /** Stored plus reserved bytes of the account, snapshots included (the quota check at start and per pack). */
+    fun snapshotUsed(): Long = usedBytes() + snapshotRepo.reservedBytes()
+
     private fun s3Get(context: RoutingContext) {
-        val bytes = objects[context.request().path().removePrefix("/s3/")]
+        val key = context.request().path().removePrefix("/s3/")
+        val bytes = if (key.startsWith("snap/")) snapshotRepo.get(key) else objects[key]
 
         if (bytes == null) context.response().setStatusCode(404).end() else context.response().end(Buffer.buffer(bytes))
     }
@@ -437,6 +504,19 @@ class FakeRunner(private val scope: CoroutineScope, private val payloadBytes: In
     private val mutex = Mutex()
     val restored = CopyOnWriteArrayList<ArchiveManifest>()
     val archived = CopyOnWriteArrayList<Boolean>()
+
+    /** Snapshot tests: the instance files to read (null = [prepareSnapshot] is not available) and the dump text to write. */
+    @Volatile
+    var layout: InstanceLayout? = null
+
+    @Volatile
+    var dumpText: String = ""
+
+    /** The last restored archive: entry path → bytes, and its size in bytes. */
+    val restoredEntries = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+
+    @Volatile
+    var restoredSize = 0L
 
     @Volatile
     override var job: PanoBackupJob? = null
@@ -490,8 +570,31 @@ class FakeRunner(private val scope: CoroutineScope, private val payloadBytes: In
     override suspend fun restoreFrom(source: File, passphrase: CharArray?, safetyArchive: Boolean, maintenance: Boolean): PanoBackupInfo? =
         withContext(Dispatchers.IO) {
             restored.add(source.inputStream().buffered().use { PanoArchive.verify(it, PanoArcKeys(passphrase = passphrase)) })
+
+            restoredEntries.clear()
+            restoredSize = source.length()
+
+            if (passphrase == null) {
+                java.util.zip.ZipInputStream(source.inputStream().buffered()).use { zip ->
+                    while (true) {
+                        val entry = zip.nextEntry ?: break
+
+                        restoredEntries[entry.name] = zip.readBytes()
+                    }
+                }
+            }
+
             null
         }
+
+    override suspend fun prepareSnapshot(dumpFile: File): SnapshotContent = withContext(Dispatchers.IO) {
+        val layout = layout ?: throw IllegalStateException("No layout in this test.")
+
+        dumpFile.parentFile?.mkdirs()
+        dumpFile.writeText(dumpText)
+
+        SnapshotContent(layout, "pano_", "1.0.0-test", mapOf("core" to 5), "pano-native", dumpFile)
+    }
 }
 
 suspend fun awaitJob(job: PanoBackupJob, timeoutMs: Long = 60_000): PanoBackupJob = withTimeout(timeoutMs) {

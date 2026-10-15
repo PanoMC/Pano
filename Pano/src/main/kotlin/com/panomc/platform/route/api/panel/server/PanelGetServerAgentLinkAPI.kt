@@ -14,7 +14,7 @@ import com.panomc.platform.util.UsageMode
 
 /**
  * What the "Link an existing server with the Pano Agent" dialog shows (`GET
- * /api/panel/servers/agent-link`, SM-74): an agent code for the caller and the one-line commands
+ * /api/v1/panel/servers/agent-link`, SM-74): an agent code for the caller and the one-line commands
  * that put the agent into a server's folder and run it there.
  *
  * Response: `{ enabled, code, expiresAt, panoUrl, jarUrl, jarFileName, downloadCommand,
@@ -37,7 +37,7 @@ import com.panomc.platform.util.UsageMode
  * ([NodeInstallScriptProvider.agentLinkDisabled]); otherwise the response above carries
  * `enabled: true`.
  *
- * Registered before `/api/panel/servers/:id`, which would otherwise take `agent-link` for an id.
+ * Registered before `/api/v1/panel/servers/:id`, which would otherwise take `agent-link` for an id.
  */
 @Endpoint
 class PanelGetServerAgentLinkAPI(
@@ -51,7 +51,7 @@ class PanelGetServerAgentLinkAPI(
     override val usageModes = UsageMode.WITH_SERVERS
 
 
-    override val paths = listOf(Path("/api/panel/servers/agent-link", RouteType.GET))
+    override val paths = listOf(Path("/servers/agent-link", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

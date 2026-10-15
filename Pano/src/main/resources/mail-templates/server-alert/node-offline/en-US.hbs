@@ -1,0 +1,10 @@
+---
+subject: {{websiteName}} — Server alert: Node went offline
+preheader: Node "{{nodeName}}" stopped answering
+buttonLabel: Open in panel
+buttonUrl: {{link}}
+footer: You are receiving this e-mail because alert e-mails are turned on. You can turn them off in the panel's alert settings.
+---
+<h2>Node went offline</h2>
+<p>Node "{{nodeName}}" stopped answering{{#if serverCount}}; {{serverCount}} server(s) are out of reach{{/if}}.</p>
+<p>{{#if nodeName}}<strong>Node:</strong> {{nodeName}}<br>{{/if}}<strong>Occurred at:</strong> {{occurredAt}}</p>

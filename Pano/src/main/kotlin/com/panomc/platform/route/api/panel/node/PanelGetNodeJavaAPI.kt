@@ -12,14 +12,14 @@ import com.panomc.platform.node.NodeManager
 import com.panomc.platform.node.message.JavaCatalogMessage
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * A node's Java runtimes and what it could download (`GET /api/panel/nodes/:id/java`, SM-63).
+ * A node's Java runtimes and what it could download (`GET /api/v1/panel/nodes/:id/java`, SM-63).
  *
  * Asks the node (`JAVA_CATALOG`) whenever it can, because only the node knows which server runs
  * from which runtime and what Adoptium or Azul offer for its OS and architecture. When it cannot —
@@ -35,7 +35,7 @@ class PanelGetNodeJavaAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/:id/java", RouteType.GET))
+    override val paths = listOf(Path("/nodes/:id/java", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

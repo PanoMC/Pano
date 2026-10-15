@@ -6,6 +6,11 @@ import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.i18n.I18nManager
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * A mail with its own Handlebars file and its texts in the locale JSON. Kept working for plugins built against it;
+ * new mails are [TemplateMail]s, whose texts are per-language template files editable from the panel.
+ */
+@Deprecated("Use TemplateMail with MailManager.sendTemplate")
 interface Mail {
     val templatePath: String
 

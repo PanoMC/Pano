@@ -22,7 +22,7 @@ import java.io.File
 
 /**
  * Restores an uploaded `.panoarc` (or plain export zip) over this Pano
- * (`POST /api/panel/pano-backups/restore`, multipart: `file`, `currentPassword`, `passphrase`).
+ * (`POST /api/v1/panel/pano-backups/restore`, multipart: `file`, `currentPassword`, `passphrase`).
  * Same flow as restoring a local backup; the upload is deleted once the job ends.
  */
 @Endpoint
@@ -33,7 +33,7 @@ class PanelRestoreUploadedPanoBackupAPI(
     private val configManager: ConfigManager,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/pano-backups/restore", RouteType.POST))
+    override val paths = listOf(Path("/pano-backups/restore", RouteType.POST))
 
     // Multipart: nothing a JSON schema could check.
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
@@ -70,6 +70,8 @@ class PanelRestoreUploadedPanoBackupAPI(
         val tempDir = InstanceLayout.current(configManager.config).tempDir
         val source = context.vertx().executeBlocking { PanoBackupRoutes.claimUpload(upload, tempDir) }.coAwait()
 
+        val auditEntry = panoBackupAudit.restoreEntry(context, PanoBackupActionLog.ACTION_RESTORE_FILE)
+
         val job = try {
             PanoBackupRoutes.startJob { panoBackupManager.service.startRestore(source, passphrase, deleteSource = true) }
         } catch (e: Throwable) {
@@ -78,8 +80,8 @@ class PanelRestoreUploadedPanoBackupAPI(
             throw e
         }
 
-        // Written into the restored database once the restore is applied (it replaces the log).
-        panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE_FILE)
+        // Written once the restore is applied (into the restored database) or has failed.
+        panoBackupAudit.deferRestore(auditEntry)
 
         return Successful(mapOf("job" to job.toJson()))
     }

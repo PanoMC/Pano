@@ -11,14 +11,15 @@ import com.panomc.platform.error.EmailAlreadyVerified
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.MailOptions
 import com.panomc.platform.mail.templates.ActivationMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.ActivationTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
@@ -30,7 +31,7 @@ class PanelSendValidationEmailAPI(
     private val tokenProvider: TokenProvider,
     private val permissionManager: PermissionManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/players/:username/verificationMail", RouteType.POST))
+    override val paths = listOf(Path("/players/:username/verificationMail", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -77,7 +78,8 @@ class PanelSendValidationEmailAPI(
 
         tokenProvider.saveToken(token, playerId.toString(), ActivationTokenType, expireDate, sqlClient)
 
-        mailManager.sendMail(sqlClient, playerId, ActivationMail(token, user.username, user.email!!, ""), user.email)
+        // Strict: with e-mail off or Pano Mail refusing, the admin must not be told it was sent.
+        mailManager.sendRequiredTemplate(sqlClient, playerId, ActivationMail(token, user.username, user.email!!), MailOptions(email = user.email))
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

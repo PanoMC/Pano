@@ -11,7 +11,7 @@ import io.vertx.core.json.JsonObject
 /**
  * A host that can run managed servers, i.e. one `pano-node` daemon Pano has paired with.
  *
- * The row is written when the daemon pairs over `POST /api/node/connect` and then updated from its
+ * The row is written when the daemon pairs over `POST /api/v1/node/connect` and then updated from its
  * hellos; it outlives every individual WebSocket connection, which is what lets the panel show a
  * node that is currently down together with the servers stranded on it.
  */

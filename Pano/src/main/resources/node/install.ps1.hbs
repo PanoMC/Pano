@@ -4,7 +4,7 @@
 # Safe to run again: everything it does is checked first, so a second run repairs an install
 # rather than duplicating it.
 #
-#   & ([scriptblock]::Create((Invoke-RestMethod 'https://pano.example.com/api/node/install.ps1'))) -Pano 'https://pano.example.com' -Code '123456'
+#   & ([scriptblock]::Create((Invoke-RestMethod 'https://pano.example.com{{{powerShellScriptPath}}}'))) -Pano 'https://pano.example.com' -Code '123456'
 #
 param(
     [Parameter(Mandatory = $true)][string] $Pano,

@@ -10,8 +10,8 @@ import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 
@@ -21,7 +21,7 @@ class PanelRejectServerConnectRequestAPI(
     private val serverManager: ServerManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/servers/:id/reject", RouteType.POST))
+    override val paths = listOf(Path("/servers/:id/reject", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -41,7 +41,7 @@ class PanelRejectServerConnectRequestAPI(
         // Only a pending connect request can be rejected. A managed server has no request to
         // refuse, and deleting its row here would strand the directory and the process on the
         // node with nothing left in Pano that could ever reach them -- that is what
-        // `DELETE /api/panel/servers/:id` and its node task are for.
+        // `DELETE /api/v1/panel/servers/:id` and its node task are for.
         if (!server.isPendingApproval) {
             return NotExists()
         }

@@ -15,9 +15,9 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.kotlin.coroutines.coAwait
@@ -33,7 +33,7 @@ class PanelUpdatePluginAPI(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.PUT))
+    override val paths = listOf(Path("/addons/:pluginId", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -62,6 +62,12 @@ class PanelUpdatePluginAPI(
         }
 
         val status = data.getBoolean("status")
+
+        // A plugin outside the supported API level can never be switched on: refuse with an error the panel shows,
+        // before anything starts (switching it off stays a harmless no-op, it is not running).
+        if (status == true) {
+            pluginManager.requireCompatible(pluginId)
+        }
 
         if (status != null) {
             try {
@@ -134,7 +140,7 @@ class PanelUpdatePluginAPI(
                 return Successful(
                     mapOf(
                         "status" to wrapper.pluginState,
-                        "error" to wrapper.failedException.panelPluginStartupErrorText(),
+                        "startupError" to wrapper.failedException.panelPluginStartupErrorText(),
                         "startupBlockedByLicense" to wrapper.failedException.isPluginStartupBlockedByLicense()
                     )
                 )

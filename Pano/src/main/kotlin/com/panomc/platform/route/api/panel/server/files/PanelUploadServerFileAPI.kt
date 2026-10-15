@@ -6,7 +6,6 @@ import com.panomc.platform.auth.panel.log.ServerFileChangedLog
 import com.panomc.platform.auth.panel.permission.ManageServerFilesPermission
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.PathDenied
-import com.panomc.platform.error.FileTooLarge
 import com.panomc.platform.error.RateLimited
 import com.panomc.platform.model.*
 import com.panomc.platform.node.ManagedServerFileClient
@@ -21,9 +20,9 @@ import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
@@ -53,12 +52,40 @@ class PanelUploadServerFileAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/files/upload", RouteType.POST))
+    override val paths = listOf(Path("/servers/:id/files/upload", RouteType.POST))
 
-    override fun bodyHandler(): Handler<RoutingContext> =
+    // No size limit: a world or a backup is as big as it is. That is only safe because nothing is spooled
+    // before the caller is known to be allowed to send it ([checkBeforeBody]).
+    override fun bodyHandler(): Handler<RoutingContext> = authorizedBodyHandler(
         BodyHandler.create()
             .setDeleteUploadedFilesOnEnd(true)
-            .setBodyLimit(MAX_UPLOAD_BYTES)
+            .setBodyLimit(-1)
+    )
+
+    /**
+     * Asked before a byte of the upload is taken: may this person write to this server's files, and is the
+     * upload within the limit (§2.4.12). A refusal says how long to wait: the panel's upload queue waits that
+     * long and sends the file again.
+     */
+    override suspend fun checkBeforeBody(context: RoutingContext) {
+        val id = context.pathParam("id")?.toLongOrNull() ?: throw BadRequest()
+
+        authProvider.requirePermission(ManageServerFilesPermission(), context, id)
+
+        val uploaderId = authProvider.getUserIdFromRoutingContext(context)
+
+        if (!serverActionRateLimiter.tryAcquire(ServerActionRateLimiter.Action.FILE_UPLOAD, uploaderId, id)) {
+            throw RateLimited(
+                extras = mapOf(
+                    "retryAfter" to serverActionRateLimiter.retryAfterSeconds(
+                        ServerActionRateLimiter.Action.FILE_UPLOAD,
+                        uploaderId,
+                        id
+                    )
+                )
+            )
+        }
+    }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -72,16 +99,6 @@ class PanelUploadServerFileAPI(
 
         authProvider.requirePermission(ManageServerFilesPermission(), context, id)
 
-        // §2.4.12. An upload spools a whole file before the node ever sees it, so it is the one file action worth limiting far harder than the rest.
-        if (!serverActionRateLimiter.tryAcquire(
-                ServerActionRateLimiter.Action.UPLOAD,
-                authProvider.getUserIdFromRoutingContext(context),
-                id
-            )
-        ) {
-            throw RateLimited()
-        }
-
         val directory = ManagedServerFileClient.normalisePath(parameters.queryParameter("path")?.string)
 
         val uploads = context.fileUploads()
@@ -92,10 +109,6 @@ class PanelUploadServerFileAPI(
         val upload = uploads.firstOrNull { it.name() == PART_NAME }
             ?: uploads.singleOrNull()
             ?: throw BadRequest()
-
-        if (upload.size() > MAX_UPLOAD_BYTES) {
-            throw FileTooLarge()
-        }
 
         // The browser names the file, so it is a path segment until proven otherwise: a name with
         // a slash in it is how an upload turns into a write somewhere else entirely.
@@ -136,7 +149,7 @@ class PanelUploadServerFileAPI(
             fileClient.request(
                 target,
                 TransferPushMessage(ticket.id, target.serverUuid, path, size),
-                NodeManager.TRANSFER_REQUEST_TIMEOUT_MS
+                transferTimeoutMs(size)
             )
         } finally {
             // Whatever happened, the copy on Pano's disk has done its job: the node either fetched
@@ -169,7 +182,15 @@ class PanelUploadServerFileAPI(
         /** The multipart field the panel uploads under. */
         const val PART_NAME = "file"
 
-        /** The contract's ceiling for one transfer. */
-        const val MAX_UPLOAD_BYTES = 1024L * 1024 * 1024
+        /** The slowest link a transfer to the node is still waited for: 256 KB a second. */
+        private const val SLOWEST_BYTES_PER_SECOND = 256L * 1024
+
+        /**
+         * How long the node gets to fetch a file of [size] bytes: the usual wait, and for a big file as long
+         * as the slowest link worth waiting for would take. Without it a file of a few GB ran into the fixed
+         * ten minutes on any ordinary connection.
+         */
+        internal fun transferTimeoutMs(size: Long): Long =
+            maxOf(NodeManager.TRANSFER_REQUEST_TIMEOUT_MS, size / SLOWEST_BYTES_PER_SECOND * 1000L)
     }
 }

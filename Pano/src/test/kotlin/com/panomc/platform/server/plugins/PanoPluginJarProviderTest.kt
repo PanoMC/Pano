@@ -1,6 +1,7 @@
 package com.panomc.platform.server.plugins
 
 import com.panomc.platform.node.ManagedPluginJarResolver
+import com.panomc.platform.route.ApiPaths
 import com.panomc.platform.server.ServerType
 import com.panomc.platform.server.event.PanoPluginUpdateResultEvent
 import com.panomc.platform.server.message.PanoPluginUpdateMessage
@@ -101,7 +102,7 @@ class PanoPluginJarProviderTest {
         val message = PanoPluginUpdateMessage(
             eventId = "e-1",
             taskId = "t-1",
-            url = PanoPluginUpdateService.SERVER_JAR_PATH,
+            url = ApiPaths.core(PanoPluginUpdateService.SERVER_JAR_PATH),
             sha256 = "abc",
             size = 42L,
             fileName = "pano-spigot-1.0.0-alpha.63.jar",
@@ -121,7 +122,7 @@ class PanoPluginJarProviderTest {
             ),
             encoded.encode()
         )
-        assertEquals("/api/server/pano-plugin/jar", encoded.getString("url"))
+        assertEquals("/api/v1/server/pano-plugin/jar", encoded.getString("url"))
         assertEquals(42L, encoded.getLong("size"))
 
         // ServerEvent derives the name it listens for from the class name exactly like this; a

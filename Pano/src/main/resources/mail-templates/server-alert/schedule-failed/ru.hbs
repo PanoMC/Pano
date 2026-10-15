@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Оповещение сервера: Задача по расписанию не выполнена
+preheader: Задача «{{scheduleName}}» на «{{serverName}}» не выполнена
+buttonLabel: Открыть в панели
+buttonUrl: {{link}}
+footer: Вы получили это письмо, потому что включены письма об оповещениях. Отключить их можно в настройках оповещений панели.
+---
+<h2>Задача по расписанию не выполнена</h2>
+<p>Задача «{{scheduleName}}» на сервере «{{serverName}}» не выполнена.</p>
+{{#if error}}
+<p>Ошибка: <code>{{error}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Сервер:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Узел:</strong> {{nodeName}}<br>{{/if}}<strong>Время события:</strong> {{occurredAt}}</p>

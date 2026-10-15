@@ -22,6 +22,7 @@ import com.panomc.platform.server.ServerPowerAction
 import com.panomc.platform.server.ServerProcessState
 import com.panomc.platform.server.ServerRemovalService
 import com.panomc.platform.server.plugins.ManagedServerPluginService
+import com.panomc.platform.server.plugins.PanoPluginUpdateService
 import io.vertx.sqlclient.SqlClient
 import org.slf4j.Logger
 import java.util.UUID
@@ -52,6 +53,7 @@ class TaskProgressEvent(
     private val serverRemovalService: ServerRemovalService,
     private val serverTaskService: ServerTaskService,
     private val managedServerPluginService: ManagedServerPluginService,
+    private val panoPluginUpdateService: PanoPluginUpdateService,
     private val nodeUpdateProgressService: NodeUpdateProgressService,
     private val logger: Logger
 ) : NodeEvent<TaskProgressEventRequest, NodeEventResponse>() {
@@ -199,6 +201,10 @@ class TaskProgressEvent(
         // update check offers an update to a version that was never installed.
         if (task.status.isTerminal && task.kind == ServerTaskKind.PLUGIN_INSTALL) {
             managedServerPluginService.onInstallTaskFinished(task.uuid, task.serverId, task.status, sqlClient)
+
+            // The Pano plugin's own update: the row stops describing the old jar and a running server is
+            // restarted to load the new one.
+            panoPluginUpdateService.onNodeTaskFinished(task.uuid, task.serverId, task.status, sqlClient)
         }
 
         return task.status.isTerminal

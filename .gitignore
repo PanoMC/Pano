@@ -37,6 +37,8 @@ bin
 
 Pano/src/main/resources/licenses.json
 Pano/certificates
+webhook.key
+webhook.key.*
 Pano/data
 Pano/maintenance
 
@@ -44,4 +46,8 @@ Pano/maintenance
 .config_history
 Pano/logs
 Pano/node-data
+Pano/pano-backups
 node-data
+
+# the snapshot golden fixtures contain a config.json and a config.conf of their own
+!Snapshot/src/test/resources/snapshot/**

@@ -5,15 +5,17 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.notification.NotificationTypeRegistry
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class PanelGetNotificationsAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val notificationTypeRegistry: NotificationTypeRegistry
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/notifications", RouteType.GET))
+    override val paths = listOf(Path("/notifications", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -30,28 +32,18 @@ class PanelGetNotificationsAPI(
             databaseManager.panelNotificationDao.markReadLast10(userId, sqlClient)
         }
 
-        val notificationsDataList = mutableListOf<Map<String, Any?>>()
-
-        notifications.forEach { notification ->
-            notificationsDataList.add(
-                mapOf(
-                    "id" to notification.id,
-                    "type" to notification.type.getName(),
-                    "details" to notification.details.map,
-                    "status" to notification.status.name,
-                    "isPersonal" to (notification.userId == userId),
-                    "createdAt" to notification.createdAt,
-                    "updatedAt" to notification.updatedAt,
-                )
-            )
-        }
-
         return Successful(
-            mutableMapOf(
-                "notifications" to notificationsDataList,
-                "notificationCount" to count,
-                // Read after the page was marked read above: what the navbar's badge should say now.
-                "notReadCount" to databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlClient)
+            PanelNotificationPage.payload(
+                notifications,
+                userId,
+                notificationTypeRegistry::ownerOf,
+                PanelNotificationPage.SIZE,
+                count > notifications.size,
+                mapOf(
+                    "notificationCount" to count,
+                    // Read after the page was marked read above: what the navbar's badge should say now.
+                    "notReadCount" to databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlClient)
+                )
             )
         )
     }

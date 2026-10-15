@@ -14,18 +14,18 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.coAwait
 
 /**
- * Restores a local backup over this Pano (`POST /api/panel/pano-backups/:id/restore`): verified
- * first, then maintenance mode, a pre-restore safety backup, the restore itself and a restart.
- * Re-authenticated with the admin's password; poll `GET /api/panel/pano-backups/job`.
+ * Restores a local backup over this Pano (`POST /api/v1/panel/pano-backups/:id/restore`): verified
+ * first, then a pre-restore safety backup, maintenance mode, the restore itself and a restart.
+ * Re-authenticated with the admin's password; poll `GET /api/v1/panel/pano-backups/job`.
  */
 @Endpoint
 class PanelRestorePanoBackupAPI(
@@ -34,7 +34,7 @@ class PanelRestorePanoBackupAPI(
     private val databaseManager: DatabaseManager,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/pano-backups/:id/restore", RouteType.POST))
+    override val paths = listOf(Path("/pano-backups/:id/restore", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -72,12 +72,14 @@ class PanelRestorePanoBackupAPI(
 
         val passphrase = PanoBackupRoutes.passphrase(body.getString("passphrase"))
 
+        val auditEntry = panoBackupAudit.restoreEntry(context, PanoBackupActionLog.ACTION_RESTORE, id)
+
         val job = PanoBackupRoutes.startJob {
             panoBackupManager.service.startRestore(store.archiveFile(id), passphrase, deleteSource = false)
         }
 
-        // Written into the restored database once the restore is applied (it replaces the log).
-        panoBackupAudit.deferRestore(context, PanoBackupActionLog.ACTION_RESTORE, id)
+        // Written once the restore is applied (into the restored database) or has failed.
+        panoBackupAudit.deferRestore(auditEntry)
 
         return Successful(mapOf("job" to job.toJson()))
     }

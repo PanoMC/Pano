@@ -1,5 +1,6 @@
 package com.panomc.platform
 
+import com.panomc.platform.mail.MailManager
 import com.panomc.platform.InstallManager.Companion.ResourceType
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
@@ -234,6 +235,12 @@ class PanoApiManager(
 
         configManager.saveConfig()
 
+        // During the set-up there is no database yet: the update check and the licence refresh read it and
+        // would leave the connect request without an answer. Both run after the set-up anyway.
+        if (configManager.config.setup.step != 5) {
+            return
+        }
+
         try {
             updateManager.checkResourceUpdates(true)
         } catch (_: Exception) {
@@ -254,6 +261,12 @@ class PanoApiManager(
         panoAccountConfig.email = ""
 
         panoAccountConfig.connect = null
+
+        // Pano Mail belongs to the account: without it e-mail is off.
+        configManager.config.email.takeIf { it.provider == MailManager.PROVIDER_PANO_MAIL }?.let {
+            it.provider = MailManager.PROVIDER_SMTP
+            it.enabled = false
+        }
 
         configManager.saveConfig()
 
@@ -589,8 +602,8 @@ class PanoApiManager(
                 OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
             ).coAwait()
             val totalSize = versionInfo.getLong("size") ?: -1L
-            return ProgressWriteStream(stream, totalSize) {
-                progressHandler.invoke(Progress(it))
+            return ProgressWriteStream(stream, totalSize) { progress, written, total ->
+                progressHandler.invoke(Progress(progress, written, total))
             }
         }
 

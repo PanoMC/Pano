@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory
  */
 @Endpoint
 class PanelGetHostedAPI(private val noticeFeed: HostNoticeFeed) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/hosted", RouteType.GET))
+    override val paths = listOf(Path("/hosted", RouteType.GET))
 
     /** Swappable for tests. */
     internal var env: HostedEnvConfig = HostedEnvConfig.current

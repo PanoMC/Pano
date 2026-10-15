@@ -1,0 +1,5 @@
+{
+  "_note": "Columns and snippet patterns column-scan.mjs accepts by design (text that quotes an /api/ path without being a stored URL). Empty on purpose: add an entry only with the reason next to it in the commit.",
+  "columns": [],
+  "patterns": []
+}

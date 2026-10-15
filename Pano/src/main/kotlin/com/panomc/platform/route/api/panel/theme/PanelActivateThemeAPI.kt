@@ -11,11 +11,12 @@ import com.panomc.platform.error.NotFound
 import com.panomc.platform.error.ThemeLicenseRequired
 import com.panomc.platform.license.LicenseRequiredException
 import com.panomc.platform.model.*
+import com.panomc.platform.ui.requireCompatibleTheme
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import org.springframework.context.annotation.Lazy
@@ -31,7 +32,7 @@ class PanelActivateThemeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/themes/:themeId", RouteType.PUT))
+    override val paths = listOf(Path("/themes/:themeId", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -52,6 +53,9 @@ class PanelActivateThemeAPI(
         if (theme.id == uiManager.activeTheme) {
             return Successful()
         }
+
+        // Gate 1 also holds for a switch: a theme outside the supported API level is refused (the bundled one is exempt).
+        requireCompatibleTheme(theme.id, uiManager.installedThemeList)
 
         // Start the NEW theme first (license check + fingerprint check + bun spawn). The
         // previous theme stays on its existing port until we're sure the new one came up

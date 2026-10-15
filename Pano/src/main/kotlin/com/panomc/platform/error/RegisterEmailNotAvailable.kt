@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class RegisterEmailNotAvailable(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("REGISTER_EMAIL_NOT_AVAILABLE", 422, statusMessage, extras)

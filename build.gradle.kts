@@ -1,4 +1,5 @@
-val pluginsDir by extra { file("${layout.buildDirectory.get()}/plugins") }
+val pluginsDir = file("${layout.buildDirectory.get()}/plugins")
+extra["pluginsDir"] = pluginsDir
 
 buildscript {
     repositories {
@@ -7,8 +8,8 @@ buildscript {
 }
 
 plugins {
-    kotlin("jvm") version "2.2.21"
-    kotlin("kapt") version "2.2.21"
+    kotlin("jvm") version "2.4.21"
+    kotlin("kapt") version "2.4.21"
     application
 }
 

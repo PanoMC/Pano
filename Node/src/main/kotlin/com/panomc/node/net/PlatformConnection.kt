@@ -175,7 +175,7 @@ class PlatformConnection(
             .request(
                 RequestOptions()
                     .setMethod(HttpMethod.POST)
-                    .setURI("/api/node/connect")
+                    .setURI(NodePaths.CONNECT)
                     .setTimeout(PAIR_TIMEOUT_MILLIS)
             )
             .compose { request ->
@@ -194,8 +194,8 @@ class PlatformConnection(
             throw IllegalStateException("Pano answered pairing with HTTP ${response.first} and no JSON body.")
         }
 
-        if (payload.getString("result") == "error") {
-            throw IllegalStateException("Pano refused the pairing: ${payload.getString("error")}")
+        NodePaths.errorCode(response.second.toString(Charsets.UTF_8))?.let { code ->
+            throw IllegalStateException("Pano refused the pairing: $code")
         }
 
         val token = payload.getString("token")
@@ -290,7 +290,7 @@ class PlatformConnection(
             .setHost(endpoint.host)
             .setPort(endpoint.port)
             .setSsl(endpoint.ssl)
-            .setURI("/api/node/connection")
+            .setURI(NodePaths.CONNECTION)
             .setMethod(HttpMethod.GET)
             .addHeader("Authorization", "Bearer ${config.token}")
 
@@ -361,11 +361,7 @@ class PlatformConnection(
 
     private fun onConnectFailed(cause: Throwable?) {
         val error = (cause as? UpgradeRejectedException)?.let { rejection ->
-            try {
-                rejection.body?.toJsonObject()?.getString("error")
-            } catch (_: Exception) {
-                null
-            }
+            NodePaths.errorCode(rejection.body?.toString())
         }
 
         when (error) {

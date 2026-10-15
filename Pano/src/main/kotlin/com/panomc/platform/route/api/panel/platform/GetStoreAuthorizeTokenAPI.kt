@@ -14,7 +14,7 @@ class GetStoreAuthorizeTokenAPI(
     private val panoApiManager: PanoApiManager,
     private val authProvider: AuthProvider,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/platform/store/authorize/token", RouteType.GET))
+    override val paths = listOf(Path("/platform/store/authorize/token", RouteType.GET))
 
     override fun isAllowedInDemo(method: HttpMethod): Boolean {
         return false

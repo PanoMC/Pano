@@ -75,10 +75,9 @@ class UpstreamRetryInterceptorTest {
     private fun send(proxyPort: Int, method: HttpMethod, count: Int): List<Int> {
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
         return (1..count).map {
-            client.request(method, proxyPort, "127.0.0.1", "/_app/immutable/chunks/x.js")
+            com.panomc.platform.TestHttp.onLoop(vertx) { client.request(method, proxyPort, "127.0.0.1", "/_app/immutable/chunks/x.js")
                 .compose { it.send() }
-                .compose { resp -> resp.body().map { resp.statusCode() } }
-                .blockingGet()
+                .compose { resp -> resp.body().map { resp.statusCode() } } }.blockingGet()
         }
     }
 

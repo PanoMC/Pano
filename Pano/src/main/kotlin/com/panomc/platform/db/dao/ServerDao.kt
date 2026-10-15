@@ -100,6 +100,17 @@ abstract class ServerDao : Dao<Server>(Server::class.java) {
      * Stores why the server's install failed, or clears it with null
      * ([com.panomc.platform.node.ServerInstallFailure]).
      */
+    /**
+     * What the Pano plugin on the server is, when Pano itself put a new jar there: the protocol it speaks and
+     * its version, until the plugin connects and says so itself.
+     */
+    abstract suspend fun updatePluginBuildById(
+        id: Long,
+        protocolVersion: Int,
+        pluginVersion: String?,
+        sqlClient: SqlClient
+    )
+
     abstract suspend fun updateInstallErrorById(
         id: Long,
         installError: String?,

@@ -11,4 +11,4 @@ import com.panomc.platform.model.Error
 class ReadFailed(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(500, statusMessage, extras)
+) : Error("READ_FAILED", 500, statusMessage, extras)

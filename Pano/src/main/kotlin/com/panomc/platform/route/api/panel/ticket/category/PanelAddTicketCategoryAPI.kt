@@ -6,14 +6,16 @@ import com.panomc.platform.auth.panel.log.CreatedTicketCategoryLog
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.TicketCategory
+import com.panomc.platform.error.InvalidFields
 import com.panomc.platform.model.*
 import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
@@ -25,7 +27,7 @@ class PanelAddTicketCategoryAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/ticket/category", RouteType.POST))
+    override val paths = listOf(Path("/ticket/category", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -34,6 +36,7 @@ class PanelAddTicketCategoryAPI(
                     objectSchema()
                         .requiredProperty("title", stringSchema())
                         .requiredProperty("description", stringSchema())
+                        .optionalProperty("enabled", booleanSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -47,13 +50,14 @@ class PanelAddTicketCategoryAPI(
 
         val title = data.getString("title")
         val description = data.getString("description")
+        val enabled = data.getBoolean("enabled") ?: true
 
         validateForm(title)
 
         val sqlClient = getSqlClient()
 
         val categoryId = databaseManager.ticketCategoryDao.add(
-            TicketCategory(title = title, description = description),
+            TicketCategory(title = title, description = description, enabled = enabled),
             sqlClient
         )
 
@@ -82,7 +86,7 @@ class PanelAddTicketCategoryAPI(
 //            errors["description"] = true
 
         if (errors.isNotEmpty()) {
-            throw Errors(errors)
+            throw InvalidFields(errors)
         }
     }
 }

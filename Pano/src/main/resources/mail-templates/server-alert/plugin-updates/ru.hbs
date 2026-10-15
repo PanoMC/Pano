@@ -1,0 +1,10 @@
+---
+subject: {{websiteName}} — Оповещение сервера: Доступны обновления плагинов
+preheader: Для {{count}} плагин(ов) на «{{serverName}}» есть обновления
+buttonLabel: Открыть в панели
+buttonUrl: {{link}}
+footer: Вы получили это письмо, потому что включены письма об оповещениях. Отключить их можно в настройках оповещений панели.
+---
+<h2>Доступны обновления плагинов</h2>
+<p>Для {{count}} плагин(ов) на сервере «{{serverName}}» доступна новая версия: {{names}}.</p>
+<p>{{#if serverName}}<strong>Сервер:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Узел:</strong> {{nodeName}}<br>{{/if}}<strong>Время события:</strong> {{occurredAt}}</p>

@@ -23,7 +23,7 @@ class PanelGetSoftwareAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/software", RouteType.GET))
+    override val paths = listOf(Path("/software", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -32,6 +32,6 @@ class PanelGetSoftwareAPI(
 
         val catalog = serverSoftwareCatalog.getCatalog()
 
-        return Successful(mapOf("software" to JsonArray(catalog.map { it.toJsonObject() })))
+        return Successful(mapOf("items" to JsonArray(catalog.map { it.toJsonObject() })))
     }
 }

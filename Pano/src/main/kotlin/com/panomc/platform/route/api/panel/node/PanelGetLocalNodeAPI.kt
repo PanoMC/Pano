@@ -14,7 +14,7 @@ import io.vertx.json.schema.SchemaRepository
 import com.panomc.platform.util.UsageMode
 
 /**
- * Status of the local node's process (`GET /api/panel/nodes/local`).
+ * Status of the local node's process (`GET /api/v1/panel/nodes/local`).
  *
  * Separate from the node row this daemon owns, because the two answer different questions: the row
  * says whether a node is paired and connected, this says whether the process Pano is supposed to
@@ -30,7 +30,7 @@ class PanelGetLocalNodeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/local", RouteType.GET))
+    override val paths = listOf(Path("/nodes/local", RouteType.GET))
 
     override val order = 0
 

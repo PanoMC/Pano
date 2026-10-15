@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class InvalidDateFnsCode(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("INVALID_DATE_FNS_CODE", 422, statusMessage, extras)

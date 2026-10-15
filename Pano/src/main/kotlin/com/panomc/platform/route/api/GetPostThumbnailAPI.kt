@@ -10,18 +10,25 @@ import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.MimeTypeUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.File
 import com.panomc.platform.util.UsageMode
+import com.panomc.platform.schema.EndpointDoc
 
 @Endpoint
 class GetPostThumbnailAPI(private val configManager: ConfigManager) : Api() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/post/thumbnail/:filename", RouteType.GET))
+    override val paths = listOf(Path("/posts/thumbnails/:filename", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "A post thumbnail file.",
+        tag = "posts",
+        binary = true
+    )
 
     companion object {
         private const val CACHE_TTL_SECONDS = 7 * 24 * 60 * 60 // 1 week

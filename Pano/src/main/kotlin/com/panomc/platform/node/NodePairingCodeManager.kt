@@ -19,7 +19,7 @@ import java.util.Date
  * The code rotates every 30 seconds so a code that leaks is useless almost immediately; a pairing
  * attempt only has to hit the code that is current when it arrives.
  *
- * **Pano Agent codes** (`GET /api/panel/servers/agent-link`) work differently (SM-74). An agent
+ * **Pano Agent codes** (`GET /api/v1/panel/servers/agent-link`) work differently (SM-74). An agent
  * code travels with a command somebody copies from the panel and pastes on another machine, or
  * types into the agent's first-run questions, which does not always fit in thirty seconds. So an
  * agent code is minted per request: valid for [AGENT_CODE_TTL_MS], used once, and remembered with
@@ -195,7 +195,7 @@ class NodePairingCodeManager(
          * How long an agent code is. Unlike the node code nobody reads it out: it travels inside a
          * command that is copied and pasted, so it can be long enough to be unguessable. Twenty of
          * them live at once and every one pairs without an admin's approval, which
-         * six digits could not survive against the public rate limit of `/api/node/connect`.
+         * six digits could not survive against the public rate limit of `/api/v1/node/connect`.
          */
         const val AGENT_CODE_LENGTH = 16
 

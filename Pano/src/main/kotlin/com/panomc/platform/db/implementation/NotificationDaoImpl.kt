@@ -120,18 +120,22 @@ class NotificationDaoImpl : NotificationDao() {
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun getLast10ByUserId(
+    override suspend fun getListByUserId(
         userId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Notification> {
         val query =
-            "SELECT `id`, `userId`, `type`, `details`, `status`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 10"
+            "SELECT `id`, `userId`, `type`, `details`, `status`, `createdAt`, `updatedAt` FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
-                    userId
+                    userId,
+                    limit,
+                    offset
                 )
             ).coAwait()
 
@@ -158,21 +162,26 @@ class NotificationDaoImpl : NotificationDao() {
         return rows.toEntities()
     }
 
-    override suspend fun markReadLast10(
+    override suspend fun markReadByIds(
         userId: Long,
+        ids: List<Long>,
         sqlClient: SqlClient
     ) {
+        if (ids.isEmpty()) {
+            return
+        }
+
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? ORDER BY `createdAt` DESC, `id` DESC LIMIT 10"
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? AND `id` IN (${ids.joinToString(", ") { "?" }})"
+
+        val parameters = Tuple.of(NotificationStatus.READ, userId)
+
+        ids.forEach { parameters.addLong(it) }
 
         sqlClient
             .preparedQuery(query)
-            .execute(
-                Tuple.of(
-                    NotificationStatus.READ,
-                    userId
-                )
-            ).coAwait()
+            .execute(parameters)
+            .coAwait()
     }
 
     override suspend fun markReadLast10StartFromId(

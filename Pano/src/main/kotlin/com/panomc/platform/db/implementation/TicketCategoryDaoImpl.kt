@@ -23,6 +23,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
                               `title` MEDIUMTEXT NOT NULL,
                               `description` text,
                               `url` mediumtext NOT NULL,
+                              `enabled` TINYINT(1) NOT NULL DEFAULT 1,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Ticket category table.';
                         """
@@ -34,7 +35,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
     override suspend fun getAll(
         sqlClient: SqlClient
     ): List<TicketCategory> {
-        val query = "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}`"
+        val query = "SELECT `id`, `title`, `description`, `url`, `enabled` FROM `${getTablePrefix() + tableName}`"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -89,7 +90,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `description`, `url`) VALUES (?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (`title`, `description`, `url`, `enabled`) VALUES (?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -97,7 +98,8 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
                 Tuple.of(
                     ticketCategory.title,
                     ticketCategory.description,
-                    TextUtil.convertStringToUrl(ticketCategory.title)
+                    TextUtil.convertStringToUrl(ticketCategory.title),
+                    if (ticketCategory.enabled) 1 else 0
                 )
             )
             .coAwait()
@@ -125,7 +127,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `title` = ?, `description` = ?, `url` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `title` = ?, `description` = ?, `url` = ?, `enabled` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -134,10 +136,34 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
                     ticketCategory.title,
                     ticketCategory.description,
                     TextUtil.convertStringToUrl(ticketCategory.title),
+                    if (ticketCategory.enabled) 1 else 0,
                     ticketCategory.id
                 )
             )
             .coAwait()
+    }
+
+    override suspend fun countEnabled(sqlClient: SqlClient): Long {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` WHERE `enabled` = 1"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute()
+            .coAwait()
+
+        return rows.toList()[0].getLong(0)
+    }
+
+    override suspend fun getEnabledList(limit: Int, offset: Long, sqlClient: SqlClient): List<TicketCategory> {
+        val query =
+            "SELECT `id`, `title`, `description`, `url`, `enabled` FROM `${getTablePrefix() + tableName}` WHERE `enabled` = 1 ORDER BY id DESC LIMIT ? OFFSET ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(limit, offset))
+            .coAwait()
+
+        return rows.toEntities()
     }
 
     override suspend fun count(sqlClient: SqlClient): Long {
@@ -167,28 +193,30 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun getByPage(
-        page: Long,
+    override suspend fun getList(
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<TicketCategory> {
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC ${if (page != 0L) "LIMIT 10 OFFSET " + (page - 1) * 10 else ""}"
+            "SELECT `id`, `title`, `description`, `url`, `enabled` FROM `${getTablePrefix() + tableName}` ORDER BY id DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.of(limit, offset))
             .coAwait()
 
         return rows.toEntities()
     }
 
-    override suspend fun getByPageAndSearch(
-        page: Long,
+    override suspend fun getListBySearch(
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<TicketCategory> {
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ? ORDER BY id DESC ${if (page != 0L) "LIMIT 10 OFFSET " + (page - 1) * 10 else ""}"
+            "SELECT `id`, `title`, `description`, `url`, `enabled` FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? OR `description` LIKE ? ORDER BY id DESC LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -203,7 +231,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         sqlClient: SqlClient
     ): TicketCategory? {
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
+            "SELECT `id`, `title`, `description`, `url`, `enabled` FROM `${getTablePrefix() + tableName}` WHERE  `id` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -224,7 +252,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         sqlClient: SqlClient
     ): TicketCategory? {
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
+            "SELECT `id`, `title`, `description`, `url`, `enabled` FROM `${getTablePrefix() + tableName}` WHERE  `url` = ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -254,7 +282,7 @@ class TicketCategoryDaoImpl : TicketCategoryDao() {
         }
 
         val query =
-            "SELECT `id`, `title`, `description`, `url` FROM `${getTablePrefix() + tableName}` WHERE  `id` IN ($listText)"
+            "SELECT `id`, `title`, `description`, `url`, `enabled` FROM `${getTablePrefix() + tableName}` WHERE  `id` IN ($listText)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

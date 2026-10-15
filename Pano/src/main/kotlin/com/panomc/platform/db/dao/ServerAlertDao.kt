@@ -7,10 +7,18 @@ import io.vertx.sqlclient.SqlClient
 abstract class ServerAlertDao : Dao<ServerAlert>(ServerAlert::class.java) {
     abstract suspend fun add(serverAlert: ServerAlert, sqlClient: SqlClient): Long
 
-    /** Newest first, which is the only order anyone wants these in. */
-    abstract suspend fun getLatest(limit: Int, sqlClient: SqlClient): List<ServerAlert>
+    /**
+     * Newest first, which is the only order anyone wants these in. [beforeId] is the paging cursor and
+     * returns only alerts older than it (null = from the newest).
+     */
+    abstract suspend fun getLatest(limit: Int, beforeId: Long?, sqlClient: SqlClient): List<ServerAlert>
 
-    abstract suspend fun getLatestByServerId(serverId: Long, limit: Int, sqlClient: SqlClient): List<ServerAlert>
+    abstract suspend fun getLatestByServerId(
+        serverId: Long,
+        limit: Int,
+        beforeId: Long?,
+        sqlClient: SqlClient
+    ): List<ServerAlert>
 
     /**
      * The newest alert of one kind about one subject, or null when there has never been one.

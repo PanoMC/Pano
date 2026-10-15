@@ -40,13 +40,15 @@ abstract class BannedIpDao : Dao<BannedIp>(BannedIp::class.java) {
     ): Long
 
     abstract suspend fun getAllByPage(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp>
 
     abstract suspend fun getAllByPageAndSearch(
-        page: Long,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp>
 
@@ -64,17 +66,19 @@ abstract class BannedIpDao : Dao<BannedIp>(BannedIp::class.java) {
     ): Long
 
     abstract suspend fun getAllByPageAndListFilter(
-        page: Long,
         listFilter: BannedIpListFilter,
         nowMs: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp>
 
     abstract suspend fun getAllByPageAndListFilterAndSearch(
-        page: Long,
         search: String,
         listFilter: BannedIpListFilter,
         nowMs: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp>
 

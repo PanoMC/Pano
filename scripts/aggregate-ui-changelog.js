@@ -14,6 +14,7 @@ const REPOS = {
     'panel-ui': 'panel-ui',
     'setup-ui': 'setup-ui',
     'vanilla-theme': 'vanilla-theme',
+    'pano-email': 'pano-email',
 };
 
 const token = process.env.GITHUB_TOKEN;

@@ -76,13 +76,14 @@ class TicketDaoImpl : TicketDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getAllByPageAndPageType(
-        page: Long,
+    override suspend fun getListByPageType(
         pageType: TicketPageType,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket> {
         val query =
-            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketPageType.ALL) "WHERE status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` ${if (pageType != TicketPageType.ALL) "WHERE status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT $limit OFFSET $offset"
 
         val parameters = Tuple.tuple()
 
@@ -97,14 +98,15 @@ class TicketDaoImpl : TicketDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getAllByPageAndPageTypeAndSearch(
-        page: Long,
+    override suspend fun getListByPageTypeAndSearch(
         pageType: TicketPageType,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket> {
         val query =
-            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT $limit OFFSET $offset"
 
         val parameters = Tuple.tuple()
         parameters.addString("%$search%")
@@ -120,14 +122,15 @@ class TicketDaoImpl : TicketDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getAllByPagePageTypeAndUserId(
+    override suspend fun getAllByUserIdAndPageType(
         userId: Long,
-        page: Long,
         pageType: TicketPageType,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket> {
         val query =
-            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` WHERE `userId` = ? ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val parameters = Tuple.tuple()
 
@@ -136,6 +139,9 @@ class TicketDaoImpl : TicketDao() {
         if (pageType != TicketPageType.ALL)
             parameters.addString(pageType.ticketStatus!!.name)
 
+        parameters.addInteger(limit)
+        parameters.addLong(offset)
+
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(parameters)
@@ -144,13 +150,14 @@ class TicketDaoImpl : TicketDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getAllByPageAndCategoryId(
-        page: Long,
+    override suspend fun getListByCategoryId(
         categoryId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket> {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `userId`, `date`, `lastUpdate`, `status` FROM `${getTablePrefix() + tableName}` WHERE `categoryId` = ? ORDER BY `status`, `lastUpdate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT `id`, `title`, `categoryId`, `userId`, `date`, `lastUpdate`, `status` FROM `${getTablePrefix() + tableName}` WHERE `categoryId` = ? ORDER BY `status`, `lastUpdate` DESC, `id` DESC LIMIT $limit OFFSET $offset"
 
         val parameters = Tuple.tuple()
 
@@ -164,19 +171,22 @@ class TicketDaoImpl : TicketDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getAllByPageCategoryIdAndUserId(
-        page: Long,
+    override suspend fun getAllByCategoryIdAndUserId(
         categoryId: Long,
         userId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket> {
         val query =
-            "SELECT `id`, `title`, `categoryId`, `userId`, `date`, `lastUpdate`, `status` FROM `${getTablePrefix() + tableName}` WHERE `categoryId` = ? AND `userId` = ? ORDER BY `status`, `lastUpdate` DESC, `id` DESC LIMIT 10 ${if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"}"
+            "SELECT `id`, `title`, `categoryId`, `userId`, `date`, `lastUpdate`, `status` FROM `${getTablePrefix() + tableName}` WHERE `categoryId` = ? AND `userId` = ? ORDER BY `status`, `lastUpdate` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val parameters = Tuple.tuple()
 
         parameters.addLong(categoryId)
         parameters.addLong(userId)
+        parameters.addInteger(limit)
+        parameters.addLong(offset)
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

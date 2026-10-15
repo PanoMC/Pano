@@ -6,19 +6,30 @@ import io.vertx.core.json.JsonObject
 import java.io.File
 
 object PluginDevUtil {
-    fun getPluginSourceDir(pluginId: String): File? {
-        val potentialDirs = mutableListOf<File>()
-        if (Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT) {
-            potentialDirs.add(File("../plugins/$pluginId"))
-            potentialDirs.add(File("plugins/$pluginId"))
-        } else {
-            val pluginManager = try {
-                Main.applicationContext.getBean(PluginManager::class.java)
+    /**
+     * The folder with a plugin's sources: `../plugins/<id>` or `plugins/<id>` while [devMode] is on
+     * (dev environment or the panel's Development Mode), and the plugin roots of the running Pano
+     * (`<pano>/plugins/<id>`) in every mode, which is where a developer works on a downloaded Pano.
+     */
+    fun getPluginSourceDir(
+        pluginId: String,
+        devMode: Boolean = DevMode.isActive(),
+        pluginsRoots: () -> List<java.nio.file.Path>? = {
+            try {
+                Main.applicationContext.getBean(PluginManager::class.java).pluginsRoots
             } catch (e: Exception) {
                 null
-            } ?: return null
-            pluginManager.pluginsRoots.forEach { potentialDirs.add(it.resolve(pluginId).toFile()) }
+            }
         }
+    ): File? {
+        val potentialDirs = mutableListOf<File>()
+
+        if (devMode) {
+            potentialDirs.add(File("../plugins/$pluginId"))
+            potentialDirs.add(File("plugins/$pluginId"))
+        }
+
+        pluginsRoots()?.forEach { potentialDirs.add(it.resolve(pluginId).toFile()) }
 
         for (potentialPluginDir in potentialDirs) {
             if (potentialPluginDir.exists() && potentialPluginDir.isDirectory) {

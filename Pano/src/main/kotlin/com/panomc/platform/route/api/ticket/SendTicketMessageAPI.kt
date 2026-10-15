@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.ticket
 
 
+import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
@@ -17,12 +18,14 @@ import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import com.panomc.platform.util.UsageMode
+import com.panomc.platform.schema.EndpointDoc
+import com.panomc.platform.schema.CoreSchemas
 
 @Endpoint
 class SendTicketMessageAPI(
@@ -32,7 +35,14 @@ class SendTicketMessageAPI(
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/tickets/:id/messages", RouteType.POST))
+    override val paths = listOf(Path("/tickets/:id/messages", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Adds a message to an open ticket of the signed-in user.",
+        tag = "tickets",
+        response = objectSchema().requiredProperty("message", CoreSchemas.ticketMessage),
+        errors = listOf(MessageCantBeEmpty::class, NotExists::class, TicketIsClosed::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -90,6 +100,8 @@ class SendTicketMessageAPI(
             System.currentTimeMillis(),
             sqlClient
         )
+
+        WebhookCoreEvents.fire { ticketReplied(ticketId, messageId, userId, false, sqlClient) }
 
         notificationManager.sendNotificationToAllWithPermission(
             NewTicketMessageNotification(ticketId, username),

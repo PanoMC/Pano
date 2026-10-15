@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class RegisterLinkCodeInvalid(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("REGISTER_LINK_CODE_INVALID", 422, statusMessage, extras)

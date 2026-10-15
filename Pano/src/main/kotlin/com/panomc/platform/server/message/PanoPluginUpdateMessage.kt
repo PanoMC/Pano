@@ -20,7 +20,7 @@ import com.panomc.platform.server.PlatformMessage
 data class PanoPluginUpdateMessage(
     val eventId: String,
     val taskId: String,
-    /** `/api/server/pano-plugin/jar`; relative on purpose, only the plugin knows how it reaches Pano. */
+    /** `/api/v1/server/pano-plugin/jar`; relative on purpose, only the plugin knows how it reaches Pano. */
     val url: String,
     val sha256: String,
     val size: Long,

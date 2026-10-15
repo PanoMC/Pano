@@ -15,4 +15,4 @@ import com.panomc.platform.model.Error
 class FeatureUnavailable(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("FEATURE_UNAVAILABLE", 409, statusMessage, extras)

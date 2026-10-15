@@ -11,8 +11,8 @@ import com.panomc.platform.server.plugins.PluginSourceCatalog
 import com.panomc.platform.server.plugins.PluginSourceId
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
@@ -31,11 +31,11 @@ class PanelSearchPluginCatalogueAPI(
     private val authProvider: AuthProvider,
     private val pluginSourceCatalog: PluginSourceCatalog
 ) : PanelApi() {
-    // Registered ahead of `/api/panel/plugins/:pluginId`, which would otherwise answer this with
+    // Registered ahead of `/api/v1/panel/addons/:pluginId`, which would otherwise answer this with
     // a plugin called "search".
     override val order = 0
 
-    override val paths = listOf(Path("/api/panel/plugins/search", RouteType.GET))
+    override val paths = listOf(Path("/addons/search", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

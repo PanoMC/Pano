@@ -2,6 +2,7 @@ package com.panomc.platform.command.impl
 
 import com.panomc.platform.PluginManager
 import com.panomc.platform.command.Command
+import com.panomc.platform.error.PluginApiLevelUnsupported
 import com.panomc.platform.command.CommandExecutor
 import com.panomc.platform.command.CommandSender
 import org.pf4j.PluginState
@@ -53,6 +54,10 @@ class PluginCommands(
         }
 
         when (sub) {
+            "enable", "start", "reload" -> if (refuseIncompatible(sender, pluginId)) return
+        }
+
+        when (sub) {
             "enable" -> {
                 if (pluginManager.enablePlugin(pluginId)) sender.sendMessage("\u001B[32mEnabled '$pluginId'.\u001B[0m")
                 else sender.sendMessage("\u001B[31mFailed to enable '$pluginId'.\u001B[0m")
@@ -88,5 +93,18 @@ class PluginCommands(
             }
             else -> sender.sendMessage("\u001B[31mUnknown plugin subcommand: $sub\u001B[0m")
         }
+    }
+
+    /** Prints the refusal and returns true when [pluginId] (or a plugin it requires) is outside the supported API level. */
+    private fun refuseIncompatible(sender: CommandSender, pluginId: String): Boolean {
+        try {
+            pluginManager.requireCompatible(pluginId)
+        } catch (e: PluginApiLevelUnsupported) {
+            sender.sendMessage("\u001B[31mPlugin '$pluginId' can not be enabled (PLUGIN_API_LEVEL_UNSUPPORTED): ${e.message}\u001B[0m")
+
+            return true
+        }
+
+        return false
     }
 }

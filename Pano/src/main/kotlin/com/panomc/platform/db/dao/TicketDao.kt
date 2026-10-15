@@ -17,36 +17,43 @@ abstract class TicketDao : Dao<Ticket>(Ticket::class.java) {
         sqlClient: SqlClient
     ): List<Ticket>
 
-    abstract suspend fun getAllByPageAndPageType(
-        page: Long,
+    abstract suspend fun getListByPageType(
         pageType: TicketPageType,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    abstract suspend fun getAllByPageAndPageTypeAndSearch(
-        page: Long,
+    abstract suspend fun getListByPageTypeAndSearch(
         pageType: TicketPageType,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    abstract suspend fun getAllByPagePageTypeAndUserId(
+    /** Tickets of one user filtered by [pageType]: [limit] rows after skipping [offset]. */
+    abstract suspend fun getAllByUserIdAndPageType(
         userId: Long,
-        page: Long,
         pageType: TicketPageType,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    abstract suspend fun getAllByPageAndCategoryId(
-        page: Long,
+    abstract suspend fun getListByCategoryId(
         categoryId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 
-    abstract suspend fun getAllByPageCategoryIdAndUserId(
-        page: Long,
+    /** Tickets of one user in one category: [limit] rows after skipping [offset]. */
+    abstract suspend fun getAllByCategoryIdAndUserId(
         categoryId: Long,
         userId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Ticket>
 

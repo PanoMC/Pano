@@ -38,7 +38,15 @@ data class ReleaseInfo(
     val url: String?,
     val notes: String?,
     /** Empty when the Pano API answered: the API does not list assets, their names are derived from the tag. */
-    val assets: List<ReleaseAsset> = emptyList()
+    val assets: List<ReleaseAsset> = emptyList(),
+    /**
+     * The extension contract level this Pano release offers (doc 04 section 7), from the release asset
+     * `pano-api-level.json` the Pano API reads. Null for a release built before levels, or when the answer does
+     * not carry it (GitHub does not): the update plan then treats the target as unknown.
+     */
+    val apiLevel: Int? = null,
+    /** The lowest level this release still runs, null when unknown. */
+    val minApiLevel: Int? = null
 ) {
     fun toJson(): JsonObject = JsonObject()
         .put("version", version)
@@ -50,6 +58,12 @@ data class ReleaseInfo(
         .put("assets", JsonArray(assets.map {
             JsonObject().put("name", it.name).put("size", it.size).put("digest", it.digest)
         }))
+        .put("apiLevel", apiLevel)
+        .put("minApiLevel", minApiLevel)
+
+    /** The same release with the levels read from its `pano-api-level.json` asset. */
+    fun withLevels(levels: ReleaseApiLevel?): ReleaseInfo =
+        if (levels == null) this else copy(apiLevel = levels.apiLevel, minApiLevel = levels.minApiLevel)
 
     companion object {
         /**
@@ -85,7 +99,9 @@ data class ReleaseInfo(
                 publishedAt = publishedAt,
                 url = json.getValue("url") as? String,
                 notes = json.getValue("notes") as? String,
-                assets = assets
+                assets = assets,
+                apiLevel = ReleaseApiLevel.level(json.getValue("apiLevel")),
+                minApiLevel = ReleaseApiLevel.level(json.getValue("minApiLevel"))
             )
         }
     }

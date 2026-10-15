@@ -4,6 +4,7 @@ import com.github.jknack.handlebars.Handlebars
 import com.panomc.platform.AppConstants
 import com.panomc.platform.Main
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.route.ApiPaths
 import com.panomc.platform.util.WebsiteUrlUtil
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
@@ -118,7 +119,9 @@ class NodeInstallScriptProvider(
                 "version" to (version ?: "latest"),
                 "downloadUrl" to downloadUrl(panoUrlOverride),
                 "checksumUrl" to checksumUrl(panoUrlOverride),
-                "jarName" to JAR_NAME
+                "jarName" to JAR_NAME,
+                "shellScriptPath" to ApiPaths.core(SHELL_SCRIPT_PATH),
+                "powerShellScriptPath" to ApiPaths.core(POWERSHELL_SCRIPT_PATH)
             )
         )
     }
@@ -126,6 +129,10 @@ class NodeInstallScriptProvider(
     private fun websiteUrl() = WebsiteUrlUtil.normalize(configManager.config.websiteUrl)
 
     companion object {
+        /** Declared paths of `NodeInstallScriptAPI` and `NodeInstallScriptWindowsAPI`. */
+        const val SHELL_SCRIPT_PATH = "/node/install.sh"
+        const val POWERSHELL_SCRIPT_PATH = "/node/install.ps1"
+
         const val SHELL_TEMPLATE = "node/install.sh.hbs"
         const val POWERSHELL_TEMPLATE = "node/install.ps1.hbs"
 
@@ -161,19 +168,19 @@ class NodeInstallScriptProvider(
          * makes an install reach the wrong daemon if it is wrong.
          */
         fun downloadUrl(panoUrl: String, servedByPano: Boolean, version: String?): String = when {
-            servedByPano -> "$panoUrl/api/node/$JAR_NAME"
+            servedByPano -> panoUrl + ApiPaths.core("/node/$JAR_NAME")
             version != null -> "$RELEASE_BASE/download/v$version/$JAR_NAME"
             else -> "$RELEASE_BASE/latest/download/$JAR_NAME"
         }
 
         /** The one-line POSIX install command for [url] and [code]. Pure, so the exact text can be asserted. */
         fun shellInstallCommand(url: String, code: String): String =
-            "curl -fsSL $url/api/node/install.sh | sh -s -- --pano '$url' --code '${shellQuote(code)}'"
+            "curl -fsSL $url${ApiPaths.core(SHELL_SCRIPT_PATH)} | sh -s -- --pano '$url' --code '${shellQuote(code)}'"
 
         /** The PowerShell counterpart of [shellInstallCommand]. */
         fun powerShellInstallCommand(url: String, code: String): String =
             "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& ([scriptblock]::Create(" +
-                "(Invoke-RestMethod '$url/api/node/install.ps1'))) " +
+                "(Invoke-RestMethod '$url${ApiPaths.core(POWERSHELL_SCRIPT_PATH)}'))) " +
                 "-Pano '$url' -Code '${powerShellQuote(code)}'\""
 
         /**
@@ -181,10 +188,10 @@ class NodeInstallScriptProvider(
          * agent's name when [servedByPano], the release's node jar otherwise.
          */
         fun agentJarUrl(panoUrl: String, servedByPano: Boolean, version: String?): String =
-            if (servedByPano) "$panoUrl/api/node/$AGENT_JAR_NAME" else downloadUrl(panoUrl, false, version)
+            if (servedByPano) panoUrl + ApiPaths.core("/node/$AGENT_JAR_NAME") else downloadUrl(panoUrl, false, version)
 
         /**
-         * What `GET /api/panel/servers/agent-link` answers (SM-74): the code and when it stops
+         * What `GET /api/v1/panel/servers/agent-link` answers (SM-74): the code and when it stops
          * pairing, where the jar is, and the three commands -- download it into the server folder
          * (POSIX shell or PowerShell), run it once with the code, start it like that from then on.
          * `panoUrl` is the address the run command carries, which is also what the agent's first
@@ -207,7 +214,7 @@ class NodeInstallScriptProvider(
         )
 
         /**
-         * What `GET /api/panel/servers/agent-link` answers while `managed-servers.accept-agent-links`
+         * What `GET /api/v1/panel/servers/agent-link` answers while `managed-servers.accept-agent-links`
          * is off (SM-77): no code, no expiry and no command that would carry one -- nothing that
          * pairs -- only what the dialog shows greyed out behind its switch: where the jar is, what
          * it is called, how the server is started and the Java it needs. Pure, like [agentLink].

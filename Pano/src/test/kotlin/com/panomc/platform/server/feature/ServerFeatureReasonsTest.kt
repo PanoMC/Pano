@@ -334,10 +334,11 @@ class ServerFeatureReasonsTest {
         val error = assertThrows<FeatureUnavailable> {
             ServerFeatureResolver.pick(linked(capabilities = setOf(ServerCapability.CONSOLE)), ServerFeature.FILES_SOURCE)
         }
-        val body = JsonObject(error.encode(emptyMap()))
+        val envelope = JsonObject(error.encode(emptyMap())).getJsonObject("error")
+        val body = envelope.getJsonObject("details")
 
         assertEquals(409, error.getStatusCode())
-        assertEquals("FEATURE_UNAVAILABLE", body.getString("error"))
+        assertEquals("FEATURE_UNAVAILABLE", envelope.getString("code"))
         assertEquals("files.source", body.getString("feature"))
         assertEquals("PLUGIN_LACKS", body.getString("reason"))
         assertEquals("files", body.getString("capability"))
@@ -348,7 +349,8 @@ class ServerFeatureReasonsTest {
         val error = assertThrows<FeatureUnavailable> {
             ServerFeatureResolver.pick(managed(nodeConnected = false), ServerFeature.BACKUPS_CREATE)
         }
-        val body = JsonObject(error.encode(emptyMap()))
+        val envelope = JsonObject(error.encode(emptyMap())).getJsonObject("error")
+        val body = envelope.getJsonObject("details")
 
         assertEquals("NODE_OFFLINE", body.getString("reason"))
         assertFalse(body.containsKey("capability"))
@@ -362,7 +364,7 @@ class ServerFeatureReasonsTest {
             ServerFeature.entries.filter { features.sourceOf(it) == null }.forEach { feature ->
                 val expected = features.reasons.getValue(feature.id)
                 val error = runCatching { ServerFeatureResolver.pick(inputs, feature) }.exceptionOrNull()
-                val body = JsonObject((error as com.panomc.platform.model.Error).encode(emptyMap()))
+                val body = JsonObject((error as com.panomc.platform.model.Error).encode(emptyMap())).getJsonObject("error").getJsonObject("details")
 
                 assertEquals(feature.id, body.getString("feature"))
                 assertEquals(expected.reason.name, body.getString("reason"))
@@ -376,7 +378,8 @@ class ServerFeatureReasonsTest {
         val error = assertThrows<ServerNoStdin> {
             ServerFeatureResolver.pick(managed(stdinAvailable = false), ServerFeature.CONSOLE_INPUT)
         }
-        val body = JsonObject(error.encode(emptyMap()))
+        val envelope = JsonObject(error.encode(emptyMap())).getJsonObject("error")
+        val body = envelope.getJsonObject("details")
 
         assertEquals("NO_STDIN", body.getString("reason"))
         assertEquals("console.input", body.getString("feature"))
@@ -388,7 +391,7 @@ class ServerFeatureReasonsTest {
             ServerFeatureResolver.pick(managed(stdinAvailable = false), ServerFeature.PLAYERS_ACTIONS)
         }
 
-        assertEquals("NO_STDIN", JsonObject(error.encode(emptyMap())).getString("reason"))
+        assertEquals("NO_STDIN", JsonObject(error.encode(emptyMap())).getJsonObject("error").getJsonObject("details").getString("reason"))
     }
 
     @Test
@@ -400,7 +403,7 @@ class ServerFeatureReasonsTest {
             )
         }
 
-        assertEquals("SERVER_STOPPED", JsonObject(error.encode(emptyMap())).getString("reason"))
+        assertEquals("SERVER_STOPPED", JsonObject(error.encode(emptyMap())).getJsonObject("error").getJsonObject("details").getString("reason"))
     }
 
     // ---------------------------------------------------------------- JSON shape

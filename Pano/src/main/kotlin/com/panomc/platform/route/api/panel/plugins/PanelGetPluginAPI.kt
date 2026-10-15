@@ -20,8 +20,8 @@ import com.panomc.platform.util.FileUtil.getSize
 import com.panomc.platform.util.ResourceHashStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import org.pf4j.PluginState
@@ -36,7 +36,7 @@ class PanelGetPluginAPI(
     private val configManager: ConfigManager,
     private val panoApiManager: PanoApiManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/plugins/:pluginId", RouteType.GET))
+    override val paths = listOf(Path("/addons/:pluginId", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -68,6 +68,12 @@ class PanelGetPluginAPI(
             "panoVersion" to panoPluginDescriptor.panoVersion,
             "developer" to panoPluginDescriptor.developer,
             "version" to panoPluginDescriptor.version,
+            "apiLevel" to panoPluginDescriptor.apiLevel,
+            "verdict" to com.panomc.platform.gate.ApiLevelGate.check(panoPluginDescriptor.apiLevel).name,
+            // Compatible itself, but a plugin it requires is refused: { pluginId (root cause), verdict, via }, else null.
+            "heldBy" to pluginManager.heldBy(plugin.pluginId)?.let {
+                com.panomc.platform.route.api.panel.compatibility.CompatibilityPayload.heldByJson(it.pluginId, it.verdict.name, it.via, it.name)
+            },
             // The plugin manifest "license" field is the SOURCE-CODE license
             // (MIT/GPL/etc.), not the DRM license. Renamed to make the panel UI
             // unambiguous; "license" is kept too for backward compatibility.

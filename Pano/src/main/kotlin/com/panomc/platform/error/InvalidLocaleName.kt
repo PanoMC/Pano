@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class InvalidLocaleName(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("INVALID_LOCALE_NAME", 422, statusMessage, extras)

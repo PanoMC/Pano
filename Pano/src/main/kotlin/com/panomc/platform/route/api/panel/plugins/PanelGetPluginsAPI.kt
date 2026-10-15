@@ -10,19 +10,21 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.gate.ApiLevelGate
 import com.panomc.platform.license.LicenseManager
 import com.panomc.platform.license.LicensePanelView
 import com.panomc.platform.license.isPluginStartupBlockedByLicense
 import com.panomc.platform.license.panelPluginStartupErrorText
 import com.panomc.platform.model.*
+import com.panomc.platform.model.WholeList
 import com.panomc.platform.util.FileUtil.getSize
 import com.panomc.platform.util.ResourceHashStatus
 import com.panomc.platform.util.ResourceStatusType
 import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import org.pf4j.PluginState
@@ -37,7 +39,7 @@ class PanelGetPluginsAPI(
     private val configManager: ConfigManager,
     private val panoApiManager: PanoApiManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/plugins", RouteType.GET))
+    override val paths = listOf(Path("/addons", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -84,8 +86,8 @@ class PanelGetPluginsAPI(
         val isPanoConnected = panoApiManager.isConnected()
 
         return Successful(
-            mapOf(
-                "data" to plugins.map { plugin ->
+            WholeList.response(
+                plugins.map { plugin ->
                 val panoPluginDescriptor = plugin.descriptor as PanoPluginDescriptor
                 val updateInfo = updates.find { it.getString("id") == plugin.pluginId }
 
@@ -116,7 +118,14 @@ class PanelGetPluginsAPI(
                     "verifyStatus" to if (resourceHashes[plugin.hash] == null) ResourceHashStatus.UNKNOWN else resourceHashes[plugin.hash]!!.status,
                     "size" to plugin.pluginPath.toFile().getSize(),
                     "updateVersion" to updateInfo?.getString("version"),
-                    "updateState" to updateInfo?.getString("state")
+                    "updateState" to updateInfo?.getString("state"),
+                    // The API level gate (doc 04 section 7): a plugin outside the range stays disabled in memory.
+                    "apiLevel" to panoPluginDescriptor.apiLevel,
+                    "verdict" to ApiLevelGate.check(panoPluginDescriptor.apiLevel).name,
+                    // Compatible itself, but a plugin it requires is refused: { pluginId (root cause), verdict, via }, else null.
+                    "heldBy" to pluginManager.heldBy(plugin.pluginId)?.let {
+                        com.panomc.platform.route.api.panel.compatibility.CompatibilityPayload.heldByJson(it.pluginId, it.verdict.name, it.via, it.name)
+                    }
                 )
 
                 val licenseFields = LicensePanelView.buildLicenseFields(

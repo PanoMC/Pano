@@ -21,7 +21,7 @@ class PanelUploadResourceFileAPI(
     private val vertx: Vertx,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/install/upload", RouteType.PUT))
+    override val paths = listOf(Path("/install/upload", RouteType.PUT))
 
     override fun bodyHandler(): Handler<RoutingContext> =
         BodyHandler.create()

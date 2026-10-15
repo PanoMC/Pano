@@ -3,6 +3,8 @@ package com.panomc.platform.route.api.setup.step
 import com.panomc.platform.AppConstants.DEFAULT_LOCALES
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.PanoMailService
 import com.panomc.platform.model.*
 import com.panomc.platform.util.UsageMode
 import com.panomc.platform.util.WebsiteUrlUtil
@@ -11,16 +13,17 @@ import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 
 @Endpoint
 class UpdateStepAPI(
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val panoMailService: PanoMailService
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/step", RouteType.PUT))
+    override val paths = listOf(Path("/setup/step", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -47,6 +50,12 @@ class UpdateStepAPI(
                         .optionalProperty("password", stringSchema())
                         .optionalProperty("sender", stringSchema())
                         .optionalProperty("authMethods", stringSchema())
+                        // Step 3: "PANO_MAIL" sends through the connected panomc.com account instead of SMTP.
+                        .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
+                        .optionalProperty("from", stringSchema())
+                        // PANO_MAIL: the sender address's name (<name>.<zone>) and local part (<localPart>@...).
+                        .optionalProperty("name", stringSchema())
+                        .optionalProperty("localPart", stringSchema())
 
                         .optionalProperty("dbType", stringSchema())
                         .optionalProperty("host", stringSchema())
@@ -77,7 +86,7 @@ class UpdateStepAPI(
         return Successful(setupManager.getCurrentStepData().map)
     }
 
-    private fun validateInput(data: JsonObject): Boolean {
+    private suspend fun validateInput(data: JsonObject): Boolean {
         val clientStep = data.getInteger("clientStep")
         val step = data.getInteger("step")
 
@@ -96,6 +105,11 @@ class UpdateStepAPI(
         val ssl = data.getBoolean("ssl")
         val starttls = data.getString("starttls")
         val authMethods = data.getString("authMethods")
+
+        val provider = data.getString("provider")
+        val from = data.getString("from")
+        val senderName = data.getString("name")
+        val localPart = data.getString("localPart")
 
         val host = data.getString("host")
         val dbName = data.getString("dbName")
@@ -181,6 +195,16 @@ class UpdateStepAPI(
             return true
         }
 
+        // Pano Mail: needs the account connected (step 4's connect routes work from step 0); a website
+        // refusal throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE and the step stays. Only checked and stored
+        // here: Pano Mail is switched on at the website when the set-up is finished (FinishAPI), so an
+        // abandoned wizard leaves nothing registered in the account.
+        if (clientStep == 3 && provider == MailManager.PROVIDER_PANO_MAIL) {
+            panoMailService.choose(from, senderName, localPart)
+
+            return true
+        }
+
         if (clientStep == 3 &&
             !hostname.isNullOrEmpty() &&
             port != null &&
@@ -193,6 +217,7 @@ class UpdateStepAPI(
         ) {
             val mailConfiguration = configManager.config.email
 
+            mailConfiguration.provider = MailManager.PROVIDER_SMTP
             mailConfiguration.enabled = true
             mailConfiguration.sender = sender
             mailConfiguration.hostname = hostname
@@ -210,6 +235,7 @@ class UpdateStepAPI(
         if (clientStep == 3) {
             val mailConfiguration = configManager.config.email
 
+            mailConfiguration.provider = MailManager.PROVIDER_SMTP
             mailConfiguration.enabled = false
 
             configManager.saveConfig()

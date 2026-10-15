@@ -15,7 +15,7 @@ import io.vertx.json.schema.SchemaRepository
 import com.panomc.platform.util.UsageMode
 
 /**
- * Sets up the node daemon on Pano's own machine (`POST /api/panel/nodes/local/setup`).
+ * Sets up the node daemon on Pano's own machine (`POST /api/v1/panel/nodes/local/setup`).
  *
  * One button in the panel instead of the six-digit dance a remote host needs: Pano already trusts
  * a process it started itself, so the daemon is handed a one-time bootstrap token and arrives
@@ -23,7 +23,7 @@ import com.panomc.platform.util.UsageMode
  * yet on the first run, because the daemon creates it by pairing a moment later, and the panel
  * follows that through the ordinary node list.
  *
- * Registered at route order 0 so it is matched before `/api/panel/nodes/:id`, which would
+ * Registered at route order 0 so it is matched before `/api/v1/panel/nodes/:id`, which would
  * otherwise swallow the literal path segment and reject it as a non-numeric id.
  */
 @Endpoint
@@ -33,7 +33,7 @@ class PanelSetupLocalNodeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/local/setup", RouteType.POST))
+    override val paths = listOf(Path("/nodes/local/setup", RouteType.POST))
 
     override val order = 0
 

@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class CantChangeEmailWait15Minutes(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("CANT_CHANGE_EMAIL_WAIT15MINUTES", 422, statusMessage, extras)

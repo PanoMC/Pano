@@ -1,7 +1,6 @@
 package com.panomc.platform
 
 import org.pf4j.DefaultPluginDescriptor
-import org.pf4j.PluginDescriptor
 
 class PanoPluginDescriptor : DefaultPluginDescriptor() {
     lateinit var name: String
@@ -20,6 +19,13 @@ class PanoPluginDescriptor : DefaultPluginDescriptor() {
      */
     var freemium: Boolean = false
 
+    /**
+     * The extension contract level the plugin needs (doc 04 section 7), from the `api-level` manifest attribute.
+     * A plugin built before the attribute existed has none, which reads as level 0 and is refused by the
+     * [com.panomc.platform.gate.ApiLevelGate].
+     */
+    var apiLevel: Int = 0
+
     @Deprecated("Do not use", level = DeprecationLevel.HIDDEN)
     override fun getProvider(): String? {
         return super.getProvider()
@@ -35,7 +41,7 @@ class PanoPluginDescriptor : DefaultPluginDescriptor() {
         return super.setPluginId(pluginId)
     }
 
-    public override fun setPluginClass(pluginClassName: String?): PluginDescriptor {
+    public override fun setPluginClass(pluginClassName: String?): DefaultPluginDescriptor {
         return super.setPluginClass(pluginClassName)
     }
 
@@ -43,11 +49,11 @@ class PanoPluginDescriptor : DefaultPluginDescriptor() {
         return super.setPluginVersion(version)
     }
 
-    public override fun setDependencies(dependencies: String?): PluginDescriptor {
+    public override fun setDependencies(dependencies: String?): DefaultPluginDescriptor {
         return super.setDependencies(dependencies)
     }
 
-    public override fun setRequires(requires: String?): PluginDescriptor {
+    public override fun setRequires(requires: String?): DefaultPluginDescriptor {
         return super.setRequires(requires)
     }
 }

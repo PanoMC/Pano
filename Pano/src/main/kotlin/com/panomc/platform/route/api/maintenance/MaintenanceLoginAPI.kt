@@ -38,6 +38,9 @@ class MaintenanceLoginAPI(
     // The one door that must stay open while everything else is closed.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
 
+    // A plain HTML form post, not a fetch: it cannot send X-CSRF-Token (doc 05 §4).
+    override val csrfExempt = true
+
     override fun isAllowedInDemo(method: HttpMethod) = true
 
     // The body is a plain HTML form, not JSON: a schema failure would answer a browser navigation

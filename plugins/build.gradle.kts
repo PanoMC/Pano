@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm")
 }
 
-val pluginsDir: File? by rootProject.extra
+val pluginsDir = rootProject.extra["pluginsDir"] as File?
 
 // Mirrors the platform detection in each plugin's own build.gradle.kts so that
 // devBuildUI reuses the exact bun binary its installBun task downloads into

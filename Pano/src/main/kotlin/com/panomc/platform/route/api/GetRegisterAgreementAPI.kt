@@ -6,12 +6,22 @@ import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class GetRegisterAgreementAPI(
     private val configManager: ConfigManager
 ) : Api() {
-    override val paths = listOf(Path("/api/registerAgreement", RouteType.GET))
+    override val paths = listOf(Path("/register-agreement", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The text a new user must accept when registering.",
+        tag = "site",
+        response = objectSchema().requiredProperty("registerAgreement", stringSchema()),
+        errors = listOf(NotFound::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

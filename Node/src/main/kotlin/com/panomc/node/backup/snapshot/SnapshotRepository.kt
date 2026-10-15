@@ -1,7 +1,5 @@
 package com.panomc.node.backup.snapshot
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import com.panomc.node.agent.AgentFiles
 import com.panomc.node.backup.BackupScope
 import com.panomc.node.backup.ResolvedScope
@@ -10,6 +8,13 @@ import com.panomc.node.files.BackupExcludeMatcher
 import com.panomc.node.files.FileService
 import com.panomc.node.files.ServerFileDenylist
 import com.panomc.node.util.PathSafety
+import com.panomc.snapshot.ChunkCodec
+import com.panomc.snapshot.CorruptChunkException
+import com.panomc.snapshot.FastCdc
+import com.panomc.snapshot.SnapshotEntry
+import com.panomc.snapshot.SnapshotFormat
+import com.panomc.snapshot.SnapshotManifest
+import com.panomc.snapshot.SnapshotRepoConfig
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.OutputStream
@@ -22,13 +27,7 @@ import java.nio.file.LinkOption
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.FileTime
-import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
-import java.util.zip.DataFormatException
-import java.util.zip.Deflater
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
-import java.util.zip.Inflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -74,7 +73,7 @@ class SnapshotRepository(val root: File) {
     /** The config this repository was created with, written with the defaults on first use. */
     fun config(): SnapshotRepoConfig {
         if (configFile.isFile) {
-            val config = gson.fromJson(configFile.readText(), SnapshotRepoConfig::class.java)
+            val config = SnapshotFormat.parseConfig(configFile.readBytes())
 
             check(config.version == FORMAT_VERSION && config.chunker == CHUNKER_NAME) {
                 "This snapshot repository was written by a newer or different Pano (${config.chunker} v${config.version})."
@@ -87,7 +86,7 @@ class SnapshotRepository(val root: File) {
 
         root.mkdirs()
 
-        writeAtomically(configFile) { output -> output.write(compactGson.toJson(config).toByteArray()) }
+        writeAtomically(configFile) { output -> output.write(SnapshotFormat.configJson(config)) }
 
         return config
     }
@@ -227,15 +226,9 @@ class SnapshotRepository(val root: File) {
 
             snapshotsDir.mkdirs()
 
-            writeAtomically(manifestFile(id)) { output ->
-                val json = GZIPOutputStream(output, IO_BUFFER).bufferedWriter()
+            writeAtomically(manifestFile(id)) { output -> SnapshotFormat.writeManifest(manifest, output) }
 
-                compactGson.toJson(manifest, json)
-
-                // Closing the writer finishes the gzip trailer; the file stream under it is closed
-                // again by writeAtomically, which is harmless.
-                json.close()
-            }
+            writer.close()
 
             SnapshotResult(manifest, writer.newChunks, referenced.size, writer.storedBytes)
         }
@@ -437,7 +430,7 @@ class SnapshotRepository(val root: File) {
      * know, does not inflate, or hashes to anything else.
      */
     fun readChunk(id: String): ByteArray {
-        if (!CHUNK_ID.matches(id)) {
+        if (!SnapshotFormat.isChunkId(id)) {
             throw CorruptChunkException(id)
         }
 
@@ -449,21 +442,7 @@ class SnapshotRepository(val root: File) {
             throw CorruptChunkException(id)
         }
 
-        if (stored.isEmpty()) {
-            throw CorruptChunkException(id)
-        }
-
-        val raw = when (stored[0]) {
-            HEADER_RAW -> stored.copyOfRange(1, stored.size)
-            HEADER_DEFLATE -> inflate(id, stored)
-            else -> throw CorruptChunkException(id)
-        }
-
-        if (sha256Hex(raw, 0, raw.size) != id) {
-            throw CorruptChunkException(id)
-        }
-
-        return raw
+        return ChunkCodec.decode(id, stored)
     }
 
     private fun verifyChunks(manifest: SnapshotManifest) {
@@ -507,7 +486,7 @@ class SnapshotRepository(val root: File) {
             bucket.listFiles()?.forEach { file ->
                 val name = file.name
 
-                if (name.endsWith(TMP_SUFFIX) || (CHUNK_ID.matches(name) && name !in referenced)) {
+                if (name.endsWith(TMP_SUFFIX) || (SnapshotFormat.isChunkId(name) && name !in referenced)) {
                     val length = file.length()
 
                     if (file.delete() && !name.endsWith(TMP_SUFFIX)) {
@@ -539,9 +518,10 @@ class SnapshotRepository(val root: File) {
         ?.firstNotNullOfOrNull { file -> runCatching { readManifest(file) }.getOrNull() }
 
     private fun readManifest(file: File): SnapshotManifest =
-        GZIPInputStream(file.inputStream().buffered(IO_BUFFER)).bufferedReader().use { reader ->
-            gson.fromJson(reader, SnapshotManifest::class.java)
-                ?: throw IllegalStateException("The snapshot manifest ${file.name} is empty.")
+        try {
+            SnapshotFormat.readManifest(file.inputStream().buffered(IO_BUFFER))
+        } catch (exception: IllegalStateException) {
+            throw IllegalStateException("The snapshot manifest ${file.name} is empty.", exception)
         }
 
     /**
@@ -597,39 +577,6 @@ class SnapshotRepository(val root: File) {
     private fun modified(path: java.nio.file.Path): Long =
         runCatching { Files.getLastModifiedTime(path, LinkOption.NOFOLLOW_LINKS).toMillis() }.getOrDefault(0L)
 
-    private fun inflate(id: String, stored: ByteArray): ByteArray {
-        val inflater = Inflater()
-
-        try {
-            inflater.setInput(stored, 1, stored.size - 1)
-
-            val output = ByteArrayOutputStream(stored.size * 2)
-            val buffer = ByteArray(IO_BUFFER)
-
-            while (!inflater.finished()) {
-                val count = inflater.inflate(buffer)
-
-                if (count == 0 && (inflater.needsInput() || inflater.needsDictionary())) {
-                    throw CorruptChunkException(id)
-                }
-
-                output.write(buffer, 0, count)
-
-                // No chunk is ever larger than the chunker's maximum; a payload that inflates past
-                // any sane multiple of it is not one of ours.
-                if (output.size() > MAX_INFLATED_BYTES) {
-                    throw CorruptChunkException(id)
-                }
-            }
-
-            return output.toByteArray()
-        } catch (_: DataFormatException) {
-            throw CorruptChunkException(id)
-        } finally {
-            inflater.end()
-        }
-    }
-
     /**
      * Stores chunks for one [create], remembering which ones are already known to exist.
      *
@@ -638,9 +585,7 @@ class SnapshotRepository(val root: File) {
      */
     private inner class ChunkWriter {
         private val present = HashSet<String>()
-        private val deflater = Deflater(DEFLATE_LEVEL)
-        private val compressed = ByteArrayOutputStream(FastCdc.DEFAULT_MAX)
-        private val deflateBuffer = ByteArray(IO_BUFFER)
+        private val codec = ChunkCodec()
 
         var newChunks = 0
         var storedBytes = 0L
@@ -650,7 +595,7 @@ class SnapshotRepository(val root: File) {
                 return true
             }
 
-            if (CHUNK_ID.matches(id) && chunkFile(id).isFile) {
+            if (SnapshotFormat.isChunkId(id) && chunkFile(id).isFile) {
                 present.add(id)
 
                 return true
@@ -661,26 +606,18 @@ class SnapshotRepository(val root: File) {
 
         /** Stores the chunk unless it is already there, and returns its id. */
         fun store(buffer: ByteArray, offset: Int, length: Int): String {
-            val id = sha256Hex(buffer, offset, length)
+            val id = ChunkCodec.sha256Hex(buffer, offset, length)
 
             if (exists(id)) {
                 return id
             }
 
-            val useDeflate = deflate(buffer, offset, length)
+            val stored = codec.encode(buffer, offset, length)
             val target = chunkFile(id)
 
             target.parentFile?.mkdirs()
 
-            writeAtomically(target) { output ->
-                if (useDeflate) {
-                    output.write(HEADER_DEFLATE.toInt())
-                    compressed.writeTo(output)
-                } else {
-                    output.write(HEADER_RAW.toInt())
-                    output.write(buffer, offset, length)
-                }
-            }
+            writeAtomically(target) { output -> output.write(stored) }
 
             present.add(id)
             newChunks++
@@ -689,33 +626,7 @@ class SnapshotRepository(val root: File) {
             return id
         }
 
-        /**
-         * Deflates the chunk into [compressed] and says whether that was worth it.
-         *
-         * Gives up as soon as the output passes 95 % of the input, which on an already-compressed
-         * region file is early — most of the CPU a naive "compress, then compare" would burn on
-         * incompressible bytes is never spent.
-         */
-        private fun deflate(buffer: ByteArray, offset: Int, length: Int): Boolean {
-            val limit = length.toLong() * DEFLATE_KEEP_PERCENT / 100
-
-            compressed.reset()
-            deflater.reset()
-            deflater.setInput(buffer, offset, length)
-            deflater.finish()
-
-            while (!deflater.finished()) {
-                val count = deflater.deflate(deflateBuffer)
-
-                compressed.write(deflateBuffer, 0, count)
-
-                if (compressed.size() > limit) {
-                    return false
-                }
-            }
-
-            return compressed.size() <= limit
-        }
+        fun close() = codec.close()
     }
 
     private fun <T> locked(block: () -> T): T {
@@ -789,26 +700,23 @@ class SnapshotRepository(val root: File) {
     private data class ScanItem(val path: String, val isFile: Boolean, val size: Long, val modified: Long)
 
     companion object {
-        const val FORMAT_VERSION = 1
-        const val CHUNKER_NAME = "fastcdc"
+        const val FORMAT_VERSION = SnapshotFormat.FORMAT_VERSION
+        const val CHUNKER_NAME = SnapshotFormat.CHUNKER_NAME
 
-        const val CONFIG_FILE = "config.json"
-        const val DATA_DIRECTORY = "data"
-        const val SNAPSHOTS_DIRECTORY = "snapshots"
+        const val CONFIG_FILE = SnapshotFormat.CONFIG_FILE
+        const val DATA_DIRECTORY = SnapshotFormat.DATA_DIRECTORY
+        const val SNAPSHOTS_DIRECTORY = SnapshotFormat.SNAPSHOTS_DIRECTORY
         const val LOCK_FILE = "lock"
-        const val MANIFEST_SUFFIX = ".json.gz"
+        const val MANIFEST_SUFFIX = SnapshotFormat.MANIFEST_SUFFIX
         const val TMP_SUFFIX = ".tmp"
 
         const val ERROR_REPO_BUSY = "REPO_BUSY"
-        const val ERROR_CORRUPT_CHUNK = "CORRUPT_CHUNK"
+        const val ERROR_CORRUPT_CHUNK = CorruptChunkException.ERROR_CORRUPT_CHUNK
 
-        const val HEADER_RAW: Byte = 0x00
-        const val HEADER_DEFLATE: Byte = 0x01
+        const val HEADER_RAW: Byte = ChunkCodec.HEADER_RAW
+        const val HEADER_DEFLATE: Byte = ChunkCodec.HEADER_DEFLATE
 
-        private const val DEFLATE_LEVEL = 6
-        private const val DEFLATE_KEEP_PERCENT = 95
         private const val IO_BUFFER = 64 * 1024
-        private const val MAX_INFLATED_BYTES = 64 * 1024 * 1024
 
         private const val SCAN_PERCENT = 10
         private const val BYTES_PERCENT_SPAN = 75
@@ -818,20 +726,6 @@ class SnapshotRepository(val root: File) {
         private const val RESTORE_PERCENT = 15
         private const val RESTORE_PERCENT_SPAN = 80
 
-        private val CHUNK_ID = Regex("^[0-9a-f]{64}$")
-
         private val HELD: MutableSet<String> = ConcurrentHashMap.newKeySet()
-
-        private val gson: Gson = GsonBuilder().create()
-        private val compactGson: Gson = GsonBuilder().disableHtmlEscaping().create()
-
-        /** Lowercase hex SHA-256 of a slice, with a digest of its own. */
-        fun sha256Hex(buffer: ByteArray, offset: Int, length: Int): String {
-            val digest = MessageDigest.getInstance("SHA-256")
-
-            digest.update(buffer, offset, length)
-
-            return digest.digest().joinToString("") { "%02x".format(it) }
-        }
     }
 }

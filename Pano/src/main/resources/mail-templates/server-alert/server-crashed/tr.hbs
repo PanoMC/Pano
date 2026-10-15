@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Sunucu uyarısı: Sunucu beklenmedik şekilde durdu
+preheader: "{{serverName}}" kendiliğinden durdu
+buttonLabel: Panelde aç
+buttonUrl: {{link}}
+footer: Bu e-postayı uyarı e-postaları açık olduğu için alıyorsun. Panelin uyarı ayarlarından kapatabilirsin.
+---
+<h2>Sunucu beklenmedik şekilde durdu</h2>
+<p>"{{serverName}}" kendiliğinden durdu{{#if exitCode}} (çıkış kodu {{exitCode}}){{/if}}.</p>
+{{#if reason}}
+<p>Son konsol satırı: <code>{{reason}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Sunucu:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Düğüm:</strong> {{nodeName}}<br>{{/if}}<strong>Gerçekleşme zamanı:</strong> {{occurredAt}}</p>

@@ -26,6 +26,7 @@ class LocaleDaoImpl : LocaleDao() {
                           `dateFnsCode` varchar(255) NOT NULL,
                           `derivatives` text NOT NULL,
                           `definedBy` varchar(255) NOT NULL,
+                          `enabled` TINYINT(1) NOT NULL DEFAULT 1,
                           `createdAt` BIGINT(20) NOT NULL,
                           `updatedAt` BIGINT(20) NOT NULL,
                           PRIMARY KEY (`id`)
@@ -40,8 +41,8 @@ class LocaleDaoImpl : LocaleDao() {
 
     override suspend fun add(locale: Locale, sqlClient: SqlClient): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (`code`, `name`, `dateFnsCode`, `derivatives`, `definedBy`, `createdAt`, `updatedAt`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?);" // 7
+            "INSERT INTO `${getTablePrefix() + tableName}` (`code`, `name`, `dateFnsCode`, `derivatives`, `definedBy`, `enabled`, `createdAt`, `updatedAt`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?);" // 8
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -52,6 +53,7 @@ class LocaleDaoImpl : LocaleDao() {
                     locale.dateFnsCode,
                     JsonArray(locale.derivatives).encode(),
                     locale.definedBy.name,
+                    if (locale.enabled) 1 else 0,
                     locale.createdAt,
                     locale.updatedAt,
                 )
@@ -88,16 +90,31 @@ class LocaleDaoImpl : LocaleDao() {
         return rows.toEntities()
     }
 
-    override suspend fun getAllByPage(
-        page: Long,
+    override suspend fun getAllEnabled(
         sqlClient: SqlClient
     ): List<Locale> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `enabled` = 1 ORDER BY `createdAt` DESC, `id` DESC"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute()
+            .coAwait()
+
+        return rows.toEntities()
+    }
+
+    override suspend fun getAllByPage(
+        limit: Int,
+        offset: Long,
+        sqlClient: SqlClient
+    ): List<Locale> {
+        val query =
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` ORDER BY `createdAt` DESC, `id` DESC LIMIT ? OFFSET ?"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(limit, offset))
             .coAwait()
 
         return rows.toEntities()
@@ -166,7 +183,7 @@ class LocaleDaoImpl : LocaleDao() {
         sqlClient: SqlClient
     ) {
         val query =
-            "UPDATE `${getTablePrefix() + tableName}` SET `code` = ?, `name` = ?, `dateFnsCode` = ?, `derivatives` = ? WHERE `id` = ?"
+            "UPDATE `${getTablePrefix() + tableName}` SET `code` = ?, `name` = ?, `dateFnsCode` = ?, `derivatives` = ?, `enabled` = ? WHERE `id` = ?"
 
         sqlClient
             .preparedQuery(query)
@@ -176,6 +193,7 @@ class LocaleDaoImpl : LocaleDao() {
                     locale.name,
                     locale.dateFnsCode,
                     JsonArray(locale.derivatives).encode(),
+                    if (locale.enabled) 1 else 0,
                     locale.id
                 )
             )
@@ -197,7 +215,25 @@ class LocaleDaoImpl : LocaleDao() {
             )
             .coAwait()
 
-        return rows.toList()[0].getLong(0)
+        return rows.firstOrNull()?.getLong(0)
+    }
+
+    override suspend fun isEnabledByCode(
+        code: String,
+        sqlClient: SqlClient
+    ): Boolean {
+        val query = "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where `code` = ? AND `enabled` = 1"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(
+                Tuple.of(
+                    code
+                )
+            )
+            .coAwait()
+
+        return rows.toList()[0].getLong(0) >= 1L
     }
 
     override suspend fun existsByCode(

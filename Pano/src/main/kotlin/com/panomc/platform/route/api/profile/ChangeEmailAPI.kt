@@ -8,6 +8,7 @@ import com.panomc.platform.error.CurrentPasswordNotCorrect
 import com.panomc.platform.error.InvalidEmail
 import com.panomc.platform.error.NewEmailExists
 import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.MailOptions
 import com.panomc.platform.mail.templates.ChangeEmailMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
@@ -17,11 +18,12 @@ import com.panomc.platform.util.TextUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
+import com.panomc.platform.schema.EndpointDoc
 
 @Endpoint
 class ChangeEmailAPI(
@@ -30,7 +32,14 @@ class ChangeEmailAPI(
     private val authProvider: AuthProvider,
     private val tokenProvider: TokenProvider
 ) : LoggedInApi() {
-    override val paths = listOf(Path("/api/profile/changeEmail", RouteType.POST))
+    override val paths = listOf(Path("/profile/change-email", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Starts an e-mail change: stores the new address as pending and mails a confirmation link.",
+        tag = "profile",
+        response = objectSchema(),
+        errors = listOf(InvalidEmail::class, CantChangeEmailWait15Minutes::class, CurrentPasswordNotCorrect::class, NewEmailExists::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -93,7 +102,7 @@ class ChangeEmailAPI(
 
         val user = databaseManager.userDao.getById(userId, sqlClient)!!
 
-        mailManager.sendMail(sqlClient, userId, ChangeEmailMail(token, user.username, newEmail), newEmail)
+        mailManager.sendTemplate(sqlClient, userId, ChangeEmailMail(token, user.username, newEmail), MailOptions(email = newEmail))
 
         return Successful()
     }

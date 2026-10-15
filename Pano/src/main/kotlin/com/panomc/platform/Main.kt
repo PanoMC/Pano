@@ -11,6 +11,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.gate.CompatibilityReconciler
 import com.panomc.platform.hosted.HostedAutoSetupRunner
 import com.panomc.platform.hosted.HostedEnvConfig
 import com.panomc.platform.hosted.PanoHostManager
@@ -159,7 +160,19 @@ class Main : CoroutineVerticle() {
                 System.err.println("Ignoring -bg: Pano runs in container mode, the container launcher manages the process.")
             }
 
-            if (bg && !containerMode && System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()) {
+            val isBgChild = !System.getenv(BG_RESPAWN_ENV).isNullOrEmpty()
+
+            // First thing that can touch the disk: until this returns, nothing of Pano's own exists in
+            // the working directory (no logs, no config, no GUI files), so a "no" leaves it untouched.
+            // Whoever launches asks, so the -bg parent does and its detached copy does not; a container's
+            // data directory is a managed volume that is never asked about.
+            FirstRunGuard.confirmOrExit(
+                args = args,
+                gui = !noGui && UiConsole.isGuiAvailable(),
+                alreadyHandled = containerMode || isBgChild
+            )
+
+            if (bg && !containerMode && !isBgChild) {
                 respawnDetachedAndExit(args)
                 return
             }
@@ -189,7 +202,7 @@ class Main : CoroutineVerticle() {
                     ConsoleInputReader.stop(false)
                 }
 
-                logger.info("Pano is now stopped. Bye!")
+                logStopped()
 
                 // Final flush
                 System.out.flush()
@@ -211,7 +224,9 @@ class Main : CoroutineVerticle() {
 
         lateinit var applicationContext: AnnotationConfigApplicationContext
 
-        val commandManager = CommandManager()
+        // Lazy: building it creates a logger, and Log4j opens logs/latest.log as soon as it exists,
+        // which must not happen while the class loads (the first-run question comes before that).
+        val commandManager by lazy { CommandManager() }
 
         private val mainShutdownDeferred = CompletableDeferred<Unit>()
 
@@ -219,6 +234,15 @@ class Main : CoroutineVerticle() {
         val processExit = ProcessExit()
 
         fun signalMainShutdown() = mainShutdownDeferred.complete(Unit)
+
+        private val stoppedLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        /** The goodbye line, once: both the verticle's stop() and the main thread reach it. */
+        private fun logStopped() {
+            if (stoppedLogged.compareAndSet(false, true)) {
+                logger.info("Pano is now stopped. Bye!")
+            }
+        }
 
         private val isStopping = java.util.concurrent.atomic.AtomicBoolean(false)
         fun isStopping() = isStopping.get()
@@ -298,26 +322,36 @@ class Main : CoroutineVerticle() {
         processExit.request(exitCode)
         logger.info("Gracefully shutting down Pano...")
 
-        try {
-            withContext(Dispatchers.IO) {
+        // On its own scope: a caller on the Vert.x dispatcher (panel restart, restore) cannot be
+        // resumed once Vert.x is closed, and the exit below must still happen. It used to run in
+        // the caller, was cancelled right after the close, and in GUI mode the old process stayed
+        // alive behind every restart.
+        val stopping = CoroutineScope(Dispatchers.IO).launch {
+            try {
                 withTimeout(10000) {
                     Main.vertx.close().coAwait()
                 }
+            } catch (e: Exception) {
+                logger.warn("Vert.x shutdown reached timeout or failed: ${e.message}")
+            } finally {
+                shutdownDeferred.complete(Unit)
+
+                // This wakes up the main thread's await()
+                signalMainShutdown()
+
+                // If we are NOT in the main loop thread (e.g. GUI mode),
+                // we should manually exit after a delay if signal wasn't caught
+                if (IS_GUI && exit) {
+                    withContext(NonCancellable) { delay(1000) }
+                    processExit.exit()
+                }
             }
-        } catch (e: Exception) {
-            logger.warn("Vert.x shutdown reached timeout or failed: ${e.message}")
-        } finally {
-            shutdownDeferred.complete(Unit)
-            
-            // This wakes up the main thread's await()
-            signalMainShutdown()
-            
-            // If we are NOT in the main loop thread (e.g. GUI mode), 
-            // we should manually exit after a delay if signal wasn't caught
-            if (IS_GUI && exit) {
-                delay(1000)
-                processExit.exit()
-            }
+        }
+
+        try {
+            stopping.join()
+        } catch (_: CancellationException) {
+            // The caller's dispatcher went away with Vert.x; the shutdown itself carries on.
         }
     }
 
@@ -358,6 +392,10 @@ class Main : CoroutineVerticle() {
             if (!isStopping()) {
                 runBlocking { shutdown(exit = false) }
             }
+
+            // Log4j's own shutdown hook is disabled (log4j2.properties): it ran next to this one
+            // and cut the log file off at "Gracefully shutting down". Close it once we are done.
+            org.apache.logging.log4j.LogManager.shutdown()
         })
     }
 
@@ -367,9 +405,33 @@ class Main : CoroutineVerticle() {
         )
         logger.info("Hello World!")
 
-        init()
+        hookShutdown()
 
-        startWebServer()
+        try {
+            init()
+
+            startWebServer()
+        } catch (e: Throwable) {
+            failStartup(e)
+        }
+    }
+
+    /**
+     * A boot step failed. Logged through the logger so the reason reaches `logs/latest.log` (a bare
+     * `System.exit` or an uncaught exception left it on stderr only), then an ordinary shutdown so
+     * whatever already started is stopped. The GUI window stays open for the owner to read it.
+     */
+    private fun failStartup(e: Throwable) {
+        if (e is StartupFailure) {
+            logger.error(e.message, e.cause)
+        } else {
+            logger.error("Pano could not start: ${e.message ?: e.toString()}", e)
+        }
+
+        // Off the verticle context: closing Vert.x from inside start() would wait on itself.
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            shutdown(error = true, exit = !IS_GUI)
+        }
     }
 
     override suspend fun stop() {
@@ -406,21 +468,18 @@ class Main : CoroutineVerticle() {
         } catch (_: Exception) {}
 
         ConsoleInputReader.stop(false)
+        logStopped()
+        // Last line of the console: nothing may follow the "close this window" hint.
         UiConsole.markStopped()
-        logger.info("Pano is now fully stopped. Bye!")
     }
 
     private suspend fun executeBlocking(unit: () -> Unit) {
         vertx.executeBlocking {
             unit.invoke()
-        }.onFailure {
-            it.printStackTrace()
         }.coAwait()
     }
 
     private suspend fun init() {
-        hookShutdown()
-
         executeBlocking {
             initDependencyInjection()
         }
@@ -445,7 +504,15 @@ class Main : CoroutineVerticle() {
 
             initPermissionRegistry()
 
-            initPlugins()
+            loadPlugins()
+        }
+
+        // Gate 0 (doc 04 section 7) is a suspend step of the boot, not a runBlocking inside executeBlocking: the install
+        // code runs its own executeBlocking work, which queued behind the blocked worker and never ran (BOOT-02).
+        reconcileCompatibility()
+
+        executeBlocking {
+            startPlugins()
         }
 
         syncHostedPanoUrls()
@@ -456,6 +523,8 @@ class Main : CoroutineVerticle() {
 
         if (isPlatformInstalled) {
             initDatabaseManager()
+
+            initWebhookDispatcher()
 
             initI18nManager()
 
@@ -468,6 +537,8 @@ class Main : CoroutineVerticle() {
             initPluginUpdateSweeper()
 
             initUpdateManager()
+
+            announceIncompatibleResources()
 
             initTelemetryManager()
 
@@ -575,6 +646,19 @@ class Main : CoroutineVerticle() {
         panoHostManager.announceCapabilities()
     }
 
+    /** Arms the webhook timer now that the database is up, so deliveries left from the last run go out at once. */
+    private fun initWebhookDispatcher() {
+        try {
+            logger.info("Initializing webhook dispatcher")
+
+            applicationContext.getBean(com.panomc.platform.webhook.WebhookDispatcher::class.java).start()
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError) throw e
+
+            logger.error("The webhook dispatcher could not be armed; it starts with the first publish", e)
+        }
+    }
+
     private fun initOnlinePlayerTracker() {
         logger.info("Initializing online player tracker")
 
@@ -621,14 +705,46 @@ class Main : CoroutineVerticle() {
         pluginManager = applicationContext.getBean(PluginManager::class.java)
     }
 
-    private fun initPlugins() {
+    private fun loadPlugins() {
         logger.info("Loading plugins")
 
         pluginManager.loadPlugins()
+    }
 
+    private fun startPlugins() {
         logger.info("Starting enabled plugins")
 
         pluginManager.startPlugins()
+    }
+
+    /**
+     * Gate 0: replaces plugins and themes outside the supported API level with a compatible store version, after they
+     * are loaded (so the gate has judged them) and before they are started and before the theme is prepared. A boot
+     * with nothing refused pays one catalog scan. Never fails the boot: a reconcile that cannot run leaves the refused
+     * resources refused, as without it.
+     */
+    private suspend fun reconcileCompatibility() {
+        try {
+            applicationContext.getBean(CompatibilityReconciler::class.java).reconcile(atBoot = true)
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError || e is kotlinx.coroutines.CancellationException) throw e
+
+            logger.error("The compatibility reconcile failed; refused plugins and themes stay refused", e)
+        }
+    }
+
+    /**
+     * Tells the admins about the resources the boot reconcile left refused. Needs the database and the
+     * notification manager, which the reconcile itself runs before.
+     */
+    private suspend fun announceIncompatibleResources() {
+        try {
+            applicationContext.getBean(CompatibilityReconciler::class.java).announceRefusals()
+        } catch (e: Throwable) {
+            if (e is VirtualMachineError) throw e
+
+            logger.error("Could not announce the incompatible resources", e)
+        }
     }
 
     private fun initPermissionRegistry() {
@@ -768,7 +884,7 @@ class Main : CoroutineVerticle() {
             routerProvider.initialize()
             router = applicationContext.getBean(Router::class.java)
         } catch (e: Exception) {
-            e.printStackTrace()
+            throw StartupFailure("Failed to initialize routes.", e)
         }
     }
 
@@ -885,24 +1001,15 @@ class Main : CoroutineVerticle() {
                     logWebServerReady("http", host, port)
                 }
             }.onFailure { result ->
-                // A fresh install listens on 80, which an ordinary user may not bind: the reason
-                // alone ("Permission denied") does not say that the fix is one line of config.
-                val hint = if (port < 1024 && (result.message ?: "").contains("Permission denied", ignoreCase = true)) {
-                    " Ports below 1024 need root; set \"http-port\" under \"server\" in config.conf (for example 8088)."
-                } else {
-                    ""
-                }
-
-                val message = "Failed to listen on http://$host:$port, reason: ${result.message ?: result.toString()}.$hint"
+                // Stay up: a shutdown here closes the console (and the GUI window) before the owner
+                // can read why the port could not be taken.
+                val message = ListenFailure.message("http", host, port, result, OPERATING_SYSTEM, "http-port")
                 if (isSslEnabled) {
                     logger.warn(message)
-                    UiConsole.markReady()
                 } else {
                     logger.error(message)
-                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                        runBlocking { shutdown(true) }
-                    }
                 }
+                UiConsole.markReady()
             }
     }
 
@@ -920,7 +1027,7 @@ class Main : CoroutineVerticle() {
         vertx.createHttpServer(options).requestHandler(handler).listen(port, host).onSuccess {
                 logWebServerReady("https", host, port)
             }.onFailure { result ->
-                logger.error("Failed to listen on https://$host:$port, reason: ${result.message ?: result.toString()}")
+                logger.error(ListenFailure.message("https", host, port, result, OPERATING_SYSTEM, "https-port"))
                 UiConsole.markReady()
             }
     }

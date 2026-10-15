@@ -21,6 +21,10 @@ import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.UpdatePeriod
+import com.panomc.platform.ui.FrontendMode
+import com.panomc.platform.mail.MailManager
+import com.panomc.platform.mail.PanoMailService
+import com.panomc.platform.mail.PanoMailVerify
 import com.panomc.platform.ui.ThemeUiController
 import org.slf4j.Logger
 import com.panomc.platform.util.UsageMode
@@ -29,8 +33,8 @@ import io.vertx.ext.mail.StartTLSOptions
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import org.imgscalr.Scalr
@@ -49,8 +53,9 @@ class PanelUpdateSettingsAPI(
     private val maintenanceModeManager: MaintenanceModeManager,
     private val themeUiController: ThemeUiController,
     private val logger: Logger,
+    private val panoMailService: PanoMailService,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/settings", RouteType.PUT))
+    override val paths = listOf(Path("/settings", RouteType.PUT))
 
     private val defaultWebsiteUploadPath = "website"
 
@@ -130,18 +135,26 @@ class PanelUpdateSettingsAPI(
                         .optionalProperty(
                             "email",
                             objectSchema()
-                                .requiredProperty("enabled", booleanSchema())
-                                .requiredProperty("hostname", stringSchema())
-                                .requiredProperty("port", intSchema())
-                                .requiredProperty("ssl", booleanSchema())
-                                .requiredProperty(
+                                // Required for SMTP (checked in handle()); `{provider: "PANO_MAIL"}` needs only itself.
+                                .optionalProperty("enabled", booleanSchema())
+                                .optionalProperty("hostname", stringSchema())
+                                .optionalProperty("port", intSchema())
+                                .optionalProperty("ssl", booleanSchema())
+                                .optionalProperty(
                                     "starttls",
                                     enumSchema(*StartTLSOptions.entries.map { it.name }.toTypedArray())
                                 )
-                                .requiredProperty("username", stringSchema())
-                                .requiredProperty("password", stringSchema())
-                                .requiredProperty("sender", stringSchema())
+                                .optionalProperty("username", stringSchema())
+                                .optionalProperty("password", stringSchema())
+                                .optionalProperty("sender", stringSchema())
                                 .optionalProperty("authMethods", stringSchema())
+                                // "SMTP" (default) or "PANO_MAIL": send through the connected panomc.com account.
+                                .optionalProperty("provider", enumSchema(MailManager.PROVIDER_SMTP, MailManager.PROVIDER_PANO_MAIL))
+                                // PANO_MAIL: the sender address; omitted = the one the website gave the account.
+                                .optionalProperty("from", stringSchema())
+                                // PANO_MAIL: the sender address is <localPart>@<name>.<zone>.
+                                .optionalProperty("name", stringSchema())
+                                .optionalProperty("localPart", stringSchema())
                                 // Pano Host: true = use the instance's Pano Host mail again (the other fields are ignored).
                                 .optionalProperty("hostManaged", booleanSchema())
                         )
@@ -294,7 +307,7 @@ class PanelUpdateSettingsAPI(
         }
 
         if (locale != null) {
-            if (!databaseManager.localeDao.existsByCode(locale, sqlClient)) {
+            if (!databaseManager.localeDao.isEnabledByCode(locale, sqlClient)) {
                 throw InvalidLocaleCode()
             }
 
@@ -333,6 +346,16 @@ class PanelUpdateSettingsAPI(
             // If development mode is toggled, clear any previous dismissals so they reappear for all users
             val option = "dismissed_dev_mode_alert"
             databaseManager.panelConfigDao.deleteByOption(option, sqlClient)
+
+            // A saved theme dev server starts proxying when the switch goes on and stops when it goes off, without a
+            // restart. Best effort, like the usage mode switch: the settings save itself must not fail on it.
+            if (shouldReapplyFrontend(true, configManager.config.effectiveFrontend.parsedMode, configManager.config.effectiveUsageMode)) {
+                try {
+                    themeUiController.apply(FrontendMode.THEME)
+                } catch (e: Exception) {
+                    logger.warn("Could not re-apply the front-end after Development Mode changed: ${e.message}")
+                }
+            }
         }
 
         if (telemetryEnabled != null) {
@@ -394,8 +417,23 @@ class PanelUpdateSettingsAPI(
             configManager.config.keywords = keywords.filter { !it.isBlank() }
         }
 
-        if (email != null) {
+        if (email != null && email.getString("provider") == MailManager.PROVIDER_PANO_MAIL) {
+            if (email.getBoolean("enabled") == false) {
+                // Pano Mail turned off: the provider stays, nothing is asked of the website.
+                configManager.config.email.enabled = false
+                configManager.saveConfig()
+            } else {
+                // Throws CONNECT_REQUIRED / PANO_MAIL_UNAVAILABLE, nothing is stored then.
+                // An explicit `from` must be at one of the account's sender domains (`INVALID_DATA {field: from}`).
+                panoMailService.activate(
+                    email.getString("from") ?: email.getString("sender"), email.getString("name"), email.getString("localPart"),
+                    strictFrom = !email.getString("from").isNullOrBlank()
+                )
+            }
+        } else if (email != null) {
+            PanoMailVerify.requireSmtpFields(email, PanoMailVerify.SMTP_SAVE_FIELDS)
             val mailConfiguration = configManager.config.email
+            mailConfiguration.provider = MailManager.PROVIDER_SMTP
             val hosted = HostedEnvConfig.current
             val hostMail = hosted.isHosted && hosted.smtp != null
             val enabled = email.getBoolean("enabled")
@@ -648,3 +686,7 @@ private fun PanoConfig.Companion.EmailConfig.restoreCustom(custom: PanoConfig.Co
     starttls = custom.starttls
     authMethods = custom.authMethods
 }
+
+/** Item 2 of CX-06: only a theme-mode front-end has a dev server to start or stop, and a servers-only install has no site. */
+internal fun shouldReapplyFrontend(developmentModeChanged: Boolean, mode: FrontendMode, usageMode: UsageMode): Boolean =
+    developmentModeChanged && mode == FrontendMode.THEME && usageMode != UsageMode.SERVERS

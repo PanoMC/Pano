@@ -13,4 +13,4 @@ import com.panomc.platform.model.Error
 class KeepIncompatible(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("KEEP_INCOMPATIBLE", 400, statusMessage, extras)

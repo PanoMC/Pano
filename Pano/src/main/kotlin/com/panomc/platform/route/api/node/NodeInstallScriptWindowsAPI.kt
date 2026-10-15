@@ -14,7 +14,7 @@ import io.vertx.kotlin.coroutines.coAwait
 import com.panomc.platform.util.UsageMode
 
 /**
- * The Windows half of [NodeInstallScriptAPI] (`GET /api/node/install.ps1`).
+ * The Windows half of [NodeInstallScriptAPI] (`GET /api/v1/node/install.ps1`).
  *
  * Takes the same `?panoUrl=` override, for the same reasons.
  */
@@ -24,7 +24,7 @@ class NodeInstallScriptWindowsAPI(
 ) : Api() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/node/install.ps1", RouteType.GET))
+    override val paths = listOf(Path(NodeInstallScriptProvider.POWERSHELL_SCRIPT_PATH, RouteType.GET))
 
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
 

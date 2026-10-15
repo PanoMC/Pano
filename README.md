@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="120" height="120" src="https://i.ibb.co/T97B4HN/Discord-Avatar.png" alt="Pano Logo">
+  <img width="120" height="120" src="https://i.ibb.co/cSgnwMtq/pano-logo.png" alt="Pano Logo">
 </p>
 
 <h1 align="center">Pano</h1>
@@ -17,7 +17,7 @@
 ---
 
 ## 🚀 Project Status
-**Current Status:** Beta - Pano is now ready for use, although small bugs may still be encountered.  
+**Current Status:** Stable - Pano v1.0.0 is released and ready for production use.  
 Announcements and updates are shared via our [Discord](https://panomc.com/discord).  
 
 ### 📢 Release Types
@@ -39,7 +39,7 @@ We categorize our updates into three main stages:
 ---
 
 ## ⚡ Trying Pano
-You can try Pano by downloading the latest release from [Releases](https://github.com/PanoMC/pano/releases).  
+Install Pano with one command from [panomc.com/downloads](https://panomc.com/downloads), or download the latest stable release from [Releases](https://github.com/PanoMC/pano/releases/latest).  
 
 To run Pano:  
 

@@ -20,7 +20,7 @@ import io.vertx.kotlin.coroutines.coAwait
 
 /**
  * The Pano plugin build a connected plugin should replace itself with
- * (`GET /api/server/pano-plugin/jar`).
+ * (`GET /api/v1/server/pano-plugin/jar`).
  *
  * The download half of `PANO_PLUGIN_UPDATE`. A linked server has no node to fetch anything for it,
  * so its plugin fetches its own successor, and it does so here rather than from GitHub: it already
@@ -64,7 +64,7 @@ class ServerPanoPluginJarAPI(
 
         val server = databaseManager.serverDao.getById(serverId, getSqlClient()) ?: return InvalidToken()
 
-        val jar = panoPluginJarProvider.prepare(server.type) ?: return NotExists()
+        val jar = panoPluginJarProvider.prepare(server.type, server.pluginVersion) ?: return NotExists()
 
         context.response()
             .putHeader("Content-Type", "application/java-archive")

@@ -15,9 +15,9 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.MimeTypeUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.InputStream
@@ -27,7 +27,7 @@ class PanelGetPluginLogoAPI(
     private val pluginManager: PluginManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/plugins/:pluginId/logo", RouteType.GET))
+    override val paths = listOf(Path("/addons/:pluginId/logo", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -53,13 +53,13 @@ class PanelGetPluginLogoAPI(
         val requestedHash = parameters.queryParameter("hash")?.string
 
         // If logo is not configured or file not found in plugin resources, send default
-        if (logoFileName == null || pluginWrapper.getResource(logoFileName) == null) {
+        if (logoFileName == null || pluginWrapper.getResource(logoFileName).also { it?.close() } == null) {
             sendDefault(context, requestedHash)
             return null
         }
 
         val mimeType = MimeTypeUtil.getMimeTypeFromFileName(logoFileName)
-        val actualHash = pluginWrapper.getResource(logoFileName)?.hash() ?: run {
+        val actualHash = pluginWrapper.getResource(logoFileName)?.use { it.hash() } ?: run {
             // Should be covered by if check above, but for safety
             sendDefault(context, requestedHash)
             return null

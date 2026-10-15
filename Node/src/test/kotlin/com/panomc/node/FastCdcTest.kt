@@ -1,6 +1,7 @@
 package com.panomc.node
 
-import com.panomc.node.backup.snapshot.FastCdc
+import com.panomc.snapshot.ChunkCodec
+import com.panomc.snapshot.FastCdc
 import com.panomc.node.backup.snapshot.SnapshotRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -43,7 +44,7 @@ class FastCdcTest {
         val result = mutableListOf<String>()
 
         chunker.split(ByteArrayInputStream(data)) { buffer, offset, length ->
-            result.add(SnapshotRepository.sha256Hex(buffer, offset, length))
+            result.add(ChunkCodec.sha256Hex(buffer, offset, length))
         }
 
         return result

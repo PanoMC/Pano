@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component
 /**
  * Works out who is redeeming a transfer ticket, and hands back the ticket only if it is theirs.
  *
- * Two kinds of caller now arrive at `/api/node/transfer/:ticket` with two kinds of token: the node
+ * Two kinds of caller now arrive at `/api/v1/node/transfer/:ticket` with two kinds of token: the node
  * daemon that owns a managed server's files, and the Pano plugin inside a server that has no node
  * (§2.4.17 C). They use the same endpoints on purpose — the plugin implements the node's transfer
  * protocol verbatim, down to the headers — so the difference has to be settled once, here, rather

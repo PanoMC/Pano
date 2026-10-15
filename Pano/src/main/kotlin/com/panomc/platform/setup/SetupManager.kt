@@ -64,6 +64,8 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         data.put("step", step)
         data.put("locale", configManager.config.locale)
         data.put("usageMode", configManager.config.effectiveUsageMode.name)
+        // The website this Pano connects to: the wizard's links and sign-in go there.
+        data.put("panoWebsiteUrl", configManager.config.panoWebsiteUrl.trimEnd('/'))
 
         if (step == 1 || step == 4) {
             data.put("websiteName", configManager.config.websiteName)
@@ -180,7 +182,7 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
             env != null && env.password.isNotEmpty() && db.password == env.password
 
         /**
-         * Step 2's DB password as the setup API returns it. `GET /api/setup/step` is unauthenticated,
+         * Step 2's DB password as the setup API returns it. `GET /api/v1/setup/step` is unauthenticated,
          * so it is empty when the environment owns the database or seeded this password.
          */
         fun databasePasswordView(
@@ -208,11 +210,12 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         }
 
         /**
-         * Step 3's mail settings as the setup API returns them. `GET /api/setup/step` is
+         * Step 3's mail settings as the setup API returns them. `GET /api/v1/setup/step` is
          * unauthenticated, so the SMTP password is never included (the wizard asks for it again).
          */
         fun emailView(mail: PanoConfig.Companion.EmailConfig): Map<String, Any?> = mapOf(
             "enabled" to mail.enabled,
+            "provider" to mail.provider,
             "sender" to mail.sender,
             "hostname" to mail.hostname,
             "port" to mail.port,

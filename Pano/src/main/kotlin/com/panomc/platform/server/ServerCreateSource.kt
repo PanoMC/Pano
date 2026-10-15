@@ -14,7 +14,7 @@ enum class ServerCreateSource {
     /** A directory already sitting on the node's host. */
     EXISTING_FOLDER,
 
-    /** A zip the browser uploaded through `POST /api/panel/transfers/upload`. */
+    /** A zip the browser uploaded through `POST /api/v1/panel/transfers/upload`. */
     UPLOAD,
 
     /** A Modrinth `.mrpack`. */

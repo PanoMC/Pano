@@ -12,4 +12,4 @@ import com.panomc.platform.model.Error
 class TransferExpired(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("TRANSFER_EXPIRED", 409, statusMessage, extras)

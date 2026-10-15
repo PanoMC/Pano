@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.api.event.PlayerEventListener
@@ -18,9 +19,9 @@ import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
@@ -34,7 +35,7 @@ class PanelDeletePlayerAPI(
     private val permissionManager: PermissionManager,
     private val serverManager: ServerManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/players/:username/delete", RouteType.POST))
+    override val paths = listOf(Path("/players/:username/delete", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -119,6 +120,8 @@ class PanelDeletePlayerAPI(
         databaseManager.panelConfigDao.deleteByUserId(userId, sqlClient)
 
         databaseManager.userDao.deleteById(userId, sqlClient)
+
+        WebhookCoreEvents.fire { userDeleted(user.id, user.username, sqlClient) }
 
         val authUsername = databaseManager.userDao.getUsernameFromUserId(authUserId, sqlClient)!!
 

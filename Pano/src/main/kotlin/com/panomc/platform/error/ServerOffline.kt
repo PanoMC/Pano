@@ -11,4 +11,4 @@ import com.panomc.platform.model.Error
 class ServerOffline(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("SERVER_OFFLINE", 409, statusMessage, extras)

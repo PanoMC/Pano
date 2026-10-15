@@ -18,14 +18,14 @@ import com.panomc.platform.server.plugins.PanoPluginUpdatePlan
 import com.panomc.platform.server.plugins.PanoPluginUpdateService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * Updates the Pano plugin on one server (`POST /api/panel/servers/:id/pano-plugin/update`).
+ * Updates the Pano plugin on one server (`POST /api/v1/panel/servers/:id/pano-plugin/update`).
  *
  * The button behind the Overview's "update available" badge. Which route the update takes is
  * decided by [PanoPluginUpdateService] and reported back as `mode` — `node` when the server's node
@@ -40,7 +40,7 @@ import com.panomc.platform.util.UsageMode
  * say "the node is offline" or "this plugin is too old to update itself" instead of a generic error.
  * When nothing Pano can reach is able to write the jar but a person can — a linked server whose
  * plugin predates self-update, or one that is not connected at all — `extras.manual` is true and
- * the panel offers the jar from `GET /api/panel/servers/:id/pano-plugin/jar` with the steps to put
+ * the panel offers the jar from `GET /api/v1/panel/servers/:id/pano-plugin/jar` with the steps to put
  * it in place by hand. Once that build is running, the next update is one click again.
  */
 @Endpoint
@@ -52,7 +52,7 @@ class PanelUpdatePanoPluginAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/pano-plugin/update", RouteType.POST))
+    override val paths = listOf(Path("/servers/:id/pano-plugin/update", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

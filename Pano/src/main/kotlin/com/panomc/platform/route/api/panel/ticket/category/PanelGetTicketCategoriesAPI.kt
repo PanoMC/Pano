@@ -7,15 +7,13 @@ import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
-import com.panomc.platform.error.PageNotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
-import kotlin.math.ceil
 import com.panomc.platform.util.UsageMode
 
 @Endpoint
@@ -25,11 +23,10 @@ class PanelGetTicketCategoriesAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/ticket/categories", RouteType.GET))
+    override val paths = listOf(Path("/ticket/categories", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .queryParameter(Parameters.optionalParam("page", Schemas.numberSchema()))
+        Paging.params(ValidationHandlerBuilder.create(schemaRepository))
             .queryParameter(Parameters.optionalParam("search", Schemas.stringSchema()))
             .build()
 
@@ -37,7 +34,7 @@ class PanelGetTicketCategoriesAPI(
         authProvider.requirePermission(ManageTicketsPermission(), context)
 
         val parameters = getParameters(context)
-        val page = parameters.queryParameter("page")?.long ?: 1
+        val page = Paging.request(context)
         val search = parameters.queryParameter("search")?.string
 
         val sqlClient = getSqlClient()
@@ -47,24 +44,17 @@ class PanelGetTicketCategoriesAPI(
         else
             databaseManager.ticketCategoryDao.count(sqlClient)
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
-
-        if (totalPage < 1)
-            totalPage = 1
-
-        if (page > totalPage || page < 1) {
-            return PageNotFound()
-        }
+        Paging.requireInRange(page, count)
 
         val categories = if (search != null)
-            databaseManager.ticketCategoryDao.getByPageAndSearch(page, search, sqlClient)
+            databaseManager.ticketCategoryDao.getListBySearch(search, page.limit, page.offset, sqlClient)
         else
-            databaseManager.ticketCategoryDao.getByPage(page, sqlClient)
+            databaseManager.ticketCategoryDao.getList(page.limit, page.offset, sqlClient)
 
         val categoriesDataList = mutableListOf<Map<String, Any?>>()
 
         if (categories.isEmpty()) {
-            return getResult(categoriesDataList, count, totalPage)
+            return getResult(categoriesDataList, count, page)
         }
 
         val addCategoryToList =
@@ -103,21 +93,21 @@ class PanelGetTicketCategoriesAPI(
             getCategoryData(it)
         }
 
-        return getResult(categoriesDataList, count, totalPage)
+        return getResult(categoriesDataList, count, page)
     }
 
     private fun getResult(
         categoryDataList: MutableList<Map<String, Any?>>,
         count: Long,
-        totalPage: Long
-    ): Result {
-        return Successful(
-            mutableMapOf<String, Any?>(
-                "categories" to categoryDataList,
-                "categoryCount" to count,
-                "totalPage" to totalPage,
-                "host" to "http://"
-            )
-        )
+        page: PageRequest
+    ): Result = Successful(payload(categoryDataList, count, page))
+
+    companion object {
+        /** The whole response body: `{ items, page }` plus the legacy `host` key. */
+        fun payload(
+            categoryDataList: List<Map<String, Any?>>,
+            count: Long,
+            page: PageRequest
+        ): Map<String, Any?> = Paging.response(categoryDataList, count, page, mapOf("host" to "http://"))
     }
 }

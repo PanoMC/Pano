@@ -1,6 +1,5 @@
 package com.panomc.platform.route.api.plugins
 
-import com.panomc.platform.Main
 import com.panomc.platform.PluginManager
 import com.panomc.platform.PluginUiManager
 import com.panomc.platform.annotation.Endpoint
@@ -14,13 +13,15 @@ import com.panomc.platform.model.RouteType
 import com.panomc.platform.util.FileResourceUtil.getResource
 import com.panomc.platform.util.FileResourceUtil.writeToResponse
 import com.panomc.platform.util.MimeTypeUtil
+import com.panomc.platform.util.DevMode
+import com.panomc.platform.schema.Stability
 import com.panomc.platform.util.PluginDevUtil
 import com.panomc.platform.util.ZipUtil
 import com.panomc.platform.util.FileUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import io.vertx.kotlin.coroutines.coAwait
@@ -38,11 +39,14 @@ class GetPluginUiZipAPI(
     private val pluginManager: PluginManager,
     private val logger: Logger
 ) : Api() {
-    override val paths = listOf(Path("/api/plugins/:pluginId/resources/plugin-ui.zip", RouteType.GET))
+    override val paths = listOf(Path("/plugins/:pluginId/_/ui.zip", RouteType.GET))
 
     // Fetched by panel-ui during SSR with no user cookie, and the failure is swallowed there, so
     // gating this would make panel plugin UIs vanish silently.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
+
+    // Fetched by panel-ui and the themes, which ship pinned to the platform: a path under /plugins/ that carries no promise.
+    override val stability = Stability.INTERNAL
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -67,10 +71,10 @@ class GetPluginUiZipAPI(
         val response = context.response()
         val mimeType = MimeTypeUtil.getMimeTypeFromFileName(pluginUiZipFileName)
 
-        // Use the same mode source as plugin UI registration (PluginUiManager) so a plugin
+        // Use the same mode source as plugin UI registration (PluginUiManager, DevMode) so a plugin
         // registered with the dev "dev-build" hash is also served via the dev re-zip path,
         // instead of falling through to a NotFound after headers were already written.
-        if (Main.ENVIRONMENT == Main.Companion.EnvironmentType.DEVELOPMENT) {
+        if (DevMode.isActive(configManager.config)) {
             val uiResourcesDir = PluginDevUtil.getPluginResourceDir(pluginId, "plugin-ui")
 
             if (uiResourcesDir != null) {
@@ -106,33 +110,7 @@ class GetPluginUiZipAPI(
         val deferred = devZipMutex.withLock {
             inFlightDevZips.getOrPut(pluginId) {
                 context.vertx().executeBlocking<ByteArray> {
-                    val filesToZip = mutableSetOf<String>()
-
-                    listOf("server", "client").forEach { subDir ->
-                        val manifestFile = File(uiResourcesDir, "$subDir/manifest.json")
-                        if (manifestFile.exists()) {
-                            try {
-                                val manifest = JsonArray(manifestFile.readText())
-                                manifest.forEach { fileName ->
-                                    if (fileName is String) {
-                                        filesToZip.add("$subDir/$fileName")
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                logger.error("Failed to read manifest for $pluginId in $subDir", e)
-                            }
-                        }
-                    }
-
-                    val zipBytes = if (filesToZip.isNotEmpty()) {
-                        ZipUtil.zipFilesFromFolder(uiResourcesDir, filesToZip)
-                    } else {
-                        ZipUtil.zipFoldersToBytes(mapOf("" to uiResourcesDir))
-                    }
-                    logger.info("Zipping UI for $pluginId (${FileUtil.formatSize(zipBytes.size.toLong())})")
-                    logger.debug("UI Source Directory for $pluginId: ${uiResourcesDir.absolutePath}")
-
-                    zipBytes
+                    devZipBytes(pluginId, uiResourcesDir, logger)
                 }
             }
         }
@@ -147,6 +125,54 @@ class GetPluginUiZipAPI(
     }
 
     companion object {
+        /** Files of a built package that go into the dev zip next to the client / server manifests (doc 02 §6). */
+        private const val PACKAGE_MANIFEST = "pano-plugin.json"
+        private val PACKAGE_FOLDERS = listOf("contract", "controllers", "samples", "widgets")
+
+        /**
+         * The dev zip of a `plugin-ui` source folder: the files the `client/` and `server/` manifests list
+         * (the whole folder when neither exists), plus `pano-plugin.json` and everything under `contract/`,
+         * `controllers/`, `samples/` and `widgets/`, which a manifest never lists.
+         */
+        internal fun devZipBytes(pluginId: String, uiResourcesDir: File, logger: Logger): ByteArray {
+            val filesToZip = mutableSetOf<String>()
+
+            listOf("server", "client").forEach { subDir ->
+                val manifestFile = File(uiResourcesDir, "$subDir/manifest.json")
+                if (manifestFile.exists()) {
+                    try {
+                        val manifest = JsonArray(manifestFile.readText())
+                        manifest.forEach { fileName ->
+                            if (fileName is String) {
+                                filesToZip.add("$subDir/$fileName")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        logger.error("Failed to read manifest for $pluginId in $subDir", e)
+                    }
+                }
+            }
+
+            val zipBytes = if (filesToZip.isNotEmpty()) {
+                if (File(uiResourcesDir, PACKAGE_MANIFEST).isFile) {
+                    filesToZip.add(PACKAGE_MANIFEST)
+                }
+
+                PACKAGE_FOLDERS.forEach { folder ->
+                    File(uiResourcesDir, folder).takeIf { it.isDirectory }?.walkTopDown()?.filter { it.isFile }
+                        ?.forEach { filesToZip.add(it.relativeTo(uiResourcesDir).path.replace("\\", "/")) }
+                }
+
+                ZipUtil.zipFilesFromFolder(uiResourcesDir, filesToZip)
+            } else {
+                ZipUtil.zipFoldersToBytes(mapOf("" to uiResourcesDir))
+            }
+            logger.info("Zipping UI for $pluginId (${FileUtil.formatSize(zipBytes.size.toLong())})")
+            logger.debug("UI Source Directory for $pluginId: ${uiResourcesDir.absolutePath}")
+
+            return zipBytes
+        }
+
         private val inFlightDevZips = ConcurrentHashMap<String, io.vertx.core.Future<ByteArray>>()
         private val devZipMutex = Mutex()
     }

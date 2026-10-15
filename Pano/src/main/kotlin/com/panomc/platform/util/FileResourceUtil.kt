@@ -7,18 +7,32 @@ import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpServerResponse
 import io.vertx.kotlin.coroutines.coAwait
 import kotlinx.coroutines.suspendCancellableCoroutine
+import org.pf4j.PluginClassLoader
 import org.slf4j.LoggerFactory
 import java.io.InputStream
+import java.net.URL
 import kotlin.coroutines.resume
 
 object FileResourceUtil {
     private val logger = LoggerFactory.getLogger(FileResourceUtil::class.java)
 
     fun PanoPlugin.getResource(resourceName: String): InputStream? =
-        this.javaClass.classLoader.getResourceAsStream(resourceName)
+        this.javaClass.classLoader.getOwnResourceStream(resourceName)
 
     fun PanoPluginWrapper.getResource(resourceName: String): InputStream? =
-        this.pluginClassLoader.getResourceAsStream(resourceName)
+        this.pluginClassLoader.getOwnResourceStream(resourceName)
+
+    /**
+     * Resource URL of a plugin's own jar / directory only. [PluginClassLoader.getResource] walks
+     * Plugin -> Dependencies -> Application, so a plugin without a resource would silently inherit
+     * the one of a plugin it depends on (config, locales, UI zip, logo). For a [PluginClassLoader]
+     * there is therefore no fall-through; any other class loader keeps the normal lookup.
+     */
+    fun ClassLoader.getOwnResourceUrl(resourceName: String): URL? =
+        if (this is PluginClassLoader) this.findResource(resourceName) else this.getResource(resourceName)
+
+    fun ClassLoader.getOwnResourceStream(resourceName: String): InputStream? =
+        getOwnResourceUrl(resourceName)?.openStream()
 
     /**
      * Streams the input stream into the response without blocking the event loop and while

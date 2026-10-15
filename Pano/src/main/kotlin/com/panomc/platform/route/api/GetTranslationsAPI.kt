@@ -16,12 +16,15 @@ import com.panomc.platform.util.PluginDevUtil
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import org.pf4j.PluginState
 import org.slf4j.LoggerFactory
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.intSchema
 
 @Endpoint
 class GetTranslationsAPI(
@@ -32,7 +35,49 @@ class GetTranslationsAPI(
 ) : Api() {
     private val logger = LoggerFactory.getLogger(GetTranslationsAPI::class.java)
 
-    override val paths = listOf(Path("/api/locales/:code/translations/types/:type", RouteType.GET))
+    companion object {
+        /**
+         * One plugin's flat texts with the admin's edits applied (doc 03 section 5.2). The database keeps an
+         * edit under the legacy key `plugins.<pluginId>.<key>`. Returns the merged texts and, sorted, the keys
+         * whose value came from an edit, so a client that layers a theme file in between can tell them apart.
+         */
+        internal fun applyAdminEdits(
+            pluginId: String,
+            flat: Map<String, Any>,
+            edits: Map<String, String>
+        ): Pair<Map<String, Any>, List<String>> {
+            val edited = mutableListOf<String>()
+            val merged = flat.mapValues { (key, value) ->
+                val custom = edits["plugins.$pluginId.$key"]
+
+                if (custom != null) {
+                    edited.add(key)
+
+                    custom
+                } else {
+                    value
+                }
+            }
+
+            return merged to edited.sorted()
+        }
+    }
+
+    override val paths = listOf(Path("/locales/:code/translations/types/:type", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The texts of one locale and type, with the admin's edits applied.",
+        tag = "locales",
+        response = objectSchema()
+            .requiredProperty("data", objectSchema())
+            .requiredProperty(
+                "meta",
+                objectSchema()
+                    .requiredProperty("totalCount", intSchema())
+                    .requiredProperty("pluginAdminKeys", objectSchema())
+            ),
+        errors = listOf(NotFound::class)
+    )
 
     // panel-ui bootstraps its i18n from here, both SSR and CSR.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
@@ -87,6 +132,7 @@ class GetTranslationsAPI(
         // key — itself contains a dot, which previously produced wrong/cross-plugin translations.
         val pluginsObject = JsonObject()
         var pluginTranslationCount = 0
+        val pluginAdminKeys = sortedMapOf<String, List<String>>()
 
         pluginManager.getPluginWrappers()
             .filter { it.pluginState == PluginState.STARTED }
@@ -105,15 +151,17 @@ class GetTranslationsAPI(
                         ?: wrapper.pluginLocales[AppConstants.DEFAULT_LOCALE_CODE]
                         ?: return@forEach
 
-                    val pluginFlatTranslations = JsonObjectUtil.flattenJsonObject(pluginTranslations)
-                        .map { (key, value) ->
-                            // DB overrides are still stored under the legacy flat "plugins.{id}.{key}"
-                            // key; look them up by that string but never split it into the structure.
-                            val overrideKey = "plugins.${wrapper.pluginId}.$key"
+                    // DB overrides are still stored under the legacy flat "plugins.{id}.{key}"
+                    // key; look them up by that string but never split it into the structure.
+                    val (pluginFlatTranslations, editedKeys) = applyAdminEdits(
+                        wrapper.pluginId,
+                        JsonObjectUtil.flattenJsonObject(pluginTranslations),
+                        customPluginTranslations
+                    )
 
-                            key to (customPluginTranslations[overrideKey] ?: value)
-                        }
-                        .toMap()
+                    if (editedKeys.isNotEmpty()) {
+                        pluginAdminKeys[wrapper.pluginId] = editedKeys
+                    }
 
                     pluginsObject.put(
                         wrapper.pluginId,
@@ -137,6 +185,9 @@ class GetTranslationsAPI(
                 "data" to data,
                 "meta" to mapOf(
                     "totalCount" to (translations.count() + pluginTranslationCount),
+                    // plugin id -> flat keys whose text is an admin edit (a client layering a theme's plugin
+                    // texts puts these above them and everything else below)
+                    "pluginAdminKeys" to pluginAdminKeys,
                 )
             )
         )

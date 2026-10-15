@@ -118,7 +118,7 @@ class PlayerBanService(
         }
 
         if (sendNotification) {
-            mailManager.sendMail(sqlClient, userId, BannedMail(player.username, reason, bannedUntil))
+            mailManager.sendTemplate(sqlClient, userId, BannedMail(player.username, reason, bannedUntil))
         }
     }
 

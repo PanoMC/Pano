@@ -4,22 +4,20 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
 import com.panomc.platform.db.DatabaseManager
-import com.panomc.platform.db.implementation.PanelActivityLogDaoImpl
+import com.panomc.platform.db.dao.PanelActivityLogDao
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerActivityLogTypes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
-import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * One server's history (`GET /api/panel/servers/:id/activity?limit=&before=`, §2.4.12).
+ * One server's history (`GET /api/v1/panel/servers/:id/activity?limit=&cursor=`, §2.4.12).
  *
  * A filtered view of the platform-wide activity log rather than a table of its own: every action
  * that touches a server already writes an audit entry there, and a second store would be a second
@@ -39,15 +37,11 @@ class PanelGetServerActivityAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/activity", RouteType.GET))
+    override val paths = listOf(Path("/servers/:id/activity", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .pathParameter(param("id", numberSchema()))
-            .queryParameter(optionalParam("limit", numberSchema()))
-            // A string, not a number: the panel sends back whatever it saw as the entry's `id`,
-            // and an empty value has to be accepted rather than fail validation.
-            .queryParameter(optionalParam("before", stringSchema()))
+        // `cursor` is a string, not a number: an empty value has to be accepted rather than fail validation.
+        CursorPaging.params(ValidationHandlerBuilder.create(schemaRepository).pathParameter(param("id", numberSchema())))
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -56,10 +50,9 @@ class PanelGetServerActivityAPI(
 
         authProvider.requirePermission(ManageServersPermission(), context, id)
 
-        val limit = (parameters.queryParameter("limit")?.integer ?: DEFAULT_LIMIT)
-            .coerceIn(1, PanelActivityLogDaoImpl.MAX_PAGE_SIZE)
+        val limit = CursorPaging.limit(context, DEFAULT_LIMIT, PanelActivityLogDao.MAX_PAGE_SIZE)
 
-        val before = parameters.queryParameter("before")?.string?.trim()?.toLongOrNull()
+        val before = CursorPaging.idCursor(context)
 
         val sqlClient = getSqlClient()
 
@@ -69,13 +62,17 @@ class PanelGetServerActivityAPI(
             throw NotExists()
         }
 
-        val entries = databaseManager.panelActivityLogDao.byServerId(
-            serverId = id,
-            types = ServerActivityLogTypes.ALL,
-            limit = limit,
-            beforeId = before,
-            sqlClient = sqlClient
-        )
+        // One row more than the page, to know whether an older page exists without a count.
+        val (entries, nextCursor) = CursorPaging.split(
+            databaseManager.panelActivityLogDao.byServerId(
+                serverId = id,
+                types = ServerActivityLogTypes.ALL,
+                limit = limit + 1,
+                beforeId = before,
+                sqlClient = sqlClient
+            ),
+            limit
+        ) { it.id }
 
         // Resolved once per distinct user rather than per entry: a page is usually one or two
         // people, and the name on the entry is only looked up for rows old enough to predate
@@ -107,12 +104,7 @@ class PanelGetServerActivityAPI(
             )
         }
 
-        return Successful(
-            mapOf(
-                "entries" to rows,
-                "hasMore" to (rows.size >= limit)
-            )
-        )
+        return Successful(CursorPaging.response(rows, limit, nextCursor))
     }
 
     companion object {

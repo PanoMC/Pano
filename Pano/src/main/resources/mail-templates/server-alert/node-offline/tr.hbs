@@ -1,0 +1,10 @@
+---
+subject: {{websiteName}} — Sunucu uyarısı: Düğüm çevrimdışı oldu
+preheader: "{{nodeName}}" düğümü yanıt vermeyi bıraktı
+buttonLabel: Panelde aç
+buttonUrl: {{link}}
+footer: Bu e-postayı uyarı e-postaları açık olduğu için alıyorsun. Panelin uyarı ayarlarından kapatabilirsin.
+---
+<h2>Düğüm çevrimdışı oldu</h2>
+<p>"{{nodeName}}" düğümü yanıt vermeyi bıraktı{{#if serverCount}}; {{serverCount}} sunucuya ulaşılamıyor{{/if}}.</p>
+<p>{{#if nodeName}}<strong>Düğüm:</strong> {{nodeName}}<br>{{/if}}<strong>Gerçekleşme zamanı:</strong> {{occurredAt}}</p>

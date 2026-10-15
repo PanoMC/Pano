@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.ticket
 
+import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.ticket.TicketSettings
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
@@ -8,6 +10,7 @@ import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketMessage
 import com.panomc.platform.error.CategoryNotExists
 import com.panomc.platform.error.MessageCantBeEmpty
+import com.panomc.platform.error.TicketCategoryRequired
 import com.panomc.platform.error.TitleCantBeEmpty
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
@@ -15,11 +18,12 @@ import com.panomc.platform.notification.type.panel.NewTicketNotification
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import com.panomc.platform.util.UsageMode
+import com.panomc.platform.schema.EndpointDoc
 
 @Endpoint
 class CreateTicketAPI(
@@ -29,7 +33,19 @@ class CreateTicketAPI(
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/tickets", RouteType.POST))
+    override val paths = listOf(Path("/tickets", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Opens a ticket with its first message.",
+        tag = "tickets",
+        response = objectSchema().requiredProperty("id", intSchema()),
+        errors = listOf(
+            TitleCantBeEmpty::class,
+            MessageCantBeEmpty::class,
+            CategoryNotExists::class,
+            TicketCategoryRequired::class
+        )
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -58,11 +74,14 @@ class CreateTicketAPI(
         val sqlClient = getSqlClient()
 
         if (categoryId != -1L) {
-            val isCategoryExists = databaseManager.ticketCategoryDao.existsById(categoryId, sqlClient)
+            // A category that is turned off takes no new ticket: to the form it is not there.
+            val category = databaseManager.ticketCategoryDao.getById(categoryId, sqlClient)
 
-            if (!isCategoryExists) {
+            if (category == null || !category.enabled) {
                 throw CategoryNotExists()
             }
+        } else if (!TicketSettings.noCategoryPossible(databaseManager, sqlClient)) {
+            throw TicketCategoryRequired()
         }
 
         val id = databaseManager.ticketDao.add(
@@ -79,6 +98,8 @@ class CreateTicketAPI(
         )
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
+
+        WebhookCoreEvents.fire { ticketCreated(id, title, categoryId, userId, username, sqlClient) }
 
         notificationManager.sendNotificationToAllWithPermission(
             NewTicketNotification(

@@ -12,7 +12,7 @@ class PanelDeleteAllNotificationAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/notifications", RouteType.DELETE))
+    override val paths = listOf(Path("/notifications", RouteType.DELETE))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

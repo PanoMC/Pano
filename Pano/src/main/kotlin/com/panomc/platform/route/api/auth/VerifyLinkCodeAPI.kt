@@ -12,18 +12,30 @@ import com.panomc.platform.token.RegisterWithLinkCodeTokenType
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import java.util.*
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
+import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class VerifyLinkCodeAPI(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/auth/verifyLinkCode", RouteType.POST))
+    override val paths = listOf(Path("/auth/verify-link-code", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Checks the code a player got in the game; answers a token for finishing the registration.",
+        tag = "auth",
+        response = objectSchema()
+            .requiredProperty("token", stringSchema())
+            .requiredProperty("username", stringSchema()),
+        errors = listOf(RegisterLinkCodeInvalid::class, PluginDeniedLogin::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

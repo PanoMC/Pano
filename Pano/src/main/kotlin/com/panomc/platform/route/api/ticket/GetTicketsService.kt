@@ -6,7 +6,8 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
 import com.panomc.platform.error.NotExists
-import com.panomc.platform.error.PageNotFound
+import com.panomc.platform.model.PageRequest
+import com.panomc.platform.model.Paging
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.Successful
 import com.panomc.platform.util.TicketPageType
@@ -14,16 +15,19 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestParameters
 import io.vertx.sqlclient.SqlClient
 import org.springframework.stereotype.Service
-import kotlin.math.ceil
 
 @Service
 class GetTicketsService(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
-    suspend fun handle(context: RoutingContext, sqlClient: SqlClient, parameters: RequestParameters): Result {
+    suspend fun handle(
+        context: RoutingContext,
+        sqlClient: SqlClient,
+        parameters: RequestParameters,
+        page: PageRequest
+    ): Result {
         val pageType =
             TicketPageType.valueOf(
                 parameters.queryParameter("pageType")?.jsonArray?.first() as String? ?: TicketPageType.ALL.name
             )
-        val page = parameters.queryParameter("page")?.long ?: 1L
         val categoryUrl = parameters.queryParameter("categoryUrl")?.string
 
         var ticketCategory: TicketCategory? = null
@@ -52,54 +56,55 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         else
             databaseManager.ticketDao.getCountByPageTypeAndUserId(userId, pageType, sqlClient)
 
-        var totalPage = ceil(count.toDouble() / 10).toLong()
-
-        if (totalPage < 1)
-            totalPage = 1
-
-        if (page > totalPage || page < 1) {
-            throw PageNotFound()
-        }
+        Paging.requireInRange(page, count)
 
         val tickets = if (ticketCategory != null)
-            databaseManager.ticketDao.getAllByPageCategoryIdAndUserId(page, ticketCategory.id, userId, sqlClient)
+            databaseManager.ticketDao.getAllByCategoryIdAndUserId(
+                ticketCategory.id,
+                userId,
+                page.limit,
+                page.offset,
+                sqlClient
+            )
         else
-            databaseManager.ticketDao.getAllByPagePageTypeAndUserId(userId, page, pageType, sqlClient)
+            databaseManager.ticketDao.getAllByUserIdAndPageType(userId, pageType, page.limit, page.offset, sqlClient)
 
         if (tickets.isEmpty()) {
-            return getResults(ticketCategory, tickets, mapOf(), null, count, totalPage)
+            return Successful(payload(ticketCategory, tickets, mapOf(), null, count, page))
         }
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
 
         if (ticketCategory != null) {
-            return getResults(ticketCategory, tickets, mapOf(), username, count, totalPage)
+            return Successful(payload(ticketCategory, tickets, mapOf(), username, count, page))
         }
 
         val categoryIdList =
             tickets.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
-            return getResults(null, tickets, mapOf(), username, count, totalPage)
+            return Successful(payload(null, tickets, mapOf(), username, count, page))
         }
 
         val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlClient)
 
-        return getResults(null, tickets, ticketCategoryList, username, count, totalPage)
+        return Successful(payload(null, tickets, ticketCategoryList, username, count, page))
     }
 
-    private fun getResults(
-        ticketCategory: TicketCategory?,
-        tickets: List<Ticket>,
-        ticketCategoryList: Map<Long, TicketCategory>,
-        username: String?,
-        count: Long,
-        totalPage: Long
-    ): Result {
-        val ticketDataList = mutableListOf<Map<String, Any?>>()
+    companion object {
+        /** Tickets per page when the client sends no `pageSize` (as before the page shape). */
+        const val DEFAULT_PAGE_SIZE = 10
 
-        tickets.forEach { ticket ->
-            ticketDataList.add(
+        /** The whole response body: `{ items, page }` plus the `category` when the list is filtered. */
+        fun payload(
+            ticketCategory: TicketCategory?,
+            tickets: List<Ticket>,
+            ticketCategoryList: Map<Long, TicketCategory>,
+            username: String?,
+            count: Long,
+            page: PageRequest
+        ): Map<String, Any?> {
+            val items = tickets.map { ticket ->
                 mapOf(
                     "id" to ticket.id,
                     "title" to ticket.title,
@@ -117,19 +122,14 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
                     "lastUpdate" to ticket.lastUpdate,
                     "status" to ticket.status
                 )
+            }
+
+            return Paging.response(
+                items,
+                count,
+                page,
+                if (ticketCategory != null) mapOf("category" to ticketCategory) else mapOf()
             )
         }
-
-        val result = mutableMapOf<String, Any?>(
-            "tickets" to ticketDataList,
-            "ticketCount" to count,
-            "totalPage" to totalPage
-        )
-
-        if (ticketCategory != null) {
-            result["category"] = ticketCategory
-        }
-
-        return Successful(result)
     }
 }

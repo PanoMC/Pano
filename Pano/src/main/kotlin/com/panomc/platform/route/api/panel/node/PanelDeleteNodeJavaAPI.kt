@@ -14,9 +14,9 @@ import com.panomc.platform.node.NodeJavaTaskService
 import com.panomc.platform.server.console.ServerActionRateLimiter
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
@@ -25,7 +25,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * Removes a managed Java runtime from a node (`POST /api/panel/nodes/:id/java/:major/delete`,
+ * Removes a managed Java runtime from a node (`POST /api/v1/panel/nodes/:id/java/:major/delete`,
  * SM-63).
  *
  * The body is optional: `{ "version": "21.0.12+7" }` picks one of several managed runtimes of the
@@ -47,7 +47,7 @@ class PanelDeleteNodeJavaAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/:id/java/:major/delete", RouteType.POST))
+    override val paths = listOf(Path("/nodes/:id/java/:major/delete", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

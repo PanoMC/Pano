@@ -1,0 +1,77 @@
+{
+  "common": {
+    "working": "Lütfen bekleyin...",
+    "signIn": "Giriş yap"
+  },
+  "activate": {
+    "title": "Hesabını etkinleştir",
+    "heading": "Hesabını etkinleştir",
+    "lead": "E-posta adresin doğrulanıyor.",
+    "button": "Hesabımı etkinleştir",
+    "done": "Hesabın etkinleştirildi. Şimdi giriş yapabilirsin."
+  },
+  "activateNewEmail": {
+    "title": "Yeni e-postanı onayla",
+    "heading": "Yeni e-postanı onayla",
+    "lead": "Yeni e-posta adresin doğrulanıyor.",
+    "button": "E-postayı onayla",
+    "done": "Yeni e-posta adresin onaylandı."
+  },
+  "renewPassword": {
+    "title": "Yeni şifre belirle",
+    "heading": "Yeni şifre belirle",
+    "lead": "Hesabın için yeni şifreyi gir.",
+    "newPassword": "Yeni şifre",
+    "newPasswordRepeat": "Yeni şifre (tekrar)",
+    "button": "Şifreyi kaydet",
+    "done": "Şifren değiştirildi. Şimdi onunla giriş yapabilirsin."
+  },
+  "login": {
+    "title": "Giriş yap",
+    "heading": "Giriş yap",
+    "username": "Kullanıcı adı veya e-posta",
+    "password": "Şifre",
+    "button": "Giriş yap",
+    "challengeLead": "Girişi tamamlamak için doğrulama kodunu gir.",
+    "challengeCode": "Doğrulama kodu",
+    "challengeButton": "Doğrula",
+    "linkLead": "Bu hesabın henüz şifresi yok. Oyunda link komutuyla aldığın kodu gir.",
+    "linkCode": "Bağlantı kodu",
+    "linkButton": "Devam et",
+    "registerLead": "Hesabın için bir e-posta adresi ve şifre seç.",
+    "email": "E-posta",
+    "newPassword": "Şifre",
+    "newPasswordRepeat": "Şifre (tekrar)",
+    "agreement": "Kullanıcı sözleşmesini kabul ediyorum",
+    "registerButton": "Hesabımı oluştur",
+    "verifyEmail": "Sana bir e-posta gönderdik. Hesabını etkinleştirmek için içindeki bağlantıyı aç, sonra giriş yap."
+  },
+  "errors": {
+    "GENERIC": "Bir şeyler ters gitti. Lütfen tekrar dene.",
+    "NETWORK": "Sunucuya ulaşılamadı. Lütfen tekrar dene.",
+    "INVALID_LINK": "Bu bağlantı geçersiz veya süresi dolmuş.",
+    "INVALID_TOKEN": "Bu bağlantı geçersiz veya süresi dolmuş.",
+    "LOGIN_IS_INVALID": "Kullanıcı adı veya şifre yanlış.",
+    "LOGIN_EMAIL_NOT_VERIFIED": "E-posta adresin henüz doğrulanmadı. Sana bir etkinleştirme bağlantısı gönderdik.",
+    "LOGIN_USER_IS_BANNED": "Bu hesap yasaklı.",
+    "IP_IS_BANNED": "IP adresin yasaklı.",
+    "RATE_LIMITED": "Çok fazla deneme. Biraz bekleyip tekrar dene.",
+    "RATE_LIMIT_EXCEEDED": "Çok fazla deneme. Biraz bekleyip tekrar dene.",
+    "MAINTENANCE_MODE_ENABLED": "Site bakımda.",
+    "REGISTER_LINK_CODE_INVALID": "Bağlantı kodu yanlış veya süresi dolmuş.",
+    "PLUGIN_DENIED_LOGIN": "Bu giriş, bu sayfanın gösteremediği bir adım gerektiriyor. Siteden giriş yap.",
+    "CHALLENGE_INVALID": "Doğrulama kodu yanlış. Lütfen tekrar dene.",
+    "NEW_PASSWORD_EMPTY": "Yeni bir şifre gir.",
+    "NEW_PASSWORD_TOO_SHORT": "Şifre çok kısa.",
+    "NEW_PASSWORD_TOO_LONG": "Şifre çok uzun.",
+    "NEW_PASSWORD_REPEAT_DOESNT_MATCH": "İki şifre aynı değil.",
+    "REGISTER_PASSWORD_AND_PASSWORD_REPEAT_NOT_SAME": "İki şifre aynı değil.",
+    "PASSWORD_EMPTY": "Bir şifre gir.",
+    "PASSWORD_TOO_SHORT": "Şifre çok kısa.",
+    "PASSWORD_TOO_LONG": "Şifre çok uzun.",
+    "REGISTER_INVALID_EMAIL": "Bu e-posta adresi geçerli değil.",
+    "REGISTER_EMAIL_NOT_AVAILABLE": "Bu e-posta adresi zaten kullanılıyor.",
+    "REGISTER_NOT_ACCEPTED_AGREEMENT": "Kullanıcı sözleşmesini kabul etmelisin.",
+    "INVALID_CSRF_TOKEN": "Oturumun sona erdi. Sayfayı yenileyip tekrar dene."
+  }
+}

@@ -18,7 +18,7 @@ class PanelGetMaintenancePageAPI(
     private val authProvider: AuthProvider,
     private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/maintenance/page", RouteType.GET))
+    override val paths = listOf(Path("/maintenance/page", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -32,6 +32,8 @@ class PanelGetMaintenancePageAPI(
         return Successful(
             mapOf(
                 "templates" to templates,
+                // What "reset" in the editor puts back into the drafts (nothing is written until they are saved).
+                "defaults" to maintenanceModeManager.defaultTemplates().mapKeys { it.key.name },
                 "customPage" to maintenanceModeManager.settings().customPage
             )
         )

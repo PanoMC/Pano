@@ -11,7 +11,10 @@ import java.io.PrintStream
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
+import javax.swing.plaf.UIResource
 import javax.swing.plaf.basic.BasicButtonUI
+import javax.swing.plaf.basic.BasicTextAreaUI
+import javax.swing.plaf.basic.BasicTextFieldUI
 import javax.swing.text.AttributeSet
 import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
@@ -24,7 +27,8 @@ import javax.swing.text.StyledDocument
  *  - Command input with placeholder/prompt and lock states
  *  - Ctrl+C stops the app (window stays), prints guidance
  *  - System.out/err redirected (optional tee)
- *  - Uses system Look&Feel for native window chrome
+ *  - Uses system Look&Feel for the scroll bar and tooltips; the command row (field + Send button)
+ *    paints itself from the palette below and never depends on the system theme
  *  - Loads app icon from classpath resource: /logo.png
  */
 object UiConsole {
@@ -62,6 +66,13 @@ object UiConsole {
     private val borderTop = Color(0x2a2a2a)
     private val placeholderColor = Color(0x8a8a8a)
     private val caretDisabled = Color(0x5a5a5a)
+    private val fieldDisabledFg = Color(0x6e6e6e)
+    private val selectionBg = Color(0x264f78)
+    private val selectionFg = Color(0xffffff)
+    private val buttonBg = Color(0x2d2d30)
+    private val buttonHoverBg = Color(0x3a3d41)
+    private val buttonPressedBg = Color(0x45494e)
+    private val buttonDisabledFg = Color(0x808080)
 
     private val placeholderText = "Enter command here..."
 
@@ -151,28 +162,7 @@ object UiConsole {
         val scroll = JScrollPane(pane).apply { border = BorderFactory.createEmptyBorder() }
 
         // Input area
-        val input = object : JTextField() {
-            override fun paintComponent(g: Graphics) {
-                super.paintComponent(g)
-                if (text.isEmpty()) {
-                    val g2 = g as Graphics2D
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                    g2.color = placeholderColor
-                    val fm = g2.fontMetrics
-                    val x = insets.left
-                    val y = (height + fm.ascent - fm.descent) / 2
-                    g2.drawString(placeholderText, x, y)
-                }
-            }
-        }.apply {
-            background = fieldBg
-            foreground = fg
-            caretColor = caretDisabled
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, borderTop),
-                BorderFactory.createEmptyBorder(6, 8, 6, 8)
-            )
-            font = pickMonospaceFont().deriveFont(14f)
+        val input = ConsoleTextField().apply {
             // 1) Don't take focus on startup
             isFocusable = false
             isRequestFocusEnabled = false
@@ -220,16 +210,8 @@ object UiConsole {
             }
         })
 
-        // 2) Keep "Send" button always dark
-        val send = JButton("Send").apply {
-            background = Color(0x2d2d30)
-            foreground = fg
-            border = BorderFactory.createEmptyBorder(6, 12, 6, 12)
-            isFocusPainted = false
-            isOpaque = true
-            isContentAreaFilled = true
-            // Use Basic UI to minimize LAF disabled-gray painting
-            setUI(BasicButtonUI())
+        // 2) "Send" button always dark (ConsoleButton paints itself, see below)
+        val send = ConsoleButton("Send").apply {
             addActionListener { submitCommand() }
         }
 
@@ -271,6 +253,9 @@ object UiConsole {
             override fun windowClosing(e: java.awt.event.WindowEvent?) {
                 // Run shutdown off the EDT so logs can still be painted
                 Thread({
+                    // Pano stopped on its own (a failed start keeps the window open to be read):
+                    // nothing is left to shut down, closing the window ends the process.
+                    val alreadyStopped = stopped
                     try {
                         if (!stopped) {
                             try {
@@ -284,6 +269,9 @@ object UiConsole {
                     } finally {
                         restoreSystemStreams()
                         SwingUtilities.invokeLater { f.dispose() }
+                        if (alreadyStopped) {
+                            com.panomc.platform.Main.processExit.exit()
+                        }
                     }
                 }, "UiConsole-close").start()
             }
@@ -321,6 +309,49 @@ object UiConsole {
             override fun removeUpdate(e: DocumentEvent?) = updateSendEnabled()
             override fun changedUpdate(e: DocumentEvent?) = updateSendEnabled()
         })
+    }
+
+    /**
+     * Modal yes / no question shown before the console window exists (the first-run confirmation).
+     * Nothing is read from or written to disk, and it paints from the console palette like the
+     * command row, so the desktop theme does not change how it looks. Blocks until answered; closing
+     * the window, Esc and N answer no, Y answers yes, Enter presses the focused button (No at first).
+     *
+     * Call from any thread but the event dispatch thread. Throws when no window can be opened.
+     *
+     * [onCreated] gets the window before it is shown (on the event dispatch thread), so another thread
+     * can end the question with [ConfirmDialog.close]; the result is then false and its caller ignores it.
+     * [stillNeeded] is asked on the event dispatch thread before anything is built; when it says no (the
+     * question was answered elsewhere while the display was slow) no window is built and the result is false.
+     */
+    fun confirmBeforeStart(
+        title: String,
+        header: String,
+        message: String,
+        question: String,
+        stillNeeded: () -> Boolean = { true },
+        onCreated: (ConfirmDialog) -> Unit = {}
+    ): Boolean {
+        var answer = false
+        var failure: Throwable? = null
+
+        SwingUtilities.invokeAndWait {
+            try {
+                if (!stillNeeded()) return@invokeAndWait
+
+                val confirm = ConfirmDialog(title, header, message, question)
+                onCreated(confirm)
+                confirm.dialog.isVisible = true
+                answer = confirm.answer
+                confirm.dialog.dispose()
+            } catch (t: Throwable) {
+                failure = t
+            }
+        }
+
+        failure?.let { throw it }
+
+        return answer
     }
 
     /** Call when your app is fully ready: unlocks input and focuses the field. */
@@ -418,12 +449,6 @@ object UiConsole {
 
         val enabled = inputEnabled && !stopped && textOk
         btn.isEnabled = enabled
-        // 2) Arka plan koyu kalmaya devam etsin
-        btn.background = Color(0x2d2d30)
-        // Keep it readable even when disabled
-        btn.foreground = fg
-        btn.isOpaque = true
-        btn.isContentAreaFilled = true
     }
 
     private fun applyInputLockUI() {
@@ -474,7 +499,10 @@ object UiConsole {
         inputLockReason = "Pano is stopped"
         applyInputLockUI()
         SwingUtilities.invokeLater { inputField?.transferFocusUpCycle() }
-        println("\u001B[33mPano stopped. Commands are disabled. To close this window, click the window's Close (X) button.\u001B[0m")
+        // Only the GUI has a window to close; a terminal just gets its prompt back.
+        if (frame != null) {
+            println("\u001B[33mPano stopped. Commands are disabled. To close this window, click the window's Close (X) button.\u001B[0m")
+        }
     }
 
     private fun installSystemStreamsRedirect(teeToOriginal: Boolean) {
@@ -695,14 +723,251 @@ object UiConsole {
         return Font(chosen, Font.PLAIN, 14)
     }
 
+    // ---------- Command row components ----------
+
+    /**
+     * Command field that takes every colour, border and font from the console palette.
+     *
+     * The system Look&Feel is not trusted here: GTK (Synth) paints the field from the desktop theme
+     * (white box, light text on light), so the field installs the plain Basic delegate and sets every
+     * property the delegate would otherwise read from UIManager. [updateUI] re-applies all of it, so
+     * a later Look&Feel switch cannot bring the system theme back.
+     */
+    private class ConsoleTextField : JTextField() {
+
+        override fun updateUI() {
+            setUI(BasicTextFieldUI())
+
+            isOpaque = true
+            background = fieldBg
+            foreground = fg
+            disabledTextColor = fieldDisabledFg
+            selectionColor = selectionBg
+            selectedTextColor = selectionFg
+            // The caret colour follows focus / lock state, keep it once we have set it
+            if (caretColor == null || caretColor is UIResource) caretColor = caretDisabled
+            caret?.blinkRate = 500
+            margin = Insets(0, 0, 0, 0)
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, borderTop),
+                BorderFactory.createEmptyBorder(6, 8, 6, 8)
+            )
+            font = pickMonospaceFont().deriveFont(14f)
+        }
+
+        override fun paintComponent(g: Graphics) {
+            super.paintComponent(g)
+            if (text.isEmpty()) {
+                val g2 = g as Graphics2D
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+                g2.color = placeholderColor
+                val fm = g2.fontMetrics
+                val x = insets.left
+                val y = (height + fm.ascent - fm.descent) / 2
+                g2.drawString(placeholderText, x, y)
+            }
+        }
+    }
+
+    /** Send button that paints its own background and text from the console palette. */
+    private class ConsoleButton(text: String) : JButton(text) {
+
+        override fun updateUI() {
+            setUI(ConsoleButtonUI())
+
+            isOpaque = true
+            isContentAreaFilled = true
+            isFocusPainted = false
+            isBorderPainted = false
+            isRolloverEnabled = true
+            background = buttonBg
+            foreground = fg
+            border = BorderFactory.createEmptyBorder(6, 12, 6, 12)
+            // The look and feel's own control font, regular weight; Dialog 12 where it has none.
+            font = UIManager.getFont("Button.font")?.deriveFont(Font.PLAIN) ?: Font(Font.DIALOG, Font.PLAIN, 12)
+        }
+    }
+
+    /**
+     * Basic delegate with the system colours removed: the fill depends on the button state, the text
+     * is the palette foreground (dimmed but readable when disabled), nothing is drawn for focus or
+     * the pressed state beyond the fill.
+     */
+    private class ConsoleButtonUI : BasicButtonUI() {
+
+        override fun update(g: Graphics, c: JComponent) {
+            val model = (c as AbstractButton).model
+            g.color = when {
+                !model.isEnabled -> buttonBg
+                model.isArmed && model.isPressed -> buttonPressedBg
+                model.isRollover -> buttonHoverBg
+                else -> buttonBg
+            }
+            g.fillRect(0, 0, c.width, c.height)
+            paint(g, c)
+        }
+
+        override fun paintText(g: Graphics, c: JComponent, textRect: Rectangle, text: String) {
+            val b = c as AbstractButton
+            val g2 = g as Graphics2D
+            // The desktop's own text settings (ClearType, LCD), as BasicButtonUI would have used them.
+            (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints") as? Map<*, *>)
+                ?.let { g2.addRenderingHints(it) }
+            g2.font = b.font
+            g2.color = if (b.model.isEnabled) fg else buttonDisabledFg
+            g2.drawString(text, textRect.x, textRect.y + g2.fontMetrics.ascent)
+        }
+
+        override fun paintFocus(g: Graphics, b: AbstractButton, viewRect: Rectangle, textRect: Rectangle, iconRect: Rectangle) {}
+
+        override fun paintButtonPressed(g: Graphics, b: AbstractButton) {}
+    }
+
+    // ---------- Confirmation dialog ----------
+
+    /**
+     * The wrapped, read-only message of the confirmation window. A text area that is packed before it
+     * has a width reports the height of its unwrapped lines, and the wrapped text then needs more rows
+     * than it was given (the end of the message is cut off, there is no scroll pane). So it is given
+     * its preferred width first, which makes its preferred height the wrapped one.
+     */
+    internal fun messageArea(message: String): JTextArea = JTextArea(message).apply {
+        setUI(BasicTextAreaUI())
+        isEditable = false
+        isFocusable = false
+        isOpaque = false
+        lineWrap = true
+        wrapStyleWord = true
+        foreground = fg
+        font = pickMonospaceFont().deriveFont(13f)
+        border = BorderFactory.createEmptyBorder()
+        columns = 56
+
+        setSize(Dimension(preferredSize.width, Short.MAX_VALUE.toInt()))
+    }
+
+    /** The window behind [confirmBeforeStart]: dark, with a No button focused first. [answer] is false until Yes is chosen. */
+    class ConfirmDialog(title: String, header: String, message: String, question: String) {
+        @Volatile
+        var answer = false
+            private set
+
+        // Unowned (a null Frame would get Swing's hidden shared owner, and with it no taskbar button).
+        val dialog = JDialog(null as Window?, title, Dialog.ModalityType.APPLICATION_MODAL)
+
+        private val yesBtn = ConsoleButton("Continue")
+        private val noBtn = ConsoleButton("Exit")
+
+        init {
+            val promptYellow = Color(0xF5, 0xD7, 0x42)
+            val sans = Font(Font.DIALOG, Font.PLAIN, 13)
+
+            val headerLabel = JLabel(header).apply {
+                foreground = promptYellow
+                font = Font(Font.DIALOG, Font.BOLD, 15)
+                border = BorderFactory.createEmptyBorder(0, 0, 10, 0)
+            }
+
+            val text = messageArea(message)
+
+            val questionLabel = JLabel(question).apply {
+                foreground = fg
+                font = sans.deriveFont(Font.BOLD)
+                border = BorderFactory.createEmptyBorder(14, 0, 0, 0)
+            }
+
+            val buttons = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
+                isOpaque = false
+                border = BorderFactory.createEmptyBorder(12, 0, 0, 0)
+                add(noBtn)
+                add(yesBtn)
+            }
+
+            listOf(yesBtn, noBtn).forEach { b ->
+                // The shared button paints no focus; the dialog is keyboard-first, so it outlines the focused one.
+                b.isBorderPainted = true
+                val idle = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(buttonBg, 1), BorderFactory.createEmptyBorder(5, 11, 5, 11)
+                )
+                val focused = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Color(0x569cd6), 1), BorderFactory.createEmptyBorder(5, 11, 5, 11)
+                )
+                b.border = idle
+                b.addFocusListener(object : java.awt.event.FocusAdapter() {
+                    override fun focusGained(e: java.awt.event.FocusEvent?) { b.border = focused }
+                    override fun focusLost(e: java.awt.event.FocusEvent?) { b.border = idle }
+                })
+            }
+
+            val body = JPanel(BorderLayout()).apply {
+                background = bg
+                isOpaque = true
+                border = BorderFactory.createEmptyBorder(18, 20, 16, 20)
+                add(headerLabel, BorderLayout.NORTH)
+                add(text, BorderLayout.CENTER)
+                add(JPanel(BorderLayout()).apply {
+                    isOpaque = false
+                    add(questionLabel, BorderLayout.NORTH)
+                    add(buttons, BorderLayout.CENTER)
+                }, BorderLayout.SOUTH)
+            }
+
+            dialog.contentPane = body
+            dialog.defaultCloseOperation = WindowConstants.DO_NOTHING_ON_CLOSE
+            dialog.isAlwaysOnTop = true
+
+            applyAppIcon(dialog, "/logo.png")
+
+            yesBtn.addActionListener { choose(true) }
+            noBtn.addActionListener { choose(false) }
+
+            dialog.addWindowListener(object : java.awt.event.WindowAdapter() {
+                override fun windowClosing(e: java.awt.event.WindowEvent?) = choose(false)
+                override fun windowOpened(e: java.awt.event.WindowEvent?) {
+                    noBtn.requestFocusInWindow()
+                }
+            })
+
+            bindKey("ESCAPE") { choose(false) }
+            bindKey("N") { choose(false) }
+            bindKey("Y") { choose(true) }
+            bindKey("ENTER") { choose(dialog.focusOwner === yesBtn) }
+
+            dialog.pack()
+            dialog.setLocationRelativeTo(null)
+        }
+
+        private fun choose(yes: Boolean) {
+            answer = yes
+            dialog.isVisible = false
+        }
+
+        /**
+         * Hides the window without an answer, from any thread: the hiding runs on the event dispatch thread,
+         * where [confirmBeforeStart] then disposes it. Safe to call before the window is shown (it then never
+         * stays up) and more than once.
+         */
+        fun close() {
+            SwingUtilities.invokeLater { dialog.isVisible = false }
+        }
+
+        private fun bindKey(key: String, action: () -> Unit) {
+            val root = dialog.rootPane
+            root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key), "confirm-$key")
+            root.actionMap.put("confirm-$key", object : AbstractAction() {
+                override fun actionPerformed(e: java.awt.event.ActionEvent?) = action()
+            })
+        }
+    }
+
     // ---------- Icon helpers ----------
 
     /**
      * Loads /logo.png (or any given resourcePath) and sets:
-     *  - frame icon images at multiple sizes
+     *  - window icon images at multiple sizes
      *  - Taskbar/Dock icon (Java 9+ Taskbar API)
      */
-    private fun applyAppIcon(f: JFrame, resourcePath: String) {
+    private fun applyAppIcon(f: Window, resourcePath: String) {
         val url = javaClass.getResource(resourcePath) ?: return
         val baseImg = ImageIcon(url).image ?: return
 
@@ -712,7 +977,7 @@ object UiConsole {
         try {
             f.iconImages = images
         } catch (_: Exception) {
-            f.iconImage = baseImg
+            f.setIconImage(baseImg)
         }
 
         try {

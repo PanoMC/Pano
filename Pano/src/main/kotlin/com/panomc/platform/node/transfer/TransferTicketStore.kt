@@ -36,7 +36,7 @@ enum class TransferDirection {
 /**
  * One authorised file transfer, and everything needed to finish it.
  *
- * The ticket is the whole authorisation: `PUT /api/node/transfer/<id>` carries a node's or a
+ * The ticket is the whole authorisation: `PUT /api/v1/node/transfer/<id>` carries a node's or a
  * plugin's token and nothing else about who asked or what for, so the ticket is what says who may
  * use it, for which server, on which path, in which direction — and it stops being usable ten
  * minutes later whether or not anybody used it.

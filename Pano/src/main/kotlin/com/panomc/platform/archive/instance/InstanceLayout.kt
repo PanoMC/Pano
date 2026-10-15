@@ -27,6 +27,18 @@ data class InstanceLayout(
             MAINTENANCE to maintenanceDir
         )
 
+    /** A directory of the archive with its `app/` [prefix] and what is left out of it (path relative to the directory). */
+    class Tree(val prefix: String, val dir: File, val exclude: (String) -> Boolean)
+
+    /** What an instance archive carries from disk, with the exclusion rules: the archiver and size estimates both read this. */
+    val trees: List<Tree>
+        get() = listOf(
+            Tree(PLUGINS, pluginsDir) { false },
+            Tree(THEMES, themesDir, ::themeExcluded),
+            Tree(FILE_UPLOADS, uploadsDir, ::uploadsExcluded),
+            Tree(MAINTENANCE, maintenanceDir) { false }
+        )
+
     companion object {
         const val CONFIG_ENTRY = "app/config.conf"
         const val PLUGINS = "app/plugins"

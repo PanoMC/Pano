@@ -15,9 +15,9 @@ import com.panomc.platform.server.console.ServerActionRateLimiter
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.intSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
@@ -25,7 +25,7 @@ import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import com.panomc.platform.util.UsageMode
 
 /**
- * Downloads (or updates) one Java major on a node (`POST /api/panel/nodes/:id/java`, SM-63).
+ * Downloads (or updates) one Java major on a node (`POST /api/v1/panel/nodes/:id/java`, SM-63).
  *
  * The same request is the card's Install and its Update: the node installs the newest build of
  * [major] it can find, and ends DONE at once when the managed one it has is already that build.
@@ -41,7 +41,7 @@ class PanelInstallNodeJavaAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/:id/java", RouteType.POST))
+    override val paths = listOf(Path("/nodes/:id/java", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

@@ -8,19 +8,20 @@ import java.net.URI
 import java.net.URLEncoder
 import java.util.zip.ZipInputStream
 
-val vertxVersion: String by project
-val gsonVersion: String by project
-val springContextVersion: String by project
-val handlebarsVersion: String by project
-val log4jVersion = "2.25.0"
+val vertxVersion = property("vertxVersion") as String
+val gsonVersion = property("gsonVersion") as String
+val springContextVersion = property("springContextVersion") as String
+val log4jVersion = "2.26.1"
 val appMainClass = "com.panomc.platform.Main"
-val pf4jVersion: String by project
-val pluginsDir: File? by rootProject.extra
+val pf4jVersion = property("pf4jVersion") as String
+val panoApiLevel = property("panoApiLevel") as String
+val panoMinApiLevel = property("panoMinApiLevel") as String
+val pluginsDir = rootProject.extra["pluginsDir"] as File?
 
 plugins {
-    kotlin("jvm") version "2.2.21"
-    kotlin("kapt") version "2.2.21"
-    id("com.gradleup.shadow") version "9.2.2"
+    kotlin("jvm") version "2.4.21"
+    kotlin("kapt") version "2.4.21"
+    id("com.gradleup.shadow") version "9.6.1"
     application
     `maven-publish`
 }
@@ -29,13 +30,23 @@ group = "com.panomc"
 version =
     (if (project.hasProperty("version") && project.findProperty("version") != "unspecified") project.findProperty("version") else "local-build")!!
 
+// The extension contract level (doc 04 section 7): a classpath resource ApiLevel.kt reads, and manifest attributes
+// of the Pano jar. Both come from gradle.properties, so there is one place to raise the number.
+require(panoMinApiLevel.toInt() in 1..panoApiLevel.toInt()) {
+    "panoMinApiLevel ($panoMinApiLevel) must be between 1 and panoApiLevel ($panoApiLevel)"
+}
+
+val generateApiLevel = tasks.register<WriteProperties>("generateApiLevel") {
+    destinationFile.set(layout.buildDirectory.file("generated/api-level/pano-api-level.properties"))
+    property("current", panoApiLevel.toInt())
+    property("min", panoMinApiLevel.toInt())
+}
+
 val buildType = project.findProperty("buildType") as String? ?: "alpha"
-val timeStamp: String by project
-val buildDir by extra { file("${rootProject.layout.buildDirectory.get()}/libs") }
+val libsDir = file("${rootProject.layout.buildDirectory.get()}/libs")
 
 repositories {
     mavenCentral()
-    maven("https://oss.sonatype.org/content/repositories/iovertx-3720/")
     maven("https://jitpack.io")
 }
 
@@ -43,12 +54,12 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation(kotlin("reflect"))
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.3")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     // Gradle 9 requires the JUnit Platform launcher to be declared explicitly on the
     // test runtime classpath; without it `gradle test` errors with "Failed to load
     // JUnit Platform" even when jupiter-api + jupiter-engine are present.
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
     testImplementation("io.vertx:vertx-unit:$vertxVersion")
 
     implementation("io.vertx:vertx-web:$vertxVersion")
@@ -63,25 +74,27 @@ dependencies {
     implementation("io.vertx:vertx-web-validation:$vertxVersion")
     implementation("io.vertx:vertx-json-schema:$vertxVersion")
     implementation("io.vertx:vertx-web-proxy:$vertxVersion")
+    // Vert.x types carry io.vertx.codegen.annotations.Nullable; Kotlin 2.4 needs the annotation on the compile classpath
+    compileOnly("io.vertx:vertx-codegen-api:$vertxVersion")
 
     // https://mvnrepository.com/artifact/com.auth0/java-jwt
-    implementation("com.auth0:java-jwt:4.5.0")
+    implementation("com.auth0:java-jwt:4.6.2")
 
-    implementation(group = "org.apache.logging.log4j", name = "log4j-api", version = log4jVersion)
-    implementation(group = "org.apache.logging.log4j", name = "log4j-core", version = log4jVersion)
-    implementation(group = "org.apache.logging.log4j", name = "log4j-slf4j2-impl", version = log4jVersion)
+    implementation("org.apache.logging.log4j:log4j-api:$log4jVersion")
+    implementation("org.apache.logging.log4j:log4j-core:$log4jVersion")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:$log4jVersion")
 
     // recaptcha v2 1.0.4
     implementation("com.github.triologygmbh:reCAPTCHA-V2-java:1.0.4")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
-    implementation(group = "commons-codec", name = "commons-codec", version = "1.20.0")
+    implementation("commons-codec:commons-codec:1.23.0")
 
     // https://mvnrepository.com/artifact/commons-io/commons-io
-    implementation("commons-io:commons-io:2.21.0")
+    implementation("commons-io:commons-io:2.22.0")
 
     // https://mvnrepository.com/artifact/org.apache.tika/tika-core
-    implementation("org.apache.tika:tika-core:2.9.4")
+    implementation("org.apache.tika:tika-core:3.3.3")
 
     // https://mvnrepository.com/artifact/org.springframework/spring-context
     implementation("org.springframework:spring-context:$springContextVersion")
@@ -89,10 +102,13 @@ dependencies {
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation("com.google.code.gson:gson:$gsonVersion")
 
+    // The snapshot format (chunker, chunk codec, manifest, seal, pack), shared with the Node daemon.
+    implementation(project(":Snapshot"))
+
     implementation("org.pf4j:pf4j:${pf4jVersion}")
     kapt("org.pf4j:pf4j:${pf4jVersion}")
 
-    implementation("com.typesafe:config:1.4.3")
+    implementation("com.typesafe:config:1.4.9")
 
     // Cron parsing, validation and next-run calculation for server schedules. The node ships the
     // same library so both sides agree on what an expression means, down to the DST edge cases.
@@ -104,30 +120,30 @@ dependencies {
     // WebP decoding for the server icon upload (ImageIO has no WebP reader of its own). Read-only,
     // pure Java; registered explicitly in ServerIconImage because the fat jar does not merge
     // META-INF/services files.
-    implementation("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
+    implementation("com.twelvemonkeys.imageio:imageio-webp:3.15.3")
 
     // Let's Encrypt / ACME
-    implementation("org.shredzone.acme4j:acme4j-client:3.5.0")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
+    implementation("org.shredzone.acme4j:acme4j-client:3.5.1")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.86")
     
     // JLine and terminal support
-    implementation("org.jline:jline:3.29.0")
-    implementation("org.fusesource.jansi:jansi:2.4.1")
-    implementation("net.java.dev.jna:jna:5.16.0")
+    implementation("org.jline:jline:4.4.8")
+    implementation("org.fusesource.jansi:jansi:2.4.3")
+    implementation("net.java.dev.jna:jna:5.19.1")
 
     // AuthMe Migration support
-    implementation("org.xerial:sqlite-jdbc:3.49.1.0")
-    implementation("org.yaml:snakeyaml:2.4")
+    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
+    implementation("org.yaml:snakeyaml:2.7")
 
     // LuckPerms Migration support (H2 database — must use 2.1.x to read LP's format-2 files)
     implementation("com.h2database:h2:2.1.214")
 
     // SSH client for bootstrapping a node on a remote host from the panel. Pure Java, so there
     // is no dependency on an ssh binary being present on the machine Pano runs on.
-    implementation("com.hierynomus:sshj:0.39.0")
+    implementation("com.hierynomus:sshj:0.41.2")
 
     // Password hashing
-    implementation("de.mkammerer:argon2-jvm:2.11")
+    implementation("de.mkammerer:argon2-jvm:2.12")
     implementation("org.mindrot:jbcrypt:0.4")
 }
 
@@ -139,29 +155,50 @@ val repoMapping = mapOf(
     "vanilla-theme" to "$organization/vanilla-theme"
 )
 val mailTemplatesRepo = "$organization/pano-email"
+// The ui-releases.yml row of the mail layout, which downloadMailTemplates reads and downloadUIReleases skips.
+val mailTemplatesComponent = "pano-email"
 val outputDir = file("src/main/resources/UIFiles")
 val mailTemplatesOutputDir = file("src/main/resources")
+
+/**
+ * The pins of ui-releases.yml (simple `key: value` lines). A stable release (main, -PbuildType=release) never bundles a
+ * prerelease UI or mail layout, so it fails on any pin with a prerelease suffix: pin the stable tags first.
+ */
+fun readReleasePins(): Map<String, String> {
+    println("Reading release pins from ${uiReleasesFile.absolutePath}")
+
+    if (!uiReleasesFile.exists()) {
+        throw IllegalStateException("ui-releases.yml not found at ${uiReleasesFile.absolutePath}")
+    }
+
+    val versions = mutableMapOf<String, String>()
+    uiReleasesFile.readLines().forEach { line ->
+        val trimmed = line.trim()
+        if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+            val parts = trimmed.split(":", limit = 2)
+            if (parts.size == 2) {
+                versions[parts[0].trim()] = parts[1].trim()
+            }
+        }
+    }
+
+    if (buildType == "release") {
+        val prereleases = versions.filterValues { it.contains('-') }
+
+        if (prereleases.isNotEmpty()) {
+            throw IllegalStateException(
+                "A release build cannot bundle prereleases; pin stable tags in ui-releases.yml: $prereleases"
+            )
+        }
+    }
+
+    return versions
+}
 
 tasks {
     register("downloadUIReleases") {
         doFirst {
-            println("Reading UI release versions from ${uiReleasesFile.absolutePath}")
-
-            if (!uiReleasesFile.exists()) {
-                throw IllegalStateException("ui-releases.yml not found at ${uiReleasesFile.absolutePath}")
-            }
-
-            // Parse the YAML file (simple key: value format)
-            val versions = mutableMapOf<String, String>()
-            uiReleasesFile.readLines().forEach { line ->
-                val trimmed = line.trim()
-                if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
-                    val parts = trimmed.split(":", limit = 2)
-                    if (parts.size == 2) {
-                        versions[parts[0].trim()] = parts[1].trim()
-                    }
-                }
-            }
+            val versions = readReleasePins() - mailTemplatesComponent
 
             println("Versions to download: $versions")
 
@@ -227,7 +264,10 @@ tasks {
 
     register("downloadMailTemplates") {
         doFirst {
-            println("Fetching latest release for mail templates...")
+            val version = readReleasePins()[mailTemplatesComponent]
+                ?: throw IllegalStateException("No $mailTemplatesComponent pin in ui-releases.yml")
+
+            println("Fetching mail templates $version...")
 
             // Create the resources directory if it doesn't exist
             if (!mailTemplatesOutputDir.exists()) {
@@ -237,20 +277,22 @@ tasks {
             val repo = mailTemplatesRepo
             println("Processing repository: $repo")
 
-            // GitHub API URL
-            val apiUrl = "https://api.github.com/repos/$repo/releases"
+            val apiUrl = "https://api.github.com/repos/$repo/releases/tags/$version"
 
-            // Send API request
             val connection = URI(apiUrl).toURL().openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
 
-            // Read the response
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
-            val releases = JsonParser.parseString(response).asJsonArray
+            val ghToken = System.getenv("GITHUB_TOKEN") ?: System.getenv("TOKEN_GITHUB")
+            if (!ghToken.isNullOrBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer $ghToken")
+            }
 
-            // Get the latest release (including prereleases)
-            val latestRelease = releases.firstOrNull()?.asJsonObject
-                ?: throw IllegalStateException("No releases found in repository: $repo")
+            if (connection.responseCode != 200) {
+                throw IllegalStateException("Failed to fetch release $version for $repo: HTTP ${connection.responseCode}")
+            }
+
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val latestRelease = JsonParser.parseString(response).asJsonObject
 
             // Check asset files and get the first zip file
             val assets = latestRelease["assets"].asJsonArray
@@ -258,7 +300,7 @@ tasks {
                 val name = asset.asJsonObject["name"].asString
                 name.endsWith(".zip")
             }
-                ?: throw IllegalStateException("No zip file found in the latest release of $repo")
+                ?: throw IllegalStateException("No zip file found in release $version of $repo")
 
             // Get the download URL
             val downloadUrl = asset.asJsonObject["browser_download_url"].asString
@@ -273,32 +315,21 @@ tasks {
             }
             println("Downloaded mail templates saved to: ${outputFile.absolutePath}")
 
-            // Extract the zip file to src/main/resources/mail
+            // The release holds the shared layout only (the per-mail texts live in mail-templates/);
+            // only layout.hbs is taken, so an older release cannot bring back per-mail files.
             val mailDir = File(mailTemplatesOutputDir, "mail")
 
-            // Delete existing mail directory contents if it exists
-            if (mailDir.exists()) {
-                println("Deleting existing mail directory contents...")
-                mailDir.deleteRecursively()
-            }
-
-            // Create mail directory
             mailDir.mkdirs()
 
-            // Extract zip file
-            println("Extracting mail templates to: ${mailDir.absolutePath}")
+            var layoutFound = false
+
             FileInputStream(outputFile).use { fis ->
                 ZipInputStream(fis).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
-                        val file = File(mailDir, entry.name)
-                        if (entry.isDirectory) {
-                            file.mkdirs()
-                        } else {
-                            file.parentFile?.mkdirs()
-                            file.outputStream().use { fos ->
-                                zis.copyTo(fos)
-                            }
+                        if (!entry.isDirectory && entry.name.substringAfterLast('/') == "layout.hbs") {
+                            File(mailDir, "layout.hbs").outputStream().use { fos -> zis.copyTo(fos) }
+                            layoutFound = true
                         }
                         zis.closeEntry()
                         entry = zis.nextEntry
@@ -306,18 +337,23 @@ tasks {
                 }
             }
 
+            if (!layoutFound) {
+                outputFile.delete()
+                throw IllegalStateException("Release $version of $repo has no layout.hbs")
+            }
+
             // Delete the zip file after extraction
             outputFile.delete()
-            println("Mail templates extracted successfully")
+            println("Mail layout extracted to ${File(mailDir, "layout.hbs").absolutePath}")
         }
     }
 
     register("copyJar") {
-        if (shadowJar.get().archiveFile.get().asFile.parentFile.absolutePath != buildDir.absolutePath) {
+        if (shadowJar.get().archiveFile.get().asFile.parentFile.absolutePath != libsDir.absolutePath) {
             doLast {
                 copy {
                     from(shadowJar.get().archiveFile.get().asFile.absolutePath)
-                    into(buildDir)
+                    into(libsDir)
                 }
             }
         }
@@ -343,6 +379,8 @@ tasks {
 
             attrMap["VERSION"] = version.toString()
             attrMap["BUILD_TYPE"] = buildType
+            attrMap["API_LEVEL"] = panoApiLevel
+            attrMap["MIN_API_LEVEL"] = panoMinApiLevel
             // JDK 22+ restricted native methods (JNI): avoids warnings when launching with java -jar
             // See https://openjdk.org/jeps/472 — ignored by older JVMs
             attrMap["Enable-Native-Access"] = "ALL-UNNAMED"
@@ -371,7 +409,7 @@ tasks {
         mustRunAfter("copyJar")
 
         val jarFile = shadowJar.flatMap { it.archiveFile }
-        val checksumFile = jarFile.map { File(buildDir, it.asFile.name + ".sha256") }
+        val checksumFile = jarFile.map { File(libsDir, it.asFile.name + ".sha256") }
 
         inputs.file(jarFile)
         outputs.file(checksumFile)
@@ -400,14 +438,33 @@ tasks {
         }
     }
 
+    // build/libs/pano-api-level.json, published next to the jar: the Pano side (the update plan) and the store read the
+    // level a release implements without downloading it. The numbers are the ones in gradle.properties.
+    register("panoApiLevelJson") {
+        val out = File(libsDir, "pano-api-level.json")
+        val current = panoApiLevel.toInt()
+        val min = panoMinApiLevel.toInt()
+
+        inputs.property("apiLevel", current)
+        inputs.property("minApiLevel", min)
+        outputs.file(out)
+
+        doLast {
+            out.parentFile.mkdirs()
+            out.writeText("{\"apiLevel\":$current,\"minApiLevel\":$min}\n")
+        }
+    }
+
     named("build") {
-        dependsOn("panoJarChecksum")
+        dependsOn("panoJarChecksum", "panoApiLevelJson")
     }
 }
 
 tasks.named<JavaExec>("run") {
     standardInput = System.`in`
     environment("EnvironmentType", "DEVELOPMENT")
+    // The working directory is the Pano/ source folder, never "empty"; skip the first-run question there
+    environment("PANO_ALLOW_NON_EMPTY_DIR", "1")
     environment("PanoVersion", version)
     environment("PanoBuildType", buildType)
     pluginsDir?.let { systemProperty("pf4j.pluginsDir", it.absolutePath) }
@@ -476,6 +533,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 // Ensure Pano's processResources waits for the Updater and pano-node zips to be produced and copied
 tasks.named<ProcessResources>("processResources") {
+    from(generateApiLevel)
     dependsOn(":Updater:copyUpdaterZip")
     dependsOn(":Node:copyNodeZip")
 
@@ -671,6 +729,14 @@ fun parseLicenseFromPom(pomContent: String, groupId: String, artifactId: String,
 // classes compile to needs 21+ to run.
 tasks.named<Test>("test") {
     useJUnitPlatform()
+    // A failed test prints its whole exception (message and stack) to the console, so a CI log is enough to read it.
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+    // Main.STAGE reads the build type from the jar manifest, or from this variable when there is none (a run
+    // from classes). Tests that start a plugin through the real PluginManager need a stage.
+    environment("PanoBuildType", buildType)
     javaLauncher.set(
         javaToolchains.launcherFor {
             languageVersion.set(JavaLanguageVersion.of(21))

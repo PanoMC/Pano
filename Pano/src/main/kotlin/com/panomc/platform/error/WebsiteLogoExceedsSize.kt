@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class WebsiteLogoExceedsSize(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("WEBSITE_LOGO_EXCEEDS_SIZE", 422, statusMessage, extras)

@@ -1,0 +1,10 @@
+---
+subject: {{websiteName}} — Sunucu uyarısı: Sunucu yavaş çalışıyor
+preheader: "{{serverName}}" {{tps}} TPS ile çalışıyor
+buttonLabel: Panelde aç
+buttonUrl: {{link}}
+footer: Bu e-postayı uyarı e-postaları açık olduğu için alıyorsun. Panelin uyarı ayarlarından kapatabilirsin.
+---
+<h2>Sunucu yavaş çalışıyor</h2>
+<p>"{{serverName}}" bir süredir {{tps}} TPS ile çalışıyor.</p>
+<p>{{#if serverName}}<strong>Sunucu:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Düğüm:</strong> {{nodeName}}<br>{{/if}}<strong>Gerçekleşme zamanı:</strong> {{occurredAt}}</p>

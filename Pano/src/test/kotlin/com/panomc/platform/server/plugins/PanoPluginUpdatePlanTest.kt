@@ -77,7 +77,7 @@ class PanoPluginUpdatePlanTest {
             Candidate(7, ServerType.VELOCITY, "local-build")
         )
 
-        val due = PanoPluginUpdatePlan.serversNeedingUpdate(candidates) { latest[it] }
+        val due = PanoPluginUpdatePlan.serversNeedingUpdate(candidates) { latest[it.type] }
 
         assertEquals(listOf(1L, 3L), due.map { it.serverId })
     }

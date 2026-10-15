@@ -618,7 +618,7 @@ class PanelRealtimeHub(
                 .put("metrics", nodeManager.getLatestMetrics(nodeId)?.toJsonObject())
                 .put("connected", nodeManager.isConnected(nodeId))
                 // `{ version, status, percent, message }` while its daemon updates, and the version
-                // an update installs, as on `GET /api/panel/nodes` (SM-77).
+                // an update installs, as on `GET /api/v1/panel/nodes` (SM-77).
                 .put("updateProgress", nodeUpdateProgressStore.get(nodeId)?.toNodeJsonObject())
                 .put("latestVersion", NodeInstallScriptProvider.releaseVersion())
 

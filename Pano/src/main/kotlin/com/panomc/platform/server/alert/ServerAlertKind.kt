@@ -10,10 +10,10 @@ package com.panomc.platform.server.alert
  * worth saying again, chosen from how fast each one can realistically be acted on: a disk filling
  * up is a six-hour problem, a server crashing is a five-minute one.
  *
- * [id] is where this kind's e-mail text lives: `mail.server-alert.kinds.<id>` in every locale file
- * holds its headline and the sentences its message is built from, so an admin who reads Pano in
+ * [id] is this kind's variant of the `server-alert` mail template: `mail-templates/server-alert/<id>/`
+ * holds its text in every language (editable from the panel), so an admin who reads Pano in
  * Turkish is told about a crash in Turkish. It is written out rather than derived from the enum
- * name because renaming a constant is a refactor, while the key a translator wrote against is a
+ * name because renaming a constant is a refactor, while a variant key admins customised is a
  * promise. What is stored in `server_alert` and written to the log stays English — the row is the
  * record, and a record is not per reader.
  */

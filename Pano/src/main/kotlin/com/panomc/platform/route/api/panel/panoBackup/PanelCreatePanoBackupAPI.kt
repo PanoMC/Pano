@@ -11,14 +11,14 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 /**
- * Starts a backup of the whole Pano (`POST /api/panel/pano-backups`). With a `passphrase` the
+ * Starts a backup of the whole Pano (`POST /api/v1/panel/pano-backups`). With a `passphrase` the
  * archive is end-to-end encrypted (lost passphrase = unrecoverable); without one it is a plain
  * archive, which is also the export format another Pano or Pano Host imports.
  */
@@ -29,7 +29,7 @@ class PanelCreatePanoBackupAPI(
     private val databaseManager: DatabaseManager,
     private val panoBackupManager: PanoBackupManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/pano-backups", RouteType.POST))
+    override val paths = listOf(Path("/pano-backups", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

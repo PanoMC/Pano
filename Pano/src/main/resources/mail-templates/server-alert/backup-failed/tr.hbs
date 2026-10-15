@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Sunucu uyarısı: Yedekleme başarısız oldu
+preheader: "{{serverName}}" sunucusunun yedeklemesi başarısız oldu
+buttonLabel: Panelde aç
+buttonUrl: {{link}}
+footer: Bu e-postayı uyarı e-postaları açık olduğu için alıyorsun. Panelin uyarı ayarlarından kapatabilirsin.
+---
+<h2>Yedekleme başarısız oldu</h2>
+<p>"{{serverName}}" sunucusunun yedeklemesi başarısız oldu.</p>
+{{#if error}}
+<p>Hata: <code>{{error}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Sunucu:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Düğüm:</strong> {{nodeName}}<br>{{/if}}<strong>Gerçekleşme zamanı:</strong> {{occurredAt}}</p>

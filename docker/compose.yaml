@@ -1,8 +1,8 @@
 # Pano with MariaDB, the self-host Docker install (docs mirror this file 1:1).
 #   echo "PANO_DB_PASSWORD=$(openssl rand -hex 24)" > .env
-#   docker compose up -d        # then open http://<server>:8088 and finish the setup wizard
+#   docker compose up -d        # then open http://<server> and finish the setup wizard
 # PANO_TAG picks the image tag (latest, beta, alpha or a version such as 1.0.0), PANO_PORT the host port.
-# latest = newest stable release, or the most stable prerelease channel until 1.0.0 ships.
+# latest = newest stable release.
 name: pano
 
 services:
@@ -19,7 +19,7 @@ services:
       PANO_DB_USER: pano
       PANO_DB_PASSWORD: ${PANO_DB_PASSWORD:?set PANO_DB_PASSWORD in .env}
     ports:
-      - "${PANO_PORT:-8088}:8088"
+      - "${PANO_PORT:-80}:8088"
     volumes:
       - pano-data:/data
 

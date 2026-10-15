@@ -28,7 +28,7 @@ class PanelStartCurrentThemeAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/themes", RouteType.POST))
+    override val paths = listOf(Path("/themes", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

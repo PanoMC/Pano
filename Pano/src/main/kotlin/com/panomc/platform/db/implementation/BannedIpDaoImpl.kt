@@ -20,8 +20,6 @@ import org.springframework.context.annotation.Scope
 class BannedIpDaoImpl : BannedIpDao() {
     private fun getBannedIpTableName(): String = "`${getTablePrefix() + tableName}`"
 
-    private fun getOffsetQuery(page: Long): String = if (page == 1L) "" else "OFFSET ${(page - 1) * 10}"
-
     override suspend fun init(sqlClient: SqlClient) {
         sqlClient
             .query(
@@ -193,13 +191,14 @@ class BannedIpDaoImpl : BannedIpDao() {
     }
 
     override suspend fun getAllByPage(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp> {
         val query = """
             SELECT ${fields.toTableQuery()} FROM ${getBannedIpTableName()}
             ORDER BY `updatedAt` DESC, `createdAt` DESC
-            LIMIT 10 ${getOffsetQuery(page)}
+            LIMIT $limit OFFSET $offset
         """.trimIndent()
 
         val rows: RowSet<Row> = sqlClient
@@ -211,12 +210,13 @@ class BannedIpDaoImpl : BannedIpDao() {
     }
 
     override suspend fun getAllByPageAndSearch(
-        page: Long,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp> {
         val normalized = search.trim()
-        if (normalized.isEmpty()) return getAllByPage(page, sqlClient)
+        if (normalized.isEmpty()) return getAllByPage(limit, offset, sqlClient)
 
         val query = """
             SELECT ${fields.toTableQuery()} FROM ${getBannedIpTableName()}
@@ -224,7 +224,7 @@ class BannedIpDaoImpl : BannedIpDao() {
                OR LOWER(COALESCE(`reason`, '')) LIKE ?
                OR LOWER(COALESCE(`bannedBy`, '')) LIKE ?
             ORDER BY `updatedAt` DESC, `createdAt` DESC
-            LIMIT 10 ${getOffsetQuery(page)}
+            LIMIT $limit OFFSET $offset
         """.trimIndent()
 
         val like = "%${normalized.lowercase()}%"
@@ -280,16 +280,17 @@ class BannedIpDaoImpl : BannedIpDao() {
     }
 
     override suspend fun getAllByPageAndListFilter(
-        page: Long,
         listFilter: BannedIpListFilter,
         nowMs: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp> {
         val query = """
             SELECT ${fields.toTableQuery()} FROM ${getBannedIpTableName()}
             WHERE ${listFilterWhereClause(listFilter)}
             ORDER BY `updatedAt` DESC, `createdAt` DESC
-            LIMIT 10 ${getOffsetQuery(page)}
+            LIMIT $limit OFFSET $offset
         """.trimIndent()
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -299,14 +300,15 @@ class BannedIpDaoImpl : BannedIpDao() {
     }
 
     override suspend fun getAllByPageAndListFilterAndSearch(
-        page: Long,
         search: String,
         listFilter: BannedIpListFilter,
         nowMs: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BannedIp> {
         val normalized = search.trim()
-        if (normalized.isEmpty()) return getAllByPageAndListFilter(page, listFilter, nowMs, sqlClient)
+        if (normalized.isEmpty()) return getAllByPageAndListFilter(listFilter, nowMs, limit, offset, sqlClient)
         val like = "%${normalized.lowercase()}%"
         val query = """
             SELECT ${fields.toTableQuery()} FROM ${getBannedIpTableName()}
@@ -317,7 +319,7 @@ class BannedIpDaoImpl : BannedIpDao() {
                 OR LOWER(COALESCE(`bannedBy`, '')) LIKE ?
               )
             ORDER BY `updatedAt` DESC, `createdAt` DESC
-            LIMIT 10 ${getOffsetQuery(page)}
+            LIMIT $limit OFFSET $offset
         """.trimIndent()
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

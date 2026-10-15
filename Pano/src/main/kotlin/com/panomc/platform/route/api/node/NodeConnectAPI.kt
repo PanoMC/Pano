@@ -25,7 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * The live node channel (`GET /api/node/connection`).
+ * The live node channel (`GET /api/v1/node/connection`).
  *
  * Same shape as the Minecraft server socket: the request is paused until the upgrade, the node
  * authenticates with its own bearer token, and every frame after that is AES-256-GCM. A node that
@@ -41,7 +41,7 @@ class NodeConnectAPI(
     private val panelRealtimeHub: PanelRealtimeHub,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/node/connection", RouteType.GET))
+    override val paths = listOf(Path("/node/connection", RouteType.GET))
 
     // Authenticates with a node token, never a user JWT.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

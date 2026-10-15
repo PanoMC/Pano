@@ -12,15 +12,15 @@ import com.panomc.platform.util.UsageMode
 import io.vertx.core.buffer.Buffer
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import java.security.MessageDigest
 import java.util.Base64
 
 /**
- * `GET /api/panel/servers/:id/icon` — one server's icon as an image, for places that only know the
+ * `GET /api/v1/panel/servers/:id/icon` — one server's icon as an image, for places that only know the
  * server's id, like a notification about it.
  *
  * The icon is stored as a data URL on the server row, which is what every server listing already
@@ -35,7 +35,7 @@ class PanelGetServerIconAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/icon", RouteType.GET))
+    override val paths = listOf(Path("/servers/:id/icon", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

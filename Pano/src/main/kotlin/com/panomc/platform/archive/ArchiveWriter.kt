@@ -89,6 +89,11 @@ class ArchiveWriter(
 
     fun addBytes(name: String, bytes: ByteArray) = addStream(name, bytes.inputStream())
 
+    /** Lists [name] under the manifest's `skipped[]` (something the caller left out); a name that is no safe path is dropped. */
+    fun skip(name: String) {
+        runCatching { ArchivePaths.validate(name) }.onSuccess { skipped.add(it) }
+    }
+
     /** Adds one file as [name]; a symlink or non-regular file is skipped (listed under [name]). */
     fun addFile(name: String, file: File): ArchiveEntry? {
         val path = file.toPath()

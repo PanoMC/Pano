@@ -16,7 +16,7 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
 
 /**
- * The node half of an upload (`GET /api/node/transfer/:ticket`).
+ * The node half of an upload (`GET /api/v1/node/transfer/:ticket`).
  *
  * The browser's file is already spooled on Pano's disk by the time the node gets here; this hands
  * it over with `sendFile`, which is a zero-copy send and never loads it. The spool is deleted by
@@ -28,7 +28,7 @@ class NodeTransferDownloadAPI(
     private val transferRedeemer: TransferRedeemer,
     private val transferTicketStore: TransferTicketStore
 ) : Api() {
-    override val paths = listOf(Path("/api/node/transfer/:ticket", RouteType.GET))
+    override val paths = listOf(Path("/node/transfer/:ticket", RouteType.GET))
 
     // Authenticates with a node token, never a user JWT.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

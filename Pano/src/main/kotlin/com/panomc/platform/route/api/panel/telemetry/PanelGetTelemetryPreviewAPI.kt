@@ -19,7 +19,7 @@ class PanelGetTelemetryPreviewAPI(
     private val configManager: ConfigManager,
     private val telemetryManager: TelemetryManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/telemetry/preview", RouteType.GET))
+    override val paths = listOf(Path("/telemetry/preview", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

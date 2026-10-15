@@ -1,0 +1,16 @@
+---
+subject: {{websiteName}} — Your account has been banned
+preheader: Your account on {{websiteName}} has been banned
+footer: If you have questions about this decision, please contact our support team.
+---
+<h2>Account banned</h2>
+<p>Hello <strong>{{username}}</strong>,</p>
+<p>We're letting you know that your account has been banned.</p>
+{{#if reason}}
+<p><strong>Reason:</strong> {{reason}}</p>
+{{/if}}
+{{#if bannedUntil}}
+<p><strong>Banned until:</strong> {{bannedUntil}}</p>
+{{else}}
+<p>This ban is permanent.</p>
+{{/if}}

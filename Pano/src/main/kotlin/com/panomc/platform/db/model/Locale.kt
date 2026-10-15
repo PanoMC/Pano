@@ -9,6 +9,8 @@ data class Locale(
     var dateFnsCode: String,
     var derivatives: List<String>,
     val definedBy: DefinedBy = DefinedBy.SYSTEM,
+    /** Off: kept in the panel with its translations, not offered to visitors. English is always on. */
+    var enabled: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) : DBEntity() {

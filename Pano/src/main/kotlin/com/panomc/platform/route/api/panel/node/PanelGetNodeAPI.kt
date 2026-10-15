@@ -16,8 +16,8 @@ import com.panomc.platform.server.ServerActiveTaskStore
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import com.panomc.platform.util.UsageMode
@@ -26,7 +26,7 @@ import com.panomc.platform.util.UsageMode
  * One node with its live metrics and the servers currently placed on it.
  *
  * Also answers whether the daemon on it is behind the one this Pano serves, which is what puts an
- * "update available" badge on the node and enables `POST /api/panel/nodes/:id/update`. The
+ * "update available" badge on the node and enables `POST /api/v1/panel/nodes/:id/update`. The
  * comparison is version against version, except for development builds where both sides are
  * `local-build` forever and only the jar's checksum can tell them apart — see
  * [NodeUpdateAvailability].
@@ -38,11 +38,12 @@ class PanelGetNodeAPI(
     private val nodeManager: NodeManager,
     private val nodeJarProvider: NodeJarProvider,
     private val activeTaskStore: ServerActiveTaskStore,
-    private val nodeUpdateProgressStore: NodeUpdateProgressStore
+    private val nodeUpdateProgressStore: NodeUpdateProgressStore,
+    private val configManager: com.panomc.platform.config.ConfigManager
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/nodes/:id", RouteType.GET))
+    override val paths = listOf(Path("/nodes/:id", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -72,6 +73,13 @@ class PanelGetNodeAPI(
                     // The version to compare the node's against, so the panel can say what it
                     // would be updating to rather than only that it could.
                     .put("platformVersion", Main.VERSION)
+                    .put(
+                        "unreachable",
+                        com.panomc.platform.server.feature.ServerFeatureResolver.unreachableNodeInfo(
+                            node,
+                            com.panomc.platform.route.api.panel.compatibility.CompatibilityPayload.localNodeManaged(configManager.config)
+                        )
+                    )
                     .put("jarSha256", nodeManager.getJarSha256(id))
                     // `{ version, status, percent, message }` while its daemon updates, and the
                     // version an update installs (null for a development build) (SM-77).

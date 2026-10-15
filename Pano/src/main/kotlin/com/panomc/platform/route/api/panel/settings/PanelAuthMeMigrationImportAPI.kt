@@ -19,8 +19,8 @@ import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.kotlin.coroutines.coAwait
@@ -40,7 +40,7 @@ class PanelAuthMeMigrationImportAPI(
     private val permissionManager: PermissionManager,
     private val vertx: Vertx
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/migration/authme/import", RouteType.POST))
+    override val paths = listOf(Path("/migration/authme/import", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

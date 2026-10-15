@@ -32,7 +32,7 @@ auto-included as a subproject by `settings.gradle.kts`). JDK notes that bite in 
 # Before the first run, fetch the front-end bundles into resources/UIFiles:
 ./gradlew downloadUIReleases   # versions pinned in ui-releases.yml; GITHUB_TOKEN/TOKEN_GITHUB
                                # is optional (only used to dodge GitHub's anonymous rate limit)
-./gradlew downloadMailTemplates                     # fetches + unzips email templates
+./gradlew downloadMailTemplates                     # mail layout of the pano-email pin in ui-releases.yml
 
 # Build a release fat jar (build/libs/Pano-<version>.jar via shadowJar)
 ./gradlew build                # 'release' style; runs generateLicenses (hits Maven Central)
@@ -92,7 +92,10 @@ they drive both versioning and the generated changelog.
 
 ### Boot sequence
 `com.panomc.platform.Main` is a Vert.x `CoroutineVerticle` annotated `@Boot`. `main()` handles
-CLI flags (`-nogui`, `-bg` background respawn, `--dev`, `--demo`) and deploys the verticle.
+CLI flags (`-nogui`, `-bg` background respawn, `--dev`, `--demo`, `--allow-non-empty-dir`) and deploys the verticle.
+`FirstRunGuard` runs first in `main()`, before any file exists: in a non-empty directory where Pano has never run it asks
+(GUI dialog, terminal `Continue? [y/N]`, or both at once when the GUI is started from a terminal: first answer wins, the terminal is polled, never blocked on), warns and continues without a terminal; `--allow-non-empty-dir` /
+`PANO_ALLOW_NON_EMPTY_DIR=1` skip it. Nothing before it may create `logs/` (Log4j does so on the first logger).
 `Main.init()` is the canonical startup order: DI → config → setup check → MariaDB → plugin
 manager + plugins → (if installed) database/i18n/server/update/license managers → UI manager →
 routes → ACME → console commands. Global state (`VERSION`, `STAGE`, `ENVIRONMENT`, `IS_DEMO`,
@@ -167,6 +170,16 @@ via rollup, zipped into resources). Key points:
   RS256 JWT from panomc.com; the plugin verifies it with an embedded public key. See `PanoPlugin`'s
   `getLicenseManager()`/`verifyLicense()` docs.
 
+- **Plugin notification types**: declare one `@NotificationDefinition data class XxxNotification(...) :
+  PanelUserNotificationType()` (or `UserNotificationType`) per type in the plugin package; the host's
+  `NotificationTypeRegistry` registers it on plugin load (name = class name without `Notification`, upper
+  snake case, e.g. `MARKET_ORDER_REVIEW`) and removes it on unload. Names are global: a name equal to a core
+  type or another plugin's type is rejected (logged at error), so prefix them. Send with the existing
+  `NotificationManager` methods; text key `notifications.<TYPE>` in the plugin locale files (served to UIs as
+  `plugins.<pluginId>.notifications.<TYPE>`); optional payload `href` (site-relative path) makes the row
+  clickable, optional `faIcon`. Notification list endpoints emit `pluginId` next to `type` (`null` for core
+  types); a stored row of an unloaded type resolves to `UnknownNotificationType` and stays deletable.
+
 ### Events
 `PluginEventManager` dispatches to `PanoEventListener` interfaces (`RouterEventListener`,
 `AuthEventListener`, `PlayerEventListener`, `SetupEventListener`, …). Implement one and annotate
@@ -177,7 +190,8 @@ referenced classes are present). Server-side events (`@Event`) live under `serve
 There are **no front-end sources in this repo**. `UIManager` reverse-proxies requests to the
 SvelteKit apps (`panel-ui`, `setup-ui`, active theme) running as Bun/adapter-node upstreams.
 Production bundles are pinned in `ui-releases.yml` and pulled by `downloadUIReleases` into
-`Pano/src/main/resources/UIFiles`. `scripts/aggregate-ui-changelog.js` builds the UI changelog
+`Pano/src/main/resources/UIFiles` (the `pano-email` pin is the mail layout, pulled by `downloadMailTemplates`). A `main`
+release (`-PbuildType=release`) fails on any prerelease pin, so pin stable tags before releasing `main`. `scripts/aggregate-ui-changelog.js` builds the UI changelog
 section appended to GitHub releases. The **`init-ui` config flag** (`config.conf`, default `false`)
 gates whether `UIManager` actually launches the setup/panel/theme engines at startup (and downloads
 the Bun runtime); set `init-ui = true` to serve any UI — required when developing UI or plugin UIs.
@@ -196,5 +210,28 @@ the Bun runtime); set `init-ui = true` to serve any UI — required when develop
 - **SSL**: `AcmeManager` (Let's Encrypt/ACME via acme4j) or manual certs; HTTP→HTTPS redirect.
 - **Console**: JLine REPL + optional Swing GUI; commands are `CommandExecutor` beans registered by
   `CommandManager` (`command/impl`). `-bg` respawns detached with no terminal.
+- **Mail templates**: every mail is a `TemplateMail(owner, key, variant)` sent with `MailManager.sendTemplate` /
+  `sendRequiredTemplate`. Texts are per-language files `mail-templates/<key>/<variant>/<locale>.hbs` (front-matter
+  `subject`/`preheader`/`buttonLabel`/`buttonUrl`/`footer`/`mode`, then the body) declared in `mail-templates/index.json`
+  (core in `Pano/src/main/resources`, plugins in their own jar; variable types `text|url|number|boolean|html`, plus `list` with
+  row `fields` and an array `sample` for `{{#each}}` tables); `MailTemplateRegistry` collects them, `MailTemplateService`
+  resolves (DB override `mail_template` → bundled locale → language → en-US) and renders into the shared layout
+  `mail/layout.hbs` (built by `pano-email`). Panel: `/mail-templates` endpoints, permission `ManageMailTemplatesPermission`.
+  The legacy `Mail` + `sendMail` API is deprecated but kept binary compatible.
 - **Updater**: `:Updater` builds a tiny dependency-free jar, zipped and embedded into Pano's
   resources; `UpdateManager` drives self-update.
+
+<!-- pano-agent-guide:start -->
+## Agent guide
+
+Guidance for **plugins, themes and headless front-ends** does not live in this repo. It is the agent guide in `theme-core/agent-guide/` (repo `PanoMC/sdk`); every plugin under `plugins/` carries a synced copy as `agent-guide/`.
+
+Working in `plugins/<plugin>/`: read that plugin's `agent-guide/README.md` first, then the topic for your task.
+Working on the platform itself: the guide states what plugin and front-end authors are promised, so do not break it.
+
+The three rules you will break first:
+
+1. Core is `/api/v1/...` (panel `/api/v1/panel/...`); plugins are mounted at `/api/plugins/<pluginId>/...` and `/api/plugins/<pluginId>/panel/...` from relative declared paths.
+2. Lists answer `{ items }` (+ `{ page }` when paged) and errors `{ error: { code, ... } }` with declared codes, on every endpoint.
+3. A plugin or theme without an API level is refused; inside `/api/v1` and inside a plugin the API is additive only.
+<!-- pano-agent-guide:end -->

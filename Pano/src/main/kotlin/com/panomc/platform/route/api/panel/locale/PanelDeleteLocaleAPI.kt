@@ -13,8 +13,8 @@ import com.panomc.platform.error.NotFound
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 
@@ -24,7 +24,7 @@ class PanelDeleteLocaleAPI(
     private val authProvider: AuthProvider,
     private val configManager: ConfigManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/locales/:id", RouteType.DELETE))
+    override val paths = listOf(Path("/locales/:id", RouteType.DELETE))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

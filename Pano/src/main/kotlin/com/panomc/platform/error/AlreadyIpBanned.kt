@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class AlreadyIpBanned(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("ALREADY_IP_BANNED", 422, statusMessage, extras)

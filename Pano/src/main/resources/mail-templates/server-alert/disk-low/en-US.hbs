@@ -1,0 +1,10 @@
+---
+subject: {{websiteName}} — Server alert: Disk space is running out
+preheader: Node "{{nodeName}}" is {{percent}}% full
+buttonLabel: Open in panel
+buttonUrl: {{link}}
+footer: You are receiving this e-mail because alert e-mails are turned on. You can turn them off in the panel's alert settings.
+---
+<h2>Disk space is running out</h2>
+<p>Node "{{nodeName}}" is {{percent}}% full.</p>
+<p>{{#if nodeName}}<strong>Node:</strong> {{nodeName}}<br>{{/if}}<strong>Occurred at:</strong> {{occurredAt}}</p>

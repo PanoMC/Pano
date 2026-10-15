@@ -10,6 +10,7 @@ import com.panomc.platform.hosted.HostSsoUserMapper
 import com.panomc.platform.hosted.PanoHostClient
 import com.panomc.platform.hosted.PanoHostManager
 import com.panomc.platform.model.*
+import com.panomc.platform.route.Mount
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.TrustedProxyIpResolver
@@ -17,7 +18,7 @@ import io.vertx.core.Handler
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import org.slf4j.Logger
 
@@ -28,7 +29,7 @@ import org.slf4j.Logger
  * goes to `/panel`. Any failure goes to `/panel/login` without detail — the ticket is single-use
  * and burnt by the control plane either way.
  *
- * [RateLimitManager][com.panomc.platform.util.RateLimitManager] only covers `/api/`, so this route
+ * [RateLimitManager][com.panomc.platform.util.RateLimitManager] only covers `/api/v1/`, so this route
  * throttles itself ([HostSsoGuard]) before any control-plane call, keyed on the client IP resolved
  * through `server.trusted-proxies` (Traefik's private range on Pano Host), and throttles its logs.
  */
@@ -50,6 +51,9 @@ class HostSsoAPI(
     private class Throttled : Exception()
 
     override val paths = listOf(Path("/panel/host-sso", RouteType.GET))
+
+    // Not an /api/v1 endpoint: the browser lands here from panomc.com, so the path stays as declared.
+    override val mount = Mount.ROOT
 
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
 

@@ -18,8 +18,14 @@ abstract class LocaleDao : Dao<Locale>(Locale::class.java) {
         sqlClient: SqlClient
     ): List<Locale>
 
+    /** The languages that are on: what visitors and the language pickers are offered. */
+    abstract suspend fun getAllEnabled(
+        sqlClient: SqlClient
+    ): List<Locale>
+
     abstract suspend fun getAllByPage(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Locale>
 
@@ -47,6 +53,12 @@ abstract class LocaleDao : Dao<Locale>(Locale::class.java) {
         code: String,
         sqlClient: SqlClient
     ): Long?
+
+    /** Whether [code] names a language that exists and is on, so it may be picked as a display language. */
+    abstract suspend fun isEnabledByCode(
+        code: String,
+        sqlClient: SqlClient
+    ): Boolean
 
     abstract suspend fun existsByCode(
         code: String,

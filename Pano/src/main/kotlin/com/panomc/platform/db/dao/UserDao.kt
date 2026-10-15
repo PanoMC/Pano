@@ -87,15 +87,17 @@ abstract class UserDao : Dao<User>(User::class.java) {
     ): Long
 
     abstract suspend fun getAllByPageAndStatus(
-        page: Long,
         status: PlayerStatus,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<User>
 
     abstract suspend fun getAllByPageAndStatusAndSearch(
-        page: Long,
         status: PlayerStatus,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<User>
 

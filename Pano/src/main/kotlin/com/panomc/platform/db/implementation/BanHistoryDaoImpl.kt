@@ -164,11 +164,12 @@ class BanHistoryDaoImpl : BanHistoryDao() {
     }
 
     override suspend fun getAllByPage(
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BanHistory> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM ${getBanHistoryTableName()} ORDER BY `updatedAt` DESC, `createdAt` DESC LIMIT 10 ${getOffsetQuery(page)}"
+            "SELECT ${fields.toTableQuery()} FROM ${getBanHistoryTableName()} ORDER BY `updatedAt` DESC, `createdAt` DESC LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -179,14 +180,15 @@ class BanHistoryDaoImpl : BanHistoryDao() {
     }
 
     override suspend fun getAllByPageAndSearch(
-        page: Long,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<BanHistory> {
         val normalizedSearch = search.trim()
 
         if (normalizedSearch.isEmpty()) {
-            return getAllByPage(page, sqlClient)
+            return getAllByPage(limit, offset, sqlClient)
         }
 
         val query = """
@@ -194,7 +196,7 @@ class BanHistoryDaoImpl : BanHistoryDao() {
             FROM ${getBanHistoryTableName()} bh
             WHERE ${getSearchClause()}
             ORDER BY bh.`updatedAt` DESC, bh.`createdAt` DESC
-            LIMIT 10 ${getOffsetQuery(page)}
+            LIMIT $limit OFFSET $offset
         """.trimIndent()
 
         val rows: RowSet<Row> = sqlClient

@@ -7,7 +7,7 @@ import com.panomc.platform.server.dto.ConsoleLineData
  *
  * A panel that opens the console page wants the recent past, not just what happens from now on, so
  * every batch a server pushes lands here first and is served back by
- * `GET /api/panel/servers/:id/console`. The buffer is a ring: once [capacity] lines are stored the
+ * `GET /api/v1/panel/servers/:id/console`. The buffer is a ring: once [capacity] lines are stored the
  * oldest line is evicted for every new one, which bounds the memory a chatty server can take
  * regardless of how long it stays connected.
  *

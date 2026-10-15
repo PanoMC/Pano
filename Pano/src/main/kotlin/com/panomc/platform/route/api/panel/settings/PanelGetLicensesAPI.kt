@@ -5,11 +5,12 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.model.*
+import com.panomc.platform.model.WholeList
 import io.vertx.core.json.JsonArray
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
 
@@ -19,7 +20,7 @@ class PanelGetLicensesAPI(
     private val uiManager: UIManager,
     private val authProvider: AuthProvider,
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/licenses/oss", RouteType.GET))
+    override val paths = listOf(Path("/licenses/oss", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -41,14 +42,7 @@ class PanelGetLicensesAPI(
         val localLicenses = getLocalLicenses()
         licenses.addAll(localLicenses)
 
-        return Successful(
-            mutableMapOf(
-                "data" to licenses,
-                "meta" to mapOf(
-                    "totalCount" to licenses.count(),
-                )
-            )
-        )
+        return Successful(WholeList.response(licenses))
     }
 
     private data class License(

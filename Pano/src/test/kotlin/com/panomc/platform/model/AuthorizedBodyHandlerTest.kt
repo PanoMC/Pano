@@ -91,11 +91,11 @@ class AuthorizedBodyHandlerTest {
 
         if (allowed) options.putHeader("x-allowed", "1")
 
-        return client.request(options).compose { request ->
+        return com.panomc.platform.TestHttp.onLoop(vertx) { client.request(options).compose { request ->
             request.write(Buffer.buffer(ByteArray(64 * 1024)))
 
             request.response()
-        }.blockingGet().statusCode()
+        } }.blockingGet().statusCode()
     }
 
     @Test
@@ -121,9 +121,9 @@ class AuthorizedBodyHandlerTest {
         val port = serve(UploadApi(installed = false))
         val client = vertx.createHttpClient(HttpClientOptions().setKeepAlive(false))
 
-        val response = client.request(HttpMethod.POST, port, "127.0.0.1", "/upload").compose { request ->
+        val response = com.panomc.platform.TestHttp.onLoop(vertx) { client.request(HttpMethod.POST, port, "127.0.0.1", "/upload").compose { request ->
             request.putHeader("x-allowed", "1").send(Buffer.buffer("hello world"))
-        }.compose { response -> response.body().map { response.statusCode() to it.toString() } }.blockingGet()
+        }.compose { response -> response.body().map { response.statusCode() to it.toString() } } }.blockingGet()
 
         assertEquals(200, response.first)
         assertEquals(true, response.second.contains("\"length\":11"), response.second)

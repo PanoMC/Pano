@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class LoginIsInvalid(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("LOGIN_IS_INVALID", 422, statusMessage, extras)

@@ -14,12 +14,13 @@ import com.panomc.platform.util.TicketStatus
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.Parameters
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.Parameters
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import com.panomc.platform.util.UsageMode
+import com.panomc.platform.schema.EndpointDoc
 
 @Endpoint
 class UpdateTicketAPI(
@@ -29,7 +30,14 @@ class UpdateTicketAPI(
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/tickets/:id", RouteType.PUT))
+    override val paths = listOf(Path("/tickets/:id", RouteType.PUT))
+
+    override val doc = EndpointDoc(
+        summary = "Changes the status of a ticket of the signed-in user (closing it).",
+        tag = "tickets",
+        response = objectSchema(),
+        errors = listOf(NotExists::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

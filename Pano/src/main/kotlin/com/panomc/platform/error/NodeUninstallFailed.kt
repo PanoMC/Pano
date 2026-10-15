@@ -15,4 +15,4 @@ import com.panomc.platform.model.Error
 class NodeUninstallFailed(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(409, statusMessage, extras)
+) : Error("NODE_UNINSTALL_FAILED", 409, statusMessage, extras)

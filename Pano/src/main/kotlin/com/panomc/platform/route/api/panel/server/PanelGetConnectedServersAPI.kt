@@ -17,7 +17,7 @@ class PanelGetConnectedServersAPI(
     private val authProvider: AuthProvider,
     private val serverFeatureResolver: ServerFeatureResolver
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/servers", RouteType.GET))
+    override val paths = listOf(Path("/servers", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

@@ -12,15 +12,22 @@ import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.MimeTypeUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import java.io.File
+import com.panomc.platform.schema.EndpointDoc
 
 @Endpoint
 class GetFaviconAPI(private val configManager: ConfigManager) : Api() {
-    override val paths = listOf(Path("/api/favicon", RouteType.GET))
+    override val paths = listOf(Path("/favicon", RouteType.GET))
+
+    override val doc = EndpointDoc(
+        summary = "The site icon; redirects to the URL with its hash first.",
+        tag = "site",
+        binary = true
+    )
 
     // Panel chrome, and the maintenance page's own <link rel="icon">.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS

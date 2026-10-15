@@ -7,7 +7,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
@@ -15,7 +15,7 @@ class TogglePlatformConnectAuthAPI(
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/platformAuth/toggle", RouteType.PUT))
+    override val paths = listOf(Path("/platformAuth/toggle", RouteType.PUT))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

@@ -13,6 +13,7 @@ import com.panomc.platform.error.InvalidPublicKey
 import com.panomc.platform.model.*
 import com.panomc.platform.notification.NotificationManager
 import com.panomc.platform.notification.type.panel.ServerConnectRequestNotification
+import com.panomc.platform.route.ApiPaths
 import com.panomc.platform.server.PlatformCodeManager
 import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.server.ServerType
@@ -25,8 +26,8 @@ import com.panomc.platform.util.ImageValidationUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import java.security.KeyFactory
@@ -43,7 +44,7 @@ class ServerConnectNewAPI(
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/server/connect", RouteType.POST))
+    override val paths = listOf(Path("/server/connect", RouteType.POST))
 
     // Minecraft plugin surface — see ServerConnectAPI.
     override val maintenanceAccess = MaintenanceAccess.ALWAYS
@@ -142,7 +143,7 @@ class ServerConnectNewAPI(
         tokenProvider.saveToken(token, serverId.toString(), ServerAuthenticationTokenType, expireDate, sqlClient)
 
         notificationManager.sendNotificationToAllWithPermission(
-            ServerConnectRequestNotification(serverId, validatedFavicon ?: "/api/server/icon/default"),
+            ServerConnectRequestNotification(serverId, validatedFavicon ?: ApiPaths.core("/server/icon/default")),
             ManageServersPermission(),
             sqlClient
         )

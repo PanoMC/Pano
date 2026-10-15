@@ -13,7 +13,7 @@ class PanelCloseDevModeAlertAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/dashboard/closeDevModeAlert", RouteType.POST))
+    override val paths = listOf(Path("/dashboard/closeDevModeAlert", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

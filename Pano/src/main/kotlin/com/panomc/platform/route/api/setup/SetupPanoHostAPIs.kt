@@ -19,15 +19,15 @@ import io.vertx.json.schema.SchemaRepository
 
 /*
  * setup-ui "import from Pano Backup / Pano Host": over the panomc.com account connected with the setup
- * step-4 connect endpoints (`/api/setup/steps/4/platform/code` + `/connect`; they only touch the config,
+ * step-4 connect endpoints (`/api/v1/setup/steps/4/platform/code` + `/connect`; they only touch the config,
  * so setup-ui's transfer dialog uses them from step 0 too, and the account stays connected for step 4;
  * not connected → `hostError CONNECT_REQUIRED`, revoked → `INVALID_TOKEN`), the account's
  * Pano Backups and a restore of one of them into this new install. The restore job is polled with
- * `GET /api/setup/restore`, like a restore from a file.
+ * `GET /api/v1/setup/restore`, like a restore from a file.
  */
 
 /**
- * `GET /api/setup/pano-host/backups` → `{backups (pano-instance, DONE, every Pano of the account, newest
+ * `GET /api/v1/setup/pano-host/backups` → `{backups (pano-instance, DONE, every Pano of the account, newest
  * first, each with `instanceName`), tier, usage, account {username}}`.
  */
 @Endpoint
@@ -35,7 +35,7 @@ class SetupGetPanoHostBackupsAPI(
     private val panoBackupManager: PanoBackupManager,
     private val platformConfig: ConfigManager
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/pano-host/backups", RouteType.GET))
+    override val paths = listOf(Path("/setup/pano-host/backups", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
@@ -63,13 +63,13 @@ class SetupGetPanoHostBackupsAPI(
 }
 
 /**
- * `POST /api/setup/pano-host/restore {backupId, passphrase, host?, dbName?, username?, password?}` →
+ * `POST /api/v1/setup/pano-host/restore {backupId, passphrase, host?, dbName?, username?, password?}` →
  * `{job}`: downloads that Pano Backup, verifies it with the passphrase and restores it into the
  * target database (omitted = the one from setup step 2), then Pano restarts as the restored site.
  */
 @Endpoint
 class SetupRestorePanoHostBackupAPI(private val panoBackupManager: PanoBackupManager) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/pano-host/restore", RouteType.POST))
+    override val paths = listOf(Path("/setup/pano-host/restore", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
@@ -99,7 +99,7 @@ class SetupRestorePanoHostBackupAPI(private val panoBackupManager: PanoBackupMan
 }
 
 /**
- * `GET /api/setup/pano-host/instances` → `{workloads[{id, name, label, state, exportable, reason?, export}],
+ * `GET /api/v1/setup/pano-host/instances` → `{workloads[{id, name, label, state, exportable, reason?, export}],
  * account {username}}`: the connected account's Pano Host instances setup-ui can move here.
  */
 @Endpoint
@@ -107,7 +107,7 @@ class SetupGetPanoHostInstancesAPI(
     private val panoBackupManager: PanoBackupManager,
     private val platformConfig: ConfigManager
 ) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/pano-host/instances", RouteType.GET))
+    override val paths = listOf(Path("/setup/pano-host/instances", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
@@ -128,13 +128,13 @@ class SetupGetPanoHostInstancesAPI(
 }
 
 /**
- * `POST /api/setup/pano-host/instances/:id/move {host?, dbName?, username?, password?}` → `{job}`: exports that
+ * `POST /api/v1/setup/pano-host/instances/:id/move {host?, dbName?, username?, password?}` → `{job}`: exports that
  * Pano Host instance (or reuses its valid export), downloads it and restores it into the target database
- * (omitted = the one from setup step 2); Pano restarts as the moved site. Polled with `GET /api/setup/restore`.
+ * (omitted = the one from setup step 2); Pano restarts as the moved site. Polled with `GET /api/v1/setup/restore`.
  */
 @Endpoint
 class SetupMovePanoHostInstanceAPI(private val panoBackupManager: PanoBackupManager) : SetupApi() {
-    override val paths = listOf(Path("/api/setup/pano-host/instances/:id/move", RouteType.POST))
+    override val paths = listOf(Path("/setup/pano-host/instances/:id/move", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 

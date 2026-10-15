@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class NewPasswordTooShort(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("NEW_PASSWORD_TOO_SHORT", 422, statusMessage, extras)

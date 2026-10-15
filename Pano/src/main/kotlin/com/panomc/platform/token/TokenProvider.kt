@@ -26,10 +26,22 @@ class TokenProvider(
         return Algorithm.HMAC512(secretKey)
     }
 
-    fun generateToken(subject: String, tokenType: TokenType): Pair<String, Long> {
+    /**
+     * A signed token for [subject]. [claims] are extra string claims (a site session carries
+     * `scope = "site"`); the reserved `sub`, `jti`, `exp` and `tokenType` cannot be overridden.
+     */
+    fun generateToken(
+        subject: String,
+        tokenType: TokenType,
+        claims: Map<String, String> = emptyMap()
+    ): Pair<String, Long> {
         val expireDate = tokenType.getExpireDate()
 
-        val token = JWT.create()
+        val builder = JWT.create()
+
+        claims.forEach { (name, value) -> builder.withClaim(name, value) }
+
+        val token = builder
             .withJWTId(UUID.randomUUID().toString())
             .withSubject(subject)
             .withClaim("tokenType", tokenType.getName())

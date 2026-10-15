@@ -1,0 +1,13 @@
+---
+subject: {{websiteName}} — Оповещение сервера: Сервер неожиданно остановился
+preheader: «{{serverName}}» остановился сам по себе
+buttonLabel: Открыть в панели
+buttonUrl: {{link}}
+footer: Вы получили это письмо, потому что включены письма об оповещениях. Отключить их можно в настройках оповещений панели.
+---
+<h2>Сервер неожиданно остановился</h2>
+<p>«{{serverName}}» остановился сам по себе{{#if exitCode}} (код выхода {{exitCode}}){{/if}}.</p>
+{{#if reason}}
+<p>Последняя строка консоли: <code>{{reason}}</code></p>
+{{/if}}
+<p>{{#if serverName}}<strong>Сервер:</strong> {{serverName}}<br>{{/if}}{{#if nodeName}}<strong>Узел:</strong> {{nodeName}}<br>{{/if}}<strong>Время события:</strong> {{occurredAt}}</p>

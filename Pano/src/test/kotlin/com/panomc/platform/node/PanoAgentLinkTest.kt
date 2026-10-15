@@ -159,7 +159,7 @@ class PanoAgentLinkTest {
     @Test
     fun `the agent jar comes from Pano under the agent's name, or from the release`() {
         assertEquals(
-            "https://p/api/node/pano-agent.jar",
+            "https://p/api/v1/node/pano-agent.jar",
             NodeInstallScriptProvider.agentJarUrl("https://p", servedByPano = true, version = "1.0.0")
         )
 
@@ -176,7 +176,7 @@ class PanoAgentLinkTest {
     @Test
     fun `the node install commands and scripts are for nodes only`() {
         assertEquals(
-            "curl -fsSL http://p/api/node/install.sh | sh -s -- --pano 'http://p' --code '654321'",
+            "curl -fsSL http://p/api/v1/node/install.sh | sh -s -- --pano 'http://p' --code '654321'",
             NodeInstallScriptProvider.shellInstallCommand("http://p", "654321")
         )
 

@@ -29,8 +29,8 @@ import com.panomc.platform.util.EncryptUtil
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import java.security.KeyFactory
@@ -40,7 +40,7 @@ import java.util.UUID
 import com.panomc.platform.util.UsageMode
 
 /**
- * Pairs a node daemon with this Pano (`POST /api/node/connect`).
+ * Pairs a node daemon with this Pano (`POST /api/v1/node/connect`).
  *
  * Mirrors the Minecraft server handshake: the caller sends an RSA public key, Pano generates the
  * AES-256 key both sides will frame messages with, wraps it with that public key and hands back a
@@ -52,7 +52,7 @@ import com.panomc.platform.util.UsageMode
  * on the spot. A `pairingCode` is the rotating six-digit code an admin read out of the panel, and
  * a node arriving that way waits for someone to accept it.
  *
- * A third: an *agent* code from `GET /api/panel/servers/agent-link` pairs a Pano Agent, a daemon
+ * A third: an *agent* code from `GET /api/v1/panel/servers/agent-link` pairs a Pano Agent, a daemon
  * dedicated to one existing server. It is approved on the spot too (only someone allowed to create
  * servers can see that code), no "new node" notification goes out, and the row is marked `agent`,
  * which keeps it off every node list: its first hello adopts the server and the panel shows only
@@ -78,7 +78,7 @@ class NodeConnectNewAPI(
 ) : Api() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/node/connect", RouteType.POST))
+    override val paths = listOf(Path("/node/connect", RouteType.POST))
 
     // Daemon surface, authenticated with a pairing secret and never with a user session, so a
     // user-permission bypass could not apply here.

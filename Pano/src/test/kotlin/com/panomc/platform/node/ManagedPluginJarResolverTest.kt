@@ -1,5 +1,6 @@
 package com.panomc.platform.node
 
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.server.ServerType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -102,8 +103,8 @@ class ManagedPluginJarResolverTest {
     fun `a local jar is published under a path every node can resolve`() {
         // Never a file:// url: only a node on this very machine could open one, and the remote
         // node's install threw on it while still reporting the install as done.
-        assertEquals("/api/node/plugin-jars/spigot", ManagedPluginJarResolver.pluginJarPath("spigot"))
-        assertEquals("/api/node/plugin-jars/velocity", ManagedPluginJarResolver.pluginJarPath("velocity"))
+        assertEquals("/api/v1/node/plugin-jars/spigot", ManagedPluginJarResolver.pluginJarPath("spigot"))
+        assertEquals("/api/v1/node/plugin-jars/velocity", ManagedPluginJarResolver.pluginJarPath("velocity"))
 
         ManagedPluginJarResolver.PLATFORMS.forEach { platform ->
             assertTrue(ManagedPluginJarResolver.pluginJarPath(platform).startsWith("/"), platform)
@@ -141,5 +142,26 @@ class ManagedPluginJarResolverTest {
         assertTrue(ManagedPluginJarResolver.compareMinecraft("26.1.2", "26.1") > 0)
         assertEquals(0, ManagedPluginJarResolver.compareMinecraft("26.1.0", "26.1"))
         assertTrue(ManagedPluginJarResolver.compareMinecraft("1.9", "1.10") < 0)
+    }
+
+    @Test
+    fun `a plugin version names the channel it was released on`() {
+        assertEquals(ReleaseStage.ALPHA, ManagedPluginJarResolver.channelOf("1.0.0-alpha.66"))
+        assertEquals(ReleaseStage.BETA, ManagedPluginJarResolver.channelOf("v1.0.0-beta.7"))
+        assertEquals(ReleaseStage.RELEASE, ManagedPluginJarResolver.channelOf("1.2.3"))
+    }
+
+    @Test
+    fun `no plugin and a development build name no channel`() {
+        assertNull(ManagedPluginJarResolver.channelOf(null))
+        assertNull(ManagedPluginJarResolver.channelOf(""))
+        assertNull(ManagedPluginJarResolver.channelOf(ManagedPluginJarResolver.LOCAL_BUILD))
+    }
+
+    @Test
+    fun `a channel with no release falls back only towards less finished ones`() {
+        assertEquals(listOf(ReleaseStage.BETA, ReleaseStage.ALPHA), ManagedPluginJarResolver.fallbacksOf(ReleaseStage.RELEASE))
+        assertEquals(listOf(ReleaseStage.ALPHA), ManagedPluginJarResolver.fallbacksOf(ReleaseStage.BETA))
+        assertEquals(emptyList<ReleaseStage>(), ManagedPluginJarResolver.fallbacksOf(ReleaseStage.ALPHA))
     }
 }

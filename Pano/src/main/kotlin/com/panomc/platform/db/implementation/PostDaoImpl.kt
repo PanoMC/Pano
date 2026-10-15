@@ -376,13 +376,14 @@ class PostDaoImpl : PostDao() {
         return posts
     }
 
-    override suspend fun getByPageAndPageType(
-        page: Long,
+    override suspend fun getListByPageType(
         postStatus: PostStatus,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC, `id` DESC" else "moveDate DESC, `id` DESC"} LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -398,14 +399,15 @@ class PostDaoImpl : PostDao() {
         return posts
     }
 
-    override suspend fun getByPageAndPageTypeAndSearch(
-        page: Long,
+    override suspend fun getListByPageTypeAndSearch(
         postStatus: PostStatus,
         search: String,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `title` LIKE ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `title` LIKE ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC, `id` DESC" else "moveDate DESC, `id` DESC"} LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -421,14 +423,15 @@ class PostDaoImpl : PostDao() {
         return posts
     }
 
-    override suspend fun getByPagePageTypeAndCategoryId(
-        page: Long,
+    override suspend fun getListByPageTypeAndCategoryId(
         postStatus: PostStatus,
         categoryId: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `categoryId` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC" else "moveDate DESC"} LIMIT 10 OFFSET ${(page - 1) * 10}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? and `categoryId` = ? ORDER BY ${if (postStatus == PostStatus.PUBLISHED) "`date` DESC, `id` DESC" else "moveDate DESC, `id` DESC"} LIMIT $limit OFFSET $offset"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -476,42 +479,60 @@ class PostDaoImpl : PostDao() {
         return rows.toList()[0].getLong(0)
     }
 
-    override suspend fun getPublishedListByPage(
-        page: Long,
+    override suspend fun getPublishedList(
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
-                Tuple.of(PostStatus.PUBLISHED.name)
+                Tuple.of(PostStatus.PUBLISHED.name, limit, offset)
             )
             .coAwait()
 
         return rows.toEntities()
     }
 
-    override suspend fun getPublishedListByPageAndCategoryId(
+    override suspend fun getPublishedListByCategoryId(
         categoryId: Long,
-        page: Long,
+        limit: Int,
+        offset: Long,
         sqlClient: SqlClient
     ): List<Post> {
         val query =
-            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `categoryId` = ? ORDER BY `date` DESC LIMIT 5 OFFSET ${(page - 1) * 5}"
+            "SELECT ${fields.toTableQuery()} FROM `${getTablePrefix() + tableName}` WHERE `status` = ? AND `categoryId` = ? ORDER BY `date` DESC, `id` DESC LIMIT ? OFFSET ?"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
             .execute(
                 Tuple.of(
                     PostStatus.PUBLISHED.name,
-                    categoryId
+                    categoryId,
+                    limit,
+                    offset
                 )
             )
             .coAwait()
 
         return rows.toEntities()
+    }
+
+    override suspend fun getPublishedUrlsAndDates(
+        sqlClient: SqlClient
+    ): List<Pair<String, Long>> {
+        val query =
+            "SELECT `url`, `date` FROM `${getTablePrefix() + tableName}` WHERE `status` = ? ORDER BY `date` DESC, `id` DESC"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(PostStatus.PUBLISHED.name))
+            .coAwait()
+
+        return rows.map { it.getString("url") to it.getLong("date") }
     }
 
     override suspend fun getListByPageAndCategoryId(

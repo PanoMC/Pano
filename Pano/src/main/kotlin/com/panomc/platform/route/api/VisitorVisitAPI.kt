@@ -10,13 +10,22 @@ import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import java.net.InetAddress
+import com.panomc.platform.schema.EndpointDoc
+import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 
 @Endpoint
 class VisitorVisitAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider
 ) : Api() {
-    override val paths = listOf(Path("/api/visitorVisit", RouteType.POST))
+    override val paths = listOf(Path("/visitor-visit", RouteType.POST))
+
+    override val doc = EndpointDoc(
+        summary = "Counts one visit of the caller's IP address for today.",
+        tag = "site",
+        response = objectSchema(),
+        errors = listOf(InvalidIpAddress::class)
+    )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

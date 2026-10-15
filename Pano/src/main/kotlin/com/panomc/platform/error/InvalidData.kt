@@ -5,4 +5,4 @@ import com.panomc.platform.model.Error
 class InvalidData(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(422, statusMessage, extras)
+) : Error("INVALID_DATA", 422, statusMessage, extras)

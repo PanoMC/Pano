@@ -1,6 +1,8 @@
 package com.panomc.platform.route
 
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.frontend.CoreFrontendTargets
+import com.panomc.platform.frontend.FrontendUrlMap
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.RequestClassification
 import com.panomc.platform.util.UsageMode
@@ -39,6 +41,7 @@ import org.springframework.stereotype.Component
 class UsageModeGateHandler(
     private val configManager: ConfigManager,
     private val setupManager: SetupManager,
+    private val frontendUrlMap: FrontendUrlMap,
     private val logger: Logger
 ) {
     fun create(): Handler<RoutingContext> = Handler { context ->
@@ -59,7 +62,8 @@ class UsageModeGateHandler(
             path = path,
             method = request.method(),
             secFetchDest = request.getHeader("Sec-Fetch-Dest"),
-            accept = request.getHeader("Accept")
+            accept = request.getHeader("Accept"),
+            authPaths = authPaths()
         )
 
         if (decision == Decision.PASS) {
@@ -69,6 +73,19 @@ class UsageModeGateHandler(
         }
 
         redirectToPanel(context, path)
+    }
+
+    /**
+     * The auth pages of the theme as the front-end URL map has them (doc 05 section 10.1), so a theme that
+     * renamed `/login` keeps its login reachable. A page the map does not place on this site (disabled,
+     * served by Pano's own `/_pano` page, or on another host) needs no pass here.
+     */
+    private fun authPaths(): List<String> = AUTH_TARGETS.mapNotNull { target ->
+        try {
+            frontendUrlMap.routePath(target)?.takeIf { !it.startsWith(FrontendUrlMap.FALLBACK_PREFIX) }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun redirectToPanel(context: RoutingContext, path: String) {
@@ -103,7 +120,7 @@ class UsageModeGateHandler(
          */
         private val PASS_PREFIXES = listOf(
             "/panel",
-            "/api",
+            ApiPaths.BASE,
             "/plugins/",
             "/_app/",
             "/lib/",
@@ -125,13 +142,23 @@ class UsageModeGateHandler(
             "/activate-new-email"
         )
 
+        /** The front-end targets of those pages; their current paths are [AUTH_PATHS] when nothing is renamed. */
+        private val AUTH_TARGETS = listOf(
+            CoreFrontendTargets.AUTH_LOGIN,
+            CoreFrontendTargets.AUTH_RESET_PASSWORD,
+            CoreFrontendTargets.AUTH_RENEW_PASSWORD,
+            CoreFrontendTargets.AUTH_ACTIVATE,
+            CoreFrontendTargets.AUTH_ACTIVATE_NEW_EMAIL
+        )
+
         internal fun decide(
             mode: UsageMode,
             setupDone: Boolean,
             path: String,
             method: HttpMethod,
             secFetchDest: String?,
-            accept: String?
+            accept: String?,
+            authPaths: List<String> = AUTH_PATHS
         ): Decision {
             if (mode != UsageMode.SERVERS) return Decision.PASS
 
@@ -145,7 +172,7 @@ class UsageModeGateHandler(
             // page that is allowed to render still works.
             if (!RequestClassification.isDocumentRequest(method, secFetchDest, accept)) return Decision.PASS
 
-            if (AUTH_PATHS.any { path == it || path.startsWith("$it/") }) return Decision.PASS
+            if (authPaths.any { path == it || path.startsWith("$it/") }) return Decision.PASS
 
             return Decision.REDIRECT
         }

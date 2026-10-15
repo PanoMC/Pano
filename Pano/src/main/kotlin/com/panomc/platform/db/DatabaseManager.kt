@@ -1,5 +1,6 @@
 package com.panomc.platform.db
 
+import com.panomc.platform.StartupFailure
 import com.panomc.platform.Main
 import com.panomc.platform.annotation.Dao
 import com.panomc.platform.annotation.Migration
@@ -60,6 +61,9 @@ class DatabaseManager(
     @Lazy val bannedIpDao: BannedIpDao,
     @Lazy val onlinePlayerHistoryDao: OnlinePlayerHistoryDao,
     @Lazy val pendingAuthSessionDao: PendingAuthSessionDao,
+    @Lazy val mailTemplateDao: MailTemplateDao,
+    @Lazy val mailLayoutDao: MailLayoutDao,
+    @Lazy val mailSettingDao: MailSettingDao,
 ) {
 
     @Autowired
@@ -99,6 +103,12 @@ class DatabaseManager(
 
         val databaseConfig = configManager.config.database
 
+        // Before the set-up's database step there is nothing to connect to. Building a pool here would keep a
+        // pool without a host for the whole process, and the end of the set-up would wait on it forever.
+        if (databaseConfig.host.isBlank()) {
+            throw StartupFailure("The database is not configured yet.")
+        }
+
         var port = 3306
         var host = databaseConfig.host
 
@@ -122,21 +132,22 @@ class DatabaseManager(
         val poolOptions = PoolOptions()
             .setMaxSize(HostedEnvConfig.current.dbPoolSize)
 
-        sqlClient = MySQLBuilder.pool()
+        val pooledClient = MySQLBuilder.pool()
             .with(poolOptions)
             .connectingTo(connectOptions)
             .using(vertx)
             .build()
 
-        val pooledClient = sqlClient as Pool
+        try {
+            pooledClient.connection.coAwait().close().coAwait()
+        } catch (e: Exception) {
+            // Not kept: the next call builds a pool from the settings of that moment.
+            pooledClient.close()
 
-        pooledClient.connection.onFailure {
-            logger.error("Failed to connect database! Please check your configuration!")
+            throw StartupFailure("Failed to connect database! Please check your configuration!", e)
+        }
 
-            it.printStackTrace()
-
-            System.exit(1)
-        }.coAwait().close().coAwait()
+        sqlClient = pooledClient
 
         return sqlClient
     }
@@ -152,10 +163,8 @@ class DatabaseManager(
             if (lastSchemeVersion != null) {
                 throw PlatformAlreadyInstalled()
             }
-        } catch (e: Exception) {
-            if (e is PlatformAlreadyInstalled) {
-                throw e
-            }
+        } catch (_: Exception) {
+            // PlatformAlreadyInstalled is a Throwable, not an Exception, so it is never caught here
         }
 
         val databaseInitProcessHandlers = getDatabaseInitList()

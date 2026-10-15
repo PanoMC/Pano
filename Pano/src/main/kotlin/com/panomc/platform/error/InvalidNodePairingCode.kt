@@ -11,4 +11,4 @@ import com.panomc.platform.model.Error
 class InvalidNodePairingCode(
     statusMessage: String = "",
     extras: Map<String, Any?> = mapOf()
-) : Error(400, statusMessage, extras)
+) : Error("INVALID_NODE_PAIRING_CODE", 400, statusMessage, extras)

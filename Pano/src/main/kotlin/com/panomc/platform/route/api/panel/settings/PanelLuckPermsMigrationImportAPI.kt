@@ -19,8 +19,8 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.mysqlclient.MySQLException
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.kotlin.coroutines.coAwait
@@ -38,7 +38,7 @@ class PanelLuckPermsMigrationImportAPI(
     private val permissionManager: PermissionManager,
     private val vertx: Vertx
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/migration/luckperms/import", RouteType.POST))
+    override val paths = listOf(Path("/migration/luckperms/import", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

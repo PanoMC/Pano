@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * once the daemon is gone, so the panel can set up a fresh local node afterwards.
  *
  * Nothing here decides whether the node is trusted: it pairs through the ordinary
- * `POST /api/node/connect` with a one-time bootstrap token from [NodeBootstrapTokenStore], which
+ * `POST /api/v1/node/connect` with a one-time bootstrap token from [NodeBootstrapTokenStore], which
  * is what makes it arrive already approved.
  */
 @Lazy
@@ -169,7 +169,7 @@ class LocalNodeManager(
      * Provisions a local node, or makes sure the one that exists is running.
      *
      * Returns the node's row id when it already paired, and null the very first time -- the row is
-     * only created once the daemon itself calls `POST /api/node/connect`, which is moments later.
+     * only created once the daemon itself calls `POST /api/v1/node/connect`, which is moments later.
      */
     suspend fun setup(): JsonObject {
         val config = configManager.config.effectiveLocalNode

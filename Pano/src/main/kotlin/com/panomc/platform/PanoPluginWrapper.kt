@@ -1,5 +1,7 @@
 package com.panomc.platform
 
+import com.panomc.platform.util.FileResourceUtil.getOwnResourceStream
+import com.panomc.platform.util.FileResourceUtil.getOwnResourceUrl
 import com.panomc.platform.util.HashUtil.hash
 import com.typesafe.config.ConfigFactory
 import io.vertx.core.json.JsonObject
@@ -19,7 +21,7 @@ class PanoPluginWrapper(
     private val logger = LoggerFactory.getLogger(PanoPluginWrapper::class.java)
 
     internal val config by lazy {
-        val configResource = pluginClassLoader.getResourceAsStream("config.conf") ?: return@lazy null
+        val configResource = pluginClassLoader.getOwnResourceStream("config.conf") ?: return@lazy null
 
         val rawConfig = configResource.bufferedReader().readText()
 
@@ -35,7 +37,7 @@ class PanoPluginWrapper(
     internal val pluginLocales: Map<String, JsonObject> by lazy {
         val locales = mutableMapOf<String, JsonObject>()
 
-        val resourceDirUri = pluginClassLoader.getResource("locales")?.toURI()
+        val resourceDirUri = pluginClassLoader.getOwnResourceUrl("locales")?.toURI()
 
         if (resourceDirUri != null) {
             // When running the JAR directly we open a zip FileSystem for the URI; it must be

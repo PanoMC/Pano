@@ -8,6 +8,7 @@ import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
+import java.io.EOFException
 import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 
@@ -106,6 +107,8 @@ class ArchiveReader(private val limits: ArchiveLimits = ArchiveLimits()) {
             drain(input)
         } catch (e: ZipException) {
             throw PanoArcException(Code.INVALID_ARCHIVE, e.message, e)
+        } catch (e: EOFException) {
+            throw PanoArcException(Code.TRUNCATED, "The archive ends inside an entry.", e)
         }
 
         val manifest = ArchiveManifest.parse(

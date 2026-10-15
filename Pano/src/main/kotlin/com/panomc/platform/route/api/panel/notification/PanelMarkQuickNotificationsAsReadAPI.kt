@@ -12,7 +12,7 @@ class PanelMarkQuickNotificationsAsReadAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/notifications/quick/markAsRead", RouteType.POST))
+    override val paths = listOf(Path("/notifications/quick/markAsRead", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

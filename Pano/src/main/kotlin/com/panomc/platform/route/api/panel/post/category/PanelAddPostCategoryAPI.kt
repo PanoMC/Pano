@@ -6,12 +6,13 @@ import com.panomc.platform.auth.panel.log.CreatedPostCategoryLog
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PostCategory
+import com.panomc.platform.error.InvalidFields
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Bodies.json
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Bodies.json
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
@@ -24,7 +25,7 @@ class PanelAddPostCategoryAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
-    override val paths = listOf(Path("/api/panel/post/categories", RouteType.POST))
+    override val paths = listOf(Path("/post/categories", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -62,7 +63,7 @@ class PanelAddPostCategoryAPI(
 
             errors["url"] = true
 
-            throw Errors(errors)
+            throw InvalidFields(errors)
         }
 
         val id = databaseManager.postCategoryDao.add(
@@ -105,7 +106,7 @@ class PanelAddPostCategoryAPI(
             errors["url"] = true
 
         if (errors.isNotEmpty()) {
-            throw Errors(errors)
+            throw InvalidFields(errors)
         }
     }
 }

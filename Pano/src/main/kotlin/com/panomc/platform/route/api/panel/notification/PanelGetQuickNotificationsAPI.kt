@@ -4,15 +4,17 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
+import com.panomc.platform.notification.NotificationTypeRegistry
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class PanelGetQuickNotificationsAPI(
     private val authProvider: AuthProvider,
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val notificationTypeRegistry: NotificationTypeRegistry
 ) : PanelApi() {
-    override val paths = listOf(Path("/api/panel/notifications/quick", RouteType.GET))
+    override val paths = listOf(Path("/notifications/quick", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -25,26 +27,16 @@ class PanelGetQuickNotificationsAPI(
 
         val count = databaseManager.panelNotificationDao.getCountOfNotReadByUserId(userId, sqlClient)
 
-        val notificationsDataList = mutableListOf<Map<String, Any?>>()
-
-        notifications.forEach { notification ->
-            notificationsDataList.add(
-                mapOf(
-                    "id" to notification.id,
-                    "type" to notification.type.getName(),
-                    "details" to notification.details.map,
-                    "status" to notification.status.name,
-                    "isPersonal" to (notification.userId == userId),
-                    "createdAt" to notification.createdAt,
-                    "updatedAt" to notification.updatedAt,
-                )
-            )
-        }
+        val total = databaseManager.panelNotificationDao.getCountByUserId(userId, sqlClient)
 
         return Successful(
-            mutableMapOf<String, Any?>(
-                "notifications" to notificationsDataList,
-                "notificationCount" to count
+            PanelNotificationPage.payload(
+                notifications,
+                userId,
+                notificationTypeRegistry::ownerOf,
+                PanelNotificationPage.QUICK_SIZE,
+                total > notifications.size,
+                mapOf("notificationCount" to count)
             )
         )
     }

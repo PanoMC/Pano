@@ -1,13 +1,14 @@
 package com.panomc.platform
 
 import com.panomc.platform.db.model.Locale
+import com.panomc.platform.route.ApiPaths
 import java.io.File
 
 object AppConstants {
     const val DEFAULT_POST_UPLOAD_PATH = "post"
     val DEFAULT_POST_THUMBNAIL_UPLOAD_PATH = "${DEFAULT_POST_UPLOAD_PATH + File.separator}thumbnail"
 
-    const val POST_THUMBNAIL_URL_PREFIX = "/api/post/thumbnail/"
+    val POST_THUMBNAIL_URL_PREFIX = ApiPaths.core("/posts/thumbnails/")
 
     const val COOKIE_PREFIX = "pano_"
 

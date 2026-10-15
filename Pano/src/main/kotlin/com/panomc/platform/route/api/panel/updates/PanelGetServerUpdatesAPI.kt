@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.updates
 
+import com.panomc.platform.ReleaseStage
 import com.panomc.platform.Main
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -26,14 +27,14 @@ import kotlinx.coroutines.withTimeoutOrNull
 import com.panomc.platform.util.UsageMode
 
 /**
- * Everything on the Updates page that is not Pano itself (`GET /api/panel/updates/servers`).
+ * Everything on the Updates page that is not Pano itself (`GET /api/v1/panel/updates/servers`).
  *
  * One shape for every row: `{ id, name, kind, current, latest, updateAvailable, online }`, with
  * `kind` one of `node` (the pano-node daemon on a host, updated with
- * `POST /api/panel/nodes/:id/update`), `agent` (a pano-node dedicated to one adopted server, listed
+ * `POST /api/v1/panel/nodes/:id/update`), `agent` (a pano-node dedicated to one adopted server, listed
  * under that server's name with its `serverId` and updated with
- * `POST /api/panel/servers/:serverId/agent/update`) or `pano-plugin` (the plugin inside one server,
- * updated with `POST /api/panel/servers/:id/pano-plugin/update`). A plugin row also says which route
+ * `POST /api/v1/panel/servers/:serverId/agent/update`) or `pano-plugin` (the plugin inside one server,
+ * updated with `POST /api/v1/panel/servers/:id/pano-plugin/update`). A plugin row also says which route
  * its update would take right now (`mode`) or, when it has none, why not (`reason`), so the page can
  * disable a button with a sentence instead of letting it fail.
  *
@@ -62,7 +63,7 @@ class PanelGetServerUpdatesAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/updates/servers", RouteType.GET))
+    override val paths = listOf(Path("/updates/servers", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
@@ -72,7 +73,7 @@ class PanelGetServerUpdatesAPI(
         val nodes = JsonArray()
 
         val canManageNodes = authProvider.hasPermission(ManageNodesPermission(), context)
-        // An agent is updated through its server (`POST /api/panel/servers/:id/agent/update`), under
+        // An agent is updated through its server (`POST /api/v1/panel/servers/:id/agent/update`), under
         // the permission that endpoint asks for rather than the nodes one.
         val canManageServers = authProvider.hasPermission(ManageServersPermission(), context)
 
@@ -118,17 +119,24 @@ class PanelGetServerUpdatesAPI(
             .filter { ManagedPluginJarResolver.platformOf(it.type) != null }
             .filter { authProvider.hasPermission(ManageServerPluginsPermission(), context, it.id) }
 
-        val latestByType = mutableMapOf<ServerType, String?>()
+        // Per software and per release channel: each plugin is compared with the newest release of
+        // the channel it was installed from.
+        val latestByKey = mutableMapOf<Pair<ServerType, ReleaseStage>, String?>()
 
-        servers.map { it.type }.distinct().forEach { type ->
-            latestByType[type] = withTimeoutOrNull(LOOKUP_BUDGET_MS) { panoPluginJarProvider.latestVersion(type) }
-                ?: managedPluginJarResolver.latestVersionOrWarm(type)
+        servers.forEach { server ->
+            val key = server.type to managedPluginJarResolver.channelFor(server.pluginVersion)
+
+            if (key !in latestByKey) {
+                latestByKey[key] = withTimeoutOrNull(LOOKUP_BUDGET_MS) {
+                    panoPluginJarProvider.latestVersion(server.type, server.pluginVersion)
+                } ?: managedPluginJarResolver.latestVersionOrWarm(server.type, server.pluginVersion)
+            }
         }
 
         val pluginRows = JsonArray()
 
         servers.forEach { server ->
-            val latest = latestByType[server.type]
+            val latest = latestByKey[server.type to managedPluginJarResolver.channelFor(server.pluginVersion)]
             val mode = panoPluginUpdateService.modeFor(server)
             val pluginConnected = serverManager.isConnected(server.id)
             val reason = if (mode != null) null else PanoPluginUpdatePlan.refusalFor(
@@ -161,7 +169,7 @@ class PanelGetServerUpdatesAPI(
                 "servers" to pluginRows,
                 "platformVersion" to Main.VERSION,
                 // Whether nodes and agents are updated on their own (`managed-servers.node-auto-update`);
-                // switched with `PUT /api/panel/updates/node-auto-update`.
+                // switched with `PUT /api/v1/panel/updates/node-auto-update`.
                 "nodeAutoUpdate" to configManager.config.effectiveManagedServers.nodeAutoUpdate
             )
         )

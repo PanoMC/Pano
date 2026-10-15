@@ -13,9 +13,8 @@ import com.panomc.platform.util.UsageMode
 /**
  * The alert switch grid, and whether the e-mail column means anything in this build.
  *
- * `emailAvailable` is false until a `serverAlert` mail template ships with the platform, and the
- * panel shows the e-mail switches disabled with a hint rather than offering a toggle that would
- * silently do nothing.
+ * `emailAvailable` is always true now that the `server-alert` mail template ships with the core
+ * mail templates; it stays in the answer because the panel reads it.
  */
 @Endpoint
 class PanelGetAlertSettingsAPI(
@@ -24,7 +23,7 @@ class PanelGetAlertSettingsAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/settings/alerts", RouteType.GET))
+    override val paths = listOf(Path("/settings/alerts", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 

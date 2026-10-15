@@ -5,10 +5,14 @@ import io.vertx.core.Handler
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.streams.WriteStream
 
+/**
+ * Passes everything to [delegate] and reports the share written so far, at most once per percent.
+ * [onProgress] gets the share, the bytes written and the total size.
+ */
 class ProgressWriteStream(
     private val delegate: WriteStream<Buffer>,
     private var totalSize: Long = -1,
-    private val onProgress: (Double) -> Unit
+    private val onProgress: (progress: Double, writtenBytes: Long, totalBytes: Long) -> Unit
 ) : WriteStream<Buffer> {
 
     private var writtenBytes = 0L
@@ -58,7 +62,7 @@ class ProgressWriteStream(
             // Report progress every 1% to avoid flooding
             if (progress - lastReportedProgress >= 0.01 || progress >= 1.0) {
                 lastReportedProgress = progress
-                onProgress(progress)
+                onProgress(progress, writtenBytes, totalSize)
             }
         }
     }

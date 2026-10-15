@@ -16,10 +16,10 @@ import com.panomc.platform.node.transfer.TransferTicketStore
 import com.panomc.platform.server.files.InlinePreviewTypes
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
-import io.vertx.ext.web.validation.builder.Parameters.explodedParam
-import io.vertx.ext.web.validation.builder.Parameters.optionalParam
-import io.vertx.ext.web.validation.builder.Parameters.param
-import io.vertx.ext.web.validation.builder.ValidationHandlerBuilder
+import com.panomc.platform.schema.dsl.Parameters.explodedParam
+import com.panomc.platform.schema.dsl.Parameters.optionalParam
+import com.panomc.platform.schema.dsl.Parameters.param
+import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
@@ -33,7 +33,7 @@ import com.panomc.platform.util.UsageMode
  * directories as one zip, or a single image, video or audio file shown inline as a preview.
  *
  * The bytes never touch Pano's disk and never sit in its heap: this request parks on a ticket, the
- * node opens `PUT /api/node/transfer/<ticket>` and that request's body is piped straight into this
+ * node opens `PUT /api/v1/node/transfer/<ticket>` and that request's body is piped straight into this
  * response. What the person downloads is therefore limited by their connection and the node's, not
  * by how much memory Pano has. A zip is no exception — the source builds it while it sends it, so
  * there is no archive anywhere, only a stream that happens to be one.
@@ -54,7 +54,7 @@ class PanelDownloadServerFileAPI(
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
-    override val paths = listOf(Path("/api/panel/servers/:id/files/download", RouteType.GET))
+    override val paths = listOf(Path("/servers/:id/files/download", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)

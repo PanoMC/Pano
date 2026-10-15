@@ -130,14 +130,15 @@ object PanoPluginUpdatePlan {
     /**
      * The servers "update all" should start an update on.
      *
-     * [latestFor] is asked per software rather than once, because the Bukkit family, the two proxies
+     * [latestFor] is asked per candidate -- the newest release depends on the software and on the
+     * release channel the installed plugin came from -- rather than once, because the Bukkit family, the two proxies
      * and Fabric each run their own module and a release may carry some of them and not others.
      * Software with no Pano plugin at all is never a candidate, whatever its row says.
      */
-    fun serversNeedingUpdate(candidates: List<Candidate>, latestFor: (ServerType) -> String?): List<Candidate> =
+    fun serversNeedingUpdate(candidates: List<Candidate>, latestFor: (Candidate) -> String?): List<Candidate> =
         candidates.filter { candidate ->
             ManagedPluginJarResolver.platformOf(candidate.type) != null &&
-                needsUpdate(candidate.installedVersion, latestFor(candidate.type))
+                needsUpdate(candidate.installedVersion, latestFor(candidate))
         }
 
     /**

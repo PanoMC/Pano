@@ -602,8 +602,8 @@ class PanoApiManager(
                 OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
             ).coAwait()
             val totalSize = versionInfo.getLong("size") ?: -1L
-            return ProgressWriteStream(stream, totalSize) {
-                progressHandler.invoke(Progress(it))
+            return ProgressWriteStream(stream, totalSize) { progress, written, total ->
+                progressHandler.invoke(Progress(progress, written, total))
             }
         }
 

@@ -517,8 +517,8 @@ class UpdateManager(
                 OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true)
             ).coAwait()
 
-            val progressWriteStream = ProgressWriteStream(writeStream, size) {
-                progressHandler.invoke(Progress(it))
+            val progressWriteStream = ProgressWriteStream(writeStream, size) { progress, written, total ->
+                progressHandler.invoke(Progress(progress, written, total))
             }
 
             webClient

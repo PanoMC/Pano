@@ -48,3 +48,6 @@ Pano/logs
 Pano/node-data
 Pano/pano-backups
 node-data
+
+# the snapshot golden fixtures contain a config.json and a config.conf of their own
+!Snapshot/src/test/resources/snapshot/**

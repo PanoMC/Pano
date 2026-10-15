@@ -46,4 +46,5 @@ Pano/maintenance
 .config_history
 Pano/logs
 Pano/node-data
+Pano/pano-backups
 node-data

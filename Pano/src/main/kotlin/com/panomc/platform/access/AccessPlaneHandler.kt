@@ -4,6 +4,7 @@ import com.panomc.platform.UIManager
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.Error
+import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.ui.FrontendMode
 import com.panomc.platform.util.TrustedProxyIpResolver
 import io.vertx.core.Handler
@@ -91,7 +92,8 @@ class AccessPlaneHandler(
     private val databaseManager: DatabaseManager,
     private val configManager: ConfigManager,
     private val originPolicy: OriginPolicy,
-    private val uiManager: ObjectProvider<UIManager>
+    private val uiManager: ObjectProvider<UIManager>,
+    private val setupManager: ObjectProvider<SetupManager>
 ) {
     fun create(): Handler<RoutingContext> = create(
         frontendKeyService,
@@ -105,6 +107,8 @@ class AccessPlaneHandler(
             }
         },
         origins = originPolicy,
+        // Before the setup is done there is no database (or no tables yet) to read the origins from.
+        originsReady = { setupManager.getObject().isSetupDone() },
         // Read per request from the live value: a mode change applies without a restart.
         frontendMode = { uiManager.getObject().frontendMode }
     )
@@ -130,10 +134,12 @@ class AccessPlaneHandler(
             sqlClient: suspend () -> SqlClient,
             trustedProxies: () -> List<String>,
             origins: OriginPolicy = OriginPolicy.empty(),
-            frontendMode: () -> FrontendMode = { FrontendMode.CUSTOM_APP }
+            frontendMode: () -> FrontendMode = { FrontendMode.CUSTOM_APP },
+            originsReady: () -> Boolean = { true }
         ): Handler<RoutingContext> = Handler { context ->
-            // The list of allowed origins is only needed when an Origin header is there; read it once.
-            if (!origins.isLoaded && context.request().getHeader("Origin") != null) {
+            // The list of allowed origins is only needed when an Origin header is there; read it once, and only once
+            // the database is there (until then no origin is allowed besides the site's own, as on a failed read).
+            if (!origins.isLoaded && context.request().getHeader("Origin") != null && originsReady()) {
                 context.request().pause()
 
                 CoroutineScope(context.vertx().dispatcher()).launch {

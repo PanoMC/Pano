@@ -397,6 +397,37 @@ class AccessPlaneHandlerTest {
     }
 
     @Test
+    fun `the allowed origins are not read before the setup is done`() {
+        val reads = java.util.concurrent.atomic.AtomicInteger()
+        val ready = java.util.concurrent.atomic.AtomicBoolean(false)
+        val origins = OriginPolicy(
+            read = { reads.incrementAndGet(); """["https://play.pano.test"]""" },
+            write = { _, _ -> },
+            websiteUrl = { "https://pano.test" }
+        )
+        val router = Router.router(vertx)
+
+        router.route("/api/v1/*").handler(
+            AccessPlaneHandler.create(
+                service,
+                sqlClient = { sqlClient },
+                trustedProxies = { emptyList() },
+                origins = origins,
+                originsReady = { ready.get() }
+            )
+        )
+        router.route("/api/v1/*").handler { it.response().end("ok") }
+        port = vertx.createHttpServer().requestHandler(router).listen(0, "127.0.0.1").blockingGet().actualPort()
+
+        assertEquals(200, get("/api/v1/setup/step", mapOf("Origin" to "https://pano.test")).status)
+        assertEquals(0, reads.get())
+
+        ready.set(true)
+        assertEquals(200, get("/api/v1/setup/step", mapOf("Origin" to "https://pano.test")).status)
+        assertEquals(1, reads.get())
+    }
+
+    @Test
     fun `a loopback visitor without forwarding headers is still not limited`() {
         repeat(30) { assertEquals(200, get("/api/v1/auth/login").status) }
     }

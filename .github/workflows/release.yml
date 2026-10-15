@@ -218,6 +218,16 @@ jobs:
             echo "-----------------------------------"
           fi
 
+      # The first stable release would list every prerelease commit, past GitHub's 125,000 character limit for release notes.
+      - name: Short notes for the first stable release
+        if: ${{ steps.extract_branch.outputs.branch == 'main' }}
+        run: |
+          if ! git tag -l 'v*' | grep -qv -e '-'; then
+            jq '.plugins |= map(if . == "@semantic-release/release-notes-generator" then [., {"writerOpts": {"mainTemplate": "## {{version}} ({{date}})\n\nFirst stable release. The change history is in the v1.0.0-alpha and v1.0.0-beta prereleases.\n"}}] else . end)' .releaserc.json > .releaserc.tmp
+            mv .releaserc.tmp .releaserc.json
+            cat .releaserc.json
+          fi
+
       - name: Release (semantic-release)
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN_GITHUB }}

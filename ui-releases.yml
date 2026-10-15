@@ -1,7 +1,7 @@
-panel-ui: v1.0.0-dev.623
-vanilla-theme: v1.0.0-dev.282
-setup-ui: v1.0.0-dev.86
-pano-email: v1.0.0-alpha.7
+panel-ui: v1.0.0
+vanilla-theme: v1.0.0
+setup-ui: v1.0.0
+pano-email: v1.0.0
 
 # widget-runtime (doc 06 section 3.3): the web-component runtime from theme-core/packages/widget-host.
 # Written, not exercised: nothing can be released yet, so the row stays a comment and downloadUIReleases

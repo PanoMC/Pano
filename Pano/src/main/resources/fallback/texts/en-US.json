@@ -24,7 +24,7 @@
     "newPassword": "New password",
     "newPasswordRepeat": "New password again",
     "button": "Save password",
-    "done": "Your password is changed. You can sign in with it now."
+    "done": "Your password has been changed. You can sign in with it now."
   },
   "login": {
     "title": "Sign in",
@@ -51,7 +51,7 @@
     "NETWORK": "Could not reach the server. Please try again.",
     "INVALID_LINK": "This link is not valid or has expired.",
     "INVALID_TOKEN": "This link is not valid or has expired.",
-    "LOGIN_IS_INVALID": "The user name or the password is wrong.",
+    "LOGIN_IS_INVALID": "The username or password is incorrect.",
     "LOGIN_EMAIL_NOT_VERIFIED": "Your e-mail address is not verified yet. We sent you an activation link.",
     "LOGIN_USER_IS_BANNED": "This account is banned.",
     "IP_IS_BANNED": "Your IP address is banned.",

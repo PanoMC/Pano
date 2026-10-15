@@ -7,7 +7,7 @@ All images live in one public GHCR package, `ghcr.io/panomc/pano`, built by
 | --- | --- | --- |
 | `<version>` (e.g. `1.0.0-alpha.520`) | Full image: runtime-jre11 + that release jar | self-hosters, pinned |
 | `alpha`, `beta` | Full image, newest release of that channel | self-hosters testing prereleases |
-| `latest` | Full image, newest stable (`main`) release; until the first stable release, the newest beta (the newest alpha while no beta image exists) | self-hosters (`docker/compose.yaml` default) |
+| `latest` | Full image, newest stable (`main`) release | self-hosters (`docker/compose.yaml` default) |
 | `runtime-jre<N>` (N = 11, 17, 21, 25) | Runtime base: JRE, tini, Bun, launcher, no release | Pano Host Portals |
 | `runtime-jre<N>-<version>` | The runtime base built with that release | pins |
 
@@ -19,7 +19,7 @@ Docker Compose with MariaDB (`compose.yaml` here, mirrored 1:1 in the docs):
 
 ```sh
 mkdir pano && cd pano
-curl -fsSLO https://raw.githubusercontent.com/PanoMC/Pano/alpha/docker/compose.yaml
+curl -fsSLO https://raw.githubusercontent.com/PanoMC/Pano/main/docker/compose.yaml
 echo "PANO_DB_PASSWORD=$(openssl rand -hex 24)" > .env
 docker compose up -d
 ```

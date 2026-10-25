@@ -493,6 +493,25 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
+    fun `uploads an earlier run left half done are removed once, before anything is uploaded`(): Unit = runBlocking {
+        val client = PanoHostClient({ host.baseUrl }, { token }, { PanoIdentity(INSTANCE_ID, "My Server") }, RetryPolicy(3, 5))
+        val open = client.startBackup(10, "mc-server", "server-uuid-4")
+
+        assertEquals("UPLOADING", host.backups.getValue(open.id).getString("status"))
+
+        service.tick(now)
+
+        assertTrue(!host.backups.containsKey(open.id), "the open upload of the earlier run is gone")
+
+        // Once per run: an upload opened later (this run's own) is never touched.
+        val later = client.startBackup(10, "mc-server", "server-uuid-4")
+
+        service.tick(now)
+
+        assertTrue(host.backups.containsKey(later.id))
+    }
+
+    @Test
     fun `an mc-server backup downloads as the node's zip under its backup name`(): Unit = runBlocking {
         service.setPassphrase(passphrase.toCharArray())
 

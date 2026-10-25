@@ -80,6 +80,10 @@ class PanoRemoteBackupService(
     @Volatile
     private var lastScheduledFailureAt: Long? = null
 
+    /** Whether this process already looked for uploads a previous one left half done. */
+    @Volatile
+    private var interruptedChecked = false
+
     /** The archive of the last snapshot download job, waiting to be fetched by the panel. */
     @Volatile
     private var download: SnapshotDownload? = null
@@ -837,6 +841,31 @@ class PanoRemoteBackupService(
         }
     }
 
+    /**
+     * Deletes the uploads of this Pano that a previous run left open (stopped or restarted mid-upload): an archive still
+     * `UPLOADING`, a snapshot still `RUNNING`. Called once per run before anything is uploaded, so none of them is this
+     * process's own; left alone they stay listed as "uploading" until their session expires.
+     */
+    internal suspend fun discardInterruptedUploads() {
+        try {
+            val archives = (listBackups().getJsonArray("panos") ?: JsonArray()).filterIsInstance<JsonObject>()
+                .flatMap { pano -> (pano.getJsonArray("backups") ?: JsonArray()).filterIsInstance<JsonObject>() }
+                .filter { it.getBoolean("own") == true && it.getString("status") == ARCHIVE_UPLOADING }
+                .mapNotNull { it.getString("id") }
+                .distinct()
+            val snapshots = (client.listSnapshots().getJsonArray("snapshots") ?: JsonArray()).filterIsInstance<JsonObject>()
+                .filter { it.getBoolean("own") != false && it.getString("status") == SNAPSHOT_RUNNING }
+                .mapNotNull { it.getString("id") }
+
+            archives.forEach { id -> runCatching { client.deleteBackup(id) }.onSuccess { logger.info("Pano Backup: removed the unfinished upload $id of an earlier run") } }
+            snapshots.forEach { id -> runCatching { client.deleteSnapshot(id) }.onSuccess { logger.info("Pano Backup: removed the unfinished snapshot $id of an earlier run") } }
+        } catch (e: Exception) {
+            logger.warn("Could not look for unfinished Pano Backup uploads: ${e.message}")
+        } finally {
+            listCache = null
+        }
+    }
+
     /** Tells [source] where its copy went; the upload stands when that fails (the backup only shows no cloud mark). */
     private suspend fun recordMcUpload(source: McServerBackupSource, remoteId: String) {
         try {
@@ -1000,6 +1029,11 @@ class PanoRemoteBackupService(
 
         if (!isConnected()) {
             return
+        }
+
+        if (!interruptedChecked && !backups.isBusy()) {
+            interruptedChecked = true
+            discardInterruptedUploads()
         }
 
         val lastFailure = lastScheduledFailureAt
@@ -1197,6 +1231,8 @@ class PanoRemoteBackupService(
         /** A managed server's copy sent after its backup by the server's Pano Backup setting. */
         const val TRIGGER_AUTOMATIC = "AUTOMATIC"
         private const val FOLLOW_FILE_MS = 500L
+        private const val ARCHIVE_UPLOADING = "UPLOADING"
+        private const val SNAPSHOT_RUNNING = "RUNNING"
 
         /** A move out of Pano Host: its export failed, vanished or took too long. */
         const val EXPORT_FAILED_CODE = "EXPORT_FAILED"

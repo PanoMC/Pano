@@ -39,6 +39,7 @@ class PanelUpdateTicketCategoryAPI(
                         .requiredProperty("title", stringSchema())
                         .requiredProperty("description", stringSchema())
                         .optionalProperty("enabled", booleanSchema())
+                        .optionalProperty("autoReplyTemplateId", numberSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -59,13 +60,16 @@ class PanelUpdateTicketCategoryAPI(
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.ticketCategoryDao.existsById(id, sqlClient)
+        val category = databaseManager.ticketCategoryDao.getById(id, sqlClient) ?: throw NotExists()
 
-        if (!exists) {
-            throw NotExists()
+        // Left out of the request: the category keeps the auto-reply it has.
+        val autoReplyTemplateId = data.getLong("autoReplyTemplateId") ?: category.autoReplyTemplateId
+
+        if (autoReplyTemplateId != -1L && databaseManager.ticketTemplateDao.getById(autoReplyTemplateId, sqlClient) == null) {
+            throw InvalidFields(mapOf("autoReplyTemplateId" to true))
         }
 
-        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description, enabled = enabled), sqlClient)
+        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description, enabled = enabled, autoReplyTemplateId = autoReplyTemplateId), sqlClient)
 
         val url = TextUtil.convertStringToUrl(title, 32)
 

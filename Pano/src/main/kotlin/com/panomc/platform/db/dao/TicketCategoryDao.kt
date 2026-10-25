@@ -5,6 +5,9 @@ import com.panomc.platform.db.model.TicketCategory
 import io.vertx.sqlclient.SqlClient
 
 abstract class TicketCategoryDao : Dao<TicketCategory>(TicketCategory::class.java) {
+    /** Turns the auto-reply off in every category that sends [templateId] (the template is going away). */
+    abstract suspend fun clearAutoReplyTemplate(templateId: Long, sqlClient: SqlClient)
+
     abstract suspend fun getAll(
         sqlClient: SqlClient
     ): List<TicketCategory>

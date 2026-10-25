@@ -1,5 +1,13 @@
 package com.panomc.platform.route.api.ticket
 
+import io.vertx.sqlclient.SqlClient
+
+import com.panomc.platform.ticket.TicketTemplateRenderer
+
+import com.panomc.platform.db.model.TicketCategory
+
+import com.panomc.platform.config.ConfigManager
+
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.ticket.TicketSettings
@@ -29,7 +37,8 @@ import com.panomc.platform.schema.EndpointDoc
 class CreateTicketAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val configManager: ConfigManager
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -73,9 +82,11 @@ class CreateTicketAPI(
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val sqlClient = getSqlClient()
 
+        var category: TicketCategory? = null
+
         if (categoryId != -1L) {
             // A category that is turned off takes no new ticket: to the form it is not there.
-            val category = databaseManager.ticketCategoryDao.getById(categoryId, sqlClient)
+            category = databaseManager.ticketCategoryDao.getById(categoryId, sqlClient)
 
             if (category == null || !category.enabled) {
                 throw CategoryNotExists()
@@ -97,6 +108,15 @@ class CreateTicketAPI(
             sqlClient
         )
 
+        // The category's own auto-reply (or the one for tickets without a category) comes first; without one, the
+        // default of the ticket settings.
+        val ownAutoReplyTemplateId = category?.autoReplyTemplateId
+            ?: TicketSettings.noCategoryAutoReplyTemplateId(databaseManager, sqlClient)
+        val autoReplyTemplateId = ownAutoReplyTemplateId.takeIf { it != -1L }
+            ?: TicketSettings.defaultAutoReplyTemplateId(databaseManager, sqlClient)
+
+        sendAutoReply(Ticket(id = id, title = title, categoryId = categoryId, userId = userId), autoReplyTemplateId, sqlClient)
+
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
         WebhookCoreEvents.fire { ticketCreated(id, title, categoryId, userId, username, sqlClient) }
@@ -114,6 +134,30 @@ class CreateTicketAPI(
             mapOf(
                 "id" to id
             )
+        )
+    }
+
+    /**
+     * The category's ready reply, sent by the site itself as the first answer. The ticket stays new: an admin still
+     * has to look at it.
+     */
+    private suspend fun sendAutoReply(ticket: Ticket, templateId: Long, sqlClient: SqlClient) {
+        if (templateId == -1L) {
+            return
+        }
+
+        val template = databaseManager.ticketTemplateDao.getById(templateId, sqlClient) ?: return
+        val values = TicketTemplateRenderer.values(ticket, null, databaseManager, configManager, sqlClient)
+
+        databaseManager.ticketMessageDao.addMessage(
+            TicketMessage(
+                userId = -1,
+                ticketId = ticket.id,
+                message = TicketTemplateRenderer.render(template.body, values),
+                panel = 1,
+                system = true
+            ),
+            sqlClient
         )
     }
 

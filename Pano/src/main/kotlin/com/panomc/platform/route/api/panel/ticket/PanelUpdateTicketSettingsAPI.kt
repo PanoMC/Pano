@@ -5,6 +5,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.util.UsageMode
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.error.InvalidFields
 import com.panomc.platform.model.*
 import com.panomc.platform.schema.dsl.Bodies.json
 import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
@@ -27,16 +28,47 @@ class PanelUpdateTicketSettingsAPI(
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
-            .body(json(objectSchema().requiredProperty("allowNoCategory", booleanSchema())))
+            .body(
+                json(
+                    objectSchema()
+                        .requiredProperty("allowNoCategory", booleanSchema())
+                        .optionalProperty("defaultAutoReplyTemplateId", numberSchema())
+                        .optionalProperty("noCategoryAutoReplyTemplateId", numberSchema())
+                )
+            )
             .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManageTicketsPermission(), context)
 
-        val allowNoCategory = getParameters(context).body().jsonObject.getBoolean("allowNoCategory")
+        val data = getParameters(context).body().jsonObject
+        val allowNoCategory = data.getBoolean("allowNoCategory")
+        // Left out of the request: the setting stays as it is.
+        val autoReplies = mapOf(
+            "defaultAutoReplyTemplateId" to data.getLong("defaultAutoReplyTemplateId"),
+            "noCategoryAutoReplyTemplateId" to data.getLong("noCategoryAutoReplyTemplateId")
+        )
 
-        TicketSettings.setAllowNoCategory(allowNoCategory, databaseManager, getSqlClient())
+        val sqlClient = getSqlClient()
+
+        val unknown = autoReplies.filter { (_, templateId) ->
+            templateId != null && templateId != -1L && databaseManager.ticketTemplateDao.getById(templateId, sqlClient) == null
+        }
+
+        if (unknown.isNotEmpty()) {
+            throw InvalidFields(unknown.mapValues { true })
+        }
+
+        TicketSettings.setAllowNoCategory(allowNoCategory, databaseManager, sqlClient)
+
+        autoReplies["defaultAutoReplyTemplateId"]?.let {
+            TicketSettings.setDefaultAutoReplyTemplateId(it, databaseManager, sqlClient)
+        }
+
+        autoReplies["noCategoryAutoReplyTemplateId"]?.let {
+            TicketSettings.setNoCategoryAutoReplyTemplateId(it, databaseManager, sqlClient)
+        }
 
         return Successful()
     }

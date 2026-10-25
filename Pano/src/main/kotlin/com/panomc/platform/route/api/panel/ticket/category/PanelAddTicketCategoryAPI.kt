@@ -16,6 +16,7 @@ import com.panomc.platform.schema.dsl.Bodies.json
 import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
+import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.objectSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 import com.panomc.platform.util.UsageMode
@@ -37,6 +38,7 @@ class PanelAddTicketCategoryAPI(
                         .requiredProperty("title", stringSchema())
                         .requiredProperty("description", stringSchema())
                         .optionalProperty("enabled", booleanSchema())
+                        .optionalProperty("autoReplyTemplateId", numberSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -51,13 +53,18 @@ class PanelAddTicketCategoryAPI(
         val title = data.getString("title")
         val description = data.getString("description")
         val enabled = data.getBoolean("enabled") ?: true
+        val autoReplyTemplateId = data.getLong("autoReplyTemplateId") ?: -1L
 
         validateForm(title)
 
         val sqlClient = getSqlClient()
 
+        if (autoReplyTemplateId != -1L && databaseManager.ticketTemplateDao.getById(autoReplyTemplateId, sqlClient) == null) {
+            throw InvalidFields(mapOf("autoReplyTemplateId" to true))
+        }
+
         val categoryId = databaseManager.ticketCategoryDao.add(
-            TicketCategory(title = title, description = description, enabled = enabled),
+            TicketCategory(title = title, description = description, enabled = enabled, autoReplyTemplateId = autoReplyTemplateId),
             sqlClient
         )
 

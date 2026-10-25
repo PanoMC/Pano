@@ -75,6 +75,7 @@ class PanelGetTicketCategoriesAPI(
                         "id" to category.id,
                         "title" to category.title,
                         "description" to category.description,
+                        "autoReplyTemplateId" to category.autoReplyTemplateId,
                         "ticketCount" to count,
                         "tickets" to ticketDataList
                     )

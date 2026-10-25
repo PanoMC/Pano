@@ -24,6 +24,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
                               `message` text NOT NULL,
                               `date` BIGINT(20) NOT NULL,
                               `panel` int NOT NULL,
+                              `system` TINYINT(1) NOT NULL DEFAULT 0,
                               PRIMARY KEY (`id`)
                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Ticket message table.';
                         """
@@ -37,7 +38,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         sqlClient: SqlClient
     ): List<TicketMessage> {
         val query =
-            "SELECT id, userId, ticketId, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? ORDER BY id DESC LIMIT 5"
+            "SELECT id, userId, ticketId, message, `date`, `panel`, `system` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? ORDER BY id DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -53,7 +54,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         sqlClient: SqlClient
     ): List<TicketMessage> {
         val query =
-            "SELECT id, userId, ticketId, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? and id < ? ORDER BY id DESC LIMIT 5"
+            "SELECT id, userId, ticketId, message, `date`, `panel`, `system` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? and id < ? ORDER BY id DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -83,7 +84,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "INSERT INTO `${getTablePrefix() + tableName}` (userId, ticketId, message, `date`, panel) VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO `${getTablePrefix() + tableName}` (userId, ticketId, message, `date`, panel, `system`) VALUES (?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -94,6 +95,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
                     ticketMessage.message,
                     ticketMessage.date,
                     ticketMessage.panel,
+                    ticketMessage.system,
                 )
             )
             .coAwait()
@@ -132,7 +134,7 @@ class TicketMessageDaoImpl : TicketMessageDao() {
         sqlClient: SqlClient
     ): TicketMessage? {
         val query =
-            "SELECT id, userId, ticketId, message, `date`, `panel` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? ORDER BY `date` DESC LIMIT 1"
+            "SELECT id, userId, ticketId, message, `date`, `panel`, `system` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? ORDER BY `date` DESC LIMIT 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)

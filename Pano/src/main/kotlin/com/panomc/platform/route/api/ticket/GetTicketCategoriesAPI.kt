@@ -41,7 +41,17 @@ class GetTicketCategoriesAPI(
 
         Paging.requireInRange(page, count)
 
+        // The auto-reply a category sends is the panel's business, not the site's.
         val categories = databaseManager.ticketCategoryDao.getEnabledList(page.limit, page.offset, sqlClient)
+            .map {
+                mapOf(
+                    "id" to it.id,
+                    "title" to it.title,
+                    "description" to it.description,
+                    "url" to it.url,
+                    "enabled" to it.enabled
+                )
+            }
 
         // Next to the list: whether the form may offer "no category" at all.
         return Successful(

@@ -25,8 +25,14 @@ class PanelGetTicketSettingsAPI(
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManageTicketsPermission(), context)
 
+        val sqlClient = getSqlClient()
+
         return Successful(
-            mapOf("allowNoCategory" to TicketSettings.allowNoCategory(databaseManager, getSqlClient()))
+            mapOf(
+                "allowNoCategory" to TicketSettings.allowNoCategory(databaseManager, sqlClient),
+                "defaultAutoReplyTemplateId" to TicketSettings.defaultAutoReplyTemplateId(databaseManager, sqlClient),
+                "noCategoryAutoReplyTemplateId" to TicketSettings.noCategoryAutoReplyTemplateId(databaseManager, sqlClient)
+            )
         )
     }
 }

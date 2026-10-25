@@ -102,7 +102,8 @@ class PanelSendTicketMessageAPI(
                     "username" to username,
                     "message" to ticketMessage.message,
                     "date" to ticketMessage.date,
-                    "panel" to ticketMessage.panel
+                    "panel" to ticketMessage.panel,
+                    "system" to false
                 )
             )
         )

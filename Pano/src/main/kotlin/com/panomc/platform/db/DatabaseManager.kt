@@ -37,6 +37,7 @@ class DatabaseManager(
     @Lazy val ticketDao: TicketDao,
     @Lazy val ticketCategoryDao: TicketCategoryDao,
     @Lazy val ticketMessageDao: TicketMessageDao,
+    @Lazy val ticketTemplateDao: TicketTemplateDao,
     @Lazy val permissionGroupDao: PermissionGroupDao,
     @Lazy val permissionTrackDao: PermissionTrackDao,
     @Lazy val permissionNodeDao: PermissionNodeDao,

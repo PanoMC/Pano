@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NoPermission
 import com.panomc.platform.error.NotExists
@@ -22,7 +23,8 @@ import com.panomc.platform.schema.CoreSchemas
 @Endpoint
 class GetTicketMessagesAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val configManager: ConfigManager
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -90,10 +92,13 @@ class GetTicketMessagesAPI(
                     "id" to ticketMessage.id,
                     "userId" to ticketMessage.userId,
                     "ticketId" to ticketMessage.ticketId,
-                    "username" to (usernameList[ticketMessage.userId] ?: "-"),
+                    // A message the site sent by itself (an auto-reply) is signed with the website's name.
+                    "username" to (if (ticketMessage.system) configManager.config.websiteName
+                    else usernameList[ticketMessage.userId] ?: "-"),
                     "message" to ticketMessage.message,
                     "date" to ticketMessage.date,
-                    "panel" to ticketMessage.panel
+                    "panel" to ticketMessage.panel,
+                    "system" to ticketMessage.system
                 )
             )
         }

@@ -38,6 +38,12 @@ object NodeProtocol {
     const val NODE_UNINSTALL_VERSION = 4
 
     /**
+     * First version that keeps a FULL zip pushed to it as a backup (`BACKUP_IMPORT`, SM-PB): how a server backup
+     * comes back out of Pano Backup. An older daemon never answers it, so it is not sent below this.
+     */
+    const val BACKUP_IMPORT_VERSION = 7
+
+    /**
      * First version that understands `SET_NODE_METRICS_INTERVAL` (SM-65, §2.4.30). Shipped in the
      * same protocol bump as the uninstall.
      */

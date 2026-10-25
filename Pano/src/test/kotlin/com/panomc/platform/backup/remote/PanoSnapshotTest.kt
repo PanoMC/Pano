@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -151,6 +152,75 @@ class PanoSnapshotTest {
     private fun gunzip(bytes: ByteArray) = GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readBytes() }
 
     private fun snapshot(): PanoBackupJob = runBlocking { awaitJob(service.startSnapshot("test")) }
+
+    /** A node backup zip of a small server: a world with a region file, a config and an empty directory. */
+    private fun serverZip(region: ByteArray): File = File(temp, "server-${System.nanoTime()}.zip").also { file ->
+        java.util.zip.ZipOutputStream(file.outputStream()).use { zip ->
+            fun put(name: String, bytes: ByteArray? = null) {
+                zip.putNextEntry(java.util.zip.ZipEntry(name))
+                bytes?.let { zip.write(it) }
+                zip.closeEntry()
+            }
+
+            put("world/")
+            put("world/level.dat", "level".toByteArray())
+            put("world/region/r.0.0.mca", region)
+            put("logs/")
+            put("server.properties", "motd=Hi\n".toByteArray())
+        }
+    }
+
+    @Test
+    fun `a server snapshot goes into the repository with its server as subject and comes back as the node's zip`(): Unit = runBlocking {
+        val region = Random(7).nextBytes(2 shl 20)
+        val settings = com.panomc.platform.server.backup.ServerPanoBackupSettings(
+            enabled = true, mode = com.panomc.platform.server.backup.BackupMode.SNAPSHOT, keepLast = 1
+        )
+
+        fun source(id: String, zip: File) = McServerBackupSource(
+            4, "server-uuid-4", id, JsonObject().put("id", id).put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"), settings
+        ) { it.writeBytes(zip.readBytes()) }
+
+        val first = awaitJob(service.startMcUpload(source("b-1", serverZip(region))))
+
+        assertEquals(PanoBackupJob.Status.DONE, first.status, first.error + " " + first.message)
+        assertEquals(PanoBackupJob.Type.MC_UPLOAD, first.type)
+
+        // The same world again: only what changed is new, and the server keeps its last one only.
+        val changed = region.copyOf().also { it[0] = (it[0] + 1).toByte() }
+        val second = awaitJob(service.startMcUpload(source("b-2", serverZip(changed))))
+
+        assertEquals(PanoBackupJob.Status.DONE, second.status, second.error + " " + second.message)
+
+        val rows = service.listMcBackups("server-uuid-4")
+
+        assertEquals(listOf(second.remoteId), rows.map { it.getString("id") })
+        assertEquals(PanoRemoteBackupService.TYPE_SNAPSHOT, rows.single().getString("type"))
+        assertEquals("mc-server", rows.single().getString("kind"))
+
+        // Back as the zip the node had: same files, same bytes.
+        var received: Pair<Map<String, ByteArray>, JsonObject>? = null
+        val imported = awaitJob(service.startMcImport(second.remoteId!!, null, 9, McServerBackupImporter { serverId, zip, meta, _ ->
+            assertEquals(9L, serverId)
+            received = entries(zip.readBytes()) to meta
+            "imported"
+        }, snapshot = true))
+
+        assertEquals(PanoBackupJob.Status.DONE, imported.status, imported.error + " " + imported.message)
+        assertEquals("imported", imported.backupId)
+
+        val (files, meta) = received!!
+
+        assertArrayEquals(changed, files.getValue("world/region/r.0.0.mca"))
+        assertArrayEquals("level".toByteArray(), files.getValue("world/level.dat"))
+        assertTrue(files.containsKey("logs/"), "empty directories come back: ${files.keys}")
+        assertEquals("Hourly", meta.getString("name"))
+        assertEquals("server-uuid-4", meta.getString("serverUuid"))
+
+        // A server snapshot is never restored over the Pano itself.
+        assertEquals(PanoBackupJob.Status.FAILED, awaitJob(service.startSnapshotRestore(second.remoteId!!)).status)
+        assertTrue(leftovers().isEmpty(), "scratch left: ${leftovers()}")
+    }
 
     @Test
     fun `a snapshot restores into the archive Pano would have written, and downloadBytes is its size`(): Unit = runBlocking {

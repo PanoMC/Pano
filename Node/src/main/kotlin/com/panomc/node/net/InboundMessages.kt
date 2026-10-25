@@ -367,6 +367,23 @@ data class BackupDeleteMessage(
 )
 
 /**
+ * Keep the FULL zip Pano has waiting under [ticket] as backup [backupId] of this server (protocol 7). [size] and
+ * [sha256] are what Pano checked before sending it; the zip is refused when it does not match them.
+ */
+data class BackupImportMessage(
+    val eventId: String? = null,
+    val serverUuid: String? = null,
+    val backupId: String? = null,
+    val ticket: String? = null,
+    val name: String? = null,
+    val size: Long? = null,
+    val sha256: String? = null,
+    val createdAt: Long? = null,
+    val scope: String? = null,
+    val fileCount: Long? = null
+)
+
+/**
  * Put one plugin or mod jar into a server's `plugins` (or `mods`) directory.
  *
  * Pano resolved the download from Modrinth, Hangar or CurseForge and passes on whatever checksum

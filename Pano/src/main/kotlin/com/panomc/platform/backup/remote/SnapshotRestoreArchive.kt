@@ -38,6 +38,8 @@ class SnapshotRestoreArchive(
     private val client: PanoHostClient,
     private val session: SnapshotSession,
     private val dir: File,
+    /** What the snapshot must be of: the Pano itself ([build]) or a managed server ([McServerSnapshot.SCOPE], [buildServerZip]). */
+    private val scope: String = SnapshotFormat.SCOPE_PANO_INSTANCE,
     private val onProgress: (done: Long, total: Long) -> Unit = { _, _ -> }
 ) {
     private class Meta(val json: JsonObject) {
@@ -115,6 +117,56 @@ class SnapshotRestoreArchive(
         }
     }
 
+    /**
+     * Rebuilds a managed server's snapshot ([McServerSnapshot]) into the zip its node backup was: every `server/` entry
+     * at its path inside the server, directories included. Returns the backup's meta (`meta/backup.json`).
+     */
+    fun buildServerZip(target: File): JsonObject {
+        check(scope == McServerSnapshot.SCOPE) { "Not a server snapshot reader." }
+
+        dir.mkdirs()
+
+        val manifest = readManifest()
+        val metaEntry = manifest.entries.firstOrNull { it.p == McServerSnapshot.META_PATH } ?: throw broken("the snapshot has no meta/backup.json")
+
+        if ((metaEntry.s ?: 0) > MAX_META_BYTES) throw broken("meta/backup.json is too large")
+
+        val prefix = McServerSnapshot.SERVER_ROOT + "/"
+        val serverEntries = manifest.entries.filter { it.p.startsWith(prefix) }
+        val files = serverEntries.filter { it.isFile }
+        val order = listOf(metaEntry) + files
+
+        resolve(order.flatMap { it.c ?: emptyList() })
+        order.flatMap { it.c ?: emptyList() }.forEach { remaining.merge(locations.getValue(it).pack, 1, Int::plus) }
+
+        val total = maxOf(manifest.logicalBytes, 1L)
+        val meta = JsonObject(String(entryStream(metaEntry).readBytes(), Charsets.UTF_8))
+
+        try {
+            java.util.zip.ZipOutputStream(target.outputStream().buffered(256 * 1024)).use { zip ->
+                serverEntries.forEach { entry ->
+                    val name = entry.p.removePrefix(prefix) + if (entry.isDirectory) "/" else ""
+                    val zipEntry = java.util.zip.ZipEntry(name)
+
+                    entry.m?.let { zipEntry.time = it }
+                    zip.putNextEntry(zipEntry)
+
+                    if (entry.isFile) {
+                        entryStream(entry).use { it.copyTo(zip, 64 * 1024) }
+                        onProgress(minOf(readBytes, total), total)
+                    }
+
+                    zip.closeEntry()
+                }
+            }
+
+            return meta
+        } finally {
+            packFiles.values.forEach { it.first.delete() }
+            packFiles.clear()
+        }
+    }
+
     private fun broken(why: String) = PanoHostException(PanoHostException.INTEGRITY_FAILED, message = "The snapshot cannot be restored: $why.")
 
     private fun readManifest(): SnapshotManifest {
@@ -136,9 +188,13 @@ class SnapshotRestoreArchive(
             throw broken("its manifest is unreadable")
         }
 
-        if (manifest.version != SnapshotFormat.FORMAT_VERSION || manifest.id != session.id || manifest.scope != SnapshotFormat.SCOPE_PANO_INSTANCE) {
-            throw broken("the manifest is not snapshot ${session.id} of a Pano instance")
+        val server = scope == McServerSnapshot.SCOPE
+
+        if (manifest.version != SnapshotFormat.FORMAT_VERSION || manifest.id != session.id || manifest.scope != scope) {
+            throw broken(if (server) "the manifest is not snapshot ${session.id} of a server" else "the manifest is not snapshot ${session.id} of a Pano instance")
         }
+
+        val roots = if (server) McServerSnapshot.ROOTS else SnapshotArc.ROOTS
 
         val seen = HashSet<String>()
 
@@ -147,10 +203,16 @@ class SnapshotRestoreArchive(
 
             runCatching { ArchivePaths.validate(entry.p) }.getOrElse { throw broken("an unsafe path") }
 
-            if (root !in SnapshotArc.ROOTS || !seen.add(entry.p)) throw broken("an unsafe or duplicate path")
+            if (root !in roots || !seen.add(entry.p)) throw broken("an unsafe or duplicate path")
 
             if (entry.isFile) {
-                if (root != "app" && entry.p != SnapshotArc.DUMP_PATH && entry.p != SnapshotArc.META_PATH) throw broken("an unexpected file ${entry.p}")
+                val expected = if (server) {
+                    root == McServerSnapshot.SERVER_ROOT || entry.p == McServerSnapshot.META_PATH
+                } else {
+                    root == "app" || entry.p == SnapshotArc.DUMP_PATH || entry.p == SnapshotArc.META_PATH
+                }
+
+                if (!expected) throw broken("an unexpected file ${entry.p}")
 
                 val chunks = entry.c
 

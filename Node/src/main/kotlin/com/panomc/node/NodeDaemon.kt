@@ -65,6 +65,7 @@ import com.panomc.node.net.ServerPluginStateMessage
 import com.panomc.node.net.SyncSchedulesMessage
 import com.panomc.node.net.TransferPullMessage
 import com.panomc.node.net.TransferPushMessage
+import com.panomc.node.net.BackupImportMessage
 import com.panomc.node.net.UpdateStartupMessage
 import com.panomc.node.server.DockerRuntime
 import com.panomc.node.server.ExternalServerIndex
@@ -900,6 +901,15 @@ class NodeDaemon(
             val message = gson.fromJson(text, BackupDeleteMessage::class.java)
 
             connection.reply(message.eventId, backupService.delete(message))
+        }
+
+        connection.on(NodeProtocol.Inbound.BACKUP_IMPORT) { text ->
+            val message = gson.fromJson(text, BackupImportMessage::class.java)
+
+            connection.reply(
+                message.eventId,
+                backupService.importBackup(message) { ticket, target, maxBytes -> transferService.fetch(ticket, target, maxBytes = maxBytes) }
+            )
         }
     }
 

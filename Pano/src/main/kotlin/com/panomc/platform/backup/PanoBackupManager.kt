@@ -1,5 +1,7 @@
 package com.panomc.platform.backup
 
+import com.panomc.platform.server.backup.BackupMode
+
 import com.panomc.platform.Main
 import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.PluginManager
@@ -189,7 +191,7 @@ class PanoBackupManager(
 
     /**
      * Setup's "daily backups with free Pano Backup": switches the remote backup schedule to DAILY with deduplicated snapshots (the saved hour,
-     * default 03:00 local, and the saved managed MC servers stay) when the account is connected. Needs the database
+     * default 03:00 local) when the account is connected. Needs the database
      * (setup's finish route calls it after creating it). Returns whether it was switched on; never throws.
      */
     suspend fun enableDailyRemoteBackup(): Boolean {
@@ -208,23 +210,31 @@ class PanoBackupManager(
         }
     }
 
-    /** A managed MC server backup is READY: uploaded to Pano Backup when that server is selected. */
-    fun onMcBackupReady(serverId: Long, backupId: String) {
+    /**
+     * A managed MC server backup of [mode] is READY: uploaded to Pano Backup when the server sends that mode there
+     * (its `panoBackup` settings, switched on from its Backups page).
+     */
+    fun onMcBackupReady(serverId: Long, backupId: String, mode: BackupMode) {
         if (!setupManager.isSetupDone()) {
             return
         }
 
         scope.launch {
             try {
-                val state = remote.state()
+                if (!remote.isConnected()) {
+                    return@launch
+                }
 
-                if (serverId !in state.settings.mcServerIds || !remote.isConnected()) {
+                val sqlClient = databaseManager.getSqlClient()
+                val settings = databaseManager.serverDao.getById(serverId, sqlClient)?.settings?.panoBackup ?: return@launch
+
+                if (!settings.enabled || settings.mode != mode) {
                     return@launch
                 }
 
                 val sources = applicationContext.getBean(McServerBackupSources::class.java)
 
-                remote.onMcBackupReady(sources.source(serverId, backupId, databaseManager.getSqlClient()))
+                remote.onMcBackupReady(sources.source(serverId, backupId, sqlClient))
             } catch (e: Exception) {
                 logger.warn("Could not queue MC server backup $backupId for Pano Backup: ${e.message}")
             }

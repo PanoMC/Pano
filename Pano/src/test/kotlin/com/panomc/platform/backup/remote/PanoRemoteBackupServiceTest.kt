@@ -5,6 +5,8 @@ import com.panomc.platform.archive.PanoArcException
 import com.panomc.platform.archive.PanoArcKeys
 import com.panomc.platform.archive.PanoArchive
 import com.panomc.platform.backup.PanoBackupJob
+import com.panomc.platform.server.backup.PanoBackupRetention
+import com.panomc.platform.server.backup.ServerPanoBackupSettings
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -20,7 +22,6 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -392,39 +393,13 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
-    fun `MC server backups to Pano Backup are off while they are coming soon`(): Unit = runBlocking {
-        assertFalse(PanoRemoteBackupService.MC_UPLOADS_ENABLED)
-
-        val source = McServerBackupSource(4, "server-uuid-4", "b-1", JsonObject()) { it.writeBytes(ByteArray(10)) }
-
-        // Even a selected server's finished backup is not uploaded.
-        service.saveSettings(RemoteBackupSettings(mcServerIds = listOf(4)))
-        service.onMcBackupReady(source)
-        service.tick(now)
-        kotlinx.coroutines.delay(100)
-        assertTrue(host.backups.isEmpty())
-
-        assertEquals(
-            PanoRemoteBackupService.NOT_AVAILABLE,
-            assertThrows<PanoHostException> { service.startMcUpload(source) }.code
-        )
-    }
-
-    @Test
     fun `MC server backups are wrapped as mc-server, encrypted and uploaded per server`(): Unit = runBlocking {
-        assumeTrue(PanoRemoteBackupService.MC_UPLOADS_ENABLED, "coming soon")
         service.setPassphrase(passphrase.toCharArray())
 
         val zip = Random(9).nextBytes(10_000)
-        val meta = JsonObject().put("id", "b-1").put("name", "Nightly").put("sha256", sha256Hex(zip))
+        val meta = JsonObject().put("id", "b-1").put("name", "Nightly").put("serverName", "Survival").put("sha256", sha256Hex(zip))
         val source = McServerBackupSource(4, "server-uuid-4", "b-1", meta) { it.writeBytes(zip) }
 
-        // Not selected in the settings → ignored.
-        service.onMcBackupReady(source)
-        kotlinx.coroutines.delay(100)
-        assertTrue(host.backups.isEmpty())
-
-        service.saveSettings(RemoteBackupSettings(mcServerIds = listOf(4)))
         service.onMcBackupReady(source)
 
         val job = awaitJob(runner.job!!)
@@ -436,6 +411,8 @@ class PanoRemoteBackupServiceTest {
 
         assertEquals("mc-server", backup.getString("kind"))
         assertEquals("server-uuid-4", backup.getString("subject"))
+        assertEquals("Survival", backup.getJsonObject("manifest").getString("serverName"))
+        assertEquals("Nightly", backup.getJsonObject("manifest").getString("backupName"))
 
         val bytes = host.store.read("backups/${job.remoteId}")!!
         val target = File(temp, "mc-extract")
@@ -446,6 +423,66 @@ class PanoRemoteBackupServiceTest {
         assertEquals("Nightly", JsonObject(File(target, McServerArchive.META_ENTRY).readText()).getString("name"))
         assertEquals(PanoArcException.Code.PASSPHRASE_REQUIRED, assertThrows<PanoArcException> { PanoArchive.verify(ByteArrayInputStream(bytes), PanoArcKeys.NONE) }.code)
         assertTrue(tempLeftovers().isEmpty())
+    }
+
+    @Test
+    fun `the server's retention keeps its last N uploads at Pano Backup and leaves other servers alone`(): Unit = runBlocking {
+        val keepTwo = ServerPanoBackupSettings(enabled = true, retention = PanoBackupRetention.COUNT, keepLast = 2)
+        val ids = ArrayList<String>()
+
+        fun source(server: Long, backup: String) =
+            McServerBackupSource(server, "server-uuid-$server", backup, JsonObject().put("name", backup), keepTwo) { it.writeBytes(Random(backup.hashCode()).nextBytes(500)) }
+
+        val other = awaitJob(service.startMcUpload(source(5, "o-1")))
+        assertEquals(PanoBackupJob.Status.DONE, other.status, other.error)
+
+        for (n in 1..3) {
+            val job = awaitJob(service.startMcUpload(source(4, "b-$n")))
+
+            assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
+            ids.add(job.remoteId!!)
+            kotlinx.coroutines.delay(5)
+        }
+
+        val left = service.listMcBackups("server-uuid-4").map { it.getString("id") }
+
+        assertEquals(listOf(ids[2], ids[1]), left)
+        assertEquals(listOf(other.remoteId), service.listMcBackups("server-uuid-5").map { it.getString("id") })
+    }
+
+    @Test
+    fun `an mc-server backup comes back as the node's zip and meta for the importer`(): Unit = runBlocking {
+        service.setPassphrase(passphrase.toCharArray())
+
+        val zip = Random(11).nextBytes(4_000)
+        val meta = JsonObject().put("id", "b-1").put("name", "Before the update").put("scope", "WORLDS")
+        val uploaded = awaitJob(service.startMcUpload(McServerBackupSource(4, "server-uuid-4", "b-1", meta) { it.writeBytes(zip) }))
+
+        var received: Pair<ByteArray, JsonObject>? = null
+        var into: Long? = null
+        val importer = McServerBackupImporter { serverId, file, json, onProgress ->
+            into = serverId
+            received = file.readBytes() to json
+            onProgress(file.length())
+            "imported-1"
+        }
+
+        val job = awaitJob(service.startMcImport(uploaded.remoteId!!, null, 9, importer))
+
+        assertEquals(PanoBackupJob.Type.MC_IMPORT, job.type)
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
+        assertEquals("imported-1", job.backupId)
+        assertEquals(9L, into)
+        assertArrayEquals(zip, received!!.first)
+        assertEquals("WORLDS", received!!.second.getString("scope"))
+        assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
+
+        // A wrong passphrase fails the job before anything reaches a server.
+        received = null
+        val wrong = awaitJob(service.startMcImport(uploaded.remoteId!!, "not the passphrase".toCharArray(), 9, importer))
+
+        assertEquals(PanoBackupJob.Status.FAILED, wrong.status)
+        assertNull(received)
     }
 
     @Test
@@ -506,9 +543,9 @@ class PanoRemoteBackupServiceTest {
         host.freeQuotaBytes = 1L shl 30
         now = LocalDateTime.of(2026, 9, 27, 23, 30).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        // What setup's "daily backups" switches on: DAILY with the saved hour (default 03:00) and servers.
+        // What setup's "daily backups" switches on: DAILY with the saved hour (default 03:00).
         service.saveSettings(service.state().settings.copy(schedule = RemoteBackupSettings.Schedule.DAILY))
-        assertEquals(RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, 3, emptyList(), RemoteBackupSettings.Mode.SNAPSHOT), service.state().settings)
+        assertEquals(RemoteBackupSettings(RemoteBackupSettings.Schedule.DAILY, 3, RemoteBackupSettings.Mode.SNAPSHOT), service.state().settings)
 
         service.saveSettings(service.state().settings.copy(mode = RemoteBackupSettings.Mode.FULL))
         service.tick(now)
@@ -563,8 +600,8 @@ class PanoRemoteBackupServiceTest {
         assertEquals(RemoteBackupSettings.Mode.SNAPSHOT, RemoteBackupState.parse(JsonObject().put("settings", JsonObject().put("schedule", "DAILY").put("hour", 2)).encode()).settings.mode)
         assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "HOURLY").put("hour", 1)))
         assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 24)))
-        assertNull(RemoteBackupSettings.fromJson(JsonObject().put("schedule", "DAILY").put("hour", 1).put("mcServerIds", JsonArray().add("x"))))
-        assertEquals(listOf(1L, 2L), RemoteBackupSettings.fromJson(JsonObject().put("schedule", "OFF").put("hour", 1).put("mcServerIds", JsonArray().add(1).add(2).add(1)))?.mcServerIds)
+        // The old per-Pano list of servers is ignored: each server says it for itself now.
+        assertEquals(RemoteBackupSettings(RemoteBackupSettings.Schedule.OFF, 1), RemoteBackupSettings.fromJson(JsonObject().put("schedule", "OFF").put("hour", 1).put("mcServerIds", JsonArray().add(1))))
 
         assertEquals(RemoteBackupState(), RemoteBackupState.parse("not json"))
         assertEquals(RemoteBackupState(), RemoteBackupState.parse(null))

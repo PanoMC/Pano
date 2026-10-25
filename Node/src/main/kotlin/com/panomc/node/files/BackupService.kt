@@ -16,6 +16,7 @@ import com.panomc.node.console.ConsoleLevel
 import com.panomc.node.console.ConsoleLogWriter
 import com.panomc.node.net.BackupCreateMessage
 import com.panomc.node.net.BackupDeleteMessage
+import com.panomc.node.net.BackupImportMessage
 import com.panomc.node.net.BackupListMessage
 import com.panomc.node.net.BackupRestoreMessage
 import com.panomc.node.net.NodeProtocol
@@ -419,6 +420,84 @@ class BackupService(
     }
 
     /**
+     * Keeps a FULL zip taken elsewhere as a backup of this server (`BACKUP_IMPORT`): [fetch] downloads it next to the
+     * server's backups as a part file, it is checked against the size and sha256 Pano announced, opened once as a zip,
+     * and only then moved into place with its meta. The server directory is not touched; restoring it is the ordinary
+     * `BACKUP_RESTORE` of that id.
+     */
+    fun importBackup(message: BackupImportMessage, fetch: (ticket: String, target: File, maxBytes: Long) -> Long): JsonObject {
+        val uuid = message.serverUuid
+        val backupId = message.backupId
+        val ticket = message.ticket
+        val size = message.size ?: 0L
+        val expected = message.sha256
+
+        if (uuid.isNullOrBlank() || backupId.isNullOrBlank() || ticket.isNullOrBlank() || size <= 0 || expected.isNullOrBlank()) {
+            return FileService.failure(FileService.ERROR_NOT_FOUND)
+        }
+
+        if (!PathSafety.isSafeSegment(uuid) || !PathSafety.isSafeSegment(backupId)) {
+            return FileService.failure(FileService.ERROR_PATH_DENIED)
+        }
+
+        registry.get(uuid) ?: return FileService.failure(FileService.ERROR_UNKNOWN_SERVER)
+
+        val archive = archiveFile(uuid, backupId)
+
+        if (archive.exists() || metaFile(uuid, backupId).exists()) {
+            return FileService.failure(ERROR_BACKUP_EXISTS)
+        }
+
+        val part = File(archive.parentFile, archive.name + IMPORT_PART_SUFFIX)
+
+        return try {
+            val copied = fetch(ticket, part, size)
+
+            if (copied != size) {
+                throw IllegalStateException(ERROR_IMPORT_MISMATCH)
+            }
+
+            val sha256 = Sha256.of(part)
+
+            if (!sha256.equals(expected, ignoreCase = true)) {
+                throw IllegalStateException(ERROR_IMPORT_MISMATCH)
+            }
+
+            // A zip that does not open would only fail later, at the restore somebody is counting on.
+            ZipFile(part).use { }
+
+            if (!part.renameTo(archive)) {
+                part.copyTo(archive, overwrite = false)
+                part.delete()
+            }
+
+            writeMeta(
+                uuid,
+                BackupMeta(
+                    id = backupId,
+                    name = message.name?.takeIf { it.isNotBlank() } ?: backupId,
+                    sizeBytes = size,
+                    sha256 = sha256,
+                    createdAt = message.createdAt ?: System.currentTimeMillis(),
+                    mode = BackupMode.FULL.name,
+                    scope = BackupScopeKind.values().firstOrNull { it.name == message.scope }?.name ?: BackupScopeKind.ALL.name,
+                    fileCount = message.fileCount
+                )
+            )
+
+            logger.info("Imported backup $backupId of $uuid ($size bytes).")
+
+            FileService.success().put("sizeBytes", size).put("sha256", sha256)
+        } catch (exception: Exception) {
+            part.delete()
+
+            logger.warn("Could not import backup $backupId of $uuid: ${exception.message}")
+
+            FileService.failure(exception.message ?: exception.javaClass.simpleName)
+        }
+    }
+
+    /**
      * The archive behind a `@backup/<id>` transfer path.
      *
      * Backups live outside the server directory, so they cannot be reached by the ordinary path
@@ -591,6 +670,12 @@ class BackupService(
         const val BACKUPS_DIRECTORY = "backups"
         const val REPOSITORY_DIRECTORY = "repo"
         const val ARCHIVE_SUFFIX = ".zip"
+
+        /** An imported zip while it is still arriving. */
+        private const val IMPORT_PART_SUFFIX = ".import.part"
+
+        const val ERROR_BACKUP_EXISTS = "BACKUP_EXISTS"
+        const val ERROR_IMPORT_MISMATCH = "IMPORT_MISMATCH"
         const val META_SUFFIX = ".json"
 
         /** Transfer paths that mean "a backup", not "a file inside the server". */

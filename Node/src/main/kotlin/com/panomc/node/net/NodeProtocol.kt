@@ -27,8 +27,11 @@ object NodeProtocol {
      *
      * 6 (cutover): the machine protocol lives under `/api/v1/node` ([NodePaths]) and every Pano reply
      * is the `{ "error": { "code" } }` envelope; no fallback to the old paths.
+     *
+     * 7 (SM-PB): `BACKUP_IMPORT` -- a FULL zip taken elsewhere (out of Pano Backup) is fetched under an upload ticket
+     * and kept as a backup of the server. Pano sends it only to a node that announced at least 7.
      */
-    const val VERSION = 6
+    const val VERSION = 7
 
     /**
      * Feature flags announced in `NODE_HELLO.capabilities`, for what a protocol number alone
@@ -147,6 +150,7 @@ object NodeProtocol {
         const val BACKUP_LIST = "BACKUP_LIST"
         const val BACKUP_RESTORE = "BACKUP_RESTORE"
         const val BACKUP_DELETE = "BACKUP_DELETE"
+        const val BACKUP_IMPORT = "BACKUP_IMPORT"
 
         /**
          * What Java this node has and could download (SM-63). A request: answered on `FILE_RESULT`

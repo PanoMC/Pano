@@ -336,7 +336,7 @@ class TransferService(
      * nowhere to land yet, because the directory it will become is what the archive is for.
      * Returns how many bytes arrived.
      */
-    fun fetch(ticket: String, target: File, onProgress: (Long) -> Unit = {}): Long {
+    fun fetch(ticket: String, target: File, onProgress: (Long) -> Unit = {}, maxBytes: Long = MAX_TRANSFER_BYTES): Long {
         val request = HttpRequest.newBuilder(uri(ticket))
             .timeout(TRANSFER_TIMEOUT)
             .header("Authorization", "Bearer ${config.token}")
@@ -368,7 +368,7 @@ class TransferService(
 
                     copied += read
 
-                    if (copied > MAX_TRANSFER_BYTES) {
+                    if (copied > maxBytes) {
                         throw IllegalStateException(FileService.ERROR_TOO_LARGE)
                     }
 

@@ -6,6 +6,7 @@ import com.panomc.platform.backup.PanoBackupRunner
 import com.panomc.platform.backup.PanoBackupService
 import com.panomc.platform.backup.PanoBackupStore
 import com.panomc.platform.model.PageRequest
+import com.panomc.platform.server.backup.PanoBackupRetentionRule
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +41,8 @@ data class ConnectedAccount(val username: String, val platformId: String) {
  *   waits for the next scheduled slot unless the overview shows more room);
  * - transfer: a plain archive pushed into one of the account's Pano workloads (the admin confirmed
  *   with the password in the panel, Pano Host restores it at once and the job follows it to the end);
- * - managed MC server backups wrapped as `kind: mc-server`, encrypted and uploaded.
+ * - managed MC server backups wrapped as `kind: mc-server`, encrypted and uploaded (the server's own retention
+ *   applied at Pano Backup afterwards), and brought back into a managed server's backups ([startMcImport]).
  *
  * Every archive/restore/upload runs as the one [PanoBackupService] job (single flight). Not
  * connected → [PanoHostException.CONNECT_REQUIRED].
@@ -671,9 +673,12 @@ class PanoRemoteBackupService(
 
     // MC server backups
 
-    /** Wraps (+ encrypts, with a saved passphrase) + uploads one managed MC server backup (`kind: mc-server`). */
+    /**
+     * Uploads one managed MC server backup: a full zip is wrapped (+ encrypted, with a saved passphrase) as `kind: mc-server`,
+     * a snapshot goes into the account's snapshot repository with the server as its subject ([startMcSnapshotUpload]).
+     */
     fun startMcUpload(source: McServerBackupSource): PanoBackupJob {
-        if (!MC_UPLOADS_ENABLED) throw PanoHostException(NOT_AVAILABLE)
+        if (source.isSnapshot) return startMcSnapshotUpload(source)
 
         val zip = tempFile("mc-zip")
         val temp = tempFile("mc")
@@ -699,17 +704,181 @@ class PanoRemoteBackupService(
             job.phase = PanoBackupService.PHASE_UPLOADING
             job.bytesTotal = temp.length()
 
-            val summary = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId).put("encrypted", encrypted)
+            val summary = JsonObject()
+                .put("serverId", source.serverId)
+                .put("serverUuid", source.subject)
+                .put("serverName", source.meta.getString("serverName"))
+                .put("backupId", source.backupId)
+                .put("backupName", source.meta.getString("name"))
+                .put("encrypted", encrypted)
 
-            try {
-                job.remoteId = target.put(
+            val uploaded = try {
+                target.put(
                     temp,
                     StoredArchive(KIND_MC_SERVER, source.subject, encrypted = encrypted, summary = summary),
                     onStarted = { job.remoteId = it }
-                ) { job.bytesDone = it }
+                ) { job.bytesDone = it }.also { job.remoteId = it }
             } finally {
                 listCache = null
             }
+
+            // The upload stands even when the pruning fails: the next upload of this server tries again.
+            try {
+                pruneMc(source, uploaded)
+            } catch (e: Exception) {
+                logger.warn("Could not apply the Pano Backup retention of server ${source.serverId}: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * A server snapshot to Pano Backup: the node's snapshot (streamed to Pano as a zip) is cut into the account's snapshot
+     * repository under `server/`, deduplicated against every snapshot of this Pano, with the server's uuid as its subject.
+     * Snapshots are sealed with the repository key like the Pano's own (not with the passphrase).
+     */
+    private fun startMcSnapshotUpload(source: McServerBackupSource): PanoBackupJob {
+        val zip = tempFile("mc-snapshot-zip")
+        val dir = workDir("mc-snapshot")
+
+        return backups.startTask(PanoBackupJob.Type.MC_UPLOAD, cleanup = { delete(zip); deleteTree(dir) }) { job ->
+            requireConnected()
+
+            job.phase = PanoBackupService.PHASE_FETCHING
+            source.fetch(zip)
+
+            job.phase = PanoBackupService.PHASE_UPLOADING
+
+            val name = (source.meta.getString("name") ?: "").take(SNAPSHOT_NAME_LENGTH).ifEmpty { null }
+            val session = try {
+                client.startSnapshot(name, source.subject)
+            } finally {
+                listCache = null
+            }
+
+            job.remoteId = session.id
+
+            val meta = source.meta.copy().put("serverId", source.serverId).put("serverUuid", source.subject)
+            val stats = try {
+                withContext(Dispatchers.IO) {
+                    McServerSnapshotUpload(client, session, zip, meta, dir, name ?: "", clock()) { done, total ->
+                        job.bytesDone = done
+                        job.bytesTotal = total
+                    }.run()
+                }.stats
+            } catch (e: Throwable) {
+                withContext(NonCancellable) { runCatching { client.deleteSnapshot(session.id) } }
+
+                throw e
+            }
+
+            try {
+                val settled = client.completeSnapshot(session.id, stats)
+
+                if (settled.getString("status") != SNAPSHOT_DONE) {
+                    throw PanoHostException(
+                        SNAPSHOT_FAILED,
+                        message = settled.getString("error") ?: "Pano Backup could not settle the snapshot.",
+                        extras = JsonObject().put("snapshotId", session.id).put("error", settled.getString("error")).put("status", settled.getString("status"))
+                    )
+                }
+            } catch (e: Throwable) {
+                withContext(NonCancellable) { runCatching { client.deleteSnapshot(session.id) } }
+
+                throw e
+            } finally {
+                listCache = null
+            }
+
+            try {
+                pruneMc(source, session.id)
+            } catch (e: Exception) {
+                logger.warn("Could not apply the Pano Backup retention of server ${source.serverId}: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * This Pano's `mc-server` copies of [subject] at Pano Backup, newest first: its archives (`type: archive`) and its
+     * snapshots (`type: snapshot`). Only the ones this Pano uploaded: another Pano's copies of a server with the same
+     * uuid are that Pano's to keep.
+     */
+    suspend fun listMcBackups(subject: String): List<JsonObject> {
+        val list = listBackups()
+        val archives = (list.getJsonArray("panos") ?: JsonArray()).filterIsInstance<JsonObject>()
+            .flatMap { pano -> (pano.getJsonArray("backups") ?: JsonArray()).filterIsInstance<JsonObject>() }
+            .filter { it.getString("kind") == KIND_MC_SERVER && it.getString("subject") == subject && it.getBoolean("own") == true }
+            .distinctBy { it.getString("id") }
+            .map { it.copy().put("type", TYPE_ARCHIVE) }
+        val snapshots = (client.listSnapshots().getJsonArray("snapshots") ?: JsonArray()).filterIsInstance<JsonObject>()
+            .filter { it.getString("subject") == subject && it.getBoolean("own") != false }
+            .map { it.copy().put("type", TYPE_SNAPSHOT) }
+
+        return (archives + snapshots).sortedByDescending { it.getLong("createdAt") ?: 0L }
+    }
+
+    /** Deletes what the server's retention says is surplus at Pano Backup among the copies of [source]'s kind, never [uploaded]. */
+    private suspend fun pruneMc(source: McServerBackupSource, uploaded: String) {
+        val type = if (source.isSnapshot) TYPE_SNAPSHOT else TYPE_ARCHIVE
+        val rows = listMcBackups(source.subject)
+            .filter { it.getString("type") == type && it.getString("status") == DONE }
+            .map { PanoBackupRetentionRule.Row(it.getString("id"), it.getLong("createdAt") ?: 0L) }
+
+        PanoBackupRetentionRule.selectForDeletion(rows, source.settings, clock(), uploaded).forEach { row ->
+            if (source.isSnapshot) client.deleteSnapshot(row.id) else client.deleteBackup(row.id)
+            logger.info("Pano Backup retention of server ${source.serverId}: deleted ${row.id}")
+        }
+
+        listCache = null
+    }
+
+    /**
+     * Brings `mc-server` backup [id] (any backup of the account) into managed server [serverId]'s own backups:
+     * download → verify → open with [passphrase] (null = the saved one) → handed to [importer], which pushes the zip to
+     * the server's node. Nothing on the server is overwritten; the admin restores it from the server's Backups page.
+     */
+    fun startMcImport(id: String, passphrase: CharArray?, serverId: Long, importer: McServerBackupImporter, snapshot: Boolean = false): PanoBackupJob {
+        val temp = tempFile("mc-import")
+        val dir = workDir("mc-import")
+        val key = passphrase ?: passphraseFile?.read()
+
+        return backups.startTask(PanoBackupJob.Type.MC_IMPORT, cleanup = { key?.fill('\u0000'); delete(temp); deleteTree(dir) }) { job ->
+            requireConnected()
+
+            job.remoteId = id
+            job.phase = PanoBackupService.PHASE_DOWNLOADING
+
+            if (snapshot) {
+                // A snapshot: its chunks are read and checked, and the zip the node had is rebuilt from them.
+                val session = client.openSnapshot(id)
+                val zip = File(dir, "backup.zip")
+                val meta = withContext(Dispatchers.IO) {
+                    SnapshotRestoreArchive(client, session, dir, McServerSnapshot.SCOPE) { done, total ->
+                        job.bytesDone = done
+                        job.bytesTotal = total
+                    }.buildServerZip(zip)
+                }
+
+                job.phase = PHASE_IMPORTING
+                job.bytesDone = 0
+                job.bytesTotal = zip.length()
+                job.backupId = importer.import(serverId, zip, meta) { job.bytesDone = it }
+
+                return@startTask
+            }
+
+            target.fetch(id, temp) { job.bytesDone = it }
+
+            job.phase = PanoBackupService.PHASE_VERIFYING
+            job.bytesDone = 0
+            job.bytesTotal = 0
+
+            val (zip, meta) = withContext(Dispatchers.IO) { McServerArchive.open(temp, key, dir) }
+
+            delete(temp)
+
+            job.phase = PHASE_IMPORTING
+            job.bytesTotal = zip.length()
+            job.backupId = importer.import(serverId, zip, meta) { job.bytesDone = it }
         }
     }
 
@@ -718,11 +887,7 @@ class PanoRemoteBackupService(
      * (queued while another job runs; the tick retries).
      */
     suspend fun onMcBackupReady(source: McServerBackupSource) {
-        if (!MC_UPLOADS_ENABLED) return
-
-        val state = state()
-
-        if (source.serverId !in state.settings.mcServerIds || !isConnected()) {
+        if (!isConnected()) {
             return
         }
 
@@ -787,9 +952,7 @@ class PanoRemoteBackupService(
             }
         }
 
-        if (MC_UPLOADS_ENABLED) {
-            mcQueue.peek()?.let { next -> if (tryStart { startMcUpload(next) }) mcQueue.remove(next) }
-        }
+        mcQueue.peek()?.let { next -> if (tryStart { startMcUpload(next) }) mcQueue.remove(next) }
     }
 
     /**
@@ -920,12 +1083,18 @@ class PanoRemoteBackupService(
     companion object {
         const val KIND_MC_SERVER = "mc-server"
 
-        /**
-         * Minecraft server backups to Pano Backup (the automatic upload of the selected servers and the
-         * manual one from a server's Backups page) are "coming soon": off until the feature ships, the
-         * panel shows them disabled. The code stays so switching this on is the whole change.
-         */
-        const val MC_UPLOADS_ENABLED = false
+        /** A finished archive at Pano Backup. */
+        const val DONE = "DONE"
+
+        /** What a server copy at Pano Backup is in [listMcBackups]: an `mc-server` archive or a server snapshot. */
+        const val TYPE_ARCHIVE = "archive"
+        const val TYPE_SNAPSHOT = "snapshot"
+
+        /** The longest name a snapshot may carry at Pano Backup. */
+        const val SNAPSHOT_NAME_LENGTH = 100
+
+        /** An `mc-server` backup is being handed to the server's node ([startMcImport]). */
+        const val PHASE_IMPORTING = "IMPORTING"
 
         const val PASSPHRASE_NOT_SET = "PASSPHRASE_NOT_SET"
 

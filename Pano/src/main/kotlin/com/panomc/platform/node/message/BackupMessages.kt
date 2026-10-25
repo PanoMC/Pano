@@ -62,3 +62,22 @@ class BackupDeleteMessage(
     val serverUuid: String,
     val backupId: String
 ) : NodeRequestMessage()
+
+/**
+ * Hands a node a FULL backup zip taken elsewhere (out of Pano Backup), to keep as backup [backupId] of this server.
+ *
+ * The node fetches the zip under [ticket] the way a pushed upload is fetched, checks it against [size] and [sha256],
+ * and stores it with its meta next to the server's own backups; nothing in the server directory is touched. Only sent
+ * to a node that announced protocol 7. Answers `{ok, sizeBytes, sha256}`.
+ */
+class BackupImportMessage(
+    val serverUuid: String,
+    val backupId: String,
+    val ticket: String,
+    val name: String,
+    val size: Long,
+    val sha256: String,
+    val createdAt: Long,
+    val scope: String = "ALL",
+    val fileCount: Long? = null
+) : NodeRequestMessage()

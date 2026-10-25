@@ -235,14 +235,14 @@ class ManagedServerBackupService(
         offerToPanoBackup(server, report)
     }
 
-    /** A finished full zip may also go to Pano Backup (when this server is selected there). */
+    /** A finished backup may also go to Pano Backup (when this server sends that kind of backup there). */
     private fun offerToPanoBackup(server: Server, report: CreatedReport) {
-        if (report.mode != BackupMode.FULL) {
+        if (!server.settings.panoBackup.enabled) {
             return
         }
 
         try {
-            Main.applicationContext.getBean(PanoBackupManager::class.java).onMcBackupReady(server.id, report.backupId)
+            Main.applicationContext.getBean(PanoBackupManager::class.java).onMcBackupReady(server.id, report.backupId, report.mode)
         } catch (e: Exception) {
             logger.warn("Could not offer backup ${report.backupId} to Pano Backup: ${e.message}")
         }

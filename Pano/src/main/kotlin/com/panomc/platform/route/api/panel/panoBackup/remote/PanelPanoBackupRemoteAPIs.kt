@@ -51,7 +51,7 @@ abstract class PanoBackupRemoteApi(protected val authProvider: AuthProvider) : P
 
 /**
  * `GET /api/v1/panel/pano-backups/remote[?fresh=true]` → `{connected, account {username, platformId}, plan
- * {tier, subscription} | null, usage {used, reserved, quota, free} | null, settings {schedule, hour, mcServerIds,
+ * {tier, subscription} | null, usage {used, reserved, quota, free} | null, settings {schedule, hour,
  * mode SNAPSHOT|FULL}, passphraseSet,
  * lastUploadAt, hostError?, apiUrl, job, busy}` (plan + usage cached for a minute unless `fresh`).
  */
@@ -75,7 +75,7 @@ class PanelGetPanoBackupRemoteAPI(authProvider: AuthProvider, private val panoBa
 }
 
 /**
- * `PUT …/remote/settings {schedule OFF|DAILY|WEEKLY, hour, mcServerIds, mode? SNAPSHOT|FULL}` (`mode` omitted = unchanged);
+ * `PUT …/remote/settings {schedule OFF|DAILY|WEEKLY, hour, mode? SNAPSHOT|FULL}` (`mode` omitted = unchanged);
  * `PUT …/remote/passphrase {currentPassword, passphrase}` (≥ 8 characters; kept on this server only,
  * lost = the remote backups are unrecoverable; changing it does not re-encrypt older backups).
  */
@@ -480,11 +480,6 @@ class PanelUploadServerBackupToPanoBackupAPI(
 
         authProvider.requirePermission(ManageServerBackupsPermission(), context, serverId)
         requireManage(context)
-
-        // Coming soon: refused before anything is fetched (see MC_UPLOADS_ENABLED).
-        if (!PanoRemoteBackupService.MC_UPLOADS_ENABLED) {
-            throw PanoHostError.of(PanoHostException(PanoRemoteBackupService.NOT_AVAILABLE))
-        }
 
         val remote = panoBackupManager.remote
 

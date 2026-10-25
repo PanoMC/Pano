@@ -33,6 +33,9 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
     private class Snapshot(val view: JsonObject, val instanceId: String) {
         val packs = ArrayList<String>()
         var manifestKey: String? = null
+
+        /** The chunks its manifest references (set when it is settled). */
+        var chunkIds: Set<String> = emptySet()
     }
 
     private class Chunk(val pack: String, val offset: Long, val length: Int)
@@ -142,7 +145,12 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
                 if (snapshot.instanceId != instanceId) throw FakePanoHost.Failure(403, "NO_PERMISSION", JsonObject().put("reason", "OTHER_PANO"))
 
                 snapshots.remove(id)
-                snapshot.packs.forEach { objects.remove("snap/packs/$it"); reserved.remove(it) }
+
+                // Like the control plane's collection: a pack another snapshot of this Pano still reads from stays.
+                val needed = snapshots.values.filter { it.instanceId == instanceId }
+                    .flatMap { other -> other.chunkIds.mapNotNull { chunks["$instanceId/$it"]?.pack } }.toSet()
+
+                snapshot.packs.filter { it !in needed }.forEach { objects.remove("snap/packs/$it"); reserved.remove(it) }
                 snapshot.manifestKey?.let { objects.remove(it) }
 
                 JsonObject().put("deleted", true)
@@ -233,6 +241,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
 
         val id = UUID.randomUUID().toString()
         val view = JsonObject().put("id", id).put("instanceId", instanceId).put("instanceName", "My Server").put("name", body.getString("name"))
+            .put("kind", if (body.getString("subject") == null) "pano-instance" else "mc-server").put("subject", body.getString("subject"))
             .put("status", "RUNNING").put("createdAt", System.currentTimeMillis())
 
         snapshots[id] = Snapshot(view, instanceId)
@@ -256,7 +265,9 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
         val sealed = objects[manifestKey] ?: return fail("MANIFEST_MISSING")
         val manifest = runCatching { SnapshotFormat.decodeManifest(SnapshotSeal.open({ aesKey }, SnapshotFormat.manifestPath(id), sealed)) }.getOrNull() ?: return fail("INTEGRITY_FAILED")
 
-        if (manifest.scope != SnapshotFormat.SCOPE_PANO_INSTANCE || manifest.id != id) return fail("INTEGRITY_FAILED")
+        val scope = if (snapshot.view.getString("subject") == null) SnapshotFormat.SCOPE_PANO_INSTANCE else McServerSnapshot.SCOPE
+
+        if (manifest.scope != scope || manifest.id != id) return fail("INTEGRITY_FAILED")
 
         val found = HashMap<String, Chunk>()
 
@@ -283,6 +294,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
         if (manifest.chunkIds().any { !chunks.containsKey("$instanceId/$it") && !found.containsKey("$instanceId/$it") }) return fail("MISSING_CHUNKS")
 
         chunks.putAll(found)
+        snapshot.chunkIds = manifest.chunkIds().toSet()
         snapshot.manifestKey = manifestKey
         objects[manifestKey] = sealed
         snapshot.view.put("status", "DONE").put("finishedAt", System.currentTimeMillis()).put("fileCount", manifest.fileCount).put("logicalBytes", manifest.logicalBytes)

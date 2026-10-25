@@ -1,6 +1,5 @@
 package com.panomc.platform.backup.remote
 
-import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import java.io.File
 import java.nio.file.Files
@@ -11,13 +10,12 @@ import java.time.ZoneId
 
 /**
  * Pano Backup (remote) settings: [schedule] of the automatic upload (at the local [hour]; the plan has
- * no frequency rule), [mode] = what a scheduled run uploads, [mcServerIds] = managed MC servers whose
- * finished full backups are also uploaded (`kind: mc-server`).
+ * no frequency rule), [mode] = what a scheduled run uploads. Which managed servers upload their backups is a
+ * setting of each server (`ServerPanoBackupSettings`); the old `mcServerIds` list is ignored when read.
  */
 data class RemoteBackupSettings(
     val schedule: Schedule = Schedule.OFF,
     val hour: Int = 3,
-    val mcServerIds: List<Long> = emptyList(),
     val mode: Mode = Mode.SNAPSHOT
 ) {
     /** `SNAPSHOT` = deduplicated snapshots (only what changed is uploaded), `FULL` = one whole `.panoarc` per run. */
@@ -32,7 +30,6 @@ data class RemoteBackupSettings(
     fun toJson(): JsonObject = JsonObject()
         .put("schedule", schedule.name)
         .put("hour", hour)
-        .put("mcServerIds", JsonArray(mcServerIds))
         .put("mode", mode.name)
 
     /** Whether an upload is due at [now]: schedule on, local [hour] reached, the last upload a schedule ago (minus slack for tick jitter). */
@@ -49,7 +46,6 @@ data class RemoteBackupSettings(
     }
 
     companion object {
-        const val MAX_MC_SERVERS = 100
         private const val SLACK_MS = 60L * 60 * 1000
 
         /**
@@ -62,17 +58,14 @@ data class RemoteBackupSettings(
             val raw = json.getValue("schedule")
             val schedule = if (raw == "TIER") Schedule.DAILY else Schedule.values().firstOrNull { it.name == raw } ?: return null
             val hour = (json.getValue("hour") as? Number)?.toInt() ?: return null
-            val servers = json.getValue("mcServerIds") ?: JsonArray()
-
-            if (hour !in 0..23 || servers !is JsonArray || servers.size() > MAX_MC_SERVERS) {
+            if (hour !in 0..23) {
                 return null
             }
 
-            val ids = servers.map { (it as? Number)?.toLong() ?: return null }.distinct()
             val rawMode = json.getValue("mode")
             val mode = if (rawMode == null) defaultMode else Mode.values().firstOrNull { it.name == rawMode } ?: return null
 
-            return RemoteBackupSettings(schedule, hour, ids, mode)
+            return RemoteBackupSettings(schedule, hour, mode)
         }
     }
 }

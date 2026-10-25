@@ -235,7 +235,13 @@ data class Server(
              * the same switch. On by default, and a row written before the switch existed reads as
              * on for the same no-arg-constructor reason as the fields above.
              */
-            var autoUpdateCheck: Boolean = true
+            var autoUpdateCheck: Boolean = true,
+            /**
+             * Whether this server's backups also go to Pano Backup, which of them and how long they are kept
+             * there ([com.panomc.platform.server.backup.ServerPanoBackupSettings]); off for a row written before it.
+             */
+            var panoBackup: com.panomc.platform.server.backup.ServerPanoBackupSettings =
+                com.panomc.platform.server.backup.ServerPanoBackupSettings()
         ) {
             fun encode(): String = JsonObject.mapFrom(this).encode()
 

@@ -174,10 +174,11 @@ class PanoHostClient(
 
     /** Opens a snapshot; `PAYMENT_REQUIRED`, `QUOTA_EXCEEDED` and `SNAPSHOT_BUSY` are thrown as [PanoHostException]s. */
     /** [subject]: the uuid of the managed server the snapshot is of; null = this Pano itself. */
-    suspend fun startSnapshot(name: String?, subject: String? = null): SnapshotSession {
+    suspend fun startSnapshot(name: String?, subject: String? = null, trigger: String? = null): SnapshotSession {
         val data = call("POST", "/host/connected/snapshots", JsonObject().apply {
             name?.let { put("name", it) }
             subject?.let { put("subject", it) }
+            trigger?.let { put("trigger", it) }
         })
 
         return SnapshotSession.from(data, data.getString("snapshotId") ?: "", "manifestPut")

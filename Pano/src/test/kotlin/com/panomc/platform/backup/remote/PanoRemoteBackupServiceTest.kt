@@ -408,6 +408,11 @@ class PanoRemoteBackupServiceTest {
         assertEquals(PanoBackupJob.Type.MC_UPLOAD, job.type)
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
         assertEquals(job.remoteId, recorded, "the backup's row learns where its copy went")
+        assertEquals("MANUAL", host.backups.getValue(job.remoteId!!).getJsonObject("manifest").getString("trigger"))
+
+        val automatic = awaitJob(service.startMcUpload(McServerBackupSource(4, "server-uuid-4", "b-2", meta, automatic = true) { it.writeBytes(zip) }))
+
+        assertEquals("AUTOMATIC", host.backups.getValue(automatic.remoteId!!).getJsonObject("manifest").getString("trigger"))
 
         val backup = host.backups.getValue(job.remoteId!!)
 

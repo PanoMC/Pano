@@ -188,6 +188,7 @@ class PanoSnapshotTest {
 
         assertEquals(PanoBackupJob.Status.DONE, first.status, first.error + " " + first.message)
         assertEquals(listOf(first.remoteId), recorded)
+        assertEquals("MANUAL", service.listMcBackups("server-uuid-4").single().getString("trigger"))
         assertEquals(PanoBackupJob.Type.MC_UPLOAD, first.type)
 
         // The same world again: only what changed is new, and the server keeps its last one only.

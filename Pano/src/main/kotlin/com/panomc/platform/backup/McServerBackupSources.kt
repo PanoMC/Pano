@@ -46,7 +46,7 @@ class McServerBackupSources(
     private val transferTicketStore: TransferTicketStore,
     private val panelRealtimeHub: PanelRealtimeHub
 ) {
-    suspend fun source(serverId: Long, backupId: String, sqlClient: SqlClient): McServerBackupSource {
+    suspend fun source(serverId: Long, backupId: String, sqlClient: SqlClient, automatic: Boolean = false): McServerBackupSource {
         // The panel names a backup by its row id, the node and the automatic upload by its uuid; both are taken.
         val backup = databaseManager.serverBackupDao.getByUuid(backupId, sqlClient)
             ?: backupId.toLongOrNull()?.let { databaseManager.serverBackupDao.getById(it, sqlClient) }
@@ -77,6 +77,7 @@ class McServerBackupSources(
             backupId = backup.uuid,
             meta = meta,
             settings = server.settings.panoBackup,
+            automatic = automatic,
             onUploaded = { remoteId ->
                 databaseManager.serverBackupDao.updatePanoBackupIdByUuid(backup.uuid, remoteId, databaseManager.getSqlClient())
                 panelRealtimeHub.pushServerBackupsChanged(serverId)

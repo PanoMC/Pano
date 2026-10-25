@@ -22,12 +22,17 @@ class McServerBackupSource(
     val backupId: String,
     val meta: JsonObject,
     val settings: ServerPanoBackupSettings = ServerPanoBackupSettings(),
+    /** Sent on its own after the server's backup (the server's Pano Backup setting), not by hand: the copy's `trigger`. */
+    val automatic: Boolean = false,
     /** The copy is at Pano Backup now, under this id (the backup's row remembers it). */
     val onUploaded: suspend (remoteId: String) -> Unit = {},
     val fetch: suspend (File) -> Unit
 ) {
     /** A snapshot of the node (`meta.mode`), uploaded into the snapshot repository rather than as an archive. */
     val isSnapshot: Boolean get() = meta.getString("mode") == "SNAPSHOT"
+
+    /** How the copy was started, as Pano Backup lists it: `AUTOMATIC` | `MANUAL`. */
+    val trigger: String get() = if (automatic) PanoRemoteBackupService.TRIGGER_AUTOMATIC else PanoRemoteBackupService.TRIGGER_MANUAL
 }
 
 /**

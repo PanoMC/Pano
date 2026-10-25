@@ -234,7 +234,7 @@ class PanoBackupManager(
 
                 val sources = applicationContext.getBean(McServerBackupSources::class.java)
 
-                remote.onMcBackupReady(sources.source(serverId, backupId, sqlClient))
+                remote.onMcBackupReady(sources.source(serverId, backupId, sqlClient, automatic = true))
             } catch (e: Exception) {
                 logger.warn("Could not queue MC server backup $backupId for Pano Backup: ${e.message}")
             }

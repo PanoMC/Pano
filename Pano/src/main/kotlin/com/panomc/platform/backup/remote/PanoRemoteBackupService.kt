@@ -711,6 +711,7 @@ class PanoRemoteBackupService(
                 .put("backupId", source.backupId)
                 .put("backupName", source.meta.getString("name"))
                 .put("encrypted", encrypted)
+                .put("trigger", source.trigger)
 
             val uploaded = try {
                 target.put(
@@ -752,7 +753,7 @@ class PanoRemoteBackupService(
 
             val name = (source.meta.getString("name") ?: "").take(SNAPSHOT_NAME_LENGTH).ifEmpty { null }
             val session = try {
-                client.startSnapshot(name, source.subject)
+                client.startSnapshot(name, source.subject, source.trigger)
             } finally {
                 listCache = null
             }
@@ -1120,6 +1121,8 @@ class PanoRemoteBackupService(
         /** `trigger` of an archive's summary: how the upload was started. */
         const val TRIGGER_MANUAL = "MANUAL"
         const val TRIGGER_SCHEDULED = "SCHEDULED"
+        /** A managed server's copy sent after its backup by the server's Pano Backup setting. */
+        const val TRIGGER_AUTOMATIC = "AUTOMATIC"
 
         /** A move out of Pano Host: its export failed, vanished or took too long. */
         const val EXPORT_FAILED_CODE = "EXPORT_FAILED"

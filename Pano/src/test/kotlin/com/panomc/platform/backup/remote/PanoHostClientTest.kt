@@ -167,4 +167,44 @@ class PanoHostClientTest {
         PanoHostClient.slice(file, 900, 100).use { assertArrayEquals(bytes.copyOfRange(900, 1000), it.readBytes()) }
         assertEquals(sha256Hex(bytes), PanoHostClient.sha256(file))
     }
+
+    @Test
+    fun `a storage download that stops coming is broken off and retried`(): Unit = runBlocking {
+        val body = Random(5).nextBytes(64 * 1024)
+        var requests = 0
+        val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+
+        server.createContext("/file") { exchange ->
+            requests++
+            exchange.sendResponseHeaders(200, body.size.toLong())
+
+            if (requests == 1) {
+                // Half of it, then nothing: the connection stays open but no byte comes.
+                exchange.responseBody.write(body, 0, body.size / 2)
+                exchange.responseBody.flush()
+                Thread.sleep(5_000)
+            } else {
+                exchange.responseBody.write(body)
+            }
+
+            runCatching { exchange.close() }
+        }
+        server.executor = java.util.concurrent.Executors.newCachedThreadPool()
+        server.start()
+
+        try {
+            val stalling = PanoHostClient({ host.baseUrl }, { FakePanoHost.TOKEN }, { identity }, RetryPolicy(attempts = 3, baseDelayMs = 10, stallMs = 300))
+            val target = File(temp, "stalled.bin")
+            val started = System.currentTimeMillis()
+
+            stalling.download("http://127.0.0.1:${server.address.port}/file", target, body.size.toLong(), null)
+
+            assertArrayEquals(body, target.readBytes())
+            assertEquals(2, requests)
+            assertTrue(System.currentTimeMillis() - started < 4_000, "broken off long before the stalled response ended")
+            assertFalse(Thread.currentThread().isInterrupted)
+        } finally {
+            server.stop(0)
+        }
+    }
 }

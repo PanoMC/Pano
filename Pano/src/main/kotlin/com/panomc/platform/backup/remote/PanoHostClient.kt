@@ -22,6 +22,11 @@ import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Duration
 import java.util.Base64
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * An error from the Pano Host API (`{"result":"error","error":"CODE",…}`) or from talking to it.
@@ -105,7 +110,12 @@ data class SnapshotStats(val fileCount: Long, val logicalBytes: Long, val downlo
 }
 
 /** Retries of one part PUT / download: network errors, 408, 429 and 5xx; [baseDelayMs] doubles each time. */
-data class RetryPolicy(val attempts: Int = 4, val baseDelayMs: Long = 1000)
+data class RetryPolicy(
+    val attempts: Int = 4,
+    val baseDelayMs: Long = 1000,
+    /** A storage download that brings nothing for this long is broken off and retried. */
+    val stallMs: Long = 60_000
+)
 
 /** Who this Pano is on `/host/connected/…` calls (`X-Pano-Instance-Id` / `X-Pano-Instance-Name`). */
 data class PanoIdentity(val instanceId: String, val instanceName: String)
@@ -431,32 +441,55 @@ class PanoHostClient(
         val request = HttpRequest.newBuilder(URI(url)).timeout(Duration.ofMinutes(30)).GET().build()
         val response = http.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
-        response.body().use { input ->
-            if (response.statusCode() !in 200..299) {
-                checkStorageStatus(response.statusCode(), "download")
+        // The request timeout ends once the headers are in: a body that stops coming would be waited for forever. A read
+        // that brings nothing for [RetryPolicy.stallMs] is broken off (the reading thread is interrupted) and the download retried.
+        val reader = Thread.currentThread()
+        val stallCheckMs = (retry.stallMs / 4).coerceIn(10L, 5_000L)
+        val lastRead = AtomicLong(System.nanoTime())
+        val stalled = AtomicBoolean(false)
+        val watchdog = STALL_WATCH.scheduleAtFixedRate({
+            if (System.nanoTime() - lastRead.get() > TimeUnit.MILLISECONDS.toNanos(retry.stallMs) && stalled.compareAndSet(false, true)) {
+                reader.interrupt()
             }
+        }, stallCheckMs, stallCheckMs, TimeUnit.MILLISECONDS)
 
-            target.outputStream().buffered(256 * 1024).use { output ->
-                val buffer = ByteArray(256 * 1024)
-                var total = 0L
-                var lastReport = 0L
-
-                while (true) {
-                    val read = input.read(buffer)
-
-                    if (read < 0) break
-
-                    output.write(buffer, 0, read)
-                    total += read
-
-                    if (total - lastReport >= PROGRESS_STEP) {
-                        lastReport = total
-                        onProgress(total)
-                    }
+        try {
+            response.body().use { input ->
+                if (response.statusCode() !in 200..299) {
+                    checkStorageStatus(response.statusCode(), "download")
                 }
 
-                onProgress(total)
+                target.outputStream().buffered(256 * 1024).use { output ->
+                    val buffer = ByteArray(256 * 1024)
+                    var total = 0L
+                    var lastReport = 0L
+
+                    while (true) {
+                        val read = input.read(buffer)
+
+                        if (read < 0) break
+
+                        lastRead.set(System.nanoTime())
+                        output.write(buffer, 0, read)
+                        total += read
+
+                        if (total - lastReport >= PROGRESS_STEP) {
+                            lastReport = total
+                            onProgress(total)
+                        }
+                    }
+
+                    onProgress(total)
+                }
             }
+        } catch (e: IOException) {
+            if (stalled.get()) throw RetryableException("The download stopped coming for ${retry.stallMs / 1000} s.", e)
+
+            throw e
+        } finally {
+            watchdog.cancel(false)
+            // The interrupt was for the read; the pool thread must not keep it.
+            if (stalled.get()) Thread.interrupted()
         }
     }
 
@@ -545,6 +578,10 @@ class PanoHostClient(
 
     companion object {
         private const val PROGRESS_STEP = 8L * 1024 * 1024
+
+        private val STALL_WATCH: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { runnable ->
+            Thread(runnable, "pano-backup-download-watch").apply { isDaemon = true }
+        }
 
         /** Chunk ids per `chunks` / `chunk-urls` call. */
         const val MAX_SNAPSHOT_BATCH = 1000

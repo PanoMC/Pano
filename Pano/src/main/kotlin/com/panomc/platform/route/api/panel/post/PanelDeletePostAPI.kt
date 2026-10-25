@@ -7,6 +7,7 @@ import com.panomc.platform.auth.panel.log.DeletedPostLog
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.Post.Companion.deleteThumbnailFile
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
@@ -50,6 +51,12 @@ class PanelDeletePostAPI(
         val post = databaseManager.postDao.getById(id, sqlClient)!!
 
         post.deleteThumbnailFile(configManager)
+
+        databaseManager.postAutosaveDao.getByPostId(id, sqlClient)?.let { autosave ->
+            Post.deleteThumbnailFile(autosave.thumbnailUrl, configManager)
+
+            databaseManager.postAutosaveDao.deleteByPostId(id, sqlClient)
+        }
 
         databaseManager.postDao.delete(id, sqlClient)
 

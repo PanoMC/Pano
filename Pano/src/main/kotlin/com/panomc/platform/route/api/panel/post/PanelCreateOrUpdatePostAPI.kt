@@ -1,7 +1,6 @@
 package com.panomc.platform.route.api.panel.post
 
 import com.panomc.platform.webhook.WebhookCoreEvents
-import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.PublishedPostLog
@@ -13,10 +12,8 @@ import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.Post.Companion.deleteThumbnailFile
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
-import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.PostStatus
 import com.panomc.platform.util.TextUtil
-import io.vertx.ext.web.FileUpload
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
 import io.vertx.ext.web.validation.ValidationHandler
@@ -25,10 +22,6 @@ import com.panomc.platform.schema.dsl.Parameters.optionalParam
 import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
-import org.imgscalr.Scalr
-import java.awt.image.BufferedImage
-import java.io.File
-import javax.imageio.ImageIO
 import com.panomc.platform.util.UsageMode
 
 @Endpoint
@@ -86,15 +79,31 @@ class PanelCreateOrUpdatePostAPI(
         var postInDb: Post? = null
 
         if (id == null) {
-            thumbnailUrl = saveUploadedFileAndGetThumbnailUrl(fileUploads, null)
+            thumbnailUrl = Post.saveThumbnail(fileUploads, configManager) ?: ""
         } else {
             postInDb = databaseManager.postDao.getById(id, sqlClient) ?: throw NotExists()
 
-            if (removeThumbnail) {
-                postInDb.deleteThumbnailFile(configManager)
-            } else {
-                thumbnailUrl = saveUploadedFileAndGetThumbnailUrl(fileUploads, postInDb)
+            // The editor's autosave may hold a cover picked earlier (uploaded then) or its removal: the save takes
+            // it over unless this request says otherwise.
+            val autosave = databaseManager.postAutosaveDao.getByPostId(id, sqlClient)
+            val uploaded = if (removeThumbnail) null else Post.saveThumbnail(fileUploads, configManager)
+
+            thumbnailUrl = when {
+                uploaded != null -> uploaded
+                removeThumbnail || autosave?.removeThumbnail == true -> ""
+                !autosave?.thumbnailUrl.isNullOrEmpty() -> autosave!!.thumbnailUrl
+                else -> postInDb.thumbnailUrl
             }
+
+            if (thumbnailUrl != postInDb.thumbnailUrl) {
+                postInDb.deleteThumbnailFile(configManager)
+            }
+
+            if (autosave != null && autosave.thumbnailUrl.isNotEmpty() && autosave.thumbnailUrl != thumbnailUrl) {
+                Post.deleteThumbnailFile(autosave.thumbnailUrl, configManager)
+            }
+
+            databaseManager.postAutosaveDao.deleteByPostId(id, sqlClient)
         }
 
         val post = Post(
@@ -146,50 +155,5 @@ class PanelCreateOrUpdatePostAPI(
         }
 
         return Successful(body)
-    }
-
-    private fun saveUploadedFileAndGetThumbnailUrl(fileUploads: List<FileUpload>, postInDb: Post?): String {
-        var thumbnailUrl = postInDb?.thumbnailUrl ?: ""
-        val savedFiles = FileUploadUtil.saveFiles(fileUploads, Post.acceptedFileFields, configManager)
-
-        if (savedFiles.isNotEmpty()) {
-            postInDb?.deleteThumbnailFile(configManager)
-
-            thumbnailUrl = AppConstants.POST_THUMBNAIL_URL_PREFIX + savedFiles[0].path.split(File.separator).last()
-            val path = configManager.config
-                .fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + savedFiles[0].path.split(File.separator).last()
-            val thumbnailFile = File(path)
-            val thumbnailPreviewFile = File(path.lastIndexOf('.').let { dotIndex ->
-                if (dotIndex > 0) {
-                    path.take(dotIndex) + "-preview" + path.substring(dotIndex)
-                } else {
-                    "$path-preview"
-                }
-            })
-
-            var image: BufferedImage? = null
-
-            try {
-                image = ImageIO.read(thumbnailFile)
-            } catch (_: Exception) {
-            }
-
-            if (image != null) {
-                val bufferedImage = if (image.type != BufferedImage.TYPE_INT_ARGB) {
-                    val tmp = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
-                    val g = tmp.createGraphics()
-                    g.composite = java.awt.AlphaComposite.Src
-                    g.drawImage(image, 0, 0, null)
-                    g.dispose()
-                    tmp
-                } else image
-
-                val scaled = Scalr.resize(bufferedImage, Scalr.Method.QUALITY, Scalr.Mode.AUTOMATIC, 100)
-
-                ImageIO.write(scaled, "png", thumbnailPreviewFile)
-            }
-        }
-
-        return thumbnailUrl
     }
 }

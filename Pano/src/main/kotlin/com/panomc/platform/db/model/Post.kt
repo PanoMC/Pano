@@ -7,7 +7,11 @@ import com.panomc.platform.error.PostThumbnailExceedsSize
 import com.panomc.platform.error.PostThumbnailWrongContentType
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.PostStatus
+import io.vertx.ext.web.FileUpload
+import org.imgscalr.Scalr
+import java.awt.image.BufferedImage
 import java.io.File
+import javax.imageio.ImageIO
 
 data class Post(
     val id: Long = -1,
@@ -41,25 +45,76 @@ data class Post(
             )
         )
 
-        fun Post.deleteThumbnailFile(configManager: ConfigManager) {
-            val path =configManager.config.fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + thumbnailUrl.split(
-                File.separator
-            ).last()
-            val oldThumbnailFile = File(path)
-            val oldThumbnailPreviewFile = File(path.lastIndexOf('.').let { dotIndex ->
-                if (dotIndex > 0) {
-                    path.take(dotIndex) + "-preview" + path.substring(dotIndex)
-                } else {
-                    "$path-preview"
-                }
-            })
+        fun Post.deleteThumbnailFile(configManager: ConfigManager) = deleteThumbnailFile(thumbnailUrl, configManager)
 
-            if (oldThumbnailFile.exists()) {
+        /** Deletes the cover file at [thumbnailUrl] and its preview; nothing for an empty address. */
+        fun deleteThumbnailFile(thumbnailUrl: String, configManager: ConfigManager) {
+            val fileName = thumbnailUrl.split(File.separator).last()
+
+            if (fileName.isBlank()) {
+                return
+            }
+
+            val path = thumbnailPath(fileName, configManager)
+            val oldThumbnailFile = File(path)
+            val oldThumbnailPreviewFile = File(previewPath(path))
+
+            if (oldThumbnailFile.isFile) {
                 oldThumbnailFile.delete()
             }
 
-            if (oldThumbnailPreviewFile.exists()) {
+            if (oldThumbnailPreviewFile.isFile) {
                 oldThumbnailPreviewFile.delete()
+            }
+        }
+
+        /**
+         * Saves the uploaded cover (field `thumbnail`) with its small preview next to it and answers its address;
+         * null when the request carries no cover.
+         */
+        fun saveThumbnail(fileUploads: List<FileUpload>, configManager: ConfigManager): String? {
+            val savedFiles = FileUploadUtil.saveFiles(fileUploads, acceptedFileFields, configManager)
+
+            if (savedFiles.isEmpty()) {
+                return null
+            }
+
+            val fileName = savedFiles[0].path.split(File.separator).last()
+            val path = thumbnailPath(fileName, configManager)
+
+            var image: BufferedImage? = null
+
+            try {
+                image = ImageIO.read(File(path))
+            } catch (_: Exception) {
+            }
+
+            if (image != null) {
+                val bufferedImage = if (image.type != BufferedImage.TYPE_INT_ARGB) {
+                    val tmp = BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB)
+                    val g = tmp.createGraphics()
+                    g.composite = java.awt.AlphaComposite.Src
+                    g.drawImage(image, 0, 0, null)
+                    g.dispose()
+                    tmp
+                } else image
+
+                val scaled = Scalr.resize(bufferedImage, Scalr.Method.QUALITY, Scalr.Mode.AUTOMATIC, 100)
+
+                ImageIO.write(scaled, "png", File(previewPath(path)))
+            }
+
+            return AppConstants.POST_THUMBNAIL_URL_PREFIX + fileName
+        }
+
+        private fun thumbnailPath(fileName: String, configManager: ConfigManager) =
+            configManager.config.fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator + fileName
+
+        private fun previewPath(path: String) = path.lastIndexOf('.').let { dotIndex ->
+            if (dotIndex > 0) {
+                path.take(dotIndex) + "-preview" + path.substring(dotIndex)
+            } else {
+                "$path-preview"
             }
         }
     }

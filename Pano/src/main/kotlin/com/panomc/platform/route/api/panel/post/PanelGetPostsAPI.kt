@@ -6,6 +6,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
+import com.panomc.platform.db.model.PostAutosave
 import com.panomc.platform.db.model.PostCategory
 import com.panomc.platform.error.CategoryNotExists
 import com.panomc.platform.model.*
@@ -91,23 +92,25 @@ class PanelGetPostsAPI(
             return getResults(postCategory, posts, mapOf(), mapOf(), count, page)
         }
 
+        val autosaves = databaseManager.postAutosaveDao.getSummariesByPostIds(posts.map { it.id }, sqlClient)
+
         val userIdList = posts.distinctBy { it.writerUserId }.map { it.writerUserId }.filter { it != -1L }
 
         val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
         if (postCategory != null) {
-            return getResults(postCategory, posts, usernameList, mapOf(), count, page)
+            return getResults(postCategory, posts, usernameList, mapOf(), count, page, autosaves)
         }
 
         val categoryIdList = posts.filter { it.categoryId != -1L }.distinctBy { it.categoryId }.map { it.categoryId }
 
         if (categoryIdList.isEmpty()) {
-            return getResults(null, posts, usernameList, mapOf(), count, page)
+            return getResults(null, posts, usernameList, mapOf(), count, page, autosaves)
         }
 
         val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlClient)
 
-        return getResults(null, posts, usernameList, categories, count, page)
+        return getResults(null, posts, usernameList, categories, count, page, autosaves)
     }
 
     private fun getResults(
@@ -116,8 +119,9 @@ class PanelGetPostsAPI(
         usernameList: Map<Long, String>,
         categories: Map<Long, PostCategory>,
         count: Long,
-        page: PageRequest
-    ): Result = Successful(payload(postCategory, posts, usernameList, categories, count, page))
+        page: PageRequest,
+        autosaves: Map<Long, PostAutosave> = mapOf()
+    ): Result = Successful(payload(postCategory, posts, usernameList, categories, count, page, autosaves))
 
     companion object {
         /** The whole response body: `{ items, page }` plus the `category` when the list is filtered. */
@@ -127,15 +131,28 @@ class PanelGetPostsAPI(
             usernameList: Map<Long, String>,
             categories: Map<Long, PostCategory>,
             count: Long,
-            page: PageRequest
+            page: PageRequest,
+            /**
+             * The unsaved changes the editor kept, by post id: such a row shows the title and cover being worked on
+             * (what the editor opens with) and says `hasUnsavedChanges`.
+             */
+            autosaves: Map<Long, PostAutosave> = mapOf()
         ): Map<String, Any?> {
             val postsDataList = mutableListOf<Map<String, Any?>>()
 
             posts.forEach { post ->
+                val autosave = autosaves[post.id]
+                val thumbnailUrl = when {
+                    autosave == null -> post.thumbnailUrl
+                    autosave.removeThumbnail -> ""
+                    autosave.thumbnailUrl.isNotEmpty() -> autosave.thumbnailUrl
+                    else -> post.thumbnailUrl
+                }
+
                 postsDataList.add(
                     mapOf(
                         "id" to post.id,
-                        "title" to post.title,
+                        "title" to (autosave?.title ?: post.title),
                         "category" to
                                 (postCategory
                                     ?: if (post.categoryId == -1L)
@@ -149,9 +166,10 @@ class PanelGetPostsAPI(
                             "username" to (usernameList[post.writerUserId] ?: "-")
                         ),
                         "date" to post.date,
-                        "thumbnailUrl" to post.thumbnailUrl,
+                        "thumbnailUrl" to thumbnailUrl,
                         "views" to post.views,
-                        "status" to post.status
+                        "status" to post.status,
+                        "hasUnsavedChanges" to (autosave != null)
                     )
                 )
             }

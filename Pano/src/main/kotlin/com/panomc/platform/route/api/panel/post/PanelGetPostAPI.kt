@@ -46,6 +46,9 @@ class PanelGetPostAPI(
 
         val post = databaseManager.postDao.getById(id, sqlClient)!!
 
+        // The unsaved changes the editor kept for the post, restored into the editor when it opens.
+        val autosave = databaseManager.postAutosaveDao.getByPostId(id, sqlClient)
+
         return Successful(
             mapOf(
                 "post" to mapOf(
@@ -58,7 +61,17 @@ class PanelGetPostAPI(
                     "status" to post.status,
                     "thumbnailUrl" to post.thumbnailUrl,
                     "views" to post.views
-                )
+                ),
+                "autosave" to autosave?.let {
+                    mapOf(
+                        "title" to it.title,
+                        "category" to it.categoryId,
+                        "text" to it.text,
+                        "thumbnailUrl" to it.thumbnailUrl,
+                        "removeThumbnail" to it.removeThumbnail,
+                        "updatedAt" to it.updatedAt
+                    )
+                }
             )
         )
     }

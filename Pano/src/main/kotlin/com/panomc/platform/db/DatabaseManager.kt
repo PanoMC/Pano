@@ -31,6 +31,7 @@ class DatabaseManager(
     @Lazy val systemPropertyDao: SystemPropertyDao,
     @Lazy val panelNotificationDao: PanelNotificationDao,
     @Lazy val postDao: PostDao,
+    @Lazy val postAutosaveDao: PostAutosaveDao,
     @Lazy val postViewTrackerDao: PostViewTrackerDao,
     @Lazy val postCategoryDao: PostCategoryDao,
     @Lazy val ticketDao: TicketDao,

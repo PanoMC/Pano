@@ -344,7 +344,10 @@ class PanoHostClient(
             }
 
             beforePart(part.partNumber)
-            withRetry(PanoHostException.UPLOAD_FAILED) { putPart(file, offset, length, part.url) }
+            val partStart = offset
+
+            // Within the part too: one large part would otherwise sit at 0 % until it is all through.
+            withRetry(PanoHostException.UPLOAD_FAILED) { putPart(file, offset, length, part.url) { sent -> onProgress(partStart + sent) } }
 
             offset += length
             onProgress(offset)
@@ -423,9 +426,9 @@ class PanoHostClient(
         }
     }
 
-    private suspend fun putPart(file: File, offset: Long, length: Long, url: String) = withContext(Dispatchers.IO) {
+    private suspend fun putPart(file: File, offset: Long, length: Long, url: String, onSent: (Long) -> Unit = {}) = withContext(Dispatchers.IO) {
         val publisher = HttpRequest.BodyPublishers.fromPublisher(
-            HttpRequest.BodyPublishers.ofInputStream { slice(file, offset, length) },
+            HttpRequest.BodyPublishers.ofInputStream { slice(file, offset, length, onSent) },
             length
         )
         val request = HttpRequest.newBuilder(URI(url))
@@ -578,6 +581,7 @@ class PanoHostClient(
 
     companion object {
         private const val PROGRESS_STEP = 8L * 1024 * 1024
+        private const val SLICE_PROGRESS_STEP = 1L * 1024 * 1024
 
         private val STALL_WATCH: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "pano-backup-download-watch").apply { isDaemon = true }
@@ -612,7 +616,8 @@ class PanoHostClient(
         }
 
         /** An input stream over `[offset, offset + length)` of [file]. */
-        fun slice(file: File, offset: Long, length: Long): InputStream {
+        /** [onRead]: the bytes of the slice read so far, at most every [SLICE_PROGRESS_STEP] and at its end. */
+        fun slice(file: File, offset: Long, length: Long, onRead: (Long) -> Unit = {}): InputStream {
             val raf = RandomAccessFile(file, "r")
 
             raf.seek(offset)
@@ -621,11 +626,21 @@ class PanoHostClient(
 
             return object : FilterInputStream(channel) {
                 private var remaining = length
+                private var reported = 0L
+
+                private fun report() {
+                    val done = length - remaining
+
+                    if (done - reported >= SLICE_PROGRESS_STEP || remaining <= 0) {
+                        reported = done
+                        onRead(done)
+                    }
+                }
 
                 override fun read(): Int {
                     if (remaining <= 0) return -1
 
-                    return super.read().also { if (it >= 0) remaining-- }
+                    return super.read().also { if (it >= 0) { remaining--; report() } }
                 }
 
                 override fun read(b: ByteArray, off: Int, len: Int): Int {
@@ -633,7 +648,10 @@ class PanoHostClient(
 
                     val read = super.read(b, off, minOf(len.toLong(), remaining).toInt())
 
-                    if (read > 0) remaining -= read
+                    if (read > 0) {
+                        remaining -= read
+                        report()
+                    }
 
                     return read
                 }

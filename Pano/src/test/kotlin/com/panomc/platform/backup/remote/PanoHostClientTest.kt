@@ -109,7 +109,10 @@ class PanoHostClientTest {
         val before = mutableListOf<Int>()
 
         client.uploadParts(file, session, beforePart = { before.add(it) }) { progress.add(it) }
-        assertEquals(listOf(4096L, 8192L, bytes.size.toLong()), progress)
+        // Told while a part streams and again when it is done (a retried part streams again): it only ever reaches the
+        // end of each part, and never goes past it.
+        assertEquals(listOf(4096L, 8192L, bytes.size.toLong()), progress.distinct())
+        assertEquals(progress.sorted(), progress)
         assertEquals(listOf(1, 2, 3), before)
         assertEquals("UPLOADING", client.getBackup(session.id).getString("status"))
 
@@ -165,6 +168,13 @@ class PanoHostClientTest {
 
         PanoHostClient.slice(file, 100, 250).use { assertArrayEquals(bytes.copyOfRange(100, 350), it.readBytes()) }
         PanoHostClient.slice(file, 900, 100).use { assertArrayEquals(bytes.copyOfRange(900, 1000), it.readBytes()) }
+
+        // The bytes read so far are told as the slice goes (what an upload's progress follows within one part).
+        val told = ArrayList<Long>()
+
+        PanoHostClient.slice(file, 100, 250) { told += it }.use { it.readBytes() }
+
+        assertEquals(250L, told.last())
         assertEquals(sha256Hex(bytes), PanoHostClient.sha256(file))
     }
 

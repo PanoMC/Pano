@@ -73,7 +73,11 @@ class McServerBackupSources(
             subject = server.uuid ?: "server-$serverId",
             backupId = backup.uuid,
             meta = meta,
-            settings = server.settings.panoBackup
+            settings = server.settings.panoBackup,
+            onUploaded = { remoteId ->
+                databaseManager.serverBackupDao.updatePanoBackupIdByUuid(backup.uuid, remoteId, databaseManager.getSqlClient())
+                panelRealtimeHub.pushServerBackupsChanged(serverId)
+            }
         ) { file ->
             val target = fileClient.resolve(serverId, databaseManager.getSqlClient())
             val path = PanelDownloadServerBackupAPI.VIRTUAL_PREFIX + backup.uuid
@@ -115,8 +119,9 @@ class McServerBackupSources(
      * An importer acting for [userId]: the zip is pushed to [McServerBackupImporter.import]'s server through an upload
      * ticket ([BackupImportMessage]), and a READY row is written once the node has stored it. Only a node of protocol
      * [MIN_IMPORT_PROTOCOL] or newer can take one; a server served by its plugin cannot (`IMPORT_UNSUPPORTED`).
+     * The row remembers [panoBackupId], the copy it came from.
      */
-    fun importer(userId: Long) = McServerBackupImporter { serverId, zip, meta, onProgress ->
+    fun importer(userId: Long, panoBackupId: String? = null) = McServerBackupImporter { serverId, zip, meta, onProgress ->
         val sqlClient = databaseManager.getSqlClient()
         val target = fileClient.resolve(serverId, sqlClient, ServerFeature.BACKUPS_CREATE)
         val nodeId = target.nodeId
@@ -191,7 +196,8 @@ class McServerBackupSources(
                 createdAt = now,
                 mode = BackupMode.FULL,
                 scope = scope,
-                fileCount = fileCount
+                fileCount = fileCount,
+                panoBackupId = panoBackupId
             ),
             sqlClient
         )

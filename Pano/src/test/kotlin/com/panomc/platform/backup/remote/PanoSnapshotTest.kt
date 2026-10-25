@@ -177,13 +177,17 @@ class PanoSnapshotTest {
             enabled = true, mode = com.panomc.platform.server.backup.BackupMode.SNAPSHOT, keepLast = 1
         )
 
+        val recorded = ArrayList<String>()
+
         fun source(id: String, zip: File) = McServerBackupSource(
-            4, "server-uuid-4", id, JsonObject().put("id", id).put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"), settings
+            4, "server-uuid-4", id, JsonObject().put("id", id).put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"), settings,
+            onUploaded = { recorded += it }
         ) { it.writeBytes(zip.readBytes()) }
 
         val first = awaitJob(service.startMcUpload(source("b-1", serverZip(region))))
 
         assertEquals(PanoBackupJob.Status.DONE, first.status, first.error + " " + first.message)
+        assertEquals(listOf(first.remoteId), recorded)
         assertEquals(PanoBackupJob.Type.MC_UPLOAD, first.type)
 
         // The same world again: only what changed is new, and the server keeps its last one only.

@@ -46,6 +46,9 @@ abstract class ServerBackupDao : Dao<ServerBackup>(ServerBackup::class.java) {
         sqlClient: SqlClient
     )
 
+    /** SM-PB — records (or clears) the id of the backup's copy at Pano Backup. */
+    abstract suspend fun updatePanoBackupIdByUuid(uuid: String, panoBackupId: String?, sqlClient: SqlClient)
+
     abstract suspend fun updatePinnedById(
         id: Long,
         pinned: Boolean,

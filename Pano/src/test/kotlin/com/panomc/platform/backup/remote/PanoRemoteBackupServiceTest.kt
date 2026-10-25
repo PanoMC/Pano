@@ -398,7 +398,8 @@ class PanoRemoteBackupServiceTest {
 
         val zip = Random(9).nextBytes(10_000)
         val meta = JsonObject().put("id", "b-1").put("name", "Nightly").put("serverName", "Survival").put("sha256", sha256Hex(zip))
-        val source = McServerBackupSource(4, "server-uuid-4", "b-1", meta) { it.writeBytes(zip) }
+        var recorded: String? = null
+        val source = McServerBackupSource(4, "server-uuid-4", "b-1", meta, onUploaded = { recorded = it }) { it.writeBytes(zip) }
 
         service.onMcBackupReady(source)
 
@@ -406,6 +407,7 @@ class PanoRemoteBackupServiceTest {
 
         assertEquals(PanoBackupJob.Type.MC_UPLOAD, job.type)
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
+        assertEquals(job.remoteId, recorded, "the backup's row learns where its copy went")
 
         val backup = host.backups.getValue(job.remoteId!!)
 

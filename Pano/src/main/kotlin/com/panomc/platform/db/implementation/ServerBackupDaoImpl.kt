@@ -39,6 +39,7 @@ class ServerBackupDaoImpl : ServerBackupDao() {
                               `storedBytes` bigint DEFAULT NULL,
                               `include` text DEFAULT NULL,
                               `exclude` text DEFAULT NULL,
+                              `panoBackupId` varchar(64) DEFAULT NULL,
                               PRIMARY KEY (`id`),
                               UNIQUE KEY `idx_server_backup_uuid` (`uuid`),
                               KEY `idx_server_backup_server` (`serverId`),
@@ -54,8 +55,8 @@ class ServerBackupDaoImpl : ServerBackupDao() {
         val query =
             "INSERT INTO `${getTablePrefix() + tableName}` " +
                     "(`uuid`, `serverId`, `nodeId`, `name`, `sizeBytes`, `sha256`, `status`, `createdBy`, `createdAt`, " +
-                    "`mode`, `scope`, `pinned`, `fileCount`, `storedBytes`, `include`, `exclude`) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "`mode`, `scope`, `pinned`, `fileCount`, `storedBytes`, `include`, `exclude`, `panoBackupId`) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -77,7 +78,8 @@ class ServerBackupDaoImpl : ServerBackupDao() {
                         serverBackup.fileCount,
                         serverBackup.storedBytes,
                         JsonArray(serverBackup.include).encode(),
-                        JsonArray(serverBackup.exclude).encode()
+                        JsonArray(serverBackup.exclude).encode(),
+                        serverBackup.panoBackupId
                     )
                 )
             )
@@ -149,6 +151,15 @@ class ServerBackupDaoImpl : ServerBackupDao() {
                     listOf(sizeBytes, sha256, status.name, mode.name, scope.name, fileCount, storedBytes, uuid)
                 )
             )
+            .coAwait()
+    }
+
+    override suspend fun updatePanoBackupIdByUuid(uuid: String, panoBackupId: String?, sqlClient: SqlClient) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET `panoBackupId` = ? WHERE `uuid` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(panoBackupId, uuid))
             .coAwait()
     }
 

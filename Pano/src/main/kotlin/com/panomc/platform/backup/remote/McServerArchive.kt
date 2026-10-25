@@ -22,6 +22,8 @@ class McServerBackupSource(
     val backupId: String,
     val meta: JsonObject,
     val settings: ServerPanoBackupSettings = ServerPanoBackupSettings(),
+    /** The copy is at Pano Backup now, under this id (the backup's row remembers it). */
+    val onUploaded: suspend (remoteId: String) -> Unit = {},
     val fetch: suspend (File) -> Unit
 ) {
     /** A snapshot of the node (`meta.mode`), uploaded into the snapshot repository rather than as an archive. */

@@ -162,7 +162,7 @@ class PanelImportServerPanoBackupAPI(
 
         requireReady(remote, passphrase = false)
 
-        val importer = mcServerBackupSources.importer(authProvider.getUserIdFromRoutingContext(context))
+        val importer = mcServerBackupSources.importer(authProvider.getUserIdFromRoutingContext(context), remoteId)
         val job = job { remote.startMcImport(remoteId, passphrase, serverId, importer, snapshot) }
 
         panoBackupAudit.log(context, PanoBackupActionLog.ACTION_RESTORE_REMOTE, remoteId)

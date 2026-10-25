@@ -55,7 +55,12 @@ data class ServerBackup(
     /** Roots of a `CUSTOM` backup, as a JSON array in a text column. */
     var include: List<String> = emptyList(),
     /** The full exclude list the source was sent, defaults included. */
-    var exclude: List<String> = emptyList()
+    var exclude: List<String> = emptyList(),
+    /**
+     * SM-PB — the id of this backup's copy at Pano Backup (an archive or a snapshot), set when it was uploaded or
+     * brought in from there. Only a hint: whether the copy still exists is what the remote list says.
+     */
+    var panoBackupId: String? = null
 ) : DBEntity() {
     fun toPublicJsonObject(): JsonObject = JsonObject.mapFrom(this)
 

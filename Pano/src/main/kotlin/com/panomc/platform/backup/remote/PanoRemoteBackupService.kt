@@ -722,6 +722,8 @@ class PanoRemoteBackupService(
                 listCache = null
             }
 
+            recordMcUpload(source, uploaded)
+
             // The upload stands even when the pruning fails: the next upload of this server tries again.
             try {
                 pruneMc(source, uploaded)
@@ -789,11 +791,22 @@ class PanoRemoteBackupService(
                 listCache = null
             }
 
+            recordMcUpload(source, session.id)
+
             try {
                 pruneMc(source, session.id)
             } catch (e: Exception) {
                 logger.warn("Could not apply the Pano Backup retention of server ${source.serverId}: ${e.message}")
             }
+        }
+    }
+
+    /** Tells [source] where its copy went; the upload stands when that fails (the backup only shows no cloud mark). */
+    private suspend fun recordMcUpload(source: McServerBackupSource, remoteId: String) {
+        try {
+            source.onUploaded(remoteId)
+        } catch (e: Exception) {
+            logger.warn("Could not record the Pano Backup copy of backup ${source.backupId}: ${e.message}")
         }
     }
 

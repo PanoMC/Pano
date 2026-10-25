@@ -241,8 +241,8 @@ class TaskProgressEvent(
                 val uuid = server.uuid
 
                 // A software change said up front whether it wants the server back (SM-66); every
-                // other install follows the row's auto-start.
-                val start = serverTaskService.takeStartAfter(taskUuid) ?: server.autoStart
+                // other install follows the row's auto-start, and a restore leaves the server stopped.
+                val start = ImportStartHandoff.wantsStartOnDone(kind, serverTaskService.takeStartAfter(taskUuid), server.autoStart)
 
                 // An import whose Pano plugin install went out with this start leaves it to that
                 // install: the node starts the server once the jar is in, where a START from here

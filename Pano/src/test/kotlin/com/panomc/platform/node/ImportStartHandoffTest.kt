@@ -97,4 +97,15 @@ class ImportStartHandoffTest {
 
         assertNull(json.getValue("startAfter"))
     }
+
+    @Test
+    fun `a restore leaves the server stopped, an install follows auto-start or what was decided`() {
+        assertFalse(ImportStartHandoff.wantsStartOnDone(ServerTaskKind.RESTORE, null, autoStart = true))
+        assertFalse(ImportStartHandoff.wantsStartOnDone(ServerTaskKind.RESTORE, true, autoStart = true))
+
+        assertTrue(ImportStartHandoff.wantsStartOnDone(ServerTaskKind.INSTALL, null, autoStart = true))
+        assertFalse(ImportStartHandoff.wantsStartOnDone(ServerTaskKind.INSTALL, null, autoStart = false))
+        assertTrue(ImportStartHandoff.wantsStartOnDone(ServerTaskKind.REINSTALL, true, autoStart = false))
+        assertFalse(ImportStartHandoff.wantsStartOnDone(ServerTaskKind.IMPORT, false, autoStart = true))
+    }
 }

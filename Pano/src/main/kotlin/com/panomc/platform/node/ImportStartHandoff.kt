@@ -46,4 +46,12 @@ object ImportStartHandoff {
      * Pano plugin install took it over ([carriedByLink]).
      */
     fun startsOnDone(start: Boolean, carriedByLink: Boolean): Boolean = start && !carriedByLink
+
+    /**
+     * Whether a finished task of [kind] wants the server started: [decided] when somebody decided up front, the row's
+     * [autoStart] otherwise. A restore never does: the server stays stopped until the admin starts it, having seen what
+     * came back (auto-start is about installs and crashes, not about a backup somebody just put in place).
+     */
+    fun wantsStartOnDone(kind: ServerTaskKind, decided: Boolean?, autoStart: Boolean): Boolean =
+        kind != ServerTaskKind.RESTORE && (decided ?: autoStart)
 }

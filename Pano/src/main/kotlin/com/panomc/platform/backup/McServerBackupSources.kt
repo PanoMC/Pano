@@ -47,7 +47,10 @@ class McServerBackupSources(
     private val panelRealtimeHub: PanelRealtimeHub
 ) {
     suspend fun source(serverId: Long, backupId: String, sqlClient: SqlClient): McServerBackupSource {
-        val backup = databaseManager.serverBackupDao.getByUuid(backupId, sqlClient) ?: throw NotExists()
+        // The panel names a backup by its row id, the node and the automatic upload by its uuid; both are taken.
+        val backup = databaseManager.serverBackupDao.getByUuid(backupId, sqlClient)
+            ?: backupId.toLongOrNull()?.let { databaseManager.serverBackupDao.getById(it, sqlClient) }
+            ?: throw NotExists()
 
         if (backup.serverId != serverId || backup.status != ServerBackupStatus.READY) {
             throw NotExists()

@@ -841,6 +841,14 @@ class PanoRemoteBackupService(
         }
     }
 
+    /** [discardInterruptedUploads] the first time it is asked while connected and idle (soon after start, then the tick). */
+    suspend fun discardInterruptedOnce() {
+        if (interruptedChecked || !isConnected() || backups.isBusy()) return
+
+        interruptedChecked = true
+        discardInterruptedUploads()
+    }
+
     /**
      * Deletes the uploads of this Pano that a previous run left open (stopped or restarted mid-upload): an archive still
      * `UPLOADING`, a snapshot still `RUNNING`. Called once per run before anything is uploaded, so none of them is this
@@ -1031,10 +1039,7 @@ class PanoRemoteBackupService(
             return
         }
 
-        if (!interruptedChecked && !backups.isBusy()) {
-            interruptedChecked = true
-            discardInterruptedUploads()
-        }
+        discardInterruptedOnce()
 
         val lastFailure = lastScheduledFailureAt
 

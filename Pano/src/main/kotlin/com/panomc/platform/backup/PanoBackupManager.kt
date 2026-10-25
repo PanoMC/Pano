@@ -279,6 +279,18 @@ class PanoBackupManager(
 
         store.cleanParts()
 
+        // Uploads a previous run left half done are listed as "uploading" until removed: soon after start, not at the
+        // first tick ten minutes later.
+        vertx.setTimer(INTERRUPTED_CHECK_DELAY_MS) {
+            scope.launch {
+                try {
+                    remote.discardInterruptedOnce()
+                } catch (e: Exception) {
+                    logger.warn("Could not look for unfinished Pano Backup uploads: ${e.message}")
+                }
+            }
+        }
+
         vertx.setPeriodic(TICK_INTERVAL_MS) {
             scope.launch {
                 try {
@@ -484,6 +496,7 @@ class PanoBackupManager(
         const val RESTART_DELAY_MS = 3000L
 
         private const val TICK_INTERVAL_MS = 10L * 60 * 1000
+        private const val INTERRUPTED_CHECK_DELAY_MS = 30L * 1000
 
         fun connectOptions(database: JsonObject): MySQLConnectOptions {
             val address = database.getString("host", "")

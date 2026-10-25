@@ -2,7 +2,6 @@ package com.panomc.platform.route.api.ticket
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
 import com.panomc.platform.db.model.TicketCategory
@@ -24,8 +23,7 @@ import com.panomc.platform.schema.CoreSchemas
 @Endpoint
 class GetTicketAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider,
-    private val configManager: ConfigManager
+    private val authProvider: AuthProvider
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -66,7 +64,8 @@ class GetTicketAPI(
 
         val username = databaseManager.userDao.getUsernameFromUserId(ticket.userId, sqlClient)!!
 
-        val messages = databaseManager.ticketMessageDao.getByTicketId(id, sqlClient)
+        // Auto-replies are the panel's: the player sees only what people wrote.
+        val messages = databaseManager.ticketMessageDao.getByTicketId(id, sqlClient, includeSystem = false)
 
         val userIdList = mutableListOf<Long>()
 
@@ -79,7 +78,7 @@ class GetTicketAPI(
 
         val usernameList = databaseManager.userDao.getUsernameByListOfId(userIdList, sqlClient)
 
-        val count = databaseManager.ticketMessageDao.getCountByTicketId(ticket.id, sqlClient)
+        val count = databaseManager.ticketMessageDao.getCountByTicketId(ticket.id, sqlClient, includeSystem = false)
 
         if (ticket.categoryId == -1L) {
             return getResult(ticket, usernameList, null, username, messages, count)
@@ -107,13 +106,10 @@ class GetTicketAPI(
                     "id" to ticketMessage.id,
                     "userId" to ticketMessage.userId,
                     "ticketId" to ticketMessage.ticketId,
-                    // A message the site sent by itself (an auto-reply) is signed with the website's name.
-                    "username" to (if (ticketMessage.system) configManager.config.websiteName
-                    else usernameList[ticketMessage.userId] ?: "-"),
+                    "username" to (usernameList[ticketMessage.userId] ?: "-"),
                     "message" to ticketMessage.message,
                     "date" to ticketMessage.date,
-                    "panel" to ticketMessage.panel,
-                    "system" to ticketMessage.system
+                    "panel" to ticketMessage.panel
                 )
             )
         }

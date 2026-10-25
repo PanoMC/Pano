@@ -35,10 +35,11 @@ class TicketMessageDaoImpl : TicketMessageDao() {
 
     override suspend fun getByTicketId(
         ticketId: Long,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        includeSystem: Boolean
     ): List<TicketMessage> {
         val query =
-            "SELECT id, userId, ticketId, message, `date`, `panel`, `system` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? ORDER BY id DESC LIMIT 5"
+            "SELECT id, userId, ticketId, message, `date`, `panel`, `system` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ?${systemFilter(includeSystem)} ORDER BY id DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -51,10 +52,11 @@ class TicketMessageDaoImpl : TicketMessageDao() {
     override suspend fun getByTicketIdAndStartFromId(
         lastMessageId: Long,
         ticketId: Long,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        includeSystem: Boolean
     ): List<TicketMessage> {
         val query =
-            "SELECT id, userId, ticketId, message, `date`, `panel`, `system` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? and id < ? ORDER BY id DESC LIMIT 5"
+            "SELECT id, userId, ticketId, message, `date`, `panel`, `system` FROM `${getTablePrefix() + tableName}` WHERE ticketId = ? and id < ?${systemFilter(includeSystem)} ORDER BY id DESC LIMIT 5"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -66,10 +68,11 @@ class TicketMessageDaoImpl : TicketMessageDao() {
 
     override suspend fun getCountByTicketId(
         ticketId: Long,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        includeSystem: Boolean
     ): Long {
         val query =
-            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where ticketId = ?"
+            "SELECT COUNT(id) FROM `${getTablePrefix() + tableName}` where ticketId = ?${systemFilter(includeSystem)}"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -175,4 +178,6 @@ class TicketMessageDaoImpl : TicketMessageDao() {
             )
             .coAwait()
     }
+
+    private fun systemFilter(includeSystem: Boolean) = if (includeSystem) "" else " AND `system` = 0"
 }

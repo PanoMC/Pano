@@ -6,20 +6,26 @@ import io.vertx.core.json.JsonArray
 import io.vertx.sqlclient.SqlClient
 
 abstract class TicketMessageDao : Dao<TicketMessage>(TicketMessage::class.java) {
+    /** [includeSystem] false leaves out the messages the site sent by itself (auto-replies): those are the panel's. */
     abstract suspend fun getByTicketId(
         ticketId: Long,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        includeSystem: Boolean = true
     ): List<TicketMessage>
 
+    /** [includeSystem] false leaves out the messages the site sent by itself (auto-replies): those are the panel's. */
     abstract suspend fun getByTicketIdAndStartFromId(
         lastMessageId: Long,
         ticketId: Long,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        includeSystem: Boolean = true
     ): List<TicketMessage>
 
+    /** [includeSystem] false leaves out the messages the site sent by itself (auto-replies): those are the panel's. */
     abstract suspend fun getCountByTicketId(
         ticketId: Long,
-        sqlClient: SqlClient
+        sqlClient: SqlClient,
+        includeSystem: Boolean = true
     ): Long
 
     abstract suspend fun addMessage(

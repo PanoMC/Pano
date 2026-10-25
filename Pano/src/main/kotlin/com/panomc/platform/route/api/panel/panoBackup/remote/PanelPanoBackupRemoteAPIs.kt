@@ -372,6 +372,42 @@ class PanelPanoBackupRemoteSnapshotDownloadAPI(
 }
 
 /**
+ * `POST /api/v1/panel/pano-backups/remote/mc/:id/download {type? archive|snapshot, passphrase?}` → `{job}`: a managed
+ * server's copy (`mc-server`) built back into the zip its node had; when the `DOWNLOAD` job is done the file is served by
+ * `GET …/remote/downloads/:jobId` as `<backup name>.zip`. `passphrase` omitted = the saved one (an archive's only).
+ */
+@Endpoint
+class PanelPanoBackupRemoteMcDownloadAPI(
+    authProvider: AuthProvider,
+    private val panoBackupManager: PanoBackupManager,
+    private val panoBackupAudit: PanoBackupAudit
+) : PanoBackupRemoteApi(authProvider) {
+    override val paths = listOf(Path("/pano-backups/remote/mc/:id/download", RouteType.POST))
+
+    override suspend fun handle(context: RoutingContext): Result {
+        requireManage(context)
+
+        val id = remoteId(context)
+        val body = body(context)
+        val snapshot = when (body.getString("type") ?: PanoRemoteBackupService.TYPE_ARCHIVE) {
+            PanoRemoteBackupService.TYPE_ARCHIVE -> false
+            PanoRemoteBackupService.TYPE_SNAPSHOT -> true
+            else -> throw BadRequest()
+        }
+        val passphrase = PanoBackupRoutes.passphrase(body.getString("passphrase"))
+        val remote = panoBackupManager.remote
+
+        requireReady(remote, passphrase = false)
+
+        val job = job { remote.startMcDownload(id, passphrase, snapshot) }
+
+        panoBackupAudit.log(context, PanoBackupActionLog.ACTION_DOWNLOAD, id)
+
+        return Successful(mapOf("job" to job.toJson()))
+    }
+}
+
+/**
  * Transfer to Pano Host: `GET …/remote/workloads` → `{workloads[{id, name, label, state, maxBytes}]}`
  * (the account's Pano workloads); `GET …/remote/transfers` → `{transfers}` (pushed by this Pano);
  * `GET …/remote/transfers/estimate` → `{status CALCULATING | DONE | FAILED, bytes?, files?, calculatedAt?}` (answers at once; the

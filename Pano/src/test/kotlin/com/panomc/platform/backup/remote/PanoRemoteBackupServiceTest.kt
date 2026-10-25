@@ -493,6 +493,31 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
+    fun `an mc-server backup downloads as the node's zip under its backup name`(): Unit = runBlocking {
+        service.setPassphrase(passphrase.toCharArray())
+
+        val zip = Random(12).nextBytes(6_000)
+        val meta = JsonObject().put("id", "b-1").put("name", "Before/the update").put("sizeBytes", zip.size)
+        val uploaded = awaitJob(service.startMcUpload(McServerBackupSource(4, "server-uuid-4", "b-1", meta) { it.writeBytes(zip) }))
+
+        assertEquals(mapOf("serverId" to 4L), uploaded.details?.map?.mapValues { (it.value as Number).toLong() }, "the job names its server")
+
+        val job = awaitJob(service.startMcDownload(uploaded.remoteId!!, null))
+
+        assertEquals(PanoBackupJob.Type.DOWNLOAD, job.type)
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
+
+        val download = service.takeDownload(job.id)!!
+
+        assertArrayEquals(zip, download.file.readBytes())
+        assertEquals("Before-the update.zip", download.fileName)
+
+        service.discardDownload(job.id)
+
+        assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
+    }
+
+    @Test
     fun `schedule follows the settings, needs a plan and backs off after a failure`(): Unit = runBlocking {
         service.setPassphrase(passphrase.toCharArray())
 

@@ -11,7 +11,10 @@ import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -689,12 +692,16 @@ class PanoRemoteBackupService(
             val passphrase = passphraseFile?.read()
             val encrypted = passphrase != null && passphrase.isNotEmpty()
 
+            job.details = JsonObject().put("serverId", source.serverId)
+
             try {
                 job.phase = PanoBackupService.PHASE_FETCHING
-                source.fetch(zip)
+                followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
 
                 job.phase = PanoBackupService.PHASE_ARCHIVING
-                withContext(Dispatchers.IO) { McServerArchive.wrap(zip, source.meta, temp, passphrase, producer, instanceName()) }
+                followFile(job, temp, zip.length()) {
+                    withContext(Dispatchers.IO) { McServerArchive.wrap(zip, source.meta, temp, passphrase, producer, instanceName()) }
+                }
             } finally {
                 passphrase?.fill('\u0000')
             }
@@ -702,6 +709,7 @@ class PanoRemoteBackupService(
             delete(zip)
 
             job.phase = PanoBackupService.PHASE_UPLOADING
+            job.bytesDone = 0
             job.bytesTotal = temp.length()
 
             val summary = JsonObject()
@@ -746,10 +754,13 @@ class PanoRemoteBackupService(
         return backups.startTask(PanoBackupJob.Type.MC_UPLOAD, cleanup = { delete(zip); deleteTree(dir) }) { job ->
             requireConnected()
 
+            job.details = JsonObject().put("serverId", source.serverId)
             job.phase = PanoBackupService.PHASE_FETCHING
-            source.fetch(zip)
+            followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
 
             job.phase = PanoBackupService.PHASE_UPLOADING
+            job.bytesDone = 0
+            job.bytesTotal = 0
 
             val name = (source.meta.getString("name") ?: "").take(SNAPSHOT_NAME_LENGTH).ifEmpty { null }
             val session = try {
@@ -802,6 +813,30 @@ class PanoRemoteBackupService(
         }
     }
 
+    /**
+     * Runs [block] while it writes [file], reporting the file's growth as the job's progress against [total] (0 = only
+     * the bytes, no percent): the node's push and the archive writer give no progress of their own.
+     */
+    private suspend fun <T> followFile(job: PanoBackupJob, file: File, total: Long, block: suspend () -> T): T = coroutineScope {
+        job.bytesDone = 0
+        job.bytesTotal = maxOf(total, 0L)
+
+        val watcher = launch {
+            while (isActive) {
+                val written = file.length()
+
+                job.bytesDone = if (job.bytesTotal > 0) minOf(written, job.bytesTotal) else written
+                delay(FOLLOW_FILE_MS)
+            }
+        }
+
+        try {
+            block()
+        } finally {
+            watcher.cancel()
+        }
+    }
+
     /** Tells [source] where its copy went; the upload stands when that fails (the backup only shows no cloud mark). */
     private suspend fun recordMcUpload(source: McServerBackupSource, remoteId: String) {
         try {
@@ -848,9 +883,17 @@ class PanoRemoteBackupService(
     /**
      * Brings `mc-server` backup [id] (any backup of the account) into managed server [serverId]'s own backups:
      * download → verify → open with [passphrase] (null = the saved one) → handed to [importer], which pushes the zip to
-     * the server's node. Nothing on the server is overwritten; the admin restores it from the server's Backups page.
+     * the server's node (and restores it there when the importer was asked to).
      */
-    fun startMcImport(id: String, passphrase: CharArray?, serverId: Long, importer: McServerBackupImporter, snapshot: Boolean = false): PanoBackupJob {
+    fun startMcImport(
+        id: String,
+        passphrase: CharArray?,
+        serverId: Long,
+        importer: McServerBackupImporter,
+        snapshot: Boolean = false,
+        /** Only said in the job (`details.restore`): the importer restores the server once the copy is in. */
+        restore: Boolean = false
+    ): PanoBackupJob {
         val temp = tempFile("mc-import")
         val dir = workDir("mc-import")
         val key = passphrase ?: passphraseFile?.read()
@@ -858,42 +901,72 @@ class PanoRemoteBackupService(
         return backups.startTask(PanoBackupJob.Type.MC_IMPORT, cleanup = { key?.fill('\u0000'); delete(temp); deleteTree(dir) }) { job ->
             requireConnected()
 
-            job.remoteId = id
-            job.phase = PanoBackupService.PHASE_DOWNLOADING
+            job.details = JsonObject().put("serverId", serverId).put("restore", restore)
 
-            if (snapshot) {
-                // A snapshot: its chunks are read and checked, and the zip the node had is rebuilt from them.
-                val session = client.openSnapshot(id)
-                val zip = File(dir, "backup.zip")
-                val meta = withContext(Dispatchers.IO) {
-                    SnapshotRestoreArchive(client, session, dir, McServerSnapshot.SCOPE) { done, total ->
-                        job.bytesDone = done
-                        job.bytesTotal = total
-                    }.buildServerZip(zip)
-                }
-
-                job.phase = PHASE_IMPORTING
-                job.bytesDone = 0
-                job.bytesTotal = zip.length()
-                job.backupId = importer.import(serverId, zip, meta) { job.bytesDone = it }
-
-                return@startTask
-            }
-
-            target.fetch(id, temp) { job.bytesDone = it }
-
-            job.phase = PanoBackupService.PHASE_VERIFYING
-            job.bytesDone = 0
-            job.bytesTotal = 0
-
-            val (zip, meta) = withContext(Dispatchers.IO) { McServerArchive.open(temp, key, dir) }
-
-            delete(temp)
+            val (zip, meta) = fetchMcZip(job, id, snapshot, key, temp, dir)
 
             job.phase = PHASE_IMPORTING
+            job.bytesDone = 0
             job.bytesTotal = zip.length()
             job.backupId = importer.import(serverId, zip, meta) { job.bytesDone = it }
         }
+    }
+
+    /**
+     * Builds `mc-server` backup [id] back into the zip its node had (an archive opened with [passphrase], null = the saved
+     * one; a snapshot rebuilt from its chunks) for the admin to download: [takeDownload] serves it as `<backup name>.zip`.
+     */
+    fun startMcDownload(id: String, passphrase: CharArray?, snapshot: Boolean = false): PanoBackupJob {
+        val temp = tempFile("mc-download")
+        val out = tempFile("mc-download-zip")
+        val dir = workDir("mc-download")
+        val key = passphrase ?: passphraseFile?.read()
+        var ready = false
+
+        return backups.startTask(PanoBackupJob.Type.DOWNLOAD, cleanup = { key?.fill('\u0000'); delete(temp); deleteTree(dir); if (!ready) delete(out) }) { job ->
+            requireConnected()
+            discardDownload()
+
+            val (zip, meta) = fetchMcZip(job, id, snapshot, key, temp, dir)
+            val name = (meta.getString("name") ?: "").replace(Regex("[^A-Za-z0-9._ -]+"), "-").trim().take(80).ifEmpty { "server-backup" }
+
+            withContext(Dispatchers.IO) { java.nio.file.Files.move(zip.toPath(), out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+
+            ready = true
+            download = SnapshotDownload(job.id, out, "$name.zip", clock() + DOWNLOAD_TTL_MS)
+        }
+    }
+
+    /** Downloads `mc-server` backup [id] into [dir] and returns the node's zip and its meta (the job follows each phase). */
+    private suspend fun fetchMcZip(job: PanoBackupJob, id: String, snapshot: Boolean, key: CharArray?, temp: File, dir: File): Pair<File, JsonObject> {
+        job.remoteId = id
+        job.phase = PanoBackupService.PHASE_DOWNLOADING
+
+        if (snapshot) {
+            // A snapshot: its chunks are read and checked, and the zip the node had is rebuilt from them.
+            val session = client.openSnapshot(id)
+            val zip = File(dir, "backup.zip")
+            val meta = withContext(Dispatchers.IO) {
+                SnapshotRestoreArchive(client, session, dir, McServerSnapshot.SCOPE) { done, total ->
+                    job.bytesDone = done
+                    job.bytesTotal = total
+                }.buildServerZip(zip)
+            }
+
+            return zip to meta
+        }
+
+        target.fetch(id, temp) { job.bytesDone = it }
+
+        job.phase = PanoBackupService.PHASE_VERIFYING
+        job.bytesDone = 0
+        job.bytesTotal = 0
+
+        val opened = withContext(Dispatchers.IO) { McServerArchive.open(temp, key, dir) }
+
+        delete(temp)
+
+        return opened
     }
 
     /**
@@ -1123,6 +1196,7 @@ class PanoRemoteBackupService(
         const val TRIGGER_SCHEDULED = "SCHEDULED"
         /** A managed server's copy sent after its backup by the server's Pano Backup setting. */
         const val TRIGGER_AUTOMATIC = "AUTOMATIC"
+        private const val FOLLOW_FILE_MS = 500L
 
         /** A move out of Pano Host: its export failed, vanished or took too long. */
         const val EXPORT_FAILED_CODE = "EXPORT_FAILED"

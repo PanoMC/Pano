@@ -12,6 +12,8 @@ import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.error.BadRequest
+import com.panomc.platform.error.CurrentPasswordNotCorrect
+import com.panomc.platform.error.PanoHostError
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
@@ -128,14 +130,16 @@ class PanelServerPanoBackupAPI(
 }
 
 /**
- * `POST /api/v1/panel/servers/:id/backups/pano-backup/import {remoteId, type? archive|snapshot, passphrase?}` → `{job}`:
- * an `mc-server` archive of the account (any server's, any Pano's), or a server snapshot of this Pano, is brought into
- * this server's own backups; restoring it is the server's ordinary restore. `passphrase` omitted = the saved one (an
- * archive's only: snapshots are sealed with the repository key).
+ * `POST /api/v1/panel/servers/:id/backups/pano-backup/import {remoteId, type? archive|snapshot, passphrase?, restore?,
+ * currentPassword?}` → `{job}`: an `mc-server` archive of the account (any server's, any Pano's), or a server snapshot of
+ * this Pano, is brought into this server's own backups. `restore: true` (with the account's `currentPassword`, on a
+ * stopped server: `SERVER_NOT_STOPPED`) then restores the server from it, the ordinary restore. `passphrase` omitted =
+ * the saved one (an archive's only: snapshots are sealed with the repository key).
  */
 @Endpoint
 class PanelImportServerPanoBackupAPI(
     authProvider: AuthProvider,
+    private val databaseManager: DatabaseManager,
     private val panoBackupManager: PanoBackupManager,
     private val mcServerBackupSources: McServerBackupSources,
     private val panoBackupAudit: PanoBackupAudit
@@ -158,12 +162,27 @@ class PanelImportServerPanoBackupAPI(
             else -> throw BadRequest()
         }
         val passphrase = PanoBackupRoutes.passphrase(body.getString("passphrase"))
+        val restore = body.getBoolean("restore") == true
+        val userId = authProvider.getUserIdFromRoutingContext(context)
         val remote = panoBackupManager.remote
 
         requireReady(remote, passphrase = false)
 
-        val importer = mcServerBackupSources.importer(authProvider.getUserIdFromRoutingContext(context), remoteId)
-        val job = job { remote.startMcImport(remoteId, passphrase, serverId, importer, snapshot) }
+        // Restoring overwrites the server: the account password, like the server's own restore, and a stopped server.
+        if (restore) {
+            val currentPassword = body.getString("currentPassword") ?: throw CurrentPasswordNotCorrect()
+
+            if (!databaseManager.userDao.isPasswordCorrectWithId(userId, currentPassword, getSqlClient())) {
+                throw CurrentPasswordNotCorrect()
+            }
+
+            if (!mcServerBackupSources.canRestoreNow(serverId)) {
+                throw PanoHostError.of(PanoHostException(McServerBackupSources.SERVER_NOT_STOPPED))
+            }
+        }
+
+        val importer = mcServerBackupSources.importer(userId, remoteId, restore)
+        val job = job { remote.startMcImport(remoteId, passphrase, serverId, importer, snapshot, restore) }
 
         panoBackupAudit.log(context, PanoBackupActionLog.ACTION_RESTORE_REMOTE, remoteId)
 

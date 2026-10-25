@@ -20,6 +20,9 @@ import com.panomc.platform.node.transfer.TransferTicketStore
 import com.panomc.platform.route.api.panel.server.backups.PanelDownloadServerBackupAPI
 import com.panomc.platform.server.backup.BackupMode
 import com.panomc.platform.server.backup.ServerBackupStatus
+import com.panomc.platform.server.backup.ManagedServerBackupService
+import com.panomc.platform.auth.panel.log.ServerBackupActionLog
+import com.panomc.platform.route.api.panel.server.backups.PanelRestoreServerBackupAPI
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlClient
@@ -44,7 +47,8 @@ class McServerBackupSources(
     private val databaseManager: DatabaseManager,
     private val fileClient: ManagedServerFileClient,
     private val transferTicketStore: TransferTicketStore,
-    private val panelRealtimeHub: PanelRealtimeHub
+    private val panelRealtimeHub: PanelRealtimeHub,
+    private val backupService: ManagedServerBackupService
 ) {
     suspend fun source(serverId: Long, backupId: String, sqlClient: SqlClient, automatic: Boolean = false): McServerBackupSource {
         // The panel names a backup by its row id, the node and the automatic upload by its uuid; both are taken.
@@ -123,9 +127,10 @@ class McServerBackupSources(
      * An importer acting for [userId]: the zip is pushed to [McServerBackupImporter.import]'s server through an upload
      * ticket ([BackupImportMessage]), and a READY row is written once the node has stored it. Only a node of protocol
      * [MIN_IMPORT_PROTOCOL] or newer can take one; a server served by its plugin cannot (`IMPORT_UNSUPPORTED`).
-     * The row remembers [panoBackupId], the copy it came from.
+     * The row remembers [panoBackupId], the copy it came from. With [restore] the server is then restored from it, the
+     * way its Backups page restores one (a safety copy first; the server must be stopped: `SERVER_NOT_STOPPED`).
      */
-    fun importer(userId: Long, panoBackupId: String? = null) = McServerBackupImporter { serverId, zip, meta, onProgress ->
+    fun importer(userId: Long, panoBackupId: String? = null, restore: Boolean = false) = McServerBackupImporter { serverId, zip, meta, onProgress ->
         val sqlClient = databaseManager.getSqlClient()
         val target = fileClient.resolve(serverId, sqlClient, ServerFeature.BACKUPS_CREATE)
         val nodeId = target.nodeId
@@ -208,7 +213,35 @@ class McServerBackupSources(
 
         panelRealtimeHub.pushServerBackupsChanged(serverId)
 
+        if (restore) restoreImported(serverId, backupId, userId)
+
         backupId
+    }
+
+    /** Whether [serverId] is a node-kept server that is stopped now, which a restore out of Pano Backup needs. */
+    suspend fun canRestoreNow(serverId: Long, sqlClient: SqlClient? = null): Boolean {
+        val target = fileClient.resolve(serverId, sqlClient ?: databaseManager.getSqlClient(), ServerFeature.BACKUPS_RESTORE)
+
+        return target.source == ServerFeatureSource.NODE && PanelRestoreServerBackupAPI.isStopped(target.server.processState)
+    }
+
+    private suspend fun restoreImported(serverId: Long, backupId: String, userId: Long) {
+        val sqlClient = databaseManager.getSqlClient()
+        val backup = databaseManager.serverBackupDao.getByUuid(backupId, sqlClient) ?: throw NotExists()
+
+        // Checked when it was asked; the server may have been started while the copy was coming down.
+        if (!canRestoreNow(serverId, sqlClient)) {
+            throw PanoHostException(SERVER_NOT_STOPPED, message = "Stop the server to restore it; the backup is in its backups now.")
+        }
+
+        backupService.restore(fileClient.resolve(serverId, sqlClient, ServerFeature.BACKUPS_RESTORE), backup, userId, sqlClient)
+
+        val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient) ?: return
+
+        databaseManager.panelActivityLogDao.add(
+            ServerBackupActionLog(userId, username, serverId, ServerBackupActionLog.ACTION_RESTORE, backup.uuid, backup.name),
+            sqlClient
+        )
     }
 
     companion object {
@@ -216,6 +249,7 @@ class McServerBackupSources(
         const val IMPORT_UNSUPPORTED = "SERVER_BACKUP_IMPORT_UNSUPPORTED"
         const val IMPORT_FAILED = "SERVER_BACKUP_IMPORT_FAILED"
         const val NODE_TOO_OLD = "NODE_TOO_OLD"
+        const val SERVER_NOT_STOPPED = "SERVER_NOT_STOPPED"
 
         /** The node protocol that understands `BACKUP_IMPORT`. */
         const val MIN_IMPORT_PROTOCOL = com.panomc.platform.node.NodeProtocol.BACKUP_IMPORT_VERSION

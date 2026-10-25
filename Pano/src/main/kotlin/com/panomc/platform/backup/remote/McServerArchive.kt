@@ -31,6 +31,9 @@ class McServerBackupSource(
     /** A snapshot of the node (`meta.mode`), uploaded into the snapshot repository rather than as an archive. */
     val isSnapshot: Boolean get() = meta.getString("mode") == "SNAPSHOT"
 
+    /** The backup's size as the server reported it (the zip's for a full backup, the files' for a snapshot). */
+    val sizeBytes: Long get() = (meta.getValue("sizeBytes") as? Number)?.toLong() ?: 0L
+
     /** How the copy was started, as Pano Backup lists it: `AUTOMATIC` | `MANUAL`. */
     val trigger: String get() = if (automatic) PanoRemoteBackupService.TRIGGER_AUTOMATIC else PanoRemoteBackupService.TRIGGER_MANUAL
 }

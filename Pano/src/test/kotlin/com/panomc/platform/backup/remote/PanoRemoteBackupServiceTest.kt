@@ -500,7 +500,8 @@ class PanoRemoteBackupServiceTest {
         val meta = JsonObject().put("id", "b-1").put("name", "Before/the update").put("sizeBytes", zip.size)
         val uploaded = awaitJob(service.startMcUpload(McServerBackupSource(4, "server-uuid-4", "b-1", meta) { it.writeBytes(zip) }))
 
-        assertEquals(mapOf("serverId" to 4L), uploaded.details?.map?.mapValues { (it.value as Number).toLong() }, "the job names its server")
+        assertEquals(4L, uploaded.details?.getLong("serverId"), "the job names its server")
+        assertEquals("b-1", uploaded.details?.getString("backupId"), "and the backup it uploads")
 
         val job = awaitJob(service.startMcDownload(uploaded.remoteId!!, null))
 

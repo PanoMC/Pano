@@ -692,7 +692,7 @@ class PanoRemoteBackupService(
             val passphrase = passphraseFile?.read()
             val encrypted = passphrase != null && passphrase.isNotEmpty()
 
-            job.details = JsonObject().put("serverId", source.serverId)
+            job.details = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId)
 
             try {
                 job.phase = PanoBackupService.PHASE_FETCHING
@@ -754,7 +754,7 @@ class PanoRemoteBackupService(
         return backups.startTask(PanoBackupJob.Type.MC_UPLOAD, cleanup = { delete(zip); deleteTree(dir) }) { job ->
             requireConnected()
 
-            job.details = JsonObject().put("serverId", source.serverId)
+            job.details = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId)
             job.phase = PanoBackupService.PHASE_FETCHING
             followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
 

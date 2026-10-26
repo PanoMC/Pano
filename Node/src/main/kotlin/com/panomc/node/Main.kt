@@ -8,6 +8,7 @@ import com.panomc.node.config.NodeConfigStore
 import com.panomc.node.host.HostPlatform
 import com.panomc.node.host.ServiceInstaller
 import com.panomc.node.net.PlatformConnection
+import com.panomc.node.net.PlatformEndpoint
 import com.panomc.node.util.NodeLogger
 import io.vertx.core.Vertx
 import java.io.File
@@ -268,10 +269,18 @@ object Main {
 
     /** What the command line and the environment change in the stored config. Internal for tests. */
     internal fun applyOverrides(config: NodeConfig, options: NodeOptions, agent: AgentLayout?) {
-        options.platformUrl?.let { url ->
-            if (!config.isPaired()) {
-                config.platformUrl = url
+        // The token belongs to the Pano, not to its address: a paired node started with another
+        // address (Pano's LAN IP or port changed, as on a reboot with DHCP) follows it instead of
+        // knocking on the old one forever.
+        options.platformUrl?.let { given ->
+            // Compared the way pairing stores it, so `http://host:80` and `http://host` are one address.
+            val url = runCatching { PlatformEndpoint.parse(given).baseUrl }.getOrDefault(given)
+
+            if (config.isPaired() && config.platformUrl != url) {
+                logger.info("Pano's address changed from ${config.platformUrl} to $url; using the new one.")
             }
+
+            config.platformUrl = url
         }
 
         options.name?.let { config.name = it }

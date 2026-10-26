@@ -108,6 +108,22 @@ class NodePortRangeTest {
     }
 
     @Test
+    fun `a paired node started with another Pano address follows it and keeps its token`() {
+        val config = NodeConfig(platformUrl = "http://192.168.1.20:8088", token = "t", encryptionKey = "k")
+
+        Main.applyOverrides(config, NodeCli.parse(arrayOf("--pano", "http://192.168.1.35:8088/")) { null }, null)
+
+        assertEquals("http://192.168.1.35:8088", config.platformUrl)
+        assertEquals("t", config.token)
+        assertTrue(config.isPaired())
+
+        // A start without the flag keeps the stored address.
+        Main.applyOverrides(config, NodeCli.parse(emptyArray()) { null }, null)
+
+        assertEquals("http://192.168.1.35:8088", config.platformUrl)
+    }
+
+    @Test
     fun `a port Pano asks for outside the range is moved into it and reported as SERVER_PORT_CHANGED`() {
         val reservations = PortReservations()
 

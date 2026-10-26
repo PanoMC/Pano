@@ -778,7 +778,7 @@ class PanoRemoteBackupService(
             val meta = source.meta.copy().put("serverId", source.serverId).put("serverUuid", source.subject)
             val stats = try {
                 withContext(Dispatchers.IO) {
-                    McServerSnapshotUpload(client, session, zip, meta, dir, name ?: "", clock()) { done, total ->
+                    McServerSnapshotUpload(client.snapshotRemote, session, zip, meta, dir, name ?: "", clock()) { done, total ->
                         job.bytesDone = done
                         job.bytesTotal = total
                     }.run()

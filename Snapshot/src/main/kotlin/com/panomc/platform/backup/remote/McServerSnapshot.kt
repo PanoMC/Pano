@@ -7,7 +7,6 @@ import com.panomc.snapshot.SnapshotFormat
 import com.panomc.snapshot.SnapshotManifest
 import com.panomc.snapshot.SnapshotSeal
 import io.vertx.core.json.JsonObject
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -30,7 +29,7 @@ object McServerSnapshot {
  * is not a safe relative path is left out (never followed). `downloadBytes` is the size of the zip it came from.
  */
 class McServerSnapshotUpload(
-    private val client: PanoHostClient,
+    private val remote: SnapshotRemote,
     private val session: SnapshotSession,
     private val zip: File,
     private val meta: JsonObject,
@@ -54,7 +53,7 @@ class McServerSnapshotUpload(
             val items = archive.entries().toList()
             val total = maxOf(items.filter { !it.isDirectory }.sumOf { maxOf(it.size, 0L) }, 1L)
 
-            SnapshotChunker(client, session.id, aesKey, session.keyId, File(dir, "spool"), session.repoConfig.pack ?: error("No pack size.")).use { chunker ->
+            SnapshotChunker(remote, session.id, aesKey, session.keyId, File(dir, "spool"), session.repoConfig.pack ?: error("No pack size.")).use { chunker ->
                 fun cut(bytes: ByteArray): List<String> {
                     val ids = ArrayList<String>()
 
@@ -119,7 +118,7 @@ class McServerSnapshotUpload(
                 ).sorted()
                 val sealed = SnapshotSeal.seal(aesKey, session.keyId, SnapshotFormat.manifestPath(session.id), SnapshotFormat.encodeManifest(manifest))
 
-                runBlocking { client.putBytes(session.manifestUrl, sealed) }
+                remote.putBytes(session.manifestUrl, sealed)
                 onProgress(total, total)
 
                 return SnapshotUploadResult(

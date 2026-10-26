@@ -11,8 +11,10 @@ import com.panomc.node.net.PlatformConnection
 import com.panomc.node.net.PlatformEndpoint
 import com.panomc.node.util.NodeLogger
 import io.vertx.core.Vertx
+import io.vertx.core.VertxOptions
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 /**
@@ -37,6 +39,9 @@ object Main {
     private var logger = NodeLogger("pano-node")
 
     private val shutdownLatch = CountDownLatch(1)
+
+    /** Longer than any single worker task (BuildTools is capped at 45 minutes). */
+    private const val WORKER_TASK_WARN_MINUTES = 60L
 
     @Volatile
     private var daemon: NodeDaemon? = null
@@ -143,7 +148,13 @@ object Main {
             exitProcess(2)
         }
 
-        val vertx = Vertx.vertx()
+        // Worker tasks here legitimately run for minutes (a BuildTools build, a backup upload), so
+        // the default 60 s limit only filled the log with "Thread blocked" stack traces.
+        val vertx = Vertx.vertx(
+            VertxOptions()
+                .setMaxWorkerExecuteTime(WORKER_TASK_WARN_MINUTES)
+                .setMaxWorkerExecuteTimeUnit(TimeUnit.MINUTES)
+        )
 
         if (!config.isPaired()) {
             if (!pair(vertx, config, options, dataDir, worker)) {

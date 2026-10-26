@@ -445,7 +445,13 @@ class BuildToolsInstaller(
 
             builder.environment().putAll(environment)
 
+            // Nothing may wait for an answer nobody can give: git asking for credentials or a
+            // tool waiting on a keypress would otherwise sit there until the 45-minute timeout.
+            builder.environment()["GIT_TERMINAL_PROMPT"] = "0"
+
             val process = builder.start()
+
+            process.outputStream.close()
 
             // Drained on its own thread for the reason every drain in this daemon is: a process
             // that fills its pipe blocks forever if nobody reads it, and reading it on this

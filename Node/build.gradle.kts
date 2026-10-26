@@ -43,6 +43,8 @@ dependencies {
     implementation("org.slf4j:slf4j-nop:2.0.7")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
+    // Opens the archives the uploader seals, with the passphrase only Pano ever holds.
+    testImplementation("de.mkammerer:argon2-jvm:2.12")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
 }

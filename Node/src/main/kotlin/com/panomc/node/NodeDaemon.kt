@@ -33,6 +33,7 @@ import com.panomc.node.host.ServiceInstaller
 import com.panomc.node.host.UninstallEnvironment
 import com.panomc.node.files.BackupOrphanSweep
 import com.panomc.node.files.BackupService
+import com.panomc.node.files.PanoBackupUploader
 import com.panomc.node.files.FileService
 import com.panomc.node.files.PluginScanService
 import com.panomc.node.files.TransferService
@@ -66,6 +67,7 @@ import com.panomc.node.net.SyncSchedulesMessage
 import com.panomc.node.net.TransferPullMessage
 import com.panomc.node.net.TransferPushMessage
 import com.panomc.node.net.BackupImportMessage
+import com.panomc.node.net.BackupUploadMessage
 import com.panomc.node.net.UpdateStartupMessage
 import com.panomc.node.server.DockerRuntime
 import com.panomc.node.server.ExternalServerIndex
@@ -261,6 +263,7 @@ class NodeDaemon(
     private val pluginScanService = PluginScanService(registry, logger)
 
     private val backupService = BackupService(dataDir, registry, reporter, connection, logger)
+    private val panoBackupUploader = PanoBackupUploader(dataDir, config, backupService::backupZip, logger)
 
     // Backups live outside the server directory, so the transfer service is given the one door to
     // them rather than a path rule that would also open every other directory on the host.
@@ -901,6 +904,12 @@ class NodeDaemon(
             val message = gson.fromJson(text, BackupDeleteMessage::class.java)
 
             connection.reply(message.eventId, backupService.delete(message))
+        }
+
+        connection.on(NodeProtocol.Inbound.BACKUP_UPLOAD) { text ->
+            val message = gson.fromJson(text, BackupUploadMessage::class.java)
+
+            connection.reply(message.eventId, panoBackupUploader.upload(message))
         }
 
         connection.on(NodeProtocol.Inbound.BACKUP_IMPORT) { text ->

@@ -44,6 +44,13 @@ object NodeProtocol {
     const val BACKUP_IMPORT_VERSION = 7
 
     /**
+     * First version that sends a backup to Pano Backup itself (`BACKUP_UPLOAD`, SM-PB): the archive or the snapshot goes
+     * from the node to the storage, Pano only answers the control-plane questions under a ticket. Below this the
+     * backup is pulled to Pano and uploaded from here.
+     */
+    const val BACKUP_UPLOAD_VERSION = 8
+
+    /**
      * First version that understands `SET_NODE_METRICS_INTERVAL` (SM-65, §2.4.30). Shipped in the
      * same protocol bump as the uninstall.
      */

@@ -530,6 +530,29 @@ class BackupService(
         }
     }
 
+    /**
+     * The zip of backup [backupId] of [serverUuid] for an upload to Pano Backup: a FULL backup's own file, a snapshot
+     * written into [scratch] from the repository. Null when the backup is not here.
+     */
+    fun backupZip(serverUuid: String, backupId: String, scratch: File): File? {
+        if (!PathSafety.isSafeSegment(serverUuid) || !PathSafety.isSafeSegment(backupId)) {
+            return null
+        }
+
+        archiveFile(serverUuid, backupId).takeIf { it.isFile }?.let { return it }
+
+        val repository = repository(serverUuid)
+
+        if (!repository.has(backupId)) {
+            return null
+        }
+
+        scratch.parentFile?.mkdirs()
+        scratch.outputStream().buffered(256 * 1024).use { repository.writeZip(backupId, it, Long.MAX_VALUE) }
+
+        return scratch
+    }
+
     private fun virtualBackupId(serverUuid: String, path: String): String? {
         if (!path.startsWith(VIRTUAL_PREFIX)) {
             return null

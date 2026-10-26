@@ -2,6 +2,11 @@ package com.panomc.platform.backup
 
 import com.panomc.platform.backup.remote.McServerBackupImporter
 import com.panomc.platform.backup.remote.McServerBackupSource
+import com.panomc.platform.backup.remote.McServerDirectUpload
+import com.panomc.platform.node.NodeProtocol
+import com.panomc.platform.node.message.BackupUploadMessage
+import com.panomc.snapshot.SnapshotFormat
+import java.util.Base64
 import com.panomc.platform.db.model.ServerBackup
 import com.panomc.platform.node.message.BackupImportMessage
 import com.panomc.platform.panel.PanelRealtimeHub
@@ -48,7 +53,8 @@ class McServerBackupSources(
     private val fileClient: ManagedServerFileClient,
     private val transferTicketStore: TransferTicketStore,
     private val panelRealtimeHub: PanelRealtimeHub,
-    private val backupService: ManagedServerBackupService
+    private val backupService: ManagedServerBackupService,
+    private val uploadTickets: PanoBackupUploadTickets
 ) {
     suspend fun source(serverId: Long, backupId: String, sqlClient: SqlClient, automatic: Boolean = false): McServerBackupSource {
         // The panel names a backup by its row id, the node and the automatic upload by its uuid; both are taken.
@@ -82,6 +88,7 @@ class McServerBackupSources(
             meta = meta,
             settings = server.settings.panoBackup,
             automatic = automatic,
+            direct = directUpload(serverId, backup, sqlClient),
             onUploaded = { remoteId ->
                 databaseManager.serverBackupDao.updatePanoBackupIdByUuid(backup.uuid, remoteId, databaseManager.getSqlClient())
                 panelRealtimeHub.pushServerBackupsChanged(serverId)
@@ -218,6 +225,61 @@ class McServerBackupSources(
         backupId
     }
 
+    /**
+     * How a node of protocol [NodeProtocol.BACKUP_UPLOAD_VERSION] or newer sends [backup] to Pano Backup itself: under a
+     * ticket answered by the job's handler, the bytes straight from the node to the storage. Null for an older node or
+     * a backup the server's plugin keeps (then it is pulled here and uploaded from Pano).
+     */
+    private suspend fun directUpload(serverId: Long, backup: ServerBackup, sqlClient: SqlClient): McServerDirectUpload? {
+        val nodeId = backup.nodeId ?: return null
+        val node = databaseManager.nodeDao.getById(nodeId, sqlClient) ?: return null
+
+        if (node.protocolVersion < NodeProtocol.BACKUP_UPLOAD_VERSION) return null
+
+        return McServerDirectUpload { request, handler ->
+            val target = fileClient.resolve(serverId, databaseManager.getSqlClient())
+
+            if (target.nodeId != nodeId) {
+                throw PanoHostException(FETCH_FAILED, message = "The backup's node no longer serves this server.")
+            }
+
+            val ticket = uploadTickets.issue(nodeId, handler)
+            val encryption = request.encryption
+            val snapshot = request.snapshot
+            val base64 = Base64.getEncoder()
+
+            try {
+                fileClient.request(
+                    target,
+                    BackupUploadMessage(
+                        serverUuid = target.serverUuid,
+                        backupId = backup.uuid,
+                        ticket = ticket.id,
+                        mode = if (snapshot == null) UPLOAD_MODE_ARCHIVE else UPLOAD_MODE_SNAPSHOT,
+                        meta = request.meta.encode(),
+                        producer = request.producer,
+                        instanceName = request.instanceName,
+                        encryptionKey = encryption?.let { base64.encodeToString(it.masterKey) },
+                        kdfSalt = encryption?.let { base64.encodeToString(it.kdf.salt) },
+                        kdfT = encryption?.kdf?.t,
+                        kdfMKiB = encryption?.kdf?.mKiB,
+                        kdfP = encryption?.kdf?.p,
+                        snapshotId = snapshot?.id,
+                        snapshotKeyId = snapshot?.keyId,
+                        snapshotKey = snapshot?.let { base64.encodeToString(it.key) },
+                        repoConfig = snapshot?.let { String(SnapshotFormat.configJson(it.repoConfig), Charsets.UTF_8) },
+                        manifestUrl = snapshot?.manifestUrl,
+                        snapshotName = request.snapshotName,
+                        createdAt = request.createdAt
+                    ),
+                    uploadTimeoutMs(backup.sizeBytes)
+                )
+            } finally {
+                uploadTickets.discard(ticket)
+            }
+        }
+    }
+
     /** Whether [serverId] is a node-kept server that is stopped now, which a restore out of Pano Backup needs. */
     suspend fun canRestoreNow(serverId: Long, sqlClient: SqlClient? = null): Boolean {
         val target = fileClient.resolve(serverId, sqlClient ?: databaseManager.getSqlClient(), ServerFeature.BACKUPS_RESTORE)
@@ -255,6 +317,12 @@ class McServerBackupSources(
         const val MIN_IMPORT_PROTOCOL = com.panomc.platform.node.NodeProtocol.BACKUP_IMPORT_VERSION
 
         private const val NAME_LENGTH = 64
+
+        const val UPLOAD_MODE_ARCHIVE = "ARCHIVE"
+        const val UPLOAD_MODE_SNAPSHOT = "SNAPSHOT"
+
+        /** A direct upload is waited for down to 128 KB a second end to end, never less than thirty minutes. */
+        private fun uploadTimeoutMs(size: Long): Long = maxOf(30 * 60 * 1000L, size / (128L * 1024) * 1000L)
 
         /** The slowest link an import is still waited for: 256 KB a second, never less than ten minutes. */
         private fun importTimeoutMs(size: Long): Long = maxOf(10 * 60 * 1000L, size / (256L * 1024) * 1000L)

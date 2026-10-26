@@ -39,6 +39,32 @@ sealed class PanoArcEncryption {
         val mKiB: Int = PanoArcCrypto.ARGON2_M_KIB,
         val p: Int = PanoArcCrypto.ARGON2_P
     ) : PanoArcEncryption()
+
+    /**
+     * A passphrase archive sealed with a key already derived from the passphrase ([derive]): the header is the same as
+     * [Passphrase]'s, so the archive opens with the passphrase, but whoever writes it never sees the passphrase (pano-node
+     * writing a managed server's archive for Pano). The key is good for this one salt only.
+     */
+    class DerivedKey(val masterKey: ByteArray, val kdf: PanoArcKdf) : PanoArcEncryption() {
+        init {
+            require(masterKey.size == PanoArcCrypto.KEY_BYTES) { "A derived key is 32 bytes." }
+            require(kdf.alg == "argon2id" && kdf.salt.size == PanoArcCrypto.SALT_BYTES) { "A derived key needs its argon2id salt." }
+        }
+    }
+
+    companion object {
+        /** Argon2id([passphrase]) with a fresh salt, as a [DerivedKey] another process can seal one archive with. */
+        fun derive(
+            passphrase: CharArray,
+            t: Int = PanoArcCrypto.ARGON2_T,
+            mKiB: Int = PanoArcCrypto.ARGON2_M_KIB,
+            p: Int = PanoArcCrypto.ARGON2_P
+        ): DerivedKey {
+            val salt = PanoArcCrypto.randomBytes(PanoArcCrypto.SALT_BYTES)
+
+            return DerivedKey(PanoArcCrypto.argon2id(passphrase, salt, t, mKiB, p), PanoArcKdf("argon2id", t, mKiB, p, salt))
+        }
+    }
 }
 
 /** What may open an archive. Only the part matching the header's keyMode is used. */
@@ -137,6 +163,21 @@ object PanoArcEnvelope {
                 )
 
                 PanoArcCrypto.argon2id(encryption.passphrase, salt, encryption.t, encryption.mKiB, encryption.p)
+            }
+
+            is PanoArcEncryption.DerivedKey -> {
+                val kdf = encryption.kdf
+
+                header.put("keyMode", PanoArcKeyMode.PASSPHRASE.value).put(
+                    "kdf", JsonObject()
+                        .put("alg", kdf.alg)
+                        .put("t", kdf.t)
+                        .put("mKiB", kdf.mKiB)
+                        .put("p", kdf.p)
+                        .put("salt", b64(kdf.salt))
+                )
+
+                encryption.masterKey.copyOf()
             }
         }
 

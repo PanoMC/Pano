@@ -81,3 +81,32 @@ class BackupImportMessage(
     val scope: String = "ALL",
     val fileCount: Long? = null
 ) : NodeRequestMessage()
+
+/**
+ * Sends backup [backupId] of [serverUuid] to Pano Backup straight from the node (protocol 8). [mode] `ARCHIVE`: the
+ * node writes the `.panoarc` ([meta] inside, sealed with [encryptionKey] and its argon2id parameters when given: a key
+ * Pano derived from the passphrase for this one archive, never the passphrase) and asks for the part URLs under
+ * [ticket]; `SNAPSHOT`: the node cuts it into snapshot [snapshotId] of the Pano's repository. Answers `{ok, size, sha256}`
+ * or `{ok, stats}`.
+ */
+class BackupUploadMessage(
+    val serverUuid: String,
+    val backupId: String,
+    val ticket: String,
+    val mode: String,
+    val meta: String,
+    val producer: String,
+    val instanceName: String?,
+    val encryptionKey: String? = null,
+    val kdfSalt: String? = null,
+    val kdfT: Int? = null,
+    val kdfMKiB: Int? = null,
+    val kdfP: Int? = null,
+    val snapshotId: String? = null,
+    val snapshotKeyId: String? = null,
+    val snapshotKey: String? = null,
+    val repoConfig: String? = null,
+    val manifestUrl: String? = null,
+    val snapshotName: String? = null,
+    val createdAt: Long? = null
+) : NodeRequestMessage()

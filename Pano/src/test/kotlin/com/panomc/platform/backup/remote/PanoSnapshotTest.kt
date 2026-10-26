@@ -170,6 +170,54 @@ class PanoSnapshotTest {
         }
     }
 
+    /**
+     * pano-node's side of a direct upload, in-process: the shared upload code cuts [zip], asking the job's handler what
+     * the control plane answers and PUTting to the (fake) storage itself.
+     */
+    private fun fakeNode(zip: File, sent: MutableList<String>) = McServerDirectUpload { request, handler ->
+        sent += if (request.archive) "ARCHIVE" else "SNAPSHOT"
+
+        val storage = PanoHostClient({ host.baseUrl }, { FakePanoHost.TOKEN }, { PanoIdentity(INSTANCE_ID, "My Server") }, RetryPolicy(3, 5)).snapshotRemote
+        val remote = object : SnapshotRemote {
+            override fun missing(snapshotId: String, chunks: List<Pair<String, Int>>) = runBlocking { handler.missing(snapshotId, chunks) }
+            override fun packSlot(snapshotId: String, size: Long) = runBlocking { handler.packSlot(snapshotId, size) }
+            override fun putFile(url: String, file: File) = storage.putFile(url, file)
+            override fun putBytes(url: String, bytes: ByteArray) = storage.putBytes(url, bytes)
+        }
+        val stats = kotlinx.coroutines.withContext(Dispatchers.IO) {
+            McServerSnapshotUpload(remote, request.snapshot!!, zip, request.meta, File(temp, "node-${System.nanoTime()}"), request.snapshotName, request.createdAt) { done, total ->
+                handler.progress("UPLOADING", done, total)
+            }.run().stats
+        }
+
+        JsonObject().put("ok", true).put("stats", stats.toJson())
+    }
+
+    @Test
+    fun `a node of protocol 8 sends the server snapshot itself and it comes back the same`(): Unit = runBlocking {
+        val region = Random(9).nextBytes(1 shl 20)
+        val zip = serverZip(region)
+        val sent = ArrayList<String>()
+        val source = McServerBackupSource(
+            4, "server-uuid-4", "b-1", JsonObject().put("id", "b-1").put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"),
+            direct = fakeNode(zip, sent)
+        ) { error("A direct upload never pulls the backup to Pano.") }
+
+        val job = awaitJob(service.startMcUpload(source))
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error + " " + job.message)
+        assertEquals(listOf("SNAPSHOT"), sent)
+
+        var files: Map<String, ByteArray>? = null
+        val imported = awaitJob(service.startMcImport(job.remoteId!!, null, 9, McServerBackupImporter { _, back, _, _ ->
+            files = entries(back.readBytes())
+            "imported"
+        }, snapshot = true))
+
+        assertEquals(PanoBackupJob.Status.DONE, imported.status, imported.error + " " + imported.message)
+        assertArrayEquals(region, files!!.getValue("world/region/r.0.0.mca"))
+    }
+
     @Test
     fun `a server snapshot goes into the repository with its server as subject and comes back as the node's zip`(): Unit = runBlocking {
         val region = Random(7).nextBytes(2 shl 20)

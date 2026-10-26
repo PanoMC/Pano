@@ -512,6 +512,63 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
+    fun `a node of protocol 8 writes and sends the archive itself, sealed with a key derived from the passphrase`(): Unit = runBlocking {
+        service.setPassphrase(passphrase.toCharArray())
+
+        val zip = File(temp, "node-backup.zip").apply { writeBytes(Random(13).nextBytes(20_000)) }
+        val meta = JsonObject().put("id", "b-1").put("name", "Direct").put("serverName", "Survival")
+        var derivedOnly = false
+        val node = McServerDirectUpload { request, handler ->
+            // What pano-node does: write the archive with the key it was given, ask for the session, PUT the parts.
+            derivedOnly = request.encryption != null
+            val archive = File(temp, "node-${System.nanoTime()}.panoarc")
+
+            McServerArchive.wrap(zip, request.meta, archive, request.encryption, request.producer, request.instanceName)
+
+            val sha256 = PanoHostClient.sha256(archive)
+            val session = handler.archive(archive.length(), sha256)
+
+            PanoHostClient({ host.baseUrl }, { token }, { PanoIdentity(INSTANCE_ID, "My Server") }, RetryPolicy(3, 5)).uploadParts(archive, session) {
+                handler.progress("UPLOADING", it, archive.length())
+            }
+
+            JsonObject().put("ok", true).put("size", archive.length()).put("sha256", sha256)
+        }
+
+        val job = awaitJob(service.startMcUpload(McServerBackupSource(4, "server-uuid-4", "b-1", meta, direct = node) { error("never pulled") }))
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
+        assertTrue(derivedOnly, "the node got a derived key")
+
+        val backup = host.backups.getValue(job.remoteId!!)
+
+        assertEquals("DONE", backup.getString("status"))
+        assertEquals("Direct", backup.getJsonObject("manifest").getString("backupName"))
+        assertEquals(true, backup.getJsonObject("manifest").getBoolean("encrypted"))
+
+        // It opens with the passphrase, and comes back the way any archive does.
+        var received: ByteArray? = null
+        val imported = awaitJob(service.startMcImport(job.remoteId!!, null, 9, McServerBackupImporter { _, file, _, _ -> received = file.readBytes(); "x" }))
+
+        assertEquals(PanoBackupJob.Status.DONE, imported.status, imported.error)
+        assertArrayEquals(zip.readBytes(), received)
+    }
+
+    @Test
+    fun `a direct upload the node fails removes the session it opened`(): Unit = runBlocking {
+        val node = McServerDirectUpload { _, handler ->
+            handler.archive(100, "0".repeat(64))
+
+            throw IllegalStateException("The node's disk is full.")
+        }
+
+        val job = awaitJob(service.startMcUpload(McServerBackupSource(4, "server-uuid-4", "b-1", JsonObject().put("name", "x"), direct = node) { error("never pulled") }))
+
+        assertEquals(PanoBackupJob.Status.FAILED, job.status)
+        assertTrue(host.backups.isEmpty(), "the open session is gone: ${host.backups.keys}")
+    }
+
+    @Test
     fun `an mc-server backup downloads as the node's zip under its backup name`(): Unit = runBlocking {
         service.setPassphrase(passphrase.toCharArray())
 

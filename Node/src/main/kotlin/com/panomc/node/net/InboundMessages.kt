@@ -384,6 +384,36 @@ data class BackupImportMessage(
 )
 
 /**
+ * Send one backup to Pano Backup straight from here (protocol 8). [mode] `ARCHIVE`: a `.panoarc` of the backup
+ * ([meta] inside), sealed with [encryptionKey] + its argon2id parameters when given (derived by Pano; the passphrase
+ * never comes here). `SNAPSHOT`: cut into the snapshot [snapshotId] of the Pano's repository ([snapshotKey], [repoConfig],
+ * the manifest PUT [manifestUrl]). Control-plane questions go to Pano under [ticket]; the reply is `{ok, size, sha256}`
+ * or `{ok, stats}`.
+ */
+data class BackupUploadMessage(
+    val eventId: String? = null,
+    val serverUuid: String? = null,
+    val backupId: String? = null,
+    val ticket: String? = null,
+    val mode: String? = null,
+    val meta: String? = null,
+    val producer: String? = null,
+    val instanceName: String? = null,
+    val encryptionKey: String? = null,
+    val kdfSalt: String? = null,
+    val kdfT: Int? = null,
+    val kdfMKiB: Int? = null,
+    val kdfP: Int? = null,
+    val snapshotId: String? = null,
+    val snapshotKeyId: String? = null,
+    val snapshotKey: String? = null,
+    val repoConfig: String? = null,
+    val manifestUrl: String? = null,
+    val snapshotName: String? = null,
+    val createdAt: Long? = null
+)
+
+/**
  * Put one plugin or mod jar into a server's `plugins` (or `mods`) directory.
  *
  * Pano resolved the download from Modrinth, Hangar or CurseForge and passes on whatever checksum

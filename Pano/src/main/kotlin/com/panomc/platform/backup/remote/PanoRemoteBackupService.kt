@@ -5,6 +5,8 @@ import com.panomc.platform.backup.PanoBackupJob
 import com.panomc.platform.backup.PanoBackupRunner
 import com.panomc.platform.backup.PanoBackupService
 import com.panomc.platform.backup.PanoBackupStore
+import com.panomc.platform.backup.DirectUploadHandler
+import com.panomc.platform.archive.PanoArcEncryption
 import com.panomc.platform.model.PageRequest
 import com.panomc.platform.server.backup.PanoBackupRetentionRule
 import io.vertx.core.json.JsonArray
@@ -686,6 +688,7 @@ class PanoRemoteBackupService(
      */
     fun startMcUpload(source: McServerBackupSource): PanoBackupJob {
         if (source.isSnapshot) return startMcSnapshotUpload(source)
+        if (source.direct != null) return startMcDirectArchiveUpload(source, source.direct)
 
         val zip = tempFile("mc-zip")
         val temp = tempFile("mc")
@@ -716,14 +719,7 @@ class PanoRemoteBackupService(
             job.bytesDone = 0
             job.bytesTotal = temp.length()
 
-            val summary = JsonObject()
-                .put("serverId", source.serverId)
-                .put("serverUuid", source.subject)
-                .put("serverName", source.meta.getString("serverName"))
-                .put("backupId", source.backupId)
-                .put("backupName", source.meta.getString("name"))
-                .put("encrypted", encrypted)
-                .put("trigger", source.trigger)
+            val summary = mcSummary(source, encrypted)
 
             val uploaded = try {
                 target.put(
@@ -746,6 +742,113 @@ class PanoRemoteBackupService(
         }
     }
 
+    /** What an `mc-server` archive's summary says (the lists show it; `backupId` ties it to the backup it came from). */
+    private fun mcSummary(source: McServerBackupSource, encrypted: Boolean): JsonObject = JsonObject()
+        .put("serverId", source.serverId)
+        .put("serverUuid", source.subject)
+        .put("serverName", source.meta.getString("serverName"))
+        .put("backupId", source.backupId)
+        .put("backupName", source.meta.getString("name"))
+        .put("encrypted", encrypted)
+        .put("trigger", source.trigger)
+
+    /**
+     * A full backup the node sends itself (protocol 8): it writes the `.panoarc` (sealed with a key derived here from the
+     * passphrase for this archive alone; the passphrase stays here), asks for the upload session once it knows the size
+     * and PUTs the parts straight to the storage. Pano completes the upload with the checksum the node reports.
+     */
+    private fun startMcDirectArchiveUpload(source: McServerBackupSource, direct: McServerDirectUpload): PanoBackupJob =
+        backups.startTask(PanoBackupJob.Type.MC_UPLOAD) { job ->
+            requireConnected()
+
+            job.details = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId)
+            job.phase = PanoBackupService.PHASE_ARCHIVING
+
+            val passphrase = passphraseFile?.read()
+            val encryption = try {
+                passphrase?.takeIf { it.isNotEmpty() }?.let { withContext(Dispatchers.IO) { PanoArcEncryption.derive(it) } }
+            } finally {
+                passphrase?.fill('\u0000')
+            }
+            var session: UploadSession? = null
+            val handler = directHandler(job) { size ->
+                client.startBackup(size, KIND_MC_SERVER, source.subject).also {
+                    session = it
+                    job.remoteId = it.id
+                }
+            }
+
+            val reply = try {
+                direct.upload(McServerDirectRequest(null, source.meta, producer, instanceName(), encryption), handler)
+            } catch (e: Throwable) {
+                session?.let { opened -> withContext(NonCancellable) { runCatching { client.deleteBackup(opened.id) } } }
+
+                throw e
+            } finally {
+                encryption?.masterKey?.fill(0)
+                listCache = null
+            }
+
+            val opened = session ?: throw PanoHostException(PanoHostException.UPLOAD_FAILED, message = "The node never started the upload.")
+
+            try {
+                client.completeBackup(opened.id, reply.getString("sha256") ?: "", mcSummary(source, encryption != null))
+            } catch (e: Throwable) {
+                withContext(NonCancellable) { runCatching { client.deleteBackup(opened.id) } }
+
+                throw e
+            } finally {
+                listCache = null
+            }
+
+            recordMcUpload(source, opened.id)
+
+            try {
+                pruneMc(source, opened.id)
+            } catch (e: Exception) {
+                logger.warn("Could not apply the Pano Backup retention of server ${source.serverId}: ${e.message}")
+            }
+        }
+
+    /**
+     * Answers a node's direct upload for [job]: its progress lands on the job, an archive gets the session [startArchive]
+     * opens, a snapshot the repository's answers.
+     */
+    private fun directHandler(job: PanoBackupJob, startArchive: (suspend (Long) -> UploadSession)? = null) = object : DirectUploadHandler {
+        override fun progress(phase: String, done: Long, total: Long) {
+            job.phase = if (phase == PanoBackupService.PHASE_UPLOADING) PanoBackupService.PHASE_UPLOADING else PanoBackupService.PHASE_ARCHIVING
+            job.bytesDone = maxOf(done, 0L)
+            job.bytesTotal = maxOf(total, 0L)
+        }
+
+        override suspend fun archive(size: Long, sha256: String): UploadSession {
+            val start = startArchive ?: throw PanoHostException(PanoHostException.UPLOAD_FAILED, message = "This upload is not an archive.")
+
+            job.phase = PanoBackupService.PHASE_UPLOADING
+            job.bytesDone = 0
+            job.bytesTotal = size
+
+            return start(size)
+        }
+
+        override suspend fun missing(snapshotId: String, chunks: List<Pair<String, Int>>): Set<String> {
+            if (startArchive != null || snapshotId != job.remoteId) throw PanoHostException(SNAPSHOT_FAILED, message = "Not this upload's snapshot.")
+
+            return client.snapshotMissing(snapshotId, chunks)
+        }
+
+        override suspend fun packSlot(snapshotId: String, size: Long): PackSlot {
+            if (startArchive != null || snapshotId != job.remoteId) throw PanoHostException(SNAPSHOT_FAILED, message = "Not this upload's snapshot.")
+
+            return client.startSnapshotPack(snapshotId, size)
+        }
+    }
+
+    private fun snapshotStatsOf(json: JsonObject) = SnapshotStats(
+        json.getLong("fileCount", 0L), json.getLong("logicalBytes", 0L), json.getLong("downloadBytes", 0L),
+        json.getLong("chunkCount", 0L), json.getLong("newChunks", 0L), json.getLong("newBytes", 0L)
+    )
+
     /**
      * A server snapshot to Pano Backup: the node's snapshot (streamed to Pano as a zip) is cut into the account's snapshot
      * repository under `server/`, deduplicated against every snapshot of this Pano, with the server's uuid as its subject.
@@ -759,8 +862,13 @@ class PanoRemoteBackupService(
             requireConnected()
 
             job.details = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId)
-            job.phase = PanoBackupService.PHASE_FETCHING
-            followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
+
+            val direct = source.direct
+
+            if (direct == null) {
+                job.phase = PanoBackupService.PHASE_FETCHING
+                followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
+            }
 
             job.phase = PanoBackupService.PHASE_UPLOADING
             job.bytesDone = 0
@@ -777,12 +885,22 @@ class PanoRemoteBackupService(
 
             val meta = source.meta.copy().put("serverId", source.serverId).put("serverUuid", source.subject)
             val stats = try {
-                withContext(Dispatchers.IO) {
-                    McServerSnapshotUpload(client.snapshotRemote, session, zip, meta, dir, name ?: "", clock()) { done, total ->
-                        job.bytesDone = done
-                        job.bytesTotal = total
-                    }.run()
-                }.stats
+                if (direct != null) {
+                    // The node cuts it and sends the chunks itself; only the repository's answers come through here.
+                    val reply = direct.upload(
+                        McServerDirectRequest(session, meta, producer, instanceName(), snapshotName = name ?: "", createdAt = clock()),
+                        directHandler(job)
+                    )
+
+                    snapshotStatsOf(reply.getJsonObject("stats") ?: throw PanoHostException(SNAPSHOT_FAILED, message = "The node sent no snapshot numbers."))
+                } else {
+                    withContext(Dispatchers.IO) {
+                        McServerSnapshotUpload(client.snapshotRemote, session, zip, meta, dir, name ?: "", clock()) { done, total ->
+                            job.bytesDone = done
+                            job.bytesTotal = total
+                        }.run()
+                    }.stats
+                }
             } catch (e: Throwable) {
                 withContext(NonCancellable) { runCatching { client.deleteSnapshot(session.id) } }
 

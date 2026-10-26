@@ -19,6 +19,8 @@ class McServerBackupSource(
     val automatic: Boolean = false,
     /** The copy is at Pano Backup now, under this id (the backup's row remembers it). */
     val onUploaded: suspend (remoteId: String) -> Unit = {},
+    /** The node sends the backup itself (protocol 8); null = [fetch] it to Pano and upload from here. */
+    val direct: McServerDirectUpload? = null,
     val fetch: suspend (File) -> Unit
 ) {
     /** A snapshot of the node (`meta.mode`), uploaded into the snapshot repository rather than as an archive. */
@@ -29,6 +31,30 @@ class McServerBackupSource(
 
     /** How the copy was started, as Pano Backup lists it: `AUTOMATIC` | `MANUAL`. */
     val trigger: String get() = if (automatic) PanoRemoteBackupService.TRIGGER_AUTOMATIC else PanoRemoteBackupService.TRIGGER_MANUAL
+}
+
+/**
+ * A backup the node sends to Pano Backup itself. [upload] hands [request] to the node with a ticket answered by [handler]
+ * and returns the node's answer: `{size, sha256}` for an archive, `{stats}` for a snapshot.
+ */
+fun interface McServerDirectUpload {
+    suspend fun upload(request: McServerDirectRequest, handler: com.panomc.platform.backup.DirectUploadHandler): JsonObject
+}
+
+/**
+ * What the node needs for a direct upload: [archive] mode with the meta and, for an encrypted archive, the key Pano
+ * derived for it ([encryption]); or [snapshot] mode with the open snapshot session.
+ */
+class McServerDirectRequest(
+    val snapshot: SnapshotSession?,
+    val meta: JsonObject,
+    val producer: String,
+    val instanceName: String?,
+    val encryption: com.panomc.platform.archive.PanoArcEncryption.DerivedKey? = null,
+    val snapshotName: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    val archive: Boolean get() = snapshot == null
 }
 
 /**

@@ -28,16 +28,28 @@ object McServerArchive {
         val encryption = passphrase?.takeIf { it.isNotEmpty() }?.let { PanoArcEncryption.Passphrase(it.copyOf()) }
 
         try {
-            PanoArchive.writer(target.outputStream().buffered(256 * 1024), encryption, limits).use { writer ->
-                zip.inputStream().buffered(256 * 1024).use { writer.addStream(ZIP_ENTRY, it) }
-                writer.addBytes(META_ENTRY, meta.encodePrettily().toByteArray(Charsets.UTF_8))
-
-                return writer.finish(ArchiveManifest.KIND_MC_SERVER, producer, ArchiveSource(instanceName = instanceName, hosted = false))
-            }
+            return wrap(zip, meta, target, encryption, producer, instanceName, limits)
         } finally {
-            (encryption as? PanoArcEncryption.Passphrase)?.passphrase?.fill('\u0000')
+            encryption?.passphrase?.fill('\u0000')
         }
     }
+
+    /** Wraps [zip] into [target] sealed with [encryption] (null = plain), e.g. a [PanoArcEncryption.DerivedKey] on pano-node. */
+    fun wrap(
+        zip: File,
+        meta: JsonObject,
+        target: File,
+        encryption: PanoArcEncryption?,
+        producer: String,
+        instanceName: String?,
+        limits: ArchiveLimits = ArchiveLimits()
+    ): ArchiveManifest =
+        PanoArchive.writer(target.outputStream().buffered(256 * 1024), encryption, limits).use { writer ->
+            zip.inputStream().buffered(256 * 1024).use { writer.addStream(ZIP_ENTRY, it) }
+            writer.addBytes(META_ENTRY, meta.encodePrettily().toByteArray(Charsets.UTF_8))
+
+            writer.finish(ArchiveManifest.KIND_MC_SERVER, producer, ArchiveSource(instanceName = instanceName, hosted = false))
+        }
 
     /**
      * Opens an `mc-server` archive into [staging] (decrypted with [passphrase] when it is enveloped) and returns the

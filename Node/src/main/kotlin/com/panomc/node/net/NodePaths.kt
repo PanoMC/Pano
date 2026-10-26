@@ -16,6 +16,9 @@ object NodePaths {
 
     const val TRANSFER = "$BASE/transfer/"
 
+    /** `<ticket>/<action>`: what a direct upload to Pano Backup asks of Pano (protocol 8). */
+    const val PANO_BACKUP = "$BASE/pano-backup/"
+
     const val AGENT_JAR_CHECKSUM = "$BASE/pano-agent.jar.sha256"
 
     const val NODE_JAR_CHECKSUM = "$BASE/pano-node.jar.sha256"

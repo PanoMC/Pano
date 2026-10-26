@@ -30,8 +30,13 @@ object NodeProtocol {
      *
      * 7 (SM-PB): `BACKUP_IMPORT` -- a FULL zip taken elsewhere (out of Pano Backup) is fetched under an upload ticket
      * and kept as a backup of the server. Pano sends it only to a node that announced at least 7.
+     *
+     * 8 (SM-PB): `BACKUP_UPLOAD` -- a backup goes to Pano Backup straight from the node: the node writes the `.panoarc`
+     * (sealed with a key Pano derived for it, never the passphrase) or cuts the snapshot, asks Pano under a ticket for
+     * what only the control plane answers (`/api/v1/node/pano-backup/:ticket/:action`) and PUTs the bytes to the
+     * storage itself. Pano sends it only to a node that announced at least 8.
      */
-    const val VERSION = 7
+    const val VERSION = 8
 
     /**
      * Feature flags announced in `NODE_HELLO.capabilities`, for what a protocol number alone
@@ -151,6 +156,7 @@ object NodeProtocol {
         const val BACKUP_RESTORE = "BACKUP_RESTORE"
         const val BACKUP_DELETE = "BACKUP_DELETE"
         const val BACKUP_IMPORT = "BACKUP_IMPORT"
+        const val BACKUP_UPLOAD = "BACKUP_UPLOAD"
 
         /**
          * What Java this node has and could download (SM-63). A request: answered on `FILE_RESULT`

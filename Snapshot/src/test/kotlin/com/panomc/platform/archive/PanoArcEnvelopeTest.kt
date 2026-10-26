@@ -138,6 +138,19 @@ class PanoArcEnvelopeTest {
     }
 
     @Test
+    fun `a key derived from the passphrase seals an archive the passphrase opens`() {
+        val data = Random(2).nextBytes(chunk + 10)
+        val derived = PanoArcEncryption.derive("correct horse".toCharArray(), t = 1, mKiB = 8192, p = 1)
+        val sealed = encrypt(data, derived)
+        val header = PanoArcEnvelope.readHeader(sealed.inputStream())!!
+
+        assertEquals(PanoArcKeyMode.PASSPHRASE, header.keyMode)
+        assertArrayEquals(derived.kdf.salt, header.kdf!!.salt)
+        assertArrayEquals(data, decrypt(sealed, PanoArcKeys(passphrase = "correct horse".toCharArray())))
+        fails(Code.WRONG_PASSPHRASE) { decrypt(sealed, PanoArcKeys(passphrase = "wrong".toCharArray())) }
+    }
+
+    @Test
     fun `wrong or missing passphrase is refused before any chunk`() {
         val sealed = encrypt(ByteArray(100), fastPassphrase("right"))
 

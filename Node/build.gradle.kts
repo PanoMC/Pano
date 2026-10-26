@@ -38,6 +38,10 @@ dependencies {
     // the schedule this daemon runs can never disagree about when "0 4 * * 0" is.
     implementation("com.cronutils:cron-utils:9.2.1")
 
+    // cron-utils pulls in slf4j-api; without a provider it prints a "No SLF4J providers" banner
+    // into the node log on every start. The daemon has its own logger, so a no-op one is right.
+    implementation("org.slf4j:slf4j-nop:2.0.7")
+
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
@@ -56,6 +60,9 @@ tasks {
 
             attrMap["VERSION"] = version.toString()
             attrMap["Main-Class"] = appMainClass
+            // Gson fills `val` fields reflectively; JDK 26+ warns about it on every start without this.
+            // Older JVMs ignore an unknown manifest attribute.
+            attrMap["Enable-Final-Field-Mutation"] = "ALL-UNNAMED"
 
             attributes(attrMap)
         }

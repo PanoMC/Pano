@@ -384,6 +384,8 @@ tasks {
             // JDK 22+ restricted native methods (JNI): avoids warnings when launching with java -jar
             // See https://openjdk.org/jeps/472 — ignored by older JVMs
             attrMap["Enable-Native-Access"] = "ALL-UNNAMED"
+            // JDK 26+ warns when Gson fills final fields reflectively (https://openjdk.org/jeps/500) — ignored by older JVMs
+            attrMap["Enable-Final-Field-Mutation"] = "ALL-UNNAMED"
 
             attributes(attrMap)
         }

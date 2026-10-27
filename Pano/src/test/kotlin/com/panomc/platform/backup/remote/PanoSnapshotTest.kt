@@ -228,7 +228,7 @@ class PanoSnapshotTest {
         val recorded = ArrayList<String>()
 
         fun source(id: String, zip: File) = McServerBackupSource(
-            4, "server-uuid-4", id, JsonObject().put("id", id).put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"), settings,
+            4, "server-uuid-4", id, JsonObject().put("id", id).put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL").put("serverName", "Lobby #1"), settings,
             onUploaded = { recorded += it }
         ) { it.writeBytes(zip.readBytes()) }
 
@@ -237,6 +237,7 @@ class PanoSnapshotTest {
         assertEquals(PanoBackupJob.Status.DONE, first.status, first.error + " " + first.message)
         assertEquals(listOf(first.remoteId), recorded)
         assertEquals("MANUAL", service.listMcBackups("server-uuid-4").single().getString("trigger"))
+        assertEquals("Lobby #1", service.listMcBackups("server-uuid-4").single().getString("subjectName"), "the server's name goes with the snapshot")
         assertEquals(PanoBackupJob.Type.MC_UPLOAD, first.type)
 
         // The same world again: only what changed is new, and the server keeps its last one only.

@@ -876,7 +876,7 @@ class PanoRemoteBackupService(
 
             val name = (source.meta.getString("name") ?: "").take(SNAPSHOT_NAME_LENGTH).ifEmpty { null }
             val session = try {
-                client.startSnapshot(name, source.subject, source.trigger)
+                client.startSnapshot(name, source.subject, source.trigger, source.meta.getString("serverName"))
             } finally {
                 listCache = null
             }

@@ -172,11 +172,12 @@ class PanoHostClient(
 
     /** Opens a snapshot; `PAYMENT_REQUIRED`, `QUOTA_EXCEEDED` and `SNAPSHOT_BUSY` are thrown as [PanoHostException]s. */
     /** [subject]: the uuid of the managed server the snapshot is of; null = this Pano itself. */
-    suspend fun startSnapshot(name: String?, subject: String? = null, trigger: String? = null): SnapshotSession {
+    suspend fun startSnapshot(name: String?, subject: String? = null, trigger: String? = null, subjectName: String? = null): SnapshotSession {
         val data = call("POST", "/host/connected/snapshots", JsonObject().apply {
             name?.let { put("name", it) }
             subject?.let { put("subject", it) }
             trigger?.let { put("trigger", it) }
+            subjectName?.takeIf { subject != null && it.isNotBlank() }?.let { put("subjectName", it.take(SNAPSHOT_SUBJECT_NAME_LENGTH)) }
         })
 
         return snapshotSessionOf(data, data.getString("snapshotId") ?: "", "manifestPut")
@@ -588,6 +589,9 @@ class PanoHostClient(
 
         /** Chunk ids per `chunks` / `chunk-urls` call. */
         const val MAX_SNAPSHOT_BATCH = SnapshotRemote.MAX_BATCH
+
+        /** The longest server name a snapshot carries (the control plane's limit). */
+        const val SNAPSHOT_SUBJECT_NAME_LENGTH = 100
 
         const val HEADER_INSTANCE_ID = "X-Pano-Instance-Id"
         const val HEADER_INSTANCE_NAME = "X-Pano-Instance-Name"

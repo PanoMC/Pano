@@ -243,6 +243,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
         val view = JsonObject().put("id", id).put("instanceId", instanceId).put("instanceName", "My Server").put("name", body.getString("name"))
             .put("kind", if (body.getString("subject") == null) "pano-instance" else "mc-server").put("subject", body.getString("subject"))
             .put("trigger", body.getString("trigger") ?: if (body.getString("name") == "Scheduled") "SCHEDULED" else "MANUAL")
+            .put("subjectName", body.getString("subjectName"))
             .put("status", "RUNNING").put("createdAt", System.currentTimeMillis())
 
         snapshots[id] = Snapshot(view, instanceId)

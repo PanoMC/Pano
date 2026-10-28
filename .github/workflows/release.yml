@@ -328,6 +328,37 @@ jobs:
   # The same daemon as a container, for nodes deployed to a platform rather than installed on a
   # host. It is a separate job so a registry outage can never fail the release that already
   # published the jar.
+  # A stable release is merged back into alpha. semantic-release numbers alpha from the releases in alpha's own history, so
+  # without this alpha went on as 1.0.0-alpha.N after v1.0.0, sorting below it. History only, no file change is expected;
+  # a conflict fails this job and the merge is then made by hand. Pushed with the workflow's own token, so it starts no
+  # other run (the merge alone would release nothing anyway).
+  backmerge_alpha:
+    runs-on: ubuntu-latest
+    needs: [ get_next_version, build_and_release ]
+    if: ${{ !cancelled() && needs.build_and_release.result == 'success' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: alpha
+          fetch-depth: 0
+
+      - name: Merge main back into alpha
+        env:
+          VERSION: ${{ needs.get_next_version.outputs.new_tag_version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "alpha already contains main"
+            exit 0
+          fi
+          git merge --no-ff -m "chore: merged main (v$VERSION) back into alpha" origin/main
+          git push origin HEAD:alpha
+
   publish_node_image:
     runs-on: ubuntu-latest
     needs: [ get_next_version, build_and_release ]

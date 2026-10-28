@@ -431,7 +431,10 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # The script's `docker run`s have no limit of their own: one that hangs held this step for 45 minutes (2026-10-28,
+      # jre21) until GitHub dropped the runner. A run takes a few minutes, so a hang now fails here and a rerun retries it.
       - name: Test the runtime image (amd64)
+        timeout-minutes: 15
         run: bash docker/runtime/test.sh ${{ matrix.jre }}
 
       - uses: docker/setup-qemu-action@v3

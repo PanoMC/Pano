@@ -15,8 +15,10 @@ offer it next to their Minecraft servers.
 
 1. Admin → Nests → Import Egg → `egg-pano.json`.
 2. Create a server with the egg. Java 11 or newer (the image list starts with Java 21), one
-   allocation (the web port), at least **1.5 GB** memory: Pano runs up to three website processes
-   (setup, panel, theme, about 200 MB each) next to the JVM.
+   allocation (the web port), **1 GB** memory recommended: the JVM takes half of it (`JAVA_RAM_PERCENT`, default 50), the
+   other half is left to the three website processes (setup, panel, theme; about 50 MB each when
+   idle, Pano restarts one that passes 200 MB). Measured right after the first start on 1 GB:
+   about 600 MB on Java 21, about 720 MB on Java 11.
 3. Optional: create a database on the server's Databases tab and copy it into the database
    variables. They are read on the first start only; left empty, the setup wizard asks for them.
 4. Start the server, open `http://<allocation ip>:<port>` and finish the setup wizard.

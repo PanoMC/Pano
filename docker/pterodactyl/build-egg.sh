@@ -64,9 +64,9 @@ egg=$(jq -n --arg script "$script" '{
     },
     {
       "name": "Java memory (%)",
-      "description": "Share of the server memory the JVM may use. The rest is left to the website processes Pano runs next to it (about 200 MB each).",
+      "description": "Share of the server memory the JVM may use. The rest is left to the website processes Pano runs next to it (usually 50 MB, at most 200 MB each).",
       "env_variable": "JAVA_RAM_PERCENT",
-      "default_value": "60",
+      "default_value": "50",
       "user_viewable": true,
       "user_editable": true,
       "rules": "required|integer|between:25,90",

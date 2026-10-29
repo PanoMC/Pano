@@ -17,7 +17,9 @@ script=$(cat "$dir/install.sh")
 # - user.home: Wings runs the container as its own uid, which has no passwd entry
 startup='PANO_HTTP_PORT={{SERVER_PORT}} java -Xms64M -Xmx$(( ({{SERVER_MEMORY}} > 0 ? {{SERVER_MEMORY}} : 2048) * {{JAVA_RAM_PERCENT}} / 100 ))M -Duser.home=/home/container -jar $(cat .pano-jar) -nogui'
 
+# Same keys and order as the panel's own export (Admin -> Nests -> Export), which the public egg repos ask for.
 egg=$(jq -n --arg script "$script" --arg startup "$startup" '{
+  "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
   "meta": {
     "version": "PTDL_v2",
     "update_url": "https://raw.githubusercontent.com/PanoMC/Pano/main/docker/pterodactyl/egg-pano.json"

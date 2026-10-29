@@ -42,7 +42,7 @@ Environment (all optional; without `PANO_DB_*` the wizard asks for the database)
 | --- | --- |
 | `PANO_DB_HOST`, `PANO_DB_PORT` (3306), `PANO_DB_NAME`, `PANO_DB_USER`, `PANO_DB_PASSWORD` | Database, seeds `config.conf` on first start only |
 | `PANO_SMTP_HOST`, `PANO_SMTP_PORT` (587), `PANO_SMTP_USER`, `PANO_SMTP_PASSWORD`, `PANO_SMTP_FROM`, `PANO_SMTP_STARTTLS` | Mail, first start only |
-| `PANO_HTTP_PORT` | Port Pano listens on inside the container (default 8088) |
+| `PANO_HTTP_PORT` | Port Pano listens on inside the container (default 8088); set explicitly, it is applied on every start |
 | `PANO_JVM_ARGS` | JVM args, space separated (default `-XX:MaxRAMPercentage=75`) |
 
 Everything Pano writes (config, plugins, themes, uploads, the jar) lives in the `/data` volume. The

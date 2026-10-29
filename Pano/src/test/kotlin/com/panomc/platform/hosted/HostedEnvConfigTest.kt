@@ -250,6 +250,28 @@ class HostedEnvConfigTest {
     }
 
     @Test
+    fun `an explicit port follows the host on every boot, the rest only seeds a new config`() {
+        val env = HostedEnvConfig(
+            mapOf("PANO_HTTP_PORT" to "25599", "PANO_DB_HOST" to "db", "PANO_DB_NAME" to "pano", "PANO_DB_USER" to "u")
+        )
+        assertTrue(env.shouldApply(creatingConfig = false))
+        assertTrue(env.portOnly(creatingConfig = false))
+        assertFalse(env.portOnly(creatingConfig = true))
+
+        val config = load(writeConf())
+        val database = config.database.host
+        assertEquals(listOf("server.http-port"), env.apply(config, portOnly = true))
+        assertEquals(25599, config.server.httpPort)
+        assertEquals(database, config.database.host)
+        assertEquals(emptyList<String>(), env.apply(config, portOnly = true))
+
+        // the container default (no PANO_HTTP_PORT) still only seeds a new config
+        val container = HostedEnvConfig(mapOf("PANO_CONTAINER" to "1"))
+        assertFalse(container.shouldApply(creatingConfig = false))
+        assertEquals(listOf("server.http-port"), container.apply(load(writeConf()), creatingConfig = true))
+    }
+
+    @Test
     fun `host mail view matches what apply writes and only carries the password on request`() {
         val view = HostedEnvConfig(hosted).hostMail("old@x.com")!!
 

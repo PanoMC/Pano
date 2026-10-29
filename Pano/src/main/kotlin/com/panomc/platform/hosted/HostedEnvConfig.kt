@@ -112,8 +112,14 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
     /** `PANO_SMTP_STARTTLS` (DISABLED, OPTIONAL or REQUIRED) overrides the mode derived from the port. */
     val smtpStartTls: String? = value("PANO_SMTP_STARTTLS")?.uppercase()?.takeIf { it in STARTTLS_MODES }
 
+    /**
+     * `PANO_HTTP_PORT` as set: the host owns the port (Pterodactyl / Pelican allocation, a fixed container
+     * mapping), so it is applied on every boot, not only to a new config.
+     */
+    val explicitHttpPort: Int? = port("PANO_HTTP_PORT", null)
+
     /** `PANO_HTTP_PORT`, else 8088 in container mode, else none. */
-    val httpPort: Int? = port("PANO_HTTP_PORT", null) ?: if (isContainer) CONTAINER_HTTP_PORT else null
+    val httpPort: Int? = explicitHttpPort ?: if (isContainer) CONTAINER_HTTP_PORT else null
 
     /** `PANO_DB_MAX_CONNECTIONS`: the DB user's connection limit, when the host sets one. */
     val dbMaxConnections: Int? = value("PANO_DB_MAX_CONNECTIONS")?.toIntOrNull()?.takeIf { it > 0 }
@@ -136,8 +142,8 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
 
     val hasAny get() = database != null || smtp != null || httpPort != null || isHosted
 
-    /** Hosted: every boot. Otherwise only when the config file is being created. */
-    fun shouldApply(creatingConfig: Boolean) = hasAny && (isHosted || creatingConfig)
+    /** Hosted: every boot. Otherwise when the config file is being created, and every boot for [explicitHttpPort]. */
+    fun shouldApply(creatingConfig: Boolean) = hasAny && (isHosted || creatingConfig || explicitHttpPort != null)
 
     private fun smtpSsl(smtp: Smtp) = smtp.port == 465
 
@@ -190,11 +196,14 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
         return "$local@$domain".takeUnless { it.equals(default, ignoreCase = true) }
     }
 
+    /** An existing config outside Pano Host only takes [explicitHttpPort]: the setup wizard and the panel own the rest. */
+    fun portOnly(creatingConfig: Boolean) = !isHosted && !creatingConfig
+
     /**
      * Writes the env values into [config] and returns the names of the keys that changed (never
-     * their values, which include secrets).
+     * their values, which include secrets). [portOnly] writes the explicit HTTP port and nothing else.
      */
-    fun apply(config: PanoConfig, creatingConfig: Boolean = false): List<String> {
+    fun apply(config: PanoConfig, creatingConfig: Boolean = false, portOnly: Boolean = false): List<String> {
         val changed = mutableListOf<String>()
 
         fun <T> set(key: String, current: T, new: T, write: (T) -> Unit) {
@@ -202,6 +211,12 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
                 write(new)
                 changed += key
             }
+        }
+
+        if (portOnly) {
+            explicitHttpPort?.let { port -> set("server.http-port", config.server.httpPort, port) { config.server.httpPort = it } }
+
+            return changed
         }
 
         database?.let { db ->

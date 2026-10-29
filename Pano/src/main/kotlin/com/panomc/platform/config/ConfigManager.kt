@@ -138,13 +138,14 @@ open class ConfigManager(
 
     /**
      * Writes container env (DB, SMTP, HTTP port, hosted trusted proxies) into [config]: every boot on
-     * Pano Host, only while creating the file elsewhere. Returns whether anything changed; logs key
+     * Pano Host, only while creating the file elsewhere (an explicit `PANO_HTTP_PORT` every boot, e.g. a
+     * Pterodactyl allocation). Returns whether anything changed; logs key
      * names only, never values.
      */
     internal fun applyEnv(creatingConfig: Boolean): Boolean {
         if (!envConfig.shouldApply(creatingConfig)) return false
 
-        val changed = envConfig.apply(config, creatingConfig)
+        val changed = envConfig.apply(config, creatingConfig, envConfig.portOnly(creatingConfig))
 
         if (changed.isNotEmpty()) {
             logger.info("Applied environment to config: ${changed.joinToString(", ")}")

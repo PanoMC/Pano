@@ -51,9 +51,9 @@ start_and_check() { # port
   local port=$1
   echo "== start ($yolk, port $port)"
   rm -f "$fifo"; mkfifo "$fifo"
-  docker run --name "$prefix-pano" --network "$net" -i --user "$uid:$uid" -m 1536m \
+  docker run --name "$prefix-pano" --network "$net" -i --user "$uid:$uid" -m "${PANO_TEST_MEMORY:-1024}m" \
     -v "$work/server:/home/container" -p "127.0.0.1:$port:$port" \
-    -e STARTUP="$startup" -e SERVER_PORT="$port" -e SERVER_MEMORY=1536 -e JAVA_RAM_PERCENT=60 \
+    -e STARTUP="$startup" -e SERVER_PORT="$port" -e SERVER_MEMORY="${PANO_TEST_MEMORY:-1024}" -e JAVA_RAM_PERCENT=50 \
     -e PANO_VERSION="$version" -e PANO_CHANNEL=release \
     -e PANO_DB_HOST="$db" -e PANO_DB_PORT=3306 -e PANO_DB_NAME=pano -e PANO_DB_USER=pano -e PANO_DB_PASSWORD=pano \
     "ghcr.io/pterodactyl/yolks:$yolk" <"$fifo" >"$work/console.log" 2>&1 &
@@ -72,6 +72,8 @@ start_and_check() { # port
   echo "GET / -> $code"
   case "$code" in 2*|3*) ;; *) tail -30 "$work/console.log"; echo "FAIL: HTTP $code" >&2; exit 1 ;; esac
 
+  docker stats --no-stream --format "memory: {{.MemUsage}}" "$prefix-pano"
+  docker exec "$prefix-pano" bash -c 'for p in /proc/[0-9]*; do r=$(awk "/VmRSS/{print \$2}" $p/status 2>/dev/null); [ -n "$r" ] && echo "$((r/1024)) MB  $(tr "\0" " " <$p/cmdline | cut -c1-70)"; done | sort -rn | head -6' || true
   echo "-- stop"
   echo stop >&4
   for _ in $(seq 1 60); do kill -0 "$run_pid" 2>/dev/null || break; sleep 1; done

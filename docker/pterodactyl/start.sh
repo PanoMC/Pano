@@ -10,7 +10,15 @@ exec 3<&0
 
 data=$PWD
 port=${SERVER_PORT:-8088}
-jvm_args=${PANO_JVM_ARGS:-"-XX:MaxRAMPercentage=${JAVA_RAM_PERCENT:-60}"}
+percent=${JAVA_RAM_PERCENT:-50}
+# The heap comes from the panel's memory limit, not the JVM's container detection: Java 11 before
+# 11.0.16 (the java_11 yolk ships 11.0.13) does not see cgroup v2 limits and sizes the heap from the
+# host's RAM, and starts with the whole heap committed unless -Xms is set. SERVER_MEMORY=0 means unlimited.
+if [ "${SERVER_MEMORY:-0}" -gt 0 ] 2>/dev/null; then
+  jvm_args=${PANO_JVM_ARGS:-"-Xms64M -Xmx$((SERVER_MEMORY * percent / 100))M"}
+else
+  jvm_args=${PANO_JVM_ARGS:-"-XX:MaxRAMPercentage=$percent"}
+fi
 
 # Pano reads PANO_HTTP_PORT only when it creates config.conf; after that the allocation can still change.
 export PANO_HTTP_PORT=$port

@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 'latest'
+          node-version: 'lts/*'
 
       - name: Dry run to get next release version
         id: get_next_version
@@ -204,7 +204,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 'latest'
+          node-version: 'lts/*'
 
       # Generate UI changelog from ZIP names and UI repos
       - name: Generate UI changelog

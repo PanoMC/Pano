@@ -1,10 +1,9 @@
 #!/bin/bash
 # Pano egg install script (Pterodactyl / Pelican). Runs as root in ghcr.io/pterodactyl/installers:debian
 # with the server's files at /mnt/server, on install and on every reinstall. It downloads the Pano jar
-# (PANO_VERSION, or the newest of PANO_CHANNEL), checks its sha256, points .pano-jar at it and writes
-# start.sh. Data (config.conf, plugins, themes, uploads) is never touched, so a reinstall is an upgrade.
-#
-# build-egg.sh embeds start.sh at the __START_SH__ line below; edit start.sh, not the egg.
+# (PANO_VERSION, or the newest of PANO_CHANNEL), checks its sha256 and points .pano-jar at it, the jar the
+# startup command runs. Data (config.conf, plugins, themes, uploads) is never touched, so a reinstall
+# is an upgrade.
 set -euo pipefail
 
 API_URL=${PANO_API_URL:-https://api.panomc.com}
@@ -70,10 +69,5 @@ printf '%s' "$jar" >.pano-jar
 for old in Pano-*.jar; do
   [ "$old" = "$jar" ] || [ "$old" = "$(cat .pano-jar.previous 2>/dev/null || true)" ] || rm -f "$old"
 done
-
-cat >start.sh <<'PANO_START_SH'
-__START_SH__
-PANO_START_SH
-chmod 0755 start.sh
 
 echo "Pano ${tag#v} installed. Start the server, then open its address to finish the setup wizard."

@@ -6,9 +6,8 @@ offer it next to their Minecraft servers.
 | File | What it is |
 | --- | --- |
 | `egg-pano.json` | The egg, generated: never edit it by hand |
-| `install.sh` | Install script: downloads the jar (sha256 checked), writes `.pano-jar` and `start.sh` |
-| `start.sh` | Startup: syncs `http-port` with the allocation, relaunches on exit 75 (self-update / restart) |
-| `build-egg.sh` | Builds the egg from the two scripts (`--check` fails on a stale egg) |
+| `install.sh` | Install script: downloads the jar (sha256 checked) and points `.pano-jar` at it |
+| `build-egg.sh` | Builds the egg from `install.sh` and the startup line it holds (`--check` fails on a stale egg) |
 | `test.sh` | Runs the egg the way Wings does, without a panel |
 
 ## Use
@@ -24,17 +23,22 @@ offer it next to their Minecraft servers.
 4. Start the server, open `http://<allocation ip>:<port>` and finish the setup wizard.
 
 A reinstall upgrades the jar (to `PANO_VERSION`, or the newest of `PANO_CHANNEL`) and keeps all data.
-Pano's own update from the panel works too: it stages the new jar and exits with 75, `start.sh`
-starts it again.
+Pano's own update from the panel works too: it stages the new jar, points `.pano-jar` at it and exits
+with 75; Wings restarts the server, and the startup command runs the jar `.pano-jar` names.
+
+The startup command is a single line with no start script (a rule of the public egg repos). It passes
+the allocation as `PANO_HTTP_PORT`, which Pano applies on every start (since the release after 1.1.0;
+older versions take it only on the first start), and sizes the heap from the server's memory limit.
 
 Not available on Pterodactyl: running managed Minecraft servers through `pano-node` (the panel host
 already manages the servers). Connecting servers with the Pano MC plugin works as usual.
 
 ## Change
 
-Edit `install.sh` / `start.sh`, then:
+Edit `install.sh` or the startup line in `build-egg.sh`, then:
 
 ```sh
 bash docker/pterodactyl/build-egg.sh
 bash docker/pterodactyl/test.sh java_11      # needs Docker; also java_17, java_21, java_25
+PANO_TEST_JAR=build/libs/Pano-<version>.jar bash docker/pterodactyl/test.sh java_11   # a local build
 ```

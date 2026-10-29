@@ -1,16 +1,23 @@
 #!/bin/bash
-# Writes egg-pano.json from install.sh + start.sh (start.sh goes in at install.sh's __START_SH__ line).
+# Writes egg-pano.json with install.sh as its install script.
 #   bash docker/pterodactyl/build-egg.sh           # regenerate
 #   bash docker/pterodactyl/build-egg.sh --check   # fail when egg-pano.json is stale
 set -euo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 
-script=$(awk -v start="$dir/start.sh" '
-  $0 == "__START_SH__" { while ((getline l < start) > 0) print l; next }
-  { print }
-' "$dir/install.sh")
+script=$(cat "$dir/install.sh")
 
-egg=$(jq -n --arg script "$script" '{
+# One line, no script (egg repo rule). The yolk runs it as `exec env <line>` after an `eval echo`, so the
+# leading PANO_HTTP_PORT=... is an env assignment and $(( )) / $( ) are expanded:
+# - the heap comes from the panel's memory limit, not container detection: Java 11 before 11.0.16 (the
+#   java_11 yolk ships 11.0.13) sizes it from the host's RAM and commits all of it unless -Xms is set;
+#   SERVER_MEMORY=0 (unlimited) counts as 2 GB
+# - .pano-jar names the jar (re-read on every start, puts Pano in container mode): after a self-update
+#   Pano exits with 75 and Wings restarts the server on the new jar
+# - user.home: Wings runs the container as its own uid, which has no passwd entry
+startup='PANO_HTTP_PORT={{SERVER_PORT}} java -Xms64M -Xmx$(( ({{SERVER_MEMORY}} > 0 ? {{SERVER_MEMORY}} : 2048) * {{JAVA_RAM_PERCENT}} / 100 ))M -Duser.home=/home/container -jar $(cat .pano-jar) -nogui'
+
+egg=$(jq -n --arg script "$script" --arg startup "$startup" '{
   "meta": {
     "version": "PTDL_v2",
     "update_url": "https://raw.githubusercontent.com/PanoMC/Pano/main/docker/pterodactyl/egg-pano.json"
@@ -27,7 +34,7 @@ egg=$(jq -n --arg script "$script" '{
     "Java 11": "ghcr.io/pterodactyl/yolks:java_11"
   },
   "file_denylist": [],
-  "startup": "bash start.sh",
+  "startup": $startup,
   "config": {
     "files": "{}",
     "startup": "{\r\n    \"done\": \"ready to rock & roll\"\r\n}",

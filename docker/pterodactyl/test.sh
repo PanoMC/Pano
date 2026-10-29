@@ -2,8 +2,10 @@
 # Runs the egg the way Wings does, without a panel: the install script in the installer image against a
 # fresh server folder, then the yolk with STARTUP / SERVER_PORT / the egg variables as a non-root user,
 # MariaDB next to it. Passes when Pano prints the egg's "done" line, answers HTTP on the allocation
-# port and stops on the console's "stop". A second install over the same folder must keep its data.
+# port and stops on the console's "stop". A second install over the same folder must keep its data,
+# and a start on another allocation must move Pano there.
 #   bash docker/pterodactyl/test.sh [java_11|java_17|java_21|java_25] [version]
+#   PANO_TEST_JAR=build/libs/Pano-<version>.jar bash docker/pterodactyl/test.sh   # run a local build
 set -euo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 yolk=${1:-java_11}
@@ -43,7 +45,13 @@ install() {
 
 echo "== install"
 install
-[ -s "$work/server/.pano-jar" ] && [ -x "$work/server/start.sh" ]
+[ -s "$work/server/.pano-jar" ]
+if [ -n "${PANO_TEST_JAR:-}" ]; then
+  # a local build instead of the release: same layout as a self-update leaves it
+  name=$(basename "$PANO_TEST_JAR")
+  docker run --rm -v "$work/server:/s" -v "$(realpath "$PANO_TEST_JAR"):/in.jar:ro" alpine \
+    sh -c "cp /in.jar /s/$name && printf '%s' $name >/s/.pano-jar && chown -R $uid:$uid /s"
+fi
 jar=$(cat "$work/server/.pano-jar")
 echo "installed $jar"
 
@@ -91,7 +99,11 @@ start_and_check "$port"
 echo "== reinstall keeps data"
 touch "$work/server/plugins/.keep-test" 2>/dev/null || docker run --rm -v "$work/server:/s" alpine sh -c "mkdir -p /s/plugins && touch /s/plugins/.keep-test"
 install
-[ -f "$work/server/config.conf" ] && [ -f "$work/server/plugins/.keep-test" ] && [ "$(cat "$work/server/.pano-jar")" = "$jar" ]
+[ -f "$work/server/config.conf" ] && [ -f "$work/server/plugins/.keep-test" ]
+[ -n "${PANO_TEST_JAR:-}" ] || [ "$(cat "$work/server/.pano-jar")" = "$jar" ]
+if [ -n "${PANO_TEST_JAR:-}" ]; then
+  docker run --rm -v "$work/server:/s" alpine sh -c "printf '%s' $jar >/s/.pano-jar && chown -R $uid:$uid /s"
+fi
 echo "== new allocation after the reinstall"
 start_and_check "$((port + 1))"
 echo "PASS ($yolk, $jar)"

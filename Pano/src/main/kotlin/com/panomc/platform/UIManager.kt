@@ -123,7 +123,10 @@ class UIManager(
 
     private val bunVersion = "bun-v1.4.2"
     private val bunZipFileName by lazy {
-        "bun-${Main.OPERATING_SYSTEM.name.lowercase()}-${Main.ARCHITECTURE.name.lowercase()}"
+        val name = "bun-${Main.OPERATING_SYSTEM.name.lowercase()}-${Main.ARCHITECTURE.name.lowercase()}"
+
+        // Android (Termux) reports itself as Linux, but the glibc and musl builds cannot run on its Bionic libc.
+        if (Main.OPERATING_SYSTEM == OperatingSystem.LINUX && isAndroid()) "$name-android" else name
     }
     private val bunFileName by lazy {
         val suffix = if (Main.OPERATING_SYSTEM == OperatingSystem.WINDOWS) ".exe" else ""
@@ -1792,6 +1795,25 @@ class UIManager(
 
         /** Paths that belong to Pano and are never handed to an `EXTERNAL` front-end or the dev server. */
         private val RESERVED_SITE_PREFIXES = listOf("/panel", ApiPaths.BASE, "/_pano")
+
+        /**
+         * Whether this JVM runs directly on Android (e.g. Termux): the Bionic linker is there and no glibc or
+         * musl loader is. A glibc distro under proot-distro also sees `/system`, but has its own loader, so it
+         * keeps the normal Linux Bun build.
+         */
+        internal fun isAndroid(root: File = File("/")): Boolean {
+            val hasBionicLinker = File(root, "system/bin/linker64").exists() || File(root, "system/bin/linker").exists()
+
+            if (!hasBionicLinker) {
+                return false
+            }
+
+            val hasLinuxLoader = listOf("lib", "lib64").any { dir ->
+                File(root, dir).listFiles()?.any { it.name.startsWith("ld-linux") || it.name.startsWith("ld-musl") } == true
+            }
+
+            return !hasLinuxLoader
+        }
 
         /** Whether a manifest.json says `"type": "custom-app"`. */
         internal fun declaresCustomApp(manifestText: String): Boolean = try {

@@ -1,18 +1,20 @@
 # Pano egg for Pterodactyl / Pelican
 
-`egg-pano.json` runs Pano as a server on a Pterodactyl (or Pelican) panel, so hosting companies can
-offer it next to their Minecraft servers.
+`egg-pano.json` (Pterodactyl) and `egg-pano.yaml` (Pelican) run Pano as a server on a game panel, so
+hosting companies can offer it next to their Minecraft servers.
 
 | File | What it is |
 | --- | --- |
-| `egg-pano.json` | The egg, generated: never edit it by hand |
+| `egg-pano.json` | The Pterodactyl egg, generated: never edit it by hand |
+| `egg-pano.yaml` | The Pelican egg (`PLCN_v3`): exported from a Pelican panel after importing `egg-pano.json` and switching the images to `ghcr.io/pelican-eggs/yolks:java_*` and the install container to `ghcr.io/pelican-eggs/installers:debian` |
 | `install.sh` | Install script: downloads the jar (sha256 checked) and points `.pano-jar` at it |
 | `build-egg.sh` | Builds the egg from `install.sh` and the startup line it holds (`--check` fails on a stale egg) |
 | `test.sh` | Runs the egg the way Wings does, without a panel |
 
 ## Use
 
-1. Admin → Nests → Import Egg → `egg-pano.json`.
+1. Pterodactyl: Admin → Nests → Import Egg → `egg-pano.json`. Pelican: Eggs → Import → `egg-pano.yaml`
+   (or its raw URL).
 2. Create a server with the egg. Java 11 or newer (the image list starts with Java 21), one
    allocation (the web port), **1 GB** memory recommended: the JVM takes half of it (`JAVA_RAM_PERCENT`, default 50), the
    other half is left to the three website processes (setup, panel, theme; about 50 MB each when
@@ -35,7 +37,8 @@ already manages the servers). Connecting servers with the Pano MC plugin works a
 
 ## Change
 
-Edit `install.sh` or the startup line in `build-egg.sh`, then:
+Edit `install.sh` or the startup line in `build-egg.sh`, then rebuild and test, and export
+`egg-pano.yaml` again from a Pelican panel (see the table above):
 
 ```sh
 bash docker/pterodactyl/build-egg.sh

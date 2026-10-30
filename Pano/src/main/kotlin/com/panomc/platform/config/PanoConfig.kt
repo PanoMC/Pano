@@ -326,7 +326,7 @@ data class PanoConfig(
         )
 
         data class DatabaseConfig(
-            @ConfigComment("\"mariadb\" (MySQL/MariaDB) or \"portable\" (Windows x64/ARM64 only, auto-managed by Pano).")
+            @ConfigComment("\"mariadb\" (MySQL/MariaDB) or \"portable\" (MariaDB downloaded and run by Pano itself).")
             var type: String = "mariadb",
 
             @ConfigComment("Database host, e.g. \"127.0.0.1:3306\".")

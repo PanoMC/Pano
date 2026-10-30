@@ -381,6 +381,9 @@ tasks {
             attrMap["BUILD_TYPE"] = buildType
             attrMap["API_LEVEL"] = panoApiLevel
             attrMap["MIN_API_LEVEL"] = panoMinApiLevel
+            // The Bun runtime UIManager downloads (e.g. bun-v1.4.2): the installer reads it to fetch Bun beforehand.
+            Regex("""bunVersion = "(bun-v[^"]+)"""").find(file("src/main/kotlin/com/panomc/platform/UIManager.kt").readText())
+                ?.let { attrMap["BUN_VERSION"] = it.groupValues[1] }
             // JDK 22+ restricted native methods (JNI): avoids warnings when launching with java -jar
             // See https://openjdk.org/jeps/472 — ignored by older JVMs
             attrMap["Enable-Native-Access"] = "ALL-UNNAMED"

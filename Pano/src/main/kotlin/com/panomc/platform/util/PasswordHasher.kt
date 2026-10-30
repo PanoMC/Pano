@@ -1,7 +1,11 @@
 package com.panomc.platform.util
 
+import de.mkammerer.argon2.Argon2
 import de.mkammerer.argon2.Argon2Factory
 import org.apache.commons.codec.digest.DigestUtils
+import org.bouncycastle.crypto.generators.Argon2BytesGenerator
+import org.bouncycastle.crypto.params.Argon2Parameters
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -32,7 +36,15 @@ class PasswordHasher {
         }
     }
 
-    private val argon2 = Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id)
+    // The native argon2 is loaded through JNA, whose bundled libraries need glibc. Where they cannot load (Android /
+    // Termux, other libcs) the same hashes are made and checked in pure Java (Bouncy Castle), in the same format.
+    private val argon2: Argon2? = try {
+        Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id)
+    } catch (e: Throwable) {
+        LoggerFactory.getLogger(PasswordHasher::class.java)
+            .warn("Native Argon2 is not available here ({}), using the Java implementation.", e.toString())
+        null
+    }
     private val secureRandom = SecureRandom()
 
     /**
@@ -89,14 +101,67 @@ class PasswordHasher {
 
     private fun hashArgon2id(password: String): String {
         // iterations=3, memory=64MB, parallelism=1
-        return argon2.hash(3, 65536, 1, password.toCharArray())
+        return argon2?.hash(3, 65536, 1, password.toCharArray()) ?: JavaArgon2id.hash(password, 3, 65536, 1, secureRandom)
     }
 
     private fun verifyArgon2id(password: String, hash: String): Boolean {
         return try {
-            argon2.verify(hash, password.toCharArray())
+            argon2?.verify(hash, password.toCharArray()) ?: JavaArgon2id.verify(password, hash)
         } catch (e: Exception) {
             false
+        }
+    }
+
+    /**
+     * Argon2id in pure Java, writing and reading the PHC string the native argon2 uses
+     * (`$argon2id$v=19$m=65536,t=3,p=1$<salt>$<hash>`, unpadded Base64), so either one checks the other's hashes.
+     */
+    internal object JavaArgon2id {
+        private const val SALT_LENGTH = 16
+        private const val HASH_LENGTH = 32
+        private val encoder = Base64.getEncoder().withoutPadding()
+        private val decoder = Base64.getDecoder()
+
+        fun hash(password: String, iterations: Int, memoryKb: Int, parallelism: Int, random: SecureRandom): String {
+            val salt = ByteArray(SALT_LENGTH).also { random.nextBytes(it) }
+            val hash = derive(password, salt, iterations, memoryKb, parallelism, Argon2Parameters.ARGON2_VERSION_13, HASH_LENGTH)
+
+            return "\$argon2id\$v=19\$m=$memoryKb,t=$iterations,p=$parallelism\$${encoder.encodeToString(salt)}\$${encoder.encodeToString(hash)}"
+        }
+
+        fun verify(password: String, encoded: String): Boolean {
+            // ["", "argon2id", "v=19", "m=..,t=..,p=..", salt, hash]; hashes from before v=19 have no version part.
+            val parts = encoded.split("\$")
+            if (parts.size !in 5..6 || parts[0].isNotEmpty() || parts[1] != "argon2id") return false
+
+            val version = if (parts.size == 6) parts[2].removePrefix("v=").toIntOrNull() ?: return false else 0x10
+            val params = parts[parts.size - 3].split(",").associate {
+                val (key, value) = it.split("=", limit = 2).let { kv -> if (kv.size == 2) kv else return false }
+                key to (value.toIntOrNull() ?: return false)
+            }
+            val memoryKb = params["m"] ?: return false
+            val iterations = params["t"] ?: return false
+            val parallelism = params["p"] ?: return false
+            val salt = decoder.decode(parts[parts.size - 2])
+            val expected = decoder.decode(parts[parts.size - 1])
+
+            val actual = derive(password, salt, iterations, memoryKb, parallelism, version, expected.size)
+            return MessageDigest.isEqual(actual, expected)
+        }
+
+        private fun derive(
+            password: String, salt: ByteArray, iterations: Int, memoryKb: Int, parallelism: Int, version: Int, length: Int
+        ): ByteArray {
+            val parameters = Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
+                .withVersion(version)
+                .withIterations(iterations)
+                .withMemoryAsKB(memoryKb)
+                .withParallelism(parallelism)
+                .withSalt(salt)
+                .build()
+            val generator = Argon2BytesGenerator().apply { init(parameters) }
+
+            return ByteArray(length).also { generator.generateBytes(password.toByteArray(Charsets.UTF_8), it) }
         }
     }
 

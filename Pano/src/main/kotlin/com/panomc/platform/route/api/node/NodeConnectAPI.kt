@@ -4,15 +4,19 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Node
+import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InvalidToken
 import com.panomc.platform.error.NeedPermission
+import com.panomc.platform.error.NodeOutdated
 import com.panomc.platform.model.Api
 import com.panomc.platform.model.MaintenanceAccess
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
 import com.panomc.platform.node.NodeAuthProvider
+import com.panomc.platform.node.NodeFrameChannel
+import com.panomc.platform.node.NodeFrameSession
 import com.panomc.platform.node.NodeManager
 import com.panomc.platform.node.NodeStatus
 import com.panomc.platform.panel.PanelRealtimeHub
@@ -71,6 +75,17 @@ class NodeConnectAPI(
             return NeedPermission()
         }
 
+        // Node protocol 9: the node's nonce for this connection's frame session. A node that has
+        // announced 9 always sends one, so a connection without it is refused: that is what keeps
+        // a sniffed token from opening an old-style socket on which recorded frames would pass.
+        val clientNonce = request.getHeader(NodeFrameSession.HEADER)
+
+        when (NodeFrameChannel.refusal(clientNonce, node.protocolVersion)) {
+            NodeFrameChannel.Refusal.BAD_NONCE -> return BadRequest()
+            NodeFrameChannel.Refusal.SESSION_REQUIRED -> return NodeOutdated()
+            null -> Unit
+        }
+
         request.resume()
 
         val webSocket = request.toWebSocket()
@@ -81,7 +96,7 @@ class NodeConnectAPI(
             it.pause()
 
             CoroutineScope(context.vertx().dispatcher()).launch {
-                onConnectionEstablished(context, nodeId, it)
+                onConnectionEstablished(context, nodeId, it, clientNonce)
             }
         }
 
@@ -94,7 +109,12 @@ class NodeConnectAPI(
         return null
     }
 
-    private suspend fun onConnectionEstablished(context: RoutingContext, nodeId: Long, webSocket: ServerWebSocket) {
+    private suspend fun onConnectionEstablished(
+        context: RoutingContext,
+        nodeId: Long,
+        webSocket: ServerWebSocket,
+        clientNonce: String?
+    ) {
         val sqlClient = databaseManager.getSqlClient()
 
         val node = databaseManager.nodeDao.getById(nodeId, sqlClient) ?: run {
@@ -113,7 +133,7 @@ class NodeConnectAPI(
         databaseManager.nodeDao.updateStatusById(nodeId, NodeStatus.ONLINE, now, sqlClient)
         databaseManager.nodeDao.updateRemoteAddressById(nodeId, remoteAddress, sqlClient)
 
-        nodeManager.onNodeConnect(node, webSocket)
+        nodeManager.onNodeConnect(node, webSocket, clientNonce)
 
         panelRealtimeHub.notifyNodeUpdated(nodeId)
 

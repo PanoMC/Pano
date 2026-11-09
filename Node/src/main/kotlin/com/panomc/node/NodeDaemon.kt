@@ -5,6 +5,7 @@ import com.panomc.node.agent.AgentFiles
 import com.panomc.node.agent.AgentLaunch
 import com.panomc.node.agent.AgentLaunchReader
 import com.panomc.node.agent.AgentLayout
+import com.panomc.node.config.NodeConfigStore
 import com.panomc.node.config.NodeConfig
 import com.panomc.node.config.NodePortRange
 import com.panomc.node.console.ColorSpan
@@ -153,7 +154,10 @@ class NodeDaemon(
 
     private val javaLocator = JavaRuntimeLocator(dataDir)
 
-    private val connection = PlatformConnection(vertx, logger, config)
+    private val connection = PlatformConnection(vertx, logger, config).apply {
+        // Saved at once: from the first sealed connection on, this node insists on them (protocol 9).
+        onFrameSessionConfirmed = { NodeConfigStore.save(dataDir, config) }
+    }
 
     /** Whether a missing Java may be downloaded right now (SM-63). */
     private val javaAutoDownload: Boolean

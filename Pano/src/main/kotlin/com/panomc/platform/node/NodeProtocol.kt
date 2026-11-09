@@ -10,6 +10,12 @@ package com.panomc.platform.node
 object NodeProtocol {
     const val VERSION = 6
 
+    /**
+     * First version that seals its frames to the connection ([NodeFrameSession]). Once a node
+     * announced it, a connection from that node without the frame session header is refused.
+     */
+    const val FRAME_SESSION_VERSION = 9
+
     /** What a node that announced nothing is assumed to speak. */
     const val LEGACY_PROTOCOL_VERSION = 1
 

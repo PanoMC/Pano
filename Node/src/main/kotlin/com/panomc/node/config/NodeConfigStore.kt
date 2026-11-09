@@ -61,7 +61,9 @@ object NodeConfigStore {
             toolAutoDownload = boolean("node.tool-auto-download", true),
             // Absent on every ordinary node, which is exactly what the defaults say.
             agent = boolean("node.agent", false),
-            agentServer = string("node.agent-server")
+            agentServer = string("node.agent-server"),
+            // Absent until a Pano first sealed this node's frames.
+            frameSession = boolean("platform.frame-session", false)
         )
     }
 
@@ -98,6 +100,10 @@ object NodeConfigStore {
             .withValue("node.stop-servers-on-exit", ConfigValueFactory.fromAnyRef(config.stopServersOnExit))
             .withValue("node.java-auto-download", ConfigValueFactory.fromAnyRef(config.javaAutoDownload))
             .withValue("node.tool-auto-download", ConfigValueFactory.fromAnyRef(config.toolAutoDownload))
+
+        if (config.frameSession) {
+            rendered = rendered.withValue("platform.frame-session", ConfigValueFactory.fromAnyRef(true))
+        }
 
         // Only on an agent: an ordinary node's file stays exactly what it was before agents existed.
         if (config.agent) {
@@ -143,7 +149,9 @@ object NodeConfigStore {
             javaAutoDownload = boolean("node.java-auto-download", true),
             toolAutoDownload = boolean("node.tool-auto-download", true),
             agent = boolean("node.agent", false),
-            agentServer = string("node.agent-server")
+            agentServer = string("node.agent-server"),
+            // Absent until a Pano first sealed this node's frames.
+            frameSession = boolean("platform.frame-session", false)
         )
     }
 

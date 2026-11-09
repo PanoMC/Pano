@@ -81,6 +81,9 @@ class NodeManager(
     // iterates the registry on a timer.
     internal val connectedNodes = ConcurrentHashMap<Node, ServerWebSocket>()
     private val nodeSecretKeyMap = ConcurrentHashMap<Node, SecretKey>()
+
+    /** How each node socket's frames are sealed and checked (node protocol 9, [NodeFrameChannel]). */
+    private val frameChannels = ConcurrentHashMap<Node, NodeFrameChannel>()
     private val lastPongAtMap = ConcurrentHashMap<Node, Long>()
 
     // Newest host metrics per node id. Dropped on disconnect, so nothing shows a CPU reading for a
@@ -152,7 +155,12 @@ class NodeManager(
         serverTaskService.startTimeoutSweep()
     }
 
-    fun onNodeConnect(node: Node, webSocket: ServerWebSocket) {
+    /**
+     * Registers [webSocket] as [node]'s connection. With [clientNonce] (the node sent the frame
+     * session header) the session is opened here, before anything else can go out: Pano's answer is
+     * the first frame on the socket, and every frame after it is sealed and checked.
+     */
+    fun onNodeConnect(node: Node, webSocket: ServerWebSocket, clientNonce: String? = null) {
         // Covers the fresh-install case where init() never ran, exactly as ServerManager does.
         startHeartbeatSweep()
         serverTaskService.startTimeoutSweep()
@@ -166,6 +174,16 @@ class NodeManager(
 
         connectedNodes[node] = webSocket
         nodeSecretKeyMap[node] = Aes256GcmUtil.base64ToSecretKey(node.aesKey)
+
+        frameChannels.keys.removeIf { it.id == node.id }
+
+        val channel = NodeFrameChannel.open(clientNonce)
+
+        frameChannels[node] = channel
+
+        channel.answer?.let { answer ->
+            webSocket.writeTextMessage(Aes256GcmUtil.encrypt(answer.encode(), nodeSecretKeyMap[node]!!))
+        }
 
         // Its close handler finds the new socket in the map and leaves the live connection alone.
         if (superseded != null && superseded !== webSocket) {
@@ -197,6 +215,7 @@ class NodeManager(
         }
 
         nodeSecretKeyMap.remove(node)
+        frameChannels.remove(node)
         lastPongAtMap.remove(node)
         latestMetrics.remove(node.id)
         jarChecksums.remove(node.id)
@@ -295,6 +314,13 @@ class NodeManager(
         val body = JsonObject(text)
         val event = body.getString("event")
 
+        // A frame from another connection, the wrong direction or one seen before is a replay.
+        if (frameChannels[node]?.accepts(body) == false) {
+            logger.warn("Dropped a frame from node ${node.id} that does not belong to its connection (\"$event\").")
+
+            return
+        }
+
         // Replies are not events: they belong to a coroutine that is already waiting, not to an
         // `@Event` bean, so they are taken off the wire before the listener lookup.
         if (event == REPLY_EVENT) {
@@ -318,7 +344,8 @@ class NodeManager(
     }
 
     fun sendMessage(nodeMessage: NodeMessage, node: Node) {
-        val message = nodeMessage.encode()
+        val encoded = nodeMessage.encode()
+        val message = frameChannels[node]?.outbound(encoded) ?: encoded
         val encryptedMessage = Aes256GcmUtil.encrypt(message, nodeSecretKeyMap[node]!!)
 
         connectedNodes[node]!!.writeTextMessage(encryptedMessage)

@@ -35,8 +35,13 @@ object NodeProtocol {
      * (sealed with a key Pano derived for it, never the passphrase) or cuts the snapshot, asks Pano under a ticket for
      * what only the control plane answers (`/api/v1/node/pano-backup/:ticket/:action`) and PUTs the bytes to the
      * storage itself. Pano sends it only to a node that announced at least 8.
+     *
+     * 9: frame sessions ([FrameSession]) -- the upgrade carries a nonce, Pano answers with its own, and
+     * every later frame is bound to that connection, its direction and its place in the stream, so a
+     * recorded frame cannot be played again. A Pano that does not answer gets the old frames; once a
+     * node announced 9, Pano refuses it a connection without the nonce.
      */
-    const val VERSION = 8
+    const val VERSION = 9
 
     /**
      * Feature flags announced in `NODE_HELLO.capabilities`, for what a protocol number alone

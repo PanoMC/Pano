@@ -77,7 +77,13 @@ data class NodeConfig(
      * from where the agent actually is -- in the folder layout (SM-74) the server folder is always
      * the one holding `.pano-agent` -- so a folder that was moved keeps working.
      */
-    var agentServer: String = ""
+    var agentServer: String = "",
+
+    /**
+     * Whether this node's Pano has sealed its frames to the connection at least once (protocol 9,
+     * FrameSession). Once true, the node never talks to Pano without that protection again.
+     */
+    var frameSession: Boolean = false
 ) {
     /** Whether pairing has completed and a socket can be opened. */
     fun isPaired() = platformUrl.isNotBlank() && token.isNotBlank() && encryptionKey.isNotBlank()

@@ -451,8 +451,14 @@ class PermissionManager(
         userId: Long,
         serverId: Long? = null,
         anyServer: Boolean = false
+    ): Set<String> = grantedNodesIn(getCache(), userId, serverId, anyServer)
+
+    private fun grantedNodesIn(
+        cache: Cache,
+        userId: Long,
+        serverId: Long?,
+        anyServer: Boolean
     ): Set<String> {
-        val cache = getCache()
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
         val nodes = validNodes(cache)
             .filter { it.isPanoContextAllowed() } // active=true/false + pano context
@@ -538,15 +544,39 @@ class PermissionManager(
 
     // Intentionally global: callers are notification/broadcast flows, so server scoped nodes never count.
     suspend fun getUserIdsWithNode(targetNode: String): List<Long> {
-        val cache = getCache()
+        // evaluate all users so default group permissions also apply
+        val sqlClient = databaseManager.getSqlClient()
+        val userIds = databaseManager.userDao.getAllIds(sqlClient)
+
+        return userIdsWithNodeIn(getCache(), targetNode, userIds)
+    }
+
+    /** What the permission check would answer if [userId]'s own nodes were [replacement]. */
+    class UserNodesPreview(val userIsAdmin: Boolean, val anyAdminLeft: Boolean)
+
+    /**
+     * Judges a replacement of [userId]'s own nodes before it is written: computed on a copy of the cache, so no
+     * request is ever authorised by a set of nodes that is refused afterwards.
+     */
+    suspend fun previewUserNodes(userId: Long, replacement: List<PermissionNode>): UserNodesPreview {
+        val current = getCache()
+        val preview = current.copy(
+            nodes = current.nodes.filterNot { it.holderType == HolderType.USER && it.holderId == userId } + replacement
+        )
+
+        val userIds = databaseManager.userDao.getAllIds(databaseManager.getSqlClient())
+
+        return UserNodesPreview(
+            userIsAdmin = "*" in grantedNodesIn(preview, userId, null, false),
+            anyAdminLeft = userIdsWithNodeIn(preview, "*", userIds).isNotEmpty()
+        )
+    }
+
+    private fun userIdsWithNodeIn(cache: Cache, targetNode: String, userIds: List<Long>): List<Long> {
         val activeNodes = activeNodes(cache) // active=true only (used for group resolution + weights)
         val nodes = validNodes(cache)
             .filter { it.isPanoContextAllowed() } // active=true/false + pano context
             .filter { PermissionServerScope.appliesTo(it.context, null) } // global nodes only
-
-        // evaluate all users so default group permissions also apply
-        val sqlClient = databaseManager.getSqlClient()
-        val userIds = databaseManager.userDao.getAllIds(sqlClient)
 
         return userIds.filter { userId ->
             val groups = resolveUserGroups(userId, cache, activeNodes)

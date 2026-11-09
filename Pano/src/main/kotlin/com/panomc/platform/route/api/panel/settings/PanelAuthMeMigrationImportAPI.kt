@@ -92,7 +92,7 @@ class PanelAuthMeMigrationImportAPI(
             ?: throw InvalidData(extras = mapOf("message" to "DataSource section not found"))
 
         val backend = (dataSource["backend"] as? String)?.uppercase() ?: "SQLITE"
-        val tableName = (dataSource["mySQLTablename"] as? String) ?: "authme"
+        val tableName = MigrationSqlNames.tableName((dataSource["mySQLTablename"] as? String) ?: "authme")
 
         // Column names from config
         // AuthMe stores column names inside mySQLColumnGroup (or mySQLColumnName as a map).

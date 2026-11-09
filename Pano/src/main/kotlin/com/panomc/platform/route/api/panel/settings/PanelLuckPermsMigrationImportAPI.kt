@@ -135,8 +135,10 @@ class PanelLuckPermsMigrationImportAPI(
 
         val storageMethod = sourceInfo?.getString("storageMethod")?.uppercase()
             ?: (configMap["storage-method"] as? String)?.uppercase() ?: "H2"
-        val tablePrefix = sourceInfo?.getString("tablePrefix")
-            ?: (dataSection?.get("table-prefix") as? String) ?: "luckperms_"
+        val tablePrefix = MigrationSqlNames.tablePrefix(
+            sourceInfo?.getString("tablePrefix")
+                ?: (dataSection?.get("table-prefix") as? String) ?: "luckperms_"
+        )
 
         // Read LuckPerms data again from source
         val luckPermsData: PanelLuckPermsMigrationUploadAPI.LuckPermsData = when (storageMethod) {
@@ -719,6 +721,11 @@ class PanelLuckPermsMigrationImportAPI(
 
     private suspend fun readFromH2(dbPath: String, tablePrefix: String): PanelLuckPermsMigrationUploadAPI.LuckPermsData {
         return vertx.executeBlocking {
+            // Opening an H2 file runs the SQL stored in it; only plain table exports are opened.
+            if (!MigrationSqlNames.isPlainH2Export(File(dbPath))) {
+                throw InvalidData(extras = mapOf("message" to "This H2 database contains more than LuckPerms tables and cannot be imported."))
+            }
+
             // H2 requires an absolute path
             val absolutePath = File(dbPath).absolutePath
             val jdbcPath = if (absolutePath.endsWith(".mv.db")) {

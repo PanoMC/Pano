@@ -77,6 +77,15 @@ class MaintenanceLoginAPI(
 
         val sqlClient = getSqlClient()
 
+        // The site's own IP bans apply here as on the normal login: this door is for staff who are
+        // locked out by maintenance, not for an address the site has banned. Not counted as a
+        // failed attempt, like the maintenance ban above.
+        if (databaseManager.bannedIpDao.getActiveByIp(authProvider.getRemoteIP(context), sqlClient) != null) {
+            redirect(context, errorUrl(loginUrl, ERROR_IP_BANNED))
+
+            return null
+        }
+
         // ZERO plugin hooks, on purpose. LoginAPI runs AuthEventListener.onBeforeAuthenticate,
         // onBeforeLogin and onAfterLogin inline; this endpoint calls AuthProvider directly and must
         // keep doing so. Maintenance mode is the recovery path — a captcha, 2FA or social-login

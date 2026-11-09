@@ -100,8 +100,12 @@ class BackupService(
 ) {
     private val backupsRoot = File(dataDir, BACKUPS_DIRECTORY)
 
-    /** Creates a backup and announces it, reporting progress as a task. */
-    fun create(message: BackupCreateMessage) {
+    /**
+     * Creates a backup and announces it, reporting progress as a task. Returns null when the
+     * backup was written, or the reason it was not (the same one the task failed with), so a
+     * schedule can stop instead of restarting a server it just failed to back up.
+     */
+    fun create(message: BackupCreateMessage): String? {
         val uuid = message.serverUuid
         val taskId = message.taskId
         val backupId = message.backupId
@@ -109,13 +113,13 @@ class BackupService(
         if (uuid.isNullOrBlank() || taskId.isNullOrBlank() || backupId.isNullOrBlank()) {
             logger.warn("Ignoring a BACKUP_CREATE with no server uuid, task id or backup id.")
 
-            return
+            return "The backup had no server, task or backup id."
         }
 
         if (!PathSafety.isSafeSegment(uuid) || !PathSafety.isSafeSegment(backupId)) {
             reporter.failed(taskId, uuid, KIND_BACKUP, "The server or backup id is not a usable name.")
 
-            return
+            return "The server or backup id is not a usable name."
         }
 
         val server = registry.get(uuid)
@@ -123,7 +127,7 @@ class BackupService(
         if (server == null) {
             reporter.failed(taskId, uuid, KIND_BACKUP, "This node does not have that server.")
 
-            return
+            return "This node does not have that server."
         }
 
         val mode = BackupMode.parse(message.mode)
@@ -132,7 +136,7 @@ class BackupService(
         if (mode == null || scopeKind == null) {
             reporter.failed(taskId, uuid, KIND_BACKUP, BackupScope.ERROR_INVALID_SCOPE)
 
-            return
+            return BackupScope.ERROR_INVALID_SCOPE
         }
 
         val exclude = BackupExcludeMatcher(message.exclude, server.directory)
@@ -142,7 +146,7 @@ class BackupService(
         } catch (exception: BackupScopeException) {
             reporter.failed(taskId, uuid, KIND_BACKUP, exception.code)
 
-            return
+            return exception.code
         }
 
         val name = message.name?.takeIf { it.isNotBlank() } ?: backupId
@@ -200,7 +204,7 @@ class BackupService(
 
             reporter.failed(taskId, uuid, KIND_BACKUP, error)
 
-            return
+            return error
         } finally {
             if (flushed) {
                 resumeWorldSaves(server)
@@ -219,6 +223,8 @@ class BackupService(
         )
 
         reporter.done(taskId, uuid, KIND_BACKUP, summary)
+
+        return null
     }
 
     /**

@@ -80,6 +80,26 @@ class BackupImportTest {
     )
 
     @Test
+    fun `creating a backup tells its caller whether it worked`() {
+        val backups = service()
+
+        fun create(server: String, scope: String?) = backups.create(
+            com.panomc.node.net.BackupCreateMessage(
+                serverUuid = server, taskId = "t-$server-$scope", backupId = "b-$server-$scope", name = "n",
+                mode = "FULL", scope = scope
+            )
+        )
+
+        // What a schedule's "back up, then restart" must not restart over.
+        assertTrue(create("missing", "ALL") != null)
+        assertTrue(create("s1", "WORLDS") != null, "a server with no worlds has nothing to back up")
+
+        File(dataDir, "servers/s1/server.properties").writeText("motd=x\n")
+
+        assertEquals(null, create("s1", "ALL"))
+    }
+
+    @Test
     fun `a matching zip is kept as a FULL backup of the server`() {
         val backups = service()
         val zip = zip()

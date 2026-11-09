@@ -239,7 +239,7 @@ open class ConfigManager(
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss") // Exp: 2025-01-28_15-45-30
         val formattedDate = now.format(formatter)
 
-        val filePath = configFile.parentFile.absolutePath + File.separator + "config-backup-$formattedDate.conf"
+        val filePath = backupFileFor(configFile, formattedDate).path
 
         configFile.copyTo(File(filePath))
 
@@ -265,3 +265,6 @@ open class ConfigManager(
         configJsonObject = newConfig.copy()
     }
 }
+/** Where a broken [configFile] is copied before defaults take over; works for a bare `config.conf` too. */
+internal fun backupFileFor(configFile: File, formattedDate: String): File =
+    File(configFile.absoluteFile.parentFile, "config-backup-$formattedDate.conf")

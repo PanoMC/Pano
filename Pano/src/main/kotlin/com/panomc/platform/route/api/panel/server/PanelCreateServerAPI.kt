@@ -449,7 +449,7 @@ class PanelCreateServerAPI(
             throw BadRequest(
                 extras = mapOf(
                     "field" to "jvmArgs",
-                    "message" to "\"$arg\" is not allowed in the JVM arguments: Pano chooses the jar that is started."
+                    "message" to "\"$arg\" is not allowed in the JVM arguments: it would change the program that is started or run other code."
                 )
             )
         }

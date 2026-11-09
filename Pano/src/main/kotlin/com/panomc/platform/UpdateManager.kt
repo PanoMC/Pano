@@ -583,6 +583,14 @@ class UpdateManager(
                 "--restart"
             )
 
+            // Keep the JVM options (-Xmx, -D…) and program flags this Pano was started with.
+            args.addAll(
+                com.panomc.platform.update.UpdaterLaunchArgs.arguments(
+                    java.lang.management.ManagementFactory.getRuntimeMXBean().inputArguments,
+                    Main.STARTUP_ARGS.toList()
+                )
+            )
+
             // GUI and -bg are independent: GUI controls whether the Swing console window opens,
             // -bg controls whether the new process is detached from the launching terminal. We
             // preserve the current platform's GUI/no-GUI mode and OR the bg flag with the

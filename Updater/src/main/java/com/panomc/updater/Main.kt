@@ -26,7 +26,9 @@ class Main {
             val updateJar = Paths.get(argMap["--update"] ?: fail("Missing --update")).toAbsolutePath().normalize()
             val javaBin =
                 (argMap["--java"] ?: currentJavaBin()).let { Paths.get(it).toAbsolutePath().normalize().toString() }
-            val launchArgs = splitArgsPreservingQuotes(argMap["--launch-args"])
+            val launchArgs = splitArgsPreservingQuotes(argMap["--launch-args"]) + decodeList(argMap["--launch-args-b64"])
+            // JVM options of the Pano being replaced; they go before -jar.
+            val jvmArgs = decodeList(argMap["--jvm-args-b64"])
 
             // -nogui and -bg are independent: the first controls whether Pano opens its Swing
             // console window, the second whether it detaches from the launching terminal.
@@ -46,11 +48,12 @@ class Main {
             println("[Pano Updater] update=$updateJar")
             println("[Pano Updater] pass -nogui: $noGui, pass -bg: $bg")
             if (childArgs.isNotEmpty()) println("[Pano Updater] child args: $childArgs")
+            if (jvmArgs.isNotEmpty()) println("[Pano Updater] JVM args: $jvmArgs")
 
             waitForPortToClose(host, port, timeout = Duration.ofMinutes(5), poll = Duration.ofMillis(300))
             replaceJarWithRetries(updateJar, targetJar, attempts = 20, sleepMs = 300)
 
-            val child = startChild(javaBin, targetJar, childArgs)
+            val child = startChild(javaBin, jvmArgs, targetJar, childArgs)
             println("[Pano Updater] Child PID=${child.pid()} launched.")
 
             println("[Pano Updater] Updater finished! Exiting...")
@@ -131,8 +134,13 @@ class Main {
             }
         }
 
-        private fun startChild(javaBin: String, targetJar: Path, args: List<String>): Process {
-            val cmd = mutableListOf(javaBin, "-jar", targetJar.toString()).apply { addAll(args) }
+        private fun startChild(javaBin: String, jvmArgs: List<String>, targetJar: Path, args: List<String>): Process {
+            val cmd = mutableListOf(javaBin).apply {
+                addAll(jvmArgs)
+                add("-jar")
+                add(targetJar.toString())
+                addAll(args)
+            }
             return ProcessBuilder(cmd)
                 .inheritIO()
                 .start()
@@ -172,6 +180,17 @@ class Main {
                 i++
             }
             return map
+        }
+
+        /** A NUL-joined list sent as base64 (see UpdaterLaunchArgs in Pano); empty when absent. */
+        private fun decodeList(raw: String?): List<String> {
+            if (raw.isNullOrBlank() || raw == "true") return emptyList()
+            val text = try {
+                String(Base64.getDecoder().decode(raw), Charsets.UTF_8)
+            } catch (_: IllegalArgumentException) {
+                return emptyList()
+            }
+            return if (text.isEmpty()) emptyList() else text.split('\u0000')
         }
 
         private fun splitArgsPreservingQuotes(raw: String?): List<String> {

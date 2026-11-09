@@ -4,6 +4,8 @@ import com.panomc.platform.db.migration.DatabaseMigration11to12
 import com.panomc.platform.db.migration.DatabaseMigration13to14
 import com.panomc.platform.db.migration.DatabaseMigration21to22
 import com.panomc.platform.db.migration.DatabaseMigration34to35
+import com.panomc.platform.db.migration.DatabaseMigration45to46
+import com.panomc.platform.db.migration.DatabaseMigration50to51
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
@@ -115,6 +117,46 @@ class MigrationRerunMariaDbIT {
             assertEquals(setOf("PRIMARY", "idx_server_node", "idx_server_uuid"), db.indexes("server").toSet())
 
             listOf("server", "node", "server_task").forEach { db.dropTable(it) }
+        }
+    }
+
+    // 42 to 66 used MariaDB's ADD/DROP COLUMN IF [NOT] EXISTS, a syntax error on MySQL; the information_schema
+    // checks that replace it behave the same.
+    @Test
+    fun `45 to 46 drops columns that may already be gone`() = runBlocking {
+        DaoMariaDb().use { db ->
+            db.dropTable("server")
+            db.run("CREATE TABLE `${p}server` (`id` bigint NOT NULL AUTO_INCREMENT, `networkId` varchar(36), PRIMARY KEY (`id`))")
+
+            DatabaseMigration45to46().twice(db)
+
+            assertEquals(listOf("id"), db.columns("server"))
+
+            db.dropTable("server")
+        }
+    }
+
+    @Test
+    fun `50 to 51 adds the backup columns once`() = runBlocking {
+        DaoMariaDb().use { db ->
+            db.dropTable("server_backup")
+            db.run("CREATE TABLE `${p}server_backup` (`id` bigint NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`))")
+
+            DatabaseMigration50to51().twice(db)
+
+            assertEquals(
+                listOf("id", "mode", "scope", "pinned", "fileCount", "storedBytes", "include", "exclude"),
+                db.columns("server_backup")
+            )
+
+            val mode = db.pool.query(
+                "SELECT `COLUMN_DEFAULT` FROM `information_schema`.`COLUMNS` WHERE `TABLE_SCHEMA` = DATABASE() " +
+                        "AND `TABLE_NAME` = '${p}server_backup' AND `COLUMN_NAME` = 'mode'"
+            ).execute().coAwait().first().getString(0)
+
+            assertEquals("'FULL'", mode)
+
+            db.dropTable("server_backup")
         }
     }
 }

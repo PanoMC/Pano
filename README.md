@@ -63,7 +63,7 @@ For detailed guidance, visit [panomc.com/docs](https://panomc.com/docs).
 ## 🛠️ Requirements
 **For contributors / development:**  
 - **JDK 11+** or **JRE 11+**  
-- **MySQL 5.5+** / MariaDB  
+- **MySQL 8.0+** / **MariaDB 10.5+**  
 
 * **Docker & Docker Compose** are optional and only required for contributors.  
 

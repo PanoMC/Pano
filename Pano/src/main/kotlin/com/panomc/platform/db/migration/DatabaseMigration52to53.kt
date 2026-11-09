@@ -34,11 +34,13 @@ class DatabaseMigration52to53 : DatabaseMigration(
 
     private fun addColumn(table: String, definition: String): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            // IF NOT EXISTS is MariaDB's, and it is what makes a migration that was interrupted
-            // safe to run again.
-            sqlClient
-                .preparedQuery("ALTER TABLE `${getTablePrefix()}$table` ADD COLUMN IF NOT EXISTS $definition")
-                .execute()
-                .coAwait()
+            // Skipped when the column is there, so a migration that was interrupted is safe to run
+            // again.
+            // definition is "`name` type ...".
+            addMissingColumns(
+                sqlClient,
+                "${getTablePrefix()}$table",
+                definition.substringAfter('`').substringBefore('`') to definition.substringAfter("` ")
+            )
         }
 }

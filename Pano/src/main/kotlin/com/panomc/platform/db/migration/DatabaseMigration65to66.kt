@@ -14,13 +14,7 @@ class DatabaseMigration65to66 : DatabaseMigration(
 ) {
     override val handlers: List<suspend (SqlClient) -> Unit> = listOf(
         { sqlClient: SqlClient ->
-            sqlClient
-                .query(
-                    "ALTER TABLE `${getTablePrefix()}server_backup` " +
-                            "ADD COLUMN IF NOT EXISTS `panoBackupId` varchar(64) DEFAULT NULL"
-                )
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}server_backup", "panoBackupId" to "varchar(64) DEFAULT NULL")
         }
     )
 }

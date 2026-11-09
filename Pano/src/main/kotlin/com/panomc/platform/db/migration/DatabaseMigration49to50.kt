@@ -20,13 +20,7 @@ class DatabaseMigration49to50 : DatabaseMigration(
     )
 
     private fun addTimeZone(): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        // IF NOT EXISTS is MariaDB's, and it is what makes a migration that was interrupted safe to
-        // run again.
-        sqlClient
-            .preparedQuery(
-                "ALTER TABLE `${getTablePrefix()}server` ADD COLUMN IF NOT EXISTS `timeZone` varchar(64) DEFAULT NULL"
-            )
-            .execute()
-            .coAwait()
+        // Skipped when the column is there, so a migration that was interrupted is safe to run again.
+        addMissingColumns(sqlClient, "${getTablePrefix()}server", "timeZone" to "varchar(64) DEFAULT NULL")
     }
 }

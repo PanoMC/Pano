@@ -32,13 +32,9 @@ class DatabaseMigration43to44 : DatabaseMigration(
     )
 
     private fun addMetricSource(): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        // IF NOT EXISTS is MariaDB's, which is what Pano runs on, and it is what makes a migration
+        // Skipped when the column is there, which is what makes a migration
         // interrupted between its handlers safe to run again.
-        execute(
-            sqlClient,
-            "ALTER TABLE `${getTablePrefix()}server_metric` " +
-                "ADD COLUMN IF NOT EXISTS `source` varchar(16) NOT NULL DEFAULT 'plugin'"
-        )
+        addMissingColumns(sqlClient, "${getTablePrefix()}server_metric", "source" to "varchar(16) NOT NULL DEFAULT 'plugin'")
     }
 
     private fun allowBackupWithoutNode(): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->

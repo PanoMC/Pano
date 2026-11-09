@@ -17,12 +17,7 @@ class DatabaseMigration60to61 : DatabaseMigration(
 ) {
     override val handlers: List<suspend (SqlClient) -> Unit> = listOf(
         { sqlClient: SqlClient ->
-            sqlClient
-                .query(
-                    "ALTER TABLE `${getTablePrefix()}ticket_category` ADD COLUMN IF NOT EXISTS `enabled` TINYINT(1) NOT NULL DEFAULT 1"
-                )
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}ticket_category", "enabled" to "TINYINT(1) NOT NULL DEFAULT 1")
         }
     )
 }

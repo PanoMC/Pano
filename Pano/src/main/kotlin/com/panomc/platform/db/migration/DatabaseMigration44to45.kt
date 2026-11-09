@@ -2,7 +2,6 @@ package com.panomc.platform.db.migration
 
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.db.DatabaseMigration
-import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.SqlClient
 
 /**
@@ -27,13 +26,9 @@ class DatabaseMigration44to45 : DatabaseMigration(
     )
 
     private fun addMetricDiskUsed(): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        // IF NOT EXISTS is MariaDB's, which is what Pano runs on, and it is what makes a migration
+        // Skipped when the column is there, which is what makes a migration
         // interrupted between its handlers safe to run again.
-        execute(
-            sqlClient,
-            "ALTER TABLE `${getTablePrefix()}server_metric` " +
-                "ADD COLUMN IF NOT EXISTS `diskUsed` BIGINT DEFAULT NULL"
-        )
+        addMissingColumns(sqlClient, "${getTablePrefix()}server_metric", "diskUsed" to "BIGINT DEFAULT NULL")
     }
 
     /**
@@ -45,11 +40,7 @@ class DatabaseMigration44to45 : DatabaseMigration(
      * fact about files belongs.
      */
     private fun addServerDiskUsed(): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        execute(
-            sqlClient,
-            "ALTER TABLE `${getTablePrefix()}server` " +
-                "ADD COLUMN IF NOT EXISTS `diskUsed` BIGINT DEFAULT NULL"
-        )
+        addMissingColumns(sqlClient, "${getTablePrefix()}server", "diskUsed" to "BIGINT DEFAULT NULL")
     }
 
     /**
@@ -60,14 +51,6 @@ class DatabaseMigration44to45 : DatabaseMigration(
      * month would buy nothing the row cannot say.
      */
     private fun addServerDiskTotal(): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        execute(
-            sqlClient,
-            "ALTER TABLE `${getTablePrefix()}server` " +
-                "ADD COLUMN IF NOT EXISTS `diskTotal` BIGINT DEFAULT NULL"
-        )
-    }
-
-    private suspend fun execute(sqlClient: SqlClient, query: String) {
-        sqlClient.preparedQuery(query).execute().coAwait()
+        addMissingColumns(sqlClient, "${getTablePrefix()}server", "diskTotal" to "BIGINT DEFAULT NULL")
     }
 }

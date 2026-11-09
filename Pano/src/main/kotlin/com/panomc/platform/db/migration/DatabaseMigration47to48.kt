@@ -23,13 +23,7 @@ class DatabaseMigration47to48 : DatabaseMigration(
     )
 
     private fun addProcessStartedAt(): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        // IF NOT EXISTS is MariaDB's, and it is what makes a migration that was interrupted safe to
-        // run again.
-        sqlClient
-            .preparedQuery(
-                "ALTER TABLE `${getTablePrefix()}server` ADD COLUMN IF NOT EXISTS `processStartedAt` BIGINT DEFAULT NULL"
-            )
-            .execute()
-            .coAwait()
+        // Skipped when the column is there, so a migration that was interrupted is safe to run again.
+        addMissingColumns(sqlClient, "${getTablePrefix()}server", "processStartedAt" to "BIGINT DEFAULT NULL")
     }
 }

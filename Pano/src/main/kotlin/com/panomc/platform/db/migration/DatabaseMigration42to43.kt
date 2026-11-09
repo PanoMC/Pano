@@ -36,12 +36,10 @@ class DatabaseMigration42to43 : DatabaseMigration(
     /**
      * Adds one column unless it is already there.
      *
-     * `IF NOT EXISTS` is MariaDB's, which is what Pano runs on, and it is what makes a migration
-     * that was interrupted between its two handlers safe to run again.
+     * The check is what makes a migration that was interrupted between its two handlers safe to run
+     * again; it reads information_schema rather than using MariaDB's `IF NOT EXISTS`, so MySQL runs it too.
      */
     private suspend fun addColumn(sqlClient: SqlClient, name: String, definition: String) {
-        val query = "ALTER TABLE `${getTablePrefix()}server` ADD COLUMN IF NOT EXISTS `$name` $definition"
-
-        sqlClient.preparedQuery(query).execute().coAwait()
+        addMissingColumns(sqlClient, "${getTablePrefix()}server", name to definition)
     }
 }

@@ -26,11 +26,8 @@ class DatabaseMigration45to46 : DatabaseMigration(
     )
 
     private fun dropColumn(name: String): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        // IF EXISTS is MariaDB's, and it is what makes a migration interrupted between its two
-        // handlers — or a database that never had the columns — safe to run again.
-        sqlClient
-            .preparedQuery("ALTER TABLE `${getTablePrefix()}server` DROP COLUMN IF EXISTS `$name`")
-            .execute()
-            .coAwait()
+        // The check is what makes a migration interrupted between its two handlers — or a database
+        // that never had the columns — safe to run again (information_schema, so MySQL runs it too).
+        dropColumnIfPresent(sqlClient, "${getTablePrefix()}server", name)
     }
 }

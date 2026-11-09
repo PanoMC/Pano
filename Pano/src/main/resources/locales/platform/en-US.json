@@ -9,6 +9,8 @@
       "username-or-email-placeholder": "Enter your username or e-mail",
       "password-label": "Password",
       "password-placeholder": "Enter your password",
+      "code-label": "Two-factor code",
+      "code-placeholder": "Only if your account uses one",
       "submit-button": "Log in"
     },
     "notice": {
@@ -17,7 +19,9 @@
       "no-access": "You are signed in, but your account is not allowed to skip maintenance mode.",
       "rate-limited": "Too many attempts. Please wait a moment and try again.",
       "csrf": "This request could not be verified. Please reload the page and try again.",
-      "theme-switching": "The site theme is being switched right now. Please try again in a moment."
+      "theme-switching": "The site theme is being switched right now. Please try again in a moment.",
+      "code-required": "Enter the code from your authenticator app to finish signing in.",
+      "code-invalid": "Incorrect two-factor code."
     },
     "button": {
       "login": "Log in",

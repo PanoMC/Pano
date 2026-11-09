@@ -73,10 +73,18 @@ class PanelSettingsVerifyMailAPI(
 
         val config = hostMail?.let { JsonObject(it) } ?: body.also { custom ->
             // Own SMTP with an empty password: the stored one of the same server and account (the
-            // panel never receives it).
+            // panel never receives it). Only over the stored port and encryption, so the stored
+            // password cannot be sent anywhere or any way it is not sent already.
             if (custom.getString("password").isNullOrEmpty()) {
                 val email = configManager.config.email
-                val stored = email.custom?.takeIf { it.hostname == custom.getString("hostname") && it.username == custom.getString("username") }
+                val stored = email.custom?.takeIf {
+                    it.hostname == custom.getString("hostname") &&
+                            it.username == custom.getString("username") &&
+                            it.port == (custom.getValue("port") as? Number)?.toInt() &&
+                            it.ssl == (custom.getValue("ssl") as? Boolean ?: false) &&
+                            it.starttls.ifBlank { "DISABLED" } ==
+                            ((custom.getValue("starttls") as? String)?.ifBlank { null } ?: "DISABLED")
+                }
 
                 stored?.password?.let { custom.put("password", it) }
             }

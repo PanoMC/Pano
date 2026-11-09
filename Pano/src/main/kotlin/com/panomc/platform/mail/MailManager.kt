@@ -69,6 +69,61 @@ class MailManager(
             return MailEncoder(message, domain).encode().toByteArray(Charsets.UTF_8)
         }
 
+        private val SMTP_AUTH_METHODS = setOf("PLAIN", "LOGIN", "CRAM-MD5", "DIGEST-MD5", "XOAUTH2", "NTLM")
+
+        /**
+         * The SMTP settings of a verify request, reduced to the fields a saved SMTP config has.
+         *
+         * [MailConfig] reads every NetClientOptions key from its JSON (proxy, trustAll, â€¦), so the
+         * request body is never handed to it as it is. Returns null when a field is malformed.
+         */
+        fun smtpTestConfig(raw: JsonObject): JsonObject? {
+            val out = JsonObject()
+
+            val hostname = raw.getValue("hostname") as? String ?: return null
+            if (hostname.isBlank()) return null
+            out.put("hostname", hostname.trim())
+
+            raw.getValue("port")?.let { port ->
+                val value = (port as? Number)?.toInt() ?: return null
+                if (value !in 1..65535) return null
+                out.put("port", value)
+            }
+
+            raw.getValue("ssl")?.let { out.put("ssl", it as? Boolean ?: return null) }
+
+            raw.getValue("starttls")?.let { value ->
+                val name = value as? String ?: return null
+                if (name.isNotEmpty()) {
+                    if (StartTLSOptions.entries.none { it.name == name }) return null
+                    out.put("starttls", name)
+                }
+            }
+
+            (raw.getValue("username") as? String)?.let { out.put("username", it) }
+            (raw.getValue("password") as? String)?.let { out.put("password", it) }
+
+            (raw.getValue("authMethods") as? String)?.takeIf { it.isNotBlank() }?.let { methods ->
+                val names = methods.split(' ', ',').map { it.trim().uppercase() }.filter { it.isNotEmpty() }
+                if (names.any { it !in SMTP_AUTH_METHODS }) return null
+                out.put("authMethods", names.joinToString(" "))
+            }
+
+            return out
+        }
+
+        /** A short reason for a failed SMTP test, never the raw text the remote host answered. */
+        fun smtpFailureReason(e: Throwable): String {
+            val text = (e.message ?: "").lowercase()
+            return when {
+                "auth" in text || "535" in text || "534" in text -> "AUTHENTICATION_FAILED"
+                "ssl" in text || "tls" in text || "handshake" in text || "certificate" in text -> "TLS_FAILED"
+                e is java.net.UnknownHostException || "connect" in text || "timed out" in text ||
+                        "timeout" in text || "refused" in text || "unresolved" in text -> "CONNECTION_FAILED"
+                else -> "SEND_FAILED"
+            }
+        }
+
         /** The error a strict send ([sendRequiredMail]) answers for a Pano Mail failure. */
         fun strictFailure(e: PanoMailException): Error =
             if (e.code == PanoMailException.CONNECT_REQUIRED) PanoMailConnectRequired()
@@ -478,8 +533,10 @@ class MailManager(
     }
 
     suspend fun validateConfig(config: JsonObject, sender: String) {
+        val safeConfig = smtpTestConfig(config) ?: throw InvalidData(extras = mapOf("mailError" to "INVALID_CONFIG"))
+
         try {
-            val mailConfig = MailConfig(config)
+            val mailConfig = MailConfig(safeConfig)
 
             val mailClient = MailClient.create(vertx, mailConfig)
 
@@ -496,11 +553,11 @@ class MailManager(
         } catch (e: Exception) {
             logger.error(e.toString())
 
-            throw InvalidData(extras = mapOf("mailError" to e.message))
+            throw InvalidData(extras = mapOf("mailError" to smtpFailureReason(e)))
         } catch (e: SMTPException) {
             logger.error(e.toString())
 
-            throw InvalidData(extras = mapOf("mailError" to e.message))
+            throw InvalidData(extras = mapOf("mailError" to smtpFailureReason(e)))
         }
     }
 }

@@ -6,8 +6,11 @@ import com.panomc.platform.auth.panel.log.ServerScheduleActionLog
 import com.panomc.platform.auth.panel.permission.ManageServerSchedulesPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.RateLimited
 import com.panomc.platform.model.*
+import com.panomc.platform.server.console.ServerActionRateLimiter
 import com.panomc.platform.server.schedule.ScheduleExecutor
+import com.panomc.platform.server.schedule.ScheduleTaskGuard
 import com.panomc.platform.server.schedule.ScheduleRunStatus
 import com.panomc.platform.server.schedule.ServerScheduleService
 import io.vertx.ext.web.RoutingContext
@@ -31,7 +34,9 @@ class PanelRunServerScheduleAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
     private val scheduleService: ServerScheduleService,
-    private val scheduleExecutor: ScheduleExecutor
+    private val scheduleExecutor: ScheduleExecutor,
+    private val scheduleTaskGuard: ScheduleTaskGuard,
+    private val serverActionRateLimiter: ServerActionRateLimiter
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
@@ -67,9 +72,16 @@ class PanelRunServerScheduleAPI(
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient) ?: throw NotExists()
 
-        val startedAt = System.currentTimeMillis()
-
         val tasks = databaseManager.serverScheduleTaskDao.getAllByScheduleId(scheduleId, sqlClient)
+
+        // The person pressing Run needs the rights the steps need, whoever wrote the schedule.
+        scheduleTaskGuard.requireAllowed(context, id, tasks.map { it.kind to it.payloadObject().getString("command") })
+
+        if (!serverActionRateLimiter.tryAcquire(ServerActionRateLimiter.Action.POWER, userId, id)) {
+            throw RateLimited()
+        }
+
+        val startedAt = System.currentTimeMillis()
 
         val outcome = scheduleExecutor.run(server, schedule.name, tasks, userId, sqlClient)
 

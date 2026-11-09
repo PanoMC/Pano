@@ -90,7 +90,7 @@ class NodeInstallScriptProvider(
      * digits today, but a quoted argument is what keeps that an implementation detail.
      */
     fun installCommand(code: String, panoUrlOverride: String? = null): String =
-        shellInstallCommand(panoUrl(panoUrlOverride), code)
+        shellInstallCommand(panoUrl(panoUrlOverride), code, isOverridden(panoUrlOverride))
 
     /**
      * The PowerShell equivalent.
@@ -99,7 +99,10 @@ class NodeInstallScriptProvider(
      * first; that is the only shape of this command that can carry the pairing code.
      */
     fun installCommandWindows(code: String, panoUrlOverride: String? = null): String =
-        powerShellInstallCommand(panoUrl(panoUrlOverride), code)
+        powerShellInstallCommand(panoUrl(panoUrlOverride), code, isOverridden(panoUrlOverride))
+
+    /** Whether [panoUrlOverride] points the node somewhere other than the website URL. */
+    private fun isOverridden(panoUrlOverride: String?): Boolean = panoUrl(panoUrlOverride) != websiteUrl()
 
     /**
      * Where a Pano Agent is downloaded from: this Pano's own copy under the agent's name when it has
@@ -175,16 +178,25 @@ class NodeInstallScriptProvider(
             else -> "$RELEASE_BASE/latest/download/$JAR_NAME"
         }
 
-        /** The one-line POSIX install command for [url] and [code]. Pure, so the exact text can be asserted. */
-        fun shellInstallCommand(url: String, code: String): String =
-            "curl -fsSL '${shellQuote(url + ApiPaths.core(SHELL_SCRIPT_PATH))}' | sh -s -- " +
-                "--pano '${shellQuote(url)}' --code '${shellQuote(code)}'"
+        /**
+         * The one-line POSIX install command for [url] and [code]. Pure, so the exact text can be asserted.
+         *
+         * [overridden] is set when [url] is not the website URL: the script is then asked for with
+         * the same `panoUrl`, so the daemon it downloads comes from where the node can reach Pano.
+         */
+        fun shellInstallCommand(url: String, code: String, overridden: Boolean = false): String =
+            "curl -fsSL '${shellQuote(scriptUrl(url, SHELL_SCRIPT_PATH, overridden))}' | " +
+                "sh -s -- --pano '${shellQuote(url)}' --code '${shellQuote(code)}'"
 
         /** The PowerShell counterpart of [shellInstallCommand]. */
-        fun powerShellInstallCommand(url: String, code: String): String =
+        fun powerShellInstallCommand(url: String, code: String, overridden: Boolean = false): String =
             "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& ([scriptblock]::Create(" +
-                "(Invoke-RestMethod '${powerShellQuote(url + ApiPaths.core(POWERSHELL_SCRIPT_PATH))}'))) " +
+                "(Invoke-RestMethod '${powerShellQuote(scriptUrl(url, POWERSHELL_SCRIPT_PATH, overridden))}'))) " +
                 "-Pano '${powerShellQuote(url)}' -Code '${powerShellQuote(code)}'\""
+
+        private fun scriptUrl(url: String, path: String, overridden: Boolean): String =
+            url + ApiPaths.core(path) +
+                if (overridden) "?panoUrl=" + java.net.URLEncoder.encode(url, Charsets.UTF_8) else ""
 
         /**
          * Where the agent is downloaded from (see the instance [agentJarUrl]): Pano's route under the

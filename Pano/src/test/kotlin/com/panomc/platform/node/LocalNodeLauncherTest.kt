@@ -6,12 +6,11 @@ import org.junit.jupiter.api.Test
 
 class LocalNodeLauncherTest {
     @Test
-    fun `builds the full argument list for a first pairing`() {
+    fun `builds the full argument list, never with the bootstrap token`() {
         val arguments = LocalNodeLauncher.buildArguments(
             javaBin = "/usr/bin/java",
             jarPath = "/opt/pano/pano-node.jar",
             panoUrl = "http://127.0.0.1:8080",
-            bootstrapToken = "token-value",
             dataDir = "/srv/pano/node-data"
         )
 
@@ -22,8 +21,6 @@ class LocalNodeLauncherTest {
                 "/opt/pano/pano-node.jar",
                 "--pano",
                 "http://127.0.0.1:8080",
-                "--bootstrap-token",
-                "token-value",
                 "--data",
                 "/srv/pano/node-data",
                 "--name",
@@ -34,12 +31,11 @@ class LocalNodeLauncherTest {
     }
 
     @Test
-    fun `leaves the token out entirely when the daemon has already paired`() {
+    fun `has no bootstrap token flag at all`() {
         val arguments = LocalNodeLauncher.buildArguments(
             javaBin = "java",
             jarPath = "pano-node.jar",
             panoUrl = "http://127.0.0.1:8080",
-            bootstrapToken = null,
             dataDir = "node-data"
         )
 
@@ -53,7 +49,6 @@ class LocalNodeLauncherTest {
             javaBin = "java",
             jarPath = "pano-node.jar",
             panoUrl = "http://127.0.0.1:8080",
-            bootstrapToken = null,
             dataDir = "node-data",
             name = "My local node"
         )
@@ -156,5 +151,18 @@ class LocalNodeLauncherRunningInstanceTest {
                 held.release()
             }
         }
+    }
+
+    @Test
+    fun `hands the bootstrap token over in the environment only`() {
+        assertEquals(
+            mapOf("PATH" to "/usr/bin", LocalNodeLauncher.BOOTSTRAP_TOKEN_ENV to "token-value"),
+            LocalNodeLauncher.passBootstrapToken(mutableMapOf("PATH" to "/usr/bin"), "token-value")
+        )
+
+        assertEquals(
+            mapOf("PATH" to "/usr/bin"),
+            LocalNodeLauncher.passBootstrapToken(mutableMapOf("PATH" to "/usr/bin", LocalNodeLauncher.BOOTSTRAP_TOKEN_ENV to "old"), null)
+        )
     }
 }

@@ -157,8 +157,24 @@ class NodeManager(
         startHeartbeatSweep()
         serverTaskService.startTimeoutSweep()
 
+        // Node equality is the id, and a map keeps the key object it was first given: a reconnect that overlaps the
+        // old socket (a network blip, a half-open TCP) would leave the first connection's Node -- its version,
+        // protocol and resources -- as the key everyone reads. The old entry goes first, and its socket is closed.
+        val superseded = supersedeNodeEntry(connectedNodes, node)
+        nodeSecretKeyMap.keys.removeIf { it.id == node.id }
+        lastPongAtMap.keys.removeIf { it.id == node.id }
+
         connectedNodes[node] = webSocket
         nodeSecretKeyMap[node] = Aes256GcmUtil.base64ToSecretKey(node.aesKey)
+
+        // Its close handler finds the new socket in the map and leaves the live connection alone.
+        if (superseded != null && superseded !== webSocket) {
+            try {
+                superseded.close()
+            } catch (e: Exception) {
+                logger.debug("Could not close the superseded socket of node ${node.id}: ${e.message}")
+            }
+        }
 
         lastPongAtMap[node] = System.currentTimeMillis()
 
@@ -504,4 +520,11 @@ class NodeManager(
         /** Transfers move whole files, so they get the ticket's lifetime rather than 30 seconds. */
         const val TRANSFER_REQUEST_TIMEOUT_MS = 10 * 60 * 1000L
     }
+}
+
+/** Removes the entry of [node]'s id from [map], key object included, and returns its value. */
+internal fun <V> supersedeNodeEntry(map: ConcurrentHashMap<Node, V>, node: Node): V? {
+    val previous = map.keys.find { it.id == node.id } ?: return null
+
+    return map.remove(previous)
 }

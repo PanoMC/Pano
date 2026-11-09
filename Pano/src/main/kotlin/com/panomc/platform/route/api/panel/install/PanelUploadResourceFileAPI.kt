@@ -4,9 +4,7 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
-import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.InvalidResourceFile
-import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
@@ -31,11 +29,8 @@ class PanelUploadResourceFileAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        val canManageAddons = authProvider.hasPermission(ManageAddonsPermission(), context)
-
-        if (!(canManageAddons || authProvider.hasPermission(ManageViewPermission(), context))) {
-            throw NoPermission()
-        }
+        // Theme zips and plugin jars from a file both run as server code: the add-ons permission.
+        authProvider.requirePermission(ManageAddonsPermission(), context)
 
         val fileUploads = context.fileUploads()
 
@@ -47,10 +42,6 @@ class PanelUploadResourceFileAPI(
 
         // The name the browser sent is only a hint: keep its last segment, and only a theme zip or a plugin jar.
         val fileName = safeFileName(file.fileName()) ?: throw InvalidResourceFile()
-
-        if (fileName.lowercase().endsWith(".jar") && !canManageAddons) {
-            throw NoPermission()
-        }
 
         val uploadedFile = File(file.uploadedFileName())
         val tempFolder = File(AppConstants.TEMP_FOLDER)

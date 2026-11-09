@@ -7,7 +7,6 @@ import com.panomc.platform.PluginManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
-import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.FailedToInstallResource
 import com.panomc.platform.error.FailedToInstallSystemResource
 import com.panomc.platform.error.InvalidResourceFile
@@ -59,11 +58,9 @@ class PanelGetInstallResourceLocalStreamAPI(
             throw InvalidResourceFile()
         }
 
-        if (type == ResourceType.PLUGIN) {
-            authProvider.requirePermission(ManageAddonsPermission(), context)
-        } else {
-            authProvider.requirePermission(ManageViewPermission(), context)
-        }
+        // A theme from a file is server code Pano runs, with no store review behind it: like a plugin, it takes the
+        // add-ons permission. The theme permission still installs from the store and switches themes.
+        authProvider.requirePermission(ManageAddonsPermission(), context)
 
         val response = context.response()
 

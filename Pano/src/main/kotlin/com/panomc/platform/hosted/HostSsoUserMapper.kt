@@ -47,6 +47,13 @@ class HostSsoUserMapper(
         const val HOST_PREFIX = "host_"
         private const val MAX_USERNAME = 16
         private const val MIN_USERNAME = 3
+
+        /**
+         * The panomc.com roles that may open the panel (the control plane gives viewers no panel ticket). Every one
+         * of them becomes a local admin, so anything else, a new or weaker role included, is refused rather than
+         * promoted.
+         */
+        val ALLOWED_ROLES = setOf("owner", "manager", "support")
     }
 
     class Denied(reason: String) : RuntimeException(reason)
@@ -64,6 +71,8 @@ class HostSsoUserMapper(
      * first boot: the site admin from the order form) instead of matching by e-mail or creating one.
      */
     suspend fun resolve(identity: PanoHostClient.SsoIdentity, keepUsername: Boolean = false, preferredUserId: Long? = null): Mapping {
+        if (identity.role !in ALLOWED_ROLES) throw Denied("role '${identity.role}' may not open the panel")
+
         chosenAdmin(identity)?.let { return Mapping(it, created = false, chosen = true) }
 
         val key = keyOf(identity)

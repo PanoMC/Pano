@@ -45,7 +45,7 @@ class PanelGetUpdateIconAPI(
         val parameters = getParameters(context)
 
         val filename = parameters.pathParameter("filename").string
-        val type = parameters.queryParameter("type").string
+        val type = parameters.queryParameter("type")?.string
         val requestedHash = parameters.queryParameter("hash")?.string
         val updateIconFolder = configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
 

@@ -235,63 +235,67 @@ class PanelCreateServerAPI(
         // when it did: on a node in a container those are the only ports anybody outside can reach.
         val nodePortRange = nodeManager.getPortRange(nodeId)
 
-        val takenPorts = ServerPortAllocator.takenPorts(databaseManager.serverDao.getAllByNodeId(nodeId, sqlClient))
+        // Held from reading the taken ports until the row is written, so two servers created on
+        // the same node at once can never be handed the same port.
+        val (serverId, server) = ServerPortAllocator.withNodeLock(nodeId) {
+            val takenPorts = ServerPortAllocator.takenPorts(databaseManager.serverDao.getAllByNodeId(nodeId, sqlClient))
 
-        if (port != null) {
-            ServerPortAllocator.refusal(port, takenPorts, nodePortRange)?.let { reason ->
-                throw BadRequest(extras = mapOf("field" to "port", "message" to reason))
+            if (port != null) {
+                ServerPortAllocator.refusal(port, takenPorts, nodePortRange)?.let { reason ->
+                    throw BadRequest(extras = mapOf("field" to "port", "message" to reason))
+                }
             }
+
+            val gamePort = port ?: ServerPortAllocator
+                .allocate(1, takenPorts, nodePortRange)
+                ?.firstOrNull()
+                ?: throw BadRequest(extras = mapOf("message" to ServerPortAllocator.noFreePortMessage(nodePortRange)))
+
+            val now = System.currentTimeMillis()
+
+            val server = Server(
+                name = name,
+                motd = "",
+                host = node.hostname ?: node.remoteAddress ?: DEFAULT_HOST,
+                remoteAddress = node.remoteAddress,
+                port = gamePort,
+                playerCount = 0,
+                maxPlayerCount = 0,
+                type = serverType,
+                version = resolvedVersion.orEmpty(),
+                favicon = "",
+                permissionGranted = true,
+                status = ServerStatus.OFFLINE,
+                addedTime = now,
+                acceptedTime = now,
+                startTime = 0,
+                // Pre-generated so the row is complete; the plugin that is auto-installed into this
+                // server later pairs with it instead of going through the connect handshake.
+                aesKey = Aes256GcmUtil.generateBase64Key256(),
+                kind = ServerKind.MANAGED,
+                nodeId = nodeId,
+                uuid = UUID.randomUUID().toString(),
+                software = software,
+                softwareVersion = resolvedVersion,
+                javaVersion = javaMajor,
+                memoryMb = memoryMb,
+                jvmArgs = jvmArgs,
+                gamePort = gamePort,
+                autoStart = autoStart,
+                crashRestart = crashRestart,
+                processState = ServerProcessState.INSTALLING,
+                settings = settings,
+                properties = initialProperties(source, serverType, whitelist),
+                inPlace = inPlace,
+                // The name the admin chose is what the panel shows: `name` is overwritten by whatever
+                // the server calls itself ("Paper", "Velocity") as soon as its plugin connects.
+                customName = name.take(MAX_CUSTOM_NAME_LENGTH),
+                // What the admin typed, until the node answers with the path it actually resolved.
+                directory = if (inPlace) folderPath else null
+            )
+
+            Pair(databaseManager.serverDao.add(server, sqlClient), server)
         }
-
-        val gamePort = port ?: ServerPortAllocator
-            .allocate(1, takenPorts, nodePortRange)
-            ?.firstOrNull()
-            ?: throw BadRequest(extras = mapOf("message" to ServerPortAllocator.noFreePortMessage(nodePortRange)))
-
-        val now = System.currentTimeMillis()
-
-        val server = Server(
-            name = name,
-            motd = "",
-            host = node.hostname ?: node.remoteAddress ?: DEFAULT_HOST,
-            remoteAddress = node.remoteAddress,
-            port = gamePort,
-            playerCount = 0,
-            maxPlayerCount = 0,
-            type = serverType,
-            version = resolvedVersion.orEmpty(),
-            favicon = "",
-            permissionGranted = true,
-            status = ServerStatus.OFFLINE,
-            addedTime = now,
-            acceptedTime = now,
-            startTime = 0,
-            // Pre-generated so the row is complete; the plugin that is auto-installed into this
-            // server later pairs with it instead of going through the connect handshake.
-            aesKey = Aes256GcmUtil.generateBase64Key256(),
-            kind = ServerKind.MANAGED,
-            nodeId = nodeId,
-            uuid = UUID.randomUUID().toString(),
-            software = software,
-            softwareVersion = resolvedVersion,
-            javaVersion = javaMajor,
-            memoryMb = memoryMb,
-            jvmArgs = jvmArgs,
-            gamePort = gamePort,
-            autoStart = autoStart,
-            crashRestart = crashRestart,
-            processState = ServerProcessState.INSTALLING,
-            settings = settings,
-            properties = initialProperties(source, serverType, whitelist),
-            inPlace = inPlace,
-            // The name the admin chose is what the panel shows: `name` is overwritten by whatever
-            // the server calls itself ("Paper", "Velocity") as soon as its plugin connects.
-            customName = name.take(MAX_CUSTOM_NAME_LENGTH),
-            // What the admin typed, until the node answers with the path it actually resolved.
-            directory = if (inPlace) folderPath else null
-        )
-
-        val serverId = databaseManager.serverDao.add(server, sqlClient)
 
         // The insert does not carry the custom name; it is its own column with its own update.
         databaseManager.serverDao.updateCustomNameById(serverId, server.customName, sqlClient)

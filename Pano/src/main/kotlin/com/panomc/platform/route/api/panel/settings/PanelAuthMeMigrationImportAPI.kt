@@ -6,7 +6,6 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.api.event.PlayerEventListener
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.User
@@ -56,7 +55,9 @@ class PanelAuthMeMigrationImportAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        if (!authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {
+        // Admins only: a migration writes users, passwords, bans and permission nodes directly,
+        // past the admin guards of the player and permission screens.
+        if (!authProvider.isUserAdmin(authProvider.getUserIdFromRoutingContext(context))) {
             throw NoPermission()
         }
 

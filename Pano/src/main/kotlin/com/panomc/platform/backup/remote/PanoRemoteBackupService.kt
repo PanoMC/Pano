@@ -7,6 +7,8 @@ import com.panomc.platform.backup.PanoBackupService
 import com.panomc.platform.backup.PanoBackupStore
 import com.panomc.platform.backup.DirectUploadHandler
 import com.panomc.platform.archive.PanoArcEncryption
+import com.panomc.platform.archive.PanoArcException
+import com.panomc.platform.archive.PanoArcEnvelope
 import com.panomc.platform.model.PageRequest
 import com.panomc.platform.server.backup.PanoBackupRetentionRule
 import io.vertx.core.json.JsonArray
@@ -566,10 +568,30 @@ class PanoRemoteBackupService(
 
             target.fetch(id, temp) { job.bytesDone = it }
 
+            requireEnvelopeWhenKeyed(temp, key)
+
             job.phase = PanoBackupService.PHASE_RESTORING
             job.bytesDone = 0
             job.bytesTotal = 0
             job.backupId = service.restoreFrom(temp, key, safetyArchive, maintenance)?.id
+        }
+    }
+
+    /**
+     * With a passphrase (typed or saved) the archive must be an encrypted envelope. A plain zip opens without any
+     * key, so whoever serves the download (Pano Host or its storage, the party E2E encryption keeps out) could
+     * otherwise swap in an archive of its own that only checks against its own manifest. A plain backup uploaded
+     * before a passphrase was saved restores once the saved passphrase is removed.
+     */
+    private suspend fun requireEnvelopeWhenKeyed(file: File, key: CharArray?) {
+        if (key == null || key.isEmpty()) {
+            return
+        }
+
+        val prefix = withContext(Dispatchers.IO) { file.inputStream().use { it.readNBytes(16) } }
+
+        if (!PanoArcEnvelope.isEnvelope(prefix)) {
+            throw PanoArcException(PanoArcException.Code.TAMPERED, "The backup is not encrypted, but a passphrase was given.")
         }
     }
 
@@ -1132,6 +1154,8 @@ class PanoRemoteBackupService(
         job.phase = PanoBackupService.PHASE_VERIFYING
         job.bytesDone = 0
         job.bytesTotal = 0
+
+        requireEnvelopeWhenKeyed(temp, key)
 
         val opened = withContext(Dispatchers.IO) { McServerArchive.open(temp, key, dir) }
 

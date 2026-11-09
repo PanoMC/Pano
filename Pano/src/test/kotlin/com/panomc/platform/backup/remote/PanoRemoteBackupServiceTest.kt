@@ -217,6 +217,29 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
+    fun `with a passphrase a plain archive from the storage is refused`(): Unit = runBlocking {
+        // What a storage swapping in an archive of its own looks like: the download is a plain zip.
+        val plain = awaitJob(service.startUpload())
+        assertEquals(PanoBackupJob.Status.DONE, plain.status, plain.error)
+
+        service.setPassphrase(passphrase.toCharArray())
+
+        val saved = awaitJob(service.startRestore(plain.remoteId!!, null))
+        val typed = awaitJob(service.startRestore(plain.remoteId!!, passphrase.toCharArray()))
+
+        assertEquals("TAMPERED", saved.error)
+        assertEquals("TAMPERED", typed.error)
+        assertTrue(runner.restored.isEmpty())
+        assertTrue(tempLeftovers().isEmpty())
+
+        // Without a passphrase nothing is promised, and the plain backup restores.
+        service.setPassphrase(null)
+
+        val open = awaitJob(service.startRestore(plain.remoteId!!, null))
+        assertEquals(PanoBackupJob.Status.DONE, open.status, open.error)
+    }
+
+    @Test
     fun `host refusals end the job with the host code and its details`(): Unit = runBlocking {
         service.setPassphrase(passphrase.toCharArray())
 

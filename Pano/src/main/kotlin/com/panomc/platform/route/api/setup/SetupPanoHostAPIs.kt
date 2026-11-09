@@ -89,7 +89,8 @@ class SetupRestorePanoHostBackupAPI(
         PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
 
         val hostAddress = body.getString("host")?.trim()
-        val database = if (hostAddress.isNullOrEmpty()) null else JsonObject()
+        // Pano Host: always the database it gives, never one named in the request.
+        val database = if (hostAddress.isNullOrEmpty() || setupManager.isDatabaseManaged()) null else JsonObject()
             .put("host", hostAddress)
             .put("name", body.getString("dbName") ?: "")
             .put("username", body.getString("username") ?: "")
@@ -162,7 +163,8 @@ class SetupMovePanoHostInstanceAPI(
         PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
 
         val hostAddress = body.getString("host")?.trim()
-        val database = if (hostAddress.isNullOrEmpty()) null else JsonObject()
+        // Pano Host: always the database it gives, never one named in the request.
+        val database = if (hostAddress.isNullOrEmpty() || setupManager.isDatabaseManaged()) null else JsonObject()
             .put("host", hostAddress)
             .put("name", body.getString("dbName") ?: "")
             .put("username", body.getString("username") ?: "")

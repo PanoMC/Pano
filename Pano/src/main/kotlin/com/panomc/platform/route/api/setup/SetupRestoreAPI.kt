@@ -48,7 +48,8 @@ class SetupRestoreAPI(
 
         val host = request.getFormAttribute("host")?.trim()
 
-        val database = if (host.isNullOrEmpty()) null else JsonObject()
+        // Pano Host: always the database it gives, never one named in the request.
+        val database = if (host.isNullOrEmpty() || setupManager.isDatabaseManaged()) null else JsonObject()
             .put("host", host)
             .put("name", request.getFormAttribute("dbName") ?: "")
             .put("username", request.getFormAttribute("username") ?: "")

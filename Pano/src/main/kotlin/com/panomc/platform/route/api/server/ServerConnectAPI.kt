@@ -133,6 +133,14 @@ class ServerConnectAPI(
     }
 
     private suspend fun onConnectionClosed(server: Server, serverWebSocket: ServerWebSocket) {
+        // The server reconnected before this old socket closed: the live connection owns the
+        // server's state now, so this close must not mark it offline or tell anyone it left.
+        if (serverManager.hasNewerConnection(server.id, serverWebSocket)) {
+            serverManager.onServerDisconnect(server, serverWebSocket)
+
+            return
+        }
+
         val sqlClient = databaseManager.getSqlClient()
 
         val serverExists = databaseManager.serverDao.existsById(server.id, sqlClient)

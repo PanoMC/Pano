@@ -129,7 +129,25 @@ class ServerManager(
         // gap, since init() alone isn't guaranteed to run before the first connection.
         startHeartbeatSweep()
 
-        connectedServers[server] = serverWebSocket
+        val previous = connectedServers.put(server, serverWebSocket)
+
+        // A reconnect with the same token can arrive before the old socket has closed. The old one
+        // is superseded: take it off the books and close it, so its frames stop being handled and
+        // its late close cannot mark the live server offline (see [hasNewerConnection]).
+        val superseded = mutableListOf<ServerWebSocket>()
+        if (previous != null && previous !== serverWebSocket) {
+            superseded.add(previous)
+        }
+        connectedServers.entries
+            .filter { it.key.id == server.id && it.value !== serverWebSocket }
+            .forEach { (oldServer, oldSocket) ->
+                if (connectedServers.remove(oldServer, oldSocket)) {
+                    serverSecretKeyMap.remove(oldServer)
+                    lastPongAtMap.remove(oldServer)
+                    superseded.add(oldSocket)
+                }
+            }
+
         serverSecretKeyMap[server] = Aes256GcmUtil.base64ToSecretKey(server.aesKey)
 
         // Fresh connection: give it a full timeout window before the sweep judges it, rather than
@@ -151,7 +169,21 @@ class ServerManager(
         }
 
         logger.info("\"${server.customName ?: server.name}\" Minecraft server is connected!")
+
+        superseded.forEach { oldSocket ->
+            try {
+                oldSocket.close()
+            } catch (_: Exception) {
+            }
+        }
     }
+
+    /**
+     * Whether a different socket than [serverWebSocket] is now on record for [serverId], i.e. the
+     * server reconnected and this socket is a leftover whose close must not touch the server's state.
+     */
+    fun hasNewerConnection(serverId: Long, serverWebSocket: ServerWebSocket): Boolean =
+        connectedServers.any { it.key.id == serverId && it.value !== serverWebSocket }
 
     fun onServerDisconnect(server: Server, serverWebSocket: ServerWebSocket) {
         // Only the connection that is still on record for this server ID may tear its own

@@ -78,6 +78,12 @@ class PanelUpdateLocaleAPI(
             throw LocaleCannotBeDisabled()
         }
 
+        val takenBy = databaseManager.localeDao.getIdByCode(code, sqlClient)
+
+        if (takenBy != null && takenBy != locale.id) {
+            throw LocaleAlreadyExists()
+        }
+
         val oldCode = "" + locale.code
         locale.code = code
         locale.name = name

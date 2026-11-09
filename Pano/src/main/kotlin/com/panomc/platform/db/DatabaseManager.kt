@@ -1,5 +1,7 @@
 package com.panomc.platform.db
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.panomc.platform.StartupFailure
 import com.panomc.platform.Main
 import com.panomc.platform.annotation.Dao
@@ -153,7 +155,10 @@ class DatabaseManager(
         checkMigration()
     }
 
-    internal suspend fun initDatabase(sqlClient: SqlClient) {
+    // Two set-up finishes at once would both see an empty database and both fill it (twice the default rows).
+    private val initDatabaseLock = Mutex()
+
+    internal suspend fun initDatabase(sqlClient: SqlClient) = initDatabaseLock.withLock {
         try {
             val lastSchemeVersion = schemeVersionDao.getLastSchemeVersion(sqlClient)
 

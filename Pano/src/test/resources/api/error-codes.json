@@ -255,6 +255,10 @@
     "code": "LOCAL_NODE_JAVA_MISSING",
     "status": 400
   },
+  "com.panomc.platform.error.LocaleAlreadyExists": {
+    "code": "LOCALE_ALREADY_EXISTS",
+    "status": 409
+  },
   "com.panomc.platform.error.LocaleCannotBeDisabled": {
     "code": "LOCALE_CANNOT_BE_DISABLED",
     "status": 422

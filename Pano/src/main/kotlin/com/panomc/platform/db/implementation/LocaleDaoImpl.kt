@@ -29,14 +29,19 @@ class LocaleDaoImpl : LocaleDao() {
                           `enabled` TINYINT(1) NOT NULL DEFAULT 1,
                           `createdAt` BIGINT(20) NOT NULL,
                           `updatedAt` BIGINT(20) NOT NULL,
-                          PRIMARY KEY (`id`)
+                          PRIMARY KEY (`id`),
+                          UNIQUE KEY `code` (`code`)
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Locales table.';
                         """
             )
             .execute()
             .coAwait()
 
-        DEFAULT_LOCALES.forEach { add(it, sqlClient) }
+        DEFAULT_LOCALES.forEach {
+            if (!existsByCode(it.code, sqlClient)) {
+                add(it, sqlClient)
+            }
+        }
     }
 
     override suspend fun add(locale: Locale, sqlClient: SqlClient): Long {
@@ -204,7 +209,7 @@ class LocaleDaoImpl : LocaleDao() {
         code: String,
         sqlClient: SqlClient
     ): Long? {
-        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` where `code` = ?"
+        val query = "SELECT `id` FROM `${getTablePrefix() + tableName}` where `code` = ? ORDER BY `id` LIMIT 1"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
@@ -251,6 +256,6 @@ class LocaleDaoImpl : LocaleDao() {
             )
             .coAwait()
 
-        return rows.toList()[0].getLong(0) == 1L
+        return rows.toList()[0].getLong(0) >= 1L
     }
 }

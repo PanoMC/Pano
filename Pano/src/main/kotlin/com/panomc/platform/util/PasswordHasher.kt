@@ -70,6 +70,21 @@ class PasswordHasher {
     suspend fun hashAsync(password: String, algorithm: Algorithm = Algorithm.ARGON2ID): String =
         withContext(hashDispatcher) { hash(password, algorithm) }
 
+    @Volatile
+    private var dummyHash: String? = null
+
+    /**
+     * Spends the time of a real Argon2id check when there is no stored hash to check against (unknown account, account
+     * without a password), so the time a sign-in takes does not tell whether the account exists. Always false.
+     */
+    suspend fun verifyDummyAsync(password: String): Boolean {
+        val hash = dummyHash ?: hashAsync(UUID.randomUUID().toString()).also { dummyHash = it }
+
+        verifyAsync(password, hash)
+
+        return false
+    }
+
     /** [verify] off the calling thread; use it from request handlers and other event-loop code. */
     suspend fun verifyAsync(password: String, storedHash: String): Boolean =
         withContext(hashDispatcher) { verify(password, storedHash) }

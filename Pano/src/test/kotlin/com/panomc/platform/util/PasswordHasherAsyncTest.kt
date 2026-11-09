@@ -33,4 +33,10 @@ class PasswordHasherAsyncTest {
         assertNotEquals(caller, worker)
         assertTrue(worker.startsWith("pano-password-hash-"))
     }
+
+    @Test
+    fun `a dummy check never succeeds`() = runBlocking {
+        assertFalse(hasher.verifyDummyAsync("anything"))
+        assertFalse(hasher.verifyDummyAsync(""))
+    }
 }

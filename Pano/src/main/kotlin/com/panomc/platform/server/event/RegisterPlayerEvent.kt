@@ -17,6 +17,11 @@ class RegisterPlayerEvent(
     private val databaseManager: DatabaseManager,
 ) : ServerEvent<RegisterPlayerEventRequest, RegisterPlayerEventResponse>() {
     override suspend fun handle(request: RegisterPlayerEventRequest, server: Server): RegisterPlayerEventResponse {
+        // Accounts are created through a server only while that server's auth integration is on.
+        if (!server.settings.authIntegration) {
+            return RegisterPlayerEventResponse(AUTH_INTEGRATION_DISABLED)
+        }
+
         val sqlClient = databaseManager.getSqlClient()
 
         val isUsernameExists = databaseManager.userDao.existsByUsername(request.username, sqlClient)
@@ -35,5 +40,9 @@ class RegisterPlayerEvent(
         databaseManager.userDao.add(user, hashedPassword, sqlClient, false)
 
         return RegisterPlayerEventResponse(null)
+    }
+
+    companion object {
+        const val AUTH_INTEGRATION_DISABLED = "AUTH_INTEGRATION_DISABLED"
     }
 }

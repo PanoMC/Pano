@@ -17,6 +17,16 @@ class WebhookSender(
     private val allowPrivate: () -> Boolean
 ) {
     suspend fun send(row: WebhookDelivery, endpoint: WebhookEndpoint?): Attempt {
+        // A retry or redelivery of a row made before the endpoint's URL or format changed: never
+        // send it (or the endpoint's current headers) to the address the admin moved away from.
+        if (endpoint != null && (endpoint.url != row.url || endpoint.format != row.format)) {
+            return Attempt(error = "ENDPOINT_CHANGED", retryable = false)
+        }
+
+        // Signed the way the endpoint is set up now, so a regenerated secret applies to retries too.
+        val signing = endpoint?.signing ?: row.signing
+        val encryptedSecret = if (endpoint != null) endpoint.secret else row.secret
+
         val headers = ArrayList<Pair<String, String>>()
         headers += "Content-Type" to "application/json; charset=utf-8"
         headers += "User-Agent" to "Pano/$version"
@@ -25,9 +35,9 @@ class WebhookSender(
         headers += WebhookHeaders.DELIVERY to row.id.toString()
         headers += WebhookHeaders.ATTEMPT to row.attempts.toString()
 
-        if (row.signing == WebhookSigning.HMAC_SHA256) {
+        if (signing == WebhookSigning.HMAC_SHA256) {
             // Fail closed: an HMAC endpoint never receives an unsigned request.
-            val secret = row.secret?.let { cipher().decrypt(it) }?.takeIf { it.isNotEmpty() }
+            val secret = encryptedSecret?.let { cipher().decrypt(it) }?.takeIf { it.isNotEmpty() }
                 ?: return Attempt(error = "SECRET_UNREADABLE", retryable = false)
 
             headers += WebhookSigner.HEADER to WebhookSigner.header(secret, now() / 1000L, row.body)

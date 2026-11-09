@@ -157,30 +157,59 @@ class ZipToolTest {
     }
 
     @Test
-    fun `never follows a symlink out of the server when archiving`() {
+    fun `follows a link only when its target is inside the server`() {
         val outside = File(root, "outside").apply { mkdirs() }
 
         File(outside, "secret.txt").writeText("host file")
 
         val server = File(root, "server")
         val plugins = File(server, "plugins").apply { mkdirs() }
+        val shared = File(server, "shared").apply { mkdirs() }
+        val pano = File(plugins, "Pano").apply { mkdirs() }
 
         File(plugins, "a.yml").writeText("hello")
+        File(shared, "kept.txt").writeText("inside")
+        File(pano, "config.conf").writeText("platform { token = secret }")
 
-        try {
-            java.nio.file.Files.createSymbolicLink(File(plugins, "linked-dir").toPath(), outside.toPath())
-            java.nio.file.Files.createSymbolicLink(File(plugins, "linked-file").toPath(), File(outside, "secret.txt").toPath())
-        } catch (e: Exception) {
-            org.junit.jupiter.api.Assumptions.assumeTrue(false, "Symlinks cannot be created here: ${e.message}")
-        }
+        linkDirectory(File(plugins, "linked-outside"), outside)
+        linkDirectory(File(plugins, "linked-inside"), shared)
+        // A link back up the tree must not loop.
+        linkDirectory(File(plugins, "loop"), plugins)
+        // A link to the credentials must not carry them out under another name.
+        linkDirectory(File(server, "pano-link"), pano)
 
         val archive = File(root, "out.zip")
 
-        ZipTool.archive(server, listOf("plugins"), archive)
+        ZipTool.archive(server, listOf("plugins", "pano-link"), archive)
 
         val names = java.util.zip.ZipFile(archive).use { zip -> zip.entries().toList().map { it.name } }
 
-        assertTrue("plugins/a.yml" in names)
-        assertFalse(names.any { it.contains("linked") || it.contains("secret") }, names.toString())
+        assertTrue("plugins/a.yml" in names, names.toString())
+        assertTrue("plugins/linked-inside/kept.txt" in names, names.toString())
+        assertFalse(names.any { it.contains("linked-outside") || it.contains("secret") }, names.toString())
+        assertFalse(names.any { it.endsWith("config.conf") }, names.toString())
+        assertFalse(names.any { it.startsWith("plugins/loop/") }, names.toString())
+    }
+
+    /** A symlink where the OS allows one, else a directory junction (Windows without the symlink right). */
+    private fun linkDirectory(link: File, target: File) {
+        try {
+            java.nio.file.Files.createSymbolicLink(link.toPath(), target.toPath())
+
+            return
+        } catch (_: Exception) {
+        }
+
+        val windows = System.getProperty("os.name").lowercase().contains("win")
+
+        org.junit.jupiter.api.Assumptions.assumeTrue(windows, "Links cannot be created here.")
+
+        val exit = ProcessBuilder("cmd", "/c", "mklink", "/J", link.absolutePath, target.absolutePath)
+            .redirectErrorStream(true)
+            .start()
+            .also { it.inputStream.readBytes() }
+            .waitFor()
+
+        org.junit.jupiter.api.Assumptions.assumeTrue(exit == 0 && link.isDirectory, "Links cannot be created here.")
     }
 }

@@ -53,6 +53,12 @@ object ZipTool {
         var entries = 0
         var written = 0L
 
+        val realRoot = try {
+            root.toPath().toRealPath()
+        } catch (_: Exception) {
+            null
+        }
+
         ZipOutputStream(target.outputStream().buffered()).use { out ->
             paths.forEach { path ->
                 val source = PathSafety.resolveRelative(root, path)
@@ -62,11 +68,21 @@ object ZipTool {
                     return@forEach
                 }
 
-                // Symlinks inside the selection are never followed nor archived: one pointing at
-                // `/etc` or another server's folder would put files outside this server into the
-                // archive. [source] itself was already checked to really live inside [root].
-                source.walkTopDown().onEnter { it == source || !isSymlink(it) }.forEach inner@{ file ->
-                    if (file != source && isSymlink(file)) {
+                // A link is followed only when what it points at really lives inside [root]; one
+                // pointing at `/etc` or another server's folder is skipped, so nothing outside this
+                // server ends up in the archive. The target's own path must not be denied either,
+                // or a link to the credentials would carry them out under another name. Directories
+                // are entered once by their real path, so a link back up the tree cannot loop.
+                val visited = mutableSetOf<java.nio.file.Path>()
+
+                source.walkTopDown().onEnter { directory ->
+                    val real = realPathInside(realRoot, directory)
+
+                    real != null && visited.add(real)
+                }.forEach inner@{ file ->
+                    val real = realPathInside(realRoot, file) ?: return@inner
+
+                    if (realRoot != null && ServerFileDenylist.isDenied(relativeName(realRoot.toFile(), real.toFile()))) {
                         return@inner
                     }
 
@@ -229,7 +245,21 @@ object ZipTool {
         return true
     }
 
-    private fun isSymlink(file: File): Boolean = java.nio.file.Files.isSymbolicLink(file.toPath())
+    /**
+     * Where [file] really is once every link on the way is resolved, or null when that is outside
+     * [realRoot] or cannot be resolved (a dangling link). Without a real root nothing resolves.
+     */
+    private fun realPathInside(realRoot: java.nio.file.Path?, file: File): java.nio.file.Path? {
+        realRoot ?: return null
+
+        val real = try {
+            file.toPath().toRealPath()
+        } catch (_: Exception) {
+            return null
+        }
+
+        return real.takeIf { it.startsWith(realRoot) }
+    }
 
     /** The path of [file] relative to [root], with forward slashes and no leading one. */
     fun relativeName(root: File, file: File): String {

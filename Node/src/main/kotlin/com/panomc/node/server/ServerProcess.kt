@@ -379,7 +379,13 @@ class ServerProcess(
             // restart that only stopped. Wait for the booking, then start as a separate step, so
             // an adopted server's exit (queued on this same executor) is handled first too.
             awaitExitBooked()
-            lifecycle.execute { doStart(issuedBy) }
+            // A stop or kill that came in while this restart was still stopping wins: the
+            // operator asked for the server to stay down, so the start half is dropped.
+            lifecycle.execute {
+                if (!startCancelled) {
+                    doStart(issuedBy)
+                }
+            }
         }
     }
 

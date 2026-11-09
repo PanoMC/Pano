@@ -7,6 +7,7 @@ import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
+import com.panomc.platform.route.api.UploadFileResolver
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.MimeTypeUtil
 import io.vertx.ext.web.RoutingContext
@@ -43,14 +44,14 @@ class PanelGetUpdateIconAPI(
         val requestedHash = parameters.queryParameter("hash")?.string
         val updateIconFolder = configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
 
-        val path = updateIconFolder + filename
+        val file = UploadFileResolver.resolve(updateIconFolder, filename)
 
-        val file = File(path)
-
-        if (!file.exists()) {
+        if (file == null) {
             sendDefault(context, requestedHash, type)
             return null
         }
+
+        val path = file.path
 
         val actualHash = file.inputStream().use { it.hash() }
 

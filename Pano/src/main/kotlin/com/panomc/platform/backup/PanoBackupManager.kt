@@ -20,6 +20,7 @@ import com.panomc.platform.backup.remote.TransferEstimate
 import com.panomc.platform.backup.remote.RemoteStateStore
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
+import com.panomc.platform.db.DatabaseAddress
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.db.model.SystemProperty
@@ -500,9 +501,10 @@ class PanoBackupManager(
 
         fun connectOptions(database: JsonObject): MySQLConnectOptions {
             val address = database.getString("host", "")
+            val parsed = DatabaseAddress.parse(address) ?: DatabaseAddress(address.substringBefore(':'), DatabaseAddress.DEFAULT_PORT)
             val options = MySQLConnectOptions()
-                .setHost(address.substringBefore(':'))
-                .setPort(address.substringAfter(':', "3306").toIntOrNull() ?: 3306)
+                .setHost(parsed.host)
+                .setPort(parsed.port)
                 .setDatabase(database.getString("name", ""))
                 .setUser(database.getString("username", ""))
 

@@ -111,20 +111,15 @@ class DatabaseManager(
             throw StartupFailure("The database is not configured yet.")
         }
 
-        var port = 3306
-        var host = databaseConfig.host
-
-        if (host.contains(":")) {
-            val splitHost = host.split(":")
-
-            host = splitHost[0]
-
-            port = splitHost[1].toInt()
-        }
+        val address = DatabaseAddress.parse(databaseConfig.host)
+            ?: throw StartupFailure(
+                "The database host \"${databaseConfig.host}\" is not valid, use host, host:port or [IPv6]:port. " +
+                        "Please check your configuration!"
+            )
 
         val connectOptions = MySQLConnectOptions()
-            .setPort(port)
-            .setHost(host)
+            .setPort(address.port)
+            .setHost(address.host)
             .setDatabase(databaseConfig.name)
             .setUser(databaseConfig.username)
 

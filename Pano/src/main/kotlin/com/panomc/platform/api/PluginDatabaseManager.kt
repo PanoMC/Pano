@@ -14,6 +14,7 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
+import java.util.concurrent.ConcurrentHashMap
 
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
@@ -28,8 +29,9 @@ class PluginDatabaseManager(
         pluginManager.addLifecycleListener(this)
     }
 
-    private val tables = mutableMapOf<PanoPlugin, MutableList<Dao<*>>>()
-    private val migrations = mutableMapOf<PanoPlugin, MutableList<DatabaseMigration>>()
+    // Concurrent: written on plugin load / unload, read from backup threads.
+    private val tables = ConcurrentHashMap<PanoPlugin, MutableList<Dao<*>>>()
+    private val migrations = ConcurrentHashMap<PanoPlugin, MutableList<DatabaseMigration>>()
 
     override suspend fun onPluginLoad(plugin: PanoPlugin) {
         val daoList =
@@ -41,7 +43,17 @@ class PluginDatabaseManager(
         migrations[plugin] = dbMigrations
     }
 
+    // Unload runs on disable, update and delete (after onUninstall), and drops the last reference to the
+    // plugin's DAOs, so its classloader and Spring context can be collected. A re-enable loads it again.
+    override suspend fun onPluginUnload(plugin: PanoPlugin) {
+        forget(plugin)
+    }
+
     override suspend fun onPluginUninstall(plugin: PanoPlugin) {
+        forget(plugin)
+    }
+
+    private fun forget(plugin: PanoPlugin) {
         tables.remove(plugin)
         migrations.remove(plugin)
     }
@@ -148,7 +160,7 @@ class PluginDatabaseManager(
     suspend fun initialize(
         plugin: PanoPlugin
     ) {
-        if (!this.tables.contains(plugin) || !this.migrations.contains((plugin))) {
+        if (!this.tables.containsKey(plugin) || !this.migrations.containsKey(plugin)) {
             logger.error("Can't initialize database of plugin \"${plugin.pluginId}\", because it's not enabled yet!")
             return
         }

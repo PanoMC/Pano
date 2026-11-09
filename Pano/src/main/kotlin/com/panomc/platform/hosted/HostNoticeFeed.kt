@@ -2,7 +2,8 @@ package com.panomc.platform.hosted
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.TimeoutException
 import org.slf4j.Logger
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
@@ -62,12 +63,15 @@ interface HostNoticeFeed {
 /**
  * The control plane's feed (`GET /host/instance/notices`, instance secret), cached for
  * [ttlMs] and fetched by one caller at a time. Fails soft: on an error the last good list is kept
- * (or `[]`) and the next fetch waits [retryMs], so a slow or down control plane never slows the panel.
+ * (or `[]`) and the next fetch waits [retryMs], so a slow or down control plane never slows the panel:
+ * a fetch gets at most [fetchTimeoutMs], and a request that finds another one fetching takes the cached
+ * list instead of waiting for it.
  */
 open class CachedHostNoticeFeed(
     private val fetch: suspend () -> HostNotices?,
     private val ttlMs: Long = 5 * 60_000L,
     private val retryMs: Long = 60_000L,
+    private val fetchTimeoutMs: Long = 2_000L,
     private val clock: () -> Long = System::currentTimeMillis,
     private val onError: (Throwable) -> Unit = {}
 ) : HostNoticeFeed {
@@ -86,13 +90,19 @@ open class CachedHostNoticeFeed(
     override suspend fun notices(): List<HostNotice> {
         if (clock() < nextFetchAt) return cached
 
-        return mutex.withLock {
-            if (clock() < nextFetchAt) return@withLock cached
+        // Somebody else is fetching: the list as it is now is good enough for this request.
+        if (!mutex.tryLock()) return cached
+
+        try {
+            if (clock() < nextFetchAt) return cached
 
             try {
-                val result = fetch()
-                cached = result?.notices ?: emptyList()
-                result?.manageUrl?.let { manageUrl = it }
+                // Wrapped so a feed that answers "nothing" (null) is told apart from one that did not answer in time.
+                val answer = withTimeoutOrNull(fetchTimeoutMs) { Answer(fetch()) }
+                    ?: throw TimeoutException("Pano Host notice feed did not answer within $fetchTimeoutMs ms")
+
+                cached = answer.notices?.notices ?: emptyList()
+                answer.notices?.manageUrl?.let { manageUrl = it }
                 nextFetchAt = clock() + ttlMs
             } catch (e: CancellationException) {
                 throw e
@@ -101,9 +111,13 @@ open class CachedHostNoticeFeed(
                 nextFetchAt = clock() + retryMs
             }
 
-            cached
+            return cached
+        } finally {
+            mutex.unlock()
         }
     }
+
+    private class Answer(val notices: HostNotices?)
 }
 
 /** The instance's feed: [CachedHostNoticeFeed] over [PanoHostClient.notices]; `[]` when not hosted. */

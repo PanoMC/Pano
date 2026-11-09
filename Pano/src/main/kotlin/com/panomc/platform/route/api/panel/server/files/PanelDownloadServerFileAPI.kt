@@ -79,7 +79,10 @@ class PanelDownloadServerFileAPI(
 
         val paths = requested.map { ManagedServerFileClient.normalisePath(it) }.distinct()
 
-        if (paths.any { it.isEmpty() }) {
+        // A path starting with `@` is a virtual one to the node (`@backup/<id>`), outside the
+        // server directory and its rules: backups are downloaded through their own endpoint and
+        // permission, never through the file manager.
+        if (paths.any { isRefusedPath(it) }) {
             throw PathDenied()
         }
 
@@ -168,6 +171,12 @@ class PanelDownloadServerFileAPI(
 
         /** What a zip of a selection made at the server root is called, since the root has no name. */
         const val ROOT_ARCHIVE_NAME = "files"
+
+        /** What the node reads as a path outside the server directory, such as `@backup/<id>`. */
+        const val VIRTUAL_PATH_PREFIX = "@"
+
+        /** Whether the file manager refuses to download [path]: the root itself, or a virtual path. */
+        fun isRefusedPath(path: String): Boolean = path.isEmpty() || path.startsWith(VIRTUAL_PATH_PREFIX)
 
         /** The directory [path] is in, which is where a zip's entry names start by default. */
         fun defaultBase(path: String): String = path.substringBeforeLast('/', "")

@@ -129,8 +129,12 @@ class PanoPluginJarProvider(
         val version = managedPluginJarResolver.latestVersionOrWarm(type, installedVersion)
         val fileName = assetFileName(url, platform, version)
 
-        val cached = downloadLocks.computeIfAbsent(platform) { Mutex() }.withLock {
-            fetch(url, cacheDirectory(platform), fileName)
+        // One directory per release channel: servers on different channels are prepared side by
+        // side ("Update all"), and each must not prune the jar the other has just been handed.
+        val channel = managedPluginJarResolver.channelFor(installedVersion).name.lowercase()
+
+        val cached = downloadLocks.computeIfAbsent("$platform/$channel") { Mutex() }.withLock {
+            fetch(url, cacheDirectory(platform, channel), fileName)
         } ?: return null
 
         return describe(platform, cached, fileName, version, url)
@@ -227,9 +231,12 @@ class PanoPluginJarProvider(
 
                 moveIntoPlace(part, target)
 
-                // Only the newest release is ever served; an older one would just sit here.
+                // Only the newest release is ever served; an older one would just sit here. One
+                // fetched a moment ago may still be on its way to a node, so it is left until later.
+                val pruneBefore = System.currentTimeMillis() - PRUNE_GRACE_MS
+
                 directory.listFiles()
-                    ?.filter { it.isFile && it.name != target.name }
+                    ?.filter { it.isFile && it.name != target.name && it.lastModified() < pruneBefore }
                     ?.forEach { it.delete() }
             }
 
@@ -243,8 +250,8 @@ class PanoPluginJarProvider(
         }
     }
 
-    private fun cacheDirectory(platform: String): File =
-        File(File(AppConstants.TEMP_FOLDER, CACHE_DIRECTORY), platform)
+    private fun cacheDirectory(platform: String, channel: String): File =
+        File(File(File(AppConstants.TEMP_FOLDER, CACHE_DIRECTORY), platform), channel)
 
     private fun moveIntoPlace(part: File, target: File) {
         try {
@@ -257,6 +264,9 @@ class PanoPluginJarProvider(
     companion object {
         /** Under [AppConstants.TEMP_FOLDER], which Pano clears on every start. */
         const val CACHE_DIRECTORY = "pano-plugin-jars"
+
+        /** How long an older cached jar is kept after a newer one landed, for transfers still running. */
+        const val PRUNE_GRACE_MS = 30L * 60 * 1000
 
         private const val PART_SUFFIX = ".part"
 

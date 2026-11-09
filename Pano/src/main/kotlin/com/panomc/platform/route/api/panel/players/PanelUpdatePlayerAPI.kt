@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.AuthenticationTokenType
+import com.panomc.platform.auth.PlayerTargetGuard
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
@@ -24,7 +27,9 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 class PanelUpdatePlayerAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val playerTargetGuard: PlayerTargetGuard,
+    private val tokenProvider: TokenProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/players/:id", RouteType.PUT))
 
@@ -109,6 +114,9 @@ class PanelUpdatePlayerAPI(
             }
         }
 
+        // A moderator may only edit accounts that do not hold rights the moderator lacks.
+        playerTargetGuard.requireCanManage(context, userId, playerId)
+
         val user = databaseManager.userDao.getById(playerId, sqlClient)!!
 
         if (username != user.username) {
@@ -143,6 +151,11 @@ class PanelUpdatePlayerAPI(
             databaseManager.userDao.clearWebsiteCredentialsAndMcLinkById(user.id, sqlClient)
         } else if (newPassword.isNotEmpty()) {
             databaseManager.userDao.setPasswordById(user.id, newPassword, sqlClient)
+        }
+
+        // A new or cleared password signs the account out everywhere else.
+        if (playerId != userId && (clearPassword || newPassword.isNotEmpty())) {
+            tokenProvider.invalidateTokensBySubjectAndType(playerId.toString(), AuthenticationTokenType, sqlClient)
         }
 
         if (playerId != userId) {

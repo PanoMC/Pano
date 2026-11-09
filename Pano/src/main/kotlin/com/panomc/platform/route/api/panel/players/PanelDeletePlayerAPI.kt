@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.auth.PlayerTargetGuard
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
@@ -33,7 +34,8 @@ class PanelDeletePlayerAPI(
     private val databaseManager: DatabaseManager,
     private val tokenProvider: TokenProvider,
     private val permissionManager: PermissionManager,
-    private val serverManager: ServerManager
+    private val serverManager: ServerManager,
+    private val playerTargetGuard: PlayerTargetGuard
 ) : PanelApi() {
     override val paths = listOf(Path("/players/:username/delete", RouteType.POST))
 
@@ -90,6 +92,8 @@ class PanelDeletePlayerAPI(
                 throw LastAdmin()
             }
         }
+
+        playerTargetGuard.requireCanManage(context, authUserId, userId)
 
         val user = databaseManager.userDao.getById(userId, sqlClient)!!
 

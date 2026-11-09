@@ -38,7 +38,8 @@ class PlayerBanService(
     private val permissionManager: PermissionManager,
     private val tokenProvider: TokenProvider,
     private val serverManager: ServerManager,
-    private val mailManager: MailManager
+    private val mailManager: MailManager,
+    private val playerTargetGuard: PlayerTargetGuard
 ) {
     /**
      * Bans the account called [username] on behalf of [issuerId].
@@ -81,6 +82,8 @@ class PlayerBanService(
                 throw LastAdmin()
             }
         }
+
+        playerTargetGuard.requireCanManage(issuerId, issuerIsAdmin, userId)
 
         val issuerUsername = databaseManager.userDao.getUsernameFromUserId(issuerId, sqlClient) ?: throw NotExists()
 

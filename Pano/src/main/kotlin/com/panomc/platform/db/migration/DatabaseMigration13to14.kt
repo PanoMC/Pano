@@ -17,14 +17,13 @@ class DatabaseMigration13to14 : DatabaseMigration(
 
     private fun makeEmailNullableAndUniqueInUserTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = """
-            ALTER TABLE `${getTablePrefix()}user`
-            MODIFY COLUMN `email` VARCHAR(255) NULL UNIQUE;
-        """.trimIndent()
+            val table = "${getTablePrefix()}user"
 
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            // MODIFY ... UNIQUE adds one more unique index on every run, so the index is added on its own, once.
+            sqlClient.query("ALTER TABLE `$table` MODIFY COLUMN `email` VARCHAR(255) NULL").execute().coAwait()
+
+            if (!hasUniqueIndexOn(sqlClient, table, "email")) {
+                sqlClient.query("ALTER TABLE `$table` ADD UNIQUE KEY `email` (`email`)").execute().coAwait()
+            }
         }
 }

@@ -17,11 +17,6 @@ class DatabaseMigration15to16 : DatabaseMigration(
 
     private fun addLocaleCodeColumnToUserTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val addColumnQuery = """
-            ALTER TABLE `${getTablePrefix()}user`
-            ADD COLUMN `localeCode` VARCHAR(10) NULL;
-        """.trimIndent()
-
-            sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}user", "localeCode" to "VARCHAR(10) NULL")
         }
 }

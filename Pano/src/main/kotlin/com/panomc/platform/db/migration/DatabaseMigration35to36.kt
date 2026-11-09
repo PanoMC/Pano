@@ -18,12 +18,7 @@ class DatabaseMigration35to36 : DatabaseMigration(
 
     private fun addPropertiesColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD COLUMN `properties` TEXT NULL;
-        """.trimIndent()
-
-            sqlClient.preparedQuery(query).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}server", "properties" to "TEXT NULL")
         }
 
     // Backfilled like jvmArgs was, and read leniently on top of that: a row written by an older

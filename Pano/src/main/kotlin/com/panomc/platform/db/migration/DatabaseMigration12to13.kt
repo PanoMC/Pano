@@ -22,12 +22,7 @@ class DatabaseMigration12to13 : DatabaseMigration(
 
     private fun addAesKeyColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}server` ADD COLUMN `aesKey` TEXT NOT NULL;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}server", "aesKey" to "TEXT NOT NULL")
         }
 
     private fun deleteAllServers(): suspend (sqlClient: SqlClient) -> Unit =

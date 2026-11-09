@@ -85,24 +85,23 @@ class DatabaseMigration34to35 : DatabaseMigration(
     // and a visible pause during boot.
     private fun addManagedColumnsToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD COLUMN `kind` VARCHAR(16) NOT NULL DEFAULT 'LINKED',
-            ADD COLUMN `nodeId` BIGINT NULL,
-            ADD COLUMN `uuid` VARCHAR(36) NULL,
-            ADD COLUMN `software` VARCHAR(32) NULL,
-            ADD COLUMN `softwareVersion` VARCHAR(64) NULL,
-            ADD COLUMN `javaVersion` INT NULL,
-            ADD COLUMN `memoryMb` INT NULL,
-            ADD COLUMN `jvmArgs` TEXT NULL,
-            ADD COLUMN `gamePort` INT NULL,
-            ADD COLUMN `autoStart` TINYINT(1) NOT NULL DEFAULT 0,
-            ADD COLUMN `crashRestart` TINYINT(1) NOT NULL DEFAULT 1,
-            ADD COLUMN `lastExitCode` INT NULL,
-            ADD COLUMN `processState` VARCHAR(16) NULL;
-        """.trimIndent()
-
-            sqlClient.preparedQuery(query).execute().coAwait()
+            addMissingColumns(
+                sqlClient,
+                "${getTablePrefix()}server",
+                "kind" to "VARCHAR(16) NOT NULL DEFAULT 'LINKED'",
+                "nodeId" to "BIGINT NULL",
+                "uuid" to "VARCHAR(36) NULL",
+                "software" to "VARCHAR(32) NULL",
+                "softwareVersion" to "VARCHAR(64) NULL",
+                "javaVersion" to "INT NULL",
+                "memoryMb" to "INT NULL",
+                "jvmArgs" to "TEXT NULL",
+                "gamePort" to "INT NULL",
+                "autoStart" to "TINYINT(1) NOT NULL DEFAULT 0",
+                "crashRestart" to "TINYINT(1) NOT NULL DEFAULT 1",
+                "lastExitCode" to "INT NULL",
+                "processState" to "VARCHAR(16) NULL"
+            )
         }
 
     private fun fillJvmArgsOfExistingServers(): suspend (sqlClient: SqlClient) -> Unit =
@@ -136,21 +135,15 @@ class DatabaseMigration34to35 : DatabaseMigration(
 
     private fun addUuidIndexToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD UNIQUE KEY `idx_server_uuid` (`uuid`);
-        """.trimIndent()
+            val table = "${getTablePrefix()}server"
 
-            sqlClient.preparedQuery(query).execute().coAwait()
+            addIndexIfMissing(sqlClient, table, "idx_server_uuid", "ALTER TABLE `$table` ADD UNIQUE KEY `idx_server_uuid` (`uuid`)")
         }
 
     private fun addNodeIndexToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD KEY `idx_server_node` (`nodeId`);
-        """.trimIndent()
+            val table = "${getTablePrefix()}server"
 
-            sqlClient.preparedQuery(query).execute().coAwait()
+            addIndexIfMissing(sqlClient, table, "idx_server_node", "ALTER TABLE `$table` ADD KEY `idx_server_node` (`nodeId`)")
         }
 }

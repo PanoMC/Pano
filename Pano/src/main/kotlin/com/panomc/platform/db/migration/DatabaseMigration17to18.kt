@@ -19,22 +19,12 @@ class DatabaseMigration17to18 : DatabaseMigration(
 
     private fun addBanMessageColumnToUserTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val addColumnQuery = """
-                ALTER TABLE `${getTablePrefix()}user`
-                ADD COLUMN `banMessage` VARCHAR(255) NULL;
-            """.trimIndent()
-
-            sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}user", "banMessage" to "VARCHAR(255) NULL")
         }
 
     private fun addBannedUntilColumnToUserTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val addColumnQuery = """
-                ALTER TABLE `${getTablePrefix()}user`
-                ADD COLUMN `bannedUntil` BIGINT NULL;
-            """.trimIndent()
-
-            sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}user", "bannedUntil" to "BIGINT NULL")
         }
 
     private fun createBanHistoryTable(): suspend (sqlClient: SqlClient) -> Unit =

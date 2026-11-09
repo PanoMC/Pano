@@ -22,32 +22,17 @@ class DatabaseMigration11to12 :
 
     private fun renamePropertiesColumnToDetailsInNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}notification` RENAME COLUMN `properties` TO `details`;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            renameColumnIfPresent(sqlClient, "${getTablePrefix()}notification", "properties", "details")
         }
 
     private fun renameDateColumnToCreatedAtInNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}notification` RENAME COLUMN `date` TO `createdAt`;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            renameColumnIfPresent(sqlClient, "${getTablePrefix()}notification", "date", "createdAt")
         }
 
     private fun addUpdatedAtColumnToNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}notification` ADD COLUMN updatedAt BIGINT(20) NOT NULL;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}notification", "updatedAt" to "BIGINT(20) NOT NULL")
         }
 
     private fun updateUpdatedAtColumnToNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
@@ -62,32 +47,17 @@ class DatabaseMigration11to12 :
 
     private fun renamePropertiesColumnToDetailsInPanelNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}panel_notification` RENAME COLUMN `properties` TO `details`;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            renameColumnIfPresent(sqlClient, "${getTablePrefix()}panel_notification", "properties", "details")
         }
 
     private fun renameDateColumnToCreatedAtInPanelNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}panel_notification` RENAME COLUMN `date` TO `createdAt`;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            renameColumnIfPresent(sqlClient, "${getTablePrefix()}panel_notification", "date", "createdAt")
         }
 
     private fun addUpdatedAtColumnToPanelNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}panel_notification` ADD COLUMN updatedAt BIGINT(20) NOT NULL;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}panel_notification", "updatedAt" to "BIGINT(20) NOT NULL")
         }
 
     private fun updateUpdateddAtColumnToPanelNotificationsTable(): suspend (sqlClient: SqlClient) -> Unit =

@@ -508,6 +508,13 @@ class PanelLuckPermsMigrationUploadAPI(
                 throw InvalidData(extras = mapOf("message" to "H2 database driver not found. Please ensure H2 is included in the build."))
             }
 
+            // Refuse a crafted file before H2 replays (and runs) the SQL stored in it.
+            try {
+                LuckPermsH2Guard.requireSafe(File(absolutePath))
+            } catch (e: IllegalArgumentException) {
+                throw InvalidData(extras = mapOf("message" to (e.message ?: "Unsafe database file.")))
+            }
+
             val conn = try {
                 DriverManager.getConnection(
                     "jdbc:h2:$jdbcPath;MODE=MySQL;DB_CLOSE_DELAY=-1;AUTO_RECONNECT=TRUE;ACCESS_MODE_DATA=r",

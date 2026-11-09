@@ -26,6 +26,8 @@ import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas
 import com.panomc.platform.schema.EndpointDoc
 import com.panomc.platform.error.IpIsBanned
+import com.panomc.platform.error.LoginUserIsBanned
+import com.panomc.platform.util.BanUtil
 import com.panomc.platform.error.RegisterUsernameEmpty
 import com.panomc.platform.error.RegisterUsernameTooShort
 import com.panomc.platform.error.RegisterUsernameTooLong
@@ -63,7 +65,7 @@ class RegisterAPI(
                 .optionalProperty("emailVerificationRequired", booleanSchema())
                 .optionalProperty("email", stringSchema())
         ),
-        errors = listOf(IpIsBanned::class, InvalidToken::class, PluginDeniedLogin::class, RegisterUsernameEmpty::class, RegisterUsernameTooShort::class, RegisterUsernameTooLong::class, RegisterInvalidUsername::class, RegisterUsernameNotAvailable::class, RegisterEmailEmpty::class, RegisterInvalidEmail::class, RegisterEmailNotAvailable::class, PasswordEmpty::class, PasswordTooShort::class, PasswordTooLong::class, RegisterPasswordAndPasswordRepeatNotSame::class, RegisterNotAcceptedAgreement::class)
+        errors = listOf(IpIsBanned::class, LoginUserIsBanned::class, InvalidToken::class, PluginDeniedLogin::class, RegisterUsernameEmpty::class, RegisterUsernameTooShort::class, RegisterUsernameTooLong::class, RegisterInvalidUsername::class, RegisterUsernameNotAvailable::class, RegisterEmailEmpty::class, RegisterInvalidEmail::class, RegisterEmailNotAvailable::class, PasswordEmpty::class, PasswordTooShort::class, PasswordTooLong::class, RegisterPasswordAndPasswordRepeatNotSame::class, RegisterNotAcceptedAgreement::class)
     )
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -96,6 +98,20 @@ class RegisterAPI(
         val remoteIP = authProvider.getRemoteIP(context)
         val sqlClient = getSqlClient()
         
+        // Fire AuthEventListener.onBeforeAuthenticate hooks (e.g., captcha check), for both ways of registering.
+        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+        for (listener in authListeners) {
+            val decision = listener.onBeforeAuthenticate(context, sqlClient)
+            if (decision != null) {
+                when (decision) {
+                    is AuthEventListener.LoginDecision.Deny -> {
+                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
+                    }
+                    else -> { /* proceed */ }
+                }
+            }
+        }
+
         if (!registerWithLinkToken.isNullOrEmpty()) {
             if (!tokenProvider.isTokenValid(registerWithLinkToken, RegisterWithLinkCodeTokenType, sqlClient)) {
                 throw InvalidToken()
@@ -107,6 +123,26 @@ class RegisterAPI(
             val user = databaseManager.userDao.getById(userId, sqlClient) ?: throw InvalidToken()
 
             RegisterUtil.validateForm(user.username, email, password, passwordRepeat, agreement)
+
+            // The same gates as the normal sign-up and sign-in: a banned address or account gets no account and no session.
+            val activeIpBan = databaseManager.bannedIpDao.getActiveByIp(remoteIP, sqlClient)
+
+            if (activeIpBan != null) {
+                throw IpIsBanned(
+                    extras = mapOf(
+                        "reason" to activeIpBan.reason,
+                        "bannedUntil" to activeIpBan.bannedUntil
+                    )
+                )
+            }
+
+            if (BanUtil.isBanned(user)) {
+                throw LoginUserIsBanned(extras = mapOf("reason" to user.banMessage, "until" to user.bannedUntil))
+            }
+
+            if (user.email != email && databaseManager.userDao.isEmailExists(email, sqlClient)) {
+                throw RegisterEmailNotAvailable()
+            }
 
             val authConfigForLink = configManager.config.auth
 
@@ -161,20 +197,6 @@ class RegisterAPI(
                     "email" to email
                 )
             )
-        }
-        
-        // Fire AuthEventListener.onBeforeAuthenticate hooks (e.g., captcha check)
-        val authListeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
-        for (listener in authListeners) {
-            val decision = listener.onBeforeAuthenticate(context, sqlClient)
-            if (decision != null) {
-                when (decision) {
-                    is AuthEventListener.LoginDecision.Deny -> {
-                        throw PluginDeniedLogin(decision.errorKey, decision.extras)
-                    }
-                    else -> { /* proceed */ }
-                }
-            }
         }
 
         RegisterUtil.validateForm(username, email, password, passwordRepeat, agreement)

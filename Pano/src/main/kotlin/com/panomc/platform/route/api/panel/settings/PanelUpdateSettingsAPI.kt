@@ -174,6 +174,9 @@ class PanelUpdateSettingsAPI(
                                 .requiredProperty("customCss", stringSchema())
                         )
                         .optionalProperty("password", stringSchema())
+                        // The current account password, asked before the outgoing mail server or the
+                        // password hash algorithm change.
+                        .optionalProperty("currentPassword", stringSchema())
                         .optionalProperty("requireEmailVerification", booleanSchema())
                         .optionalProperty("passwordHashAlgorithm", enumSchema("ARGON2ID", "BCRYPT", "SHA256", "MD5"))
                 )
@@ -226,6 +229,22 @@ class PanelUpdateSettingsAPI(
 
         val requireEmailVerification = data.getBoolean("requireEmailVerification")
         val passwordHashAlgorithm = data.getString("passwordHashAlgorithm")
+        // The panel sends `currentPassword` for mail and hash saves; `password` is what the other critical settings use.
+        val currentPassword = data.getString("currentPassword") ?: password
+
+        // Checked before anything is changed: where mail goes (password reset and activation mails
+        // included) and how passwords are hashed need the current password.
+        val hosted = HostedEnvConfig.current
+        val smtpChanged = email != null &&
+                email.getString("provider") != MailManager.PROVIDER_PANO_MAIL &&
+                smtpTargetChanged(configManager.config.email, email, hosted.isHosted && hosted.smtp != null)
+        val hashAlgorithmChanged = passwordHashAlgorithm != null &&
+                passwordHashAlgorithm != configManager.config.auth.passwordHashAlgorithm
+
+        // A `currentPassword` the panel sent is always checked, so a wrong one never saves.
+        if (smtpChanged || hashAlgorithmChanged || data.getString("currentPassword") != null) {
+            authProvider.requirePassword(currentPassword, context)
+        }
 
         val maintenance = data.getJsonObject("maintenance")
 
@@ -689,5 +708,36 @@ private fun PanoConfig.Companion.EmailConfig.restoreCustom(custom: PanoConfig.Co
 }
 
 /** Item 2 of CX-06: only a theme-mode front-end has a dev server to start or stop, and a servers-only install has no site. */
+/**
+ * Whether saving [email] (an SMTP save) sends mail to another server, account or sender than now.
+ * Turning mail off, or switching to the instance's own Pano Host mail, does not.
+ */
+internal fun smtpTargetChanged(
+    current: PanoConfig.Companion.EmailConfig,
+    email: io.vertx.core.json.JsonObject,
+    hostMailAvailable: Boolean
+): Boolean {
+    val enabled = email.getBoolean("enabled") ?: return false
+
+    if (!enabled) return false
+
+    if (hostMailAvailable && (email.getBoolean("hostManaged") ?: false)) return false
+
+    // On Pano Host mail now: the customer's own server is the one kept aside in `custom`.
+    val custom = current.custom
+    val (hostname, port, username, sender) = if (hostMailAvailable && current.hostManaged) {
+        if (custom == null) return true
+        listOf(custom.hostname, custom.port.toString(), custom.username, custom.sender)
+    } else {
+        listOf(current.hostname, current.port.toString(), current.username, current.sender)
+    }
+
+    return current.provider != MailManager.PROVIDER_SMTP ||
+            email.getString("hostname") != hostname ||
+            email.getInteger("port")?.toString() != port ||
+            email.getString("username") != username ||
+            email.getString("sender") != sender
+}
+
 internal fun shouldReapplyFrontend(developmentModeChanged: Boolean, mode: FrontendMode, usageMode: UsageMode): Boolean =
     developmentModeChanged && mode == FrontendMode.THEME && usageMode != UsageMode.SERVERS

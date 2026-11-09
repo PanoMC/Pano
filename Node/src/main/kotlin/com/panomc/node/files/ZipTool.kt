@@ -62,7 +62,14 @@ object ZipTool {
                     return@forEach
                 }
 
-                source.walkTopDown().forEach inner@{ file ->
+                // Symlinks inside the selection are never followed nor archived: one pointing at
+                // `/etc` or another server's folder would put files outside this server into the
+                // archive. [source] itself was already checked to really live inside [root].
+                source.walkTopDown().onEnter { it == source || !isSymlink(it) }.forEach inner@{ file ->
+                    if (file != source && isSymlink(file)) {
+                        return@inner
+                    }
+
                     val relative = relativeName(root, file)
 
                     if (relative.isEmpty() || ServerFileDenylist.isDenied(relative) || exclude(relative)) {
@@ -221,6 +228,8 @@ object ZipTool {
 
         return true
     }
+
+    private fun isSymlink(file: File): Boolean = java.nio.file.Files.isSymbolicLink(file.toPath())
 
     /** The path of [file] relative to [root], with forward slashes and no leading one. */
     fun relativeName(root: File, file: File): String {

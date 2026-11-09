@@ -155,4 +155,32 @@ class ZipToolTest {
         assertTrue(ZipTool.flattenSingleRoot(extracted))
         assertTrue(File(extracted, "server.jar").isFile)
     }
+
+    @Test
+    fun `never follows a symlink out of the server when archiving`() {
+        val outside = File(root, "outside").apply { mkdirs() }
+
+        File(outside, "secret.txt").writeText("host file")
+
+        val server = File(root, "server")
+        val plugins = File(server, "plugins").apply { mkdirs() }
+
+        File(plugins, "a.yml").writeText("hello")
+
+        try {
+            java.nio.file.Files.createSymbolicLink(File(plugins, "linked-dir").toPath(), outside.toPath())
+            java.nio.file.Files.createSymbolicLink(File(plugins, "linked-file").toPath(), File(outside, "secret.txt").toPath())
+        } catch (e: Exception) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "Symlinks cannot be created here: ${e.message}")
+        }
+
+        val archive = File(root, "out.zip")
+
+        ZipTool.archive(server, listOf("plugins"), archive)
+
+        val names = java.util.zip.ZipFile(archive).use { zip -> zip.entries().toList().map { it.name } }
+
+        assertTrue("plugins/a.yml" in names)
+        assertFalse(names.any { it.contains("linked") || it.contains("secret") }, names.toString())
+    }
 }

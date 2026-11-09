@@ -39,6 +39,43 @@ class NodeConfigStoreTest {
     }
 
     @Test
+    fun `replaces a leftover temporary file instead of writing through it`() {
+        val leftover = File(dataDir, "config.conf.tmp").apply { writeText("stale") }
+        val outside = File(dataDir, "outside.txt").apply { writeText("not yours") }
+
+        NodeConfigStore.save(dataDir, sample)
+
+        assertEquals(sample, NodeConfigStore.load(dataDir))
+        assertFalse(leftover.exists())
+
+        // A planted link in its place is removed as a link; its target never gets the secrets.
+        val linked = runCatching {
+            java.nio.file.Files.createSymbolicLink(leftover.toPath(), outside.toPath())
+        }.isSuccess
+
+        NodeConfigStore.save(dataDir, sample)
+
+        assertEquals(sample, NodeConfigStore.load(dataDir))
+
+        if (linked) {
+            assertEquals("not yours", outside.readText())
+        }
+    }
+
+    @Test
+    fun `writes the file owner-only where the filesystem knows permissions`() {
+        NodeConfigStore.save(dataDir, sample)
+
+        val path = File(dataDir, "config.conf").toPath()
+
+        if (!path.fileSystem.supportedFileAttributeViews().contains("posix")) {
+            return
+        }
+
+        assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(java.nio.file.Files.getPosixFilePermissions(path)))
+    }
+
+    @Test
     fun `returns defaults when nothing has been written yet`() {
         val loaded = NodeConfigStore.load(dataDir)
 

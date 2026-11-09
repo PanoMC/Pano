@@ -7,6 +7,8 @@ import com.panomc.platform.backup.PanoBackupService
 import com.panomc.platform.backup.PanoBackupStore
 import com.panomc.platform.backup.DirectUploadHandler
 import com.panomc.platform.archive.PanoArcEncryption
+import com.panomc.platform.archive.PanoArcException
+import com.panomc.platform.archive.PanoArcEnvelope
 import com.panomc.platform.model.PageRequest
 import com.panomc.platform.server.backup.PanoBackupRetentionRule
 import io.vertx.core.json.JsonArray
@@ -474,14 +476,30 @@ class PanoRemoteBackupService(
         return client.listExports()
     }
 
+    /** E-mails the owner a code that confirms moving [workloadId] here; `{email, expiresAt, resendAfter}`. */
+    suspend fun requestExportCode(workloadId: String): JsonObject {
+        requireConnected()
+
+        return client.requestExportCode(workloadId)
+    }
+
+    /** Checks [code] at Pano Host; the returned grant is passed to [startHostMove]. */
+    suspend fun verifyExportCode(workloadId: String, code: String): String {
+        requireConnected()
+
+        return client.verifyExportCode(workloadId, code)
+    }
+
     /**
      * Moves Pano Host instance [workloadId] here (setup-ui "Transfer → Pano Host"): asks for its export (an
      * export still valid is reused), waits until Pano Host has made it, downloads the plain archive and
-     * restores it through [service]. Exports are plain, so no passphrase; the instance on Pano Host keeps
-     * running — its subscription is the owner's to end.
+     * restores it through [service]. [grant] is what [verifyExportCode] returned (the owner confirmed with the
+     * e-mailed code); it is sent with every export call of the move. Exports are plain, so no passphrase; the
+     * instance on Pano Host keeps running — its subscription is the owner's to end.
      */
     fun startHostMove(
         workloadId: String,
+        grant: String,
         service: PanoBackupRunner = backups,
         safetyArchive: Boolean = false,
         maintenance: Boolean = false,
@@ -496,7 +514,7 @@ class PanoRemoteBackupService(
             job.remoteId = workloadId
             job.phase = PHASE_EXPORTING
 
-            var export = client.startExport(workloadId).getJsonObject("export")
+            var export = client.startExport(workloadId, grant).getJsonObject("export")
             val deadline = clock() + timeoutMs
 
             while (export?.getString("status") != EXPORT_DONE) {
@@ -511,7 +529,7 @@ class PanoRemoteBackupService(
 
                 delay(pollIntervalMs)
 
-                export = client.exportStatus(workloadId).getJsonObject("export")
+                export = client.exportStatus(workloadId, grant).getJsonObject("export")
             }
 
             val url = export.getString("url") ?: throw PanoHostException(EXPORT_FAILED_CODE, message = "The export has no download link.")
@@ -550,10 +568,30 @@ class PanoRemoteBackupService(
 
             target.fetch(id, temp) { job.bytesDone = it }
 
+            requireEnvelopeWhenKeyed(temp, key)
+
             job.phase = PanoBackupService.PHASE_RESTORING
             job.bytesDone = 0
             job.bytesTotal = 0
             job.backupId = service.restoreFrom(temp, key, safetyArchive, maintenance)?.id
+        }
+    }
+
+    /**
+     * With a passphrase (typed or saved) the archive must be an encrypted envelope. A plain zip opens without any
+     * key, so whoever serves the download (Pano Host or its storage, the party E2E encryption keeps out) could
+     * otherwise swap in an archive of its own that only checks against its own manifest. A plain backup uploaded
+     * before a passphrase was saved restores once the saved passphrase is removed.
+     */
+    private suspend fun requireEnvelopeWhenKeyed(file: File, key: CharArray?) {
+        if (key == null || key.isEmpty()) {
+            return
+        }
+
+        val prefix = withContext(Dispatchers.IO) { file.inputStream().use { it.readNBytes(16) } }
+
+        if (!PanoArcEnvelope.isEnvelope(prefix)) {
+            throw PanoArcException(PanoArcException.Code.TAMPERED, "The backup is not encrypted, but a passphrase was given.")
         }
     }
 
@@ -851,8 +889,8 @@ class PanoRemoteBackupService(
 
     /**
      * A server snapshot to Pano Backup: the node's snapshot (streamed to Pano as a zip) is cut into the account's snapshot
-     * repository under `server/`, deduplicated against every snapshot of this Pano, with the server's uuid as its subject.
-     * Snapshots are sealed with the repository key like the Pano's own (not with the passphrase).
+     * repository under `server/`, with the server's uuid as its subject. Pano Backup keeps it in the server's own repository
+     * (deduplicated against that server's snapshots only), sealed with that repository's key, not the Pano's (nor the passphrase).
      */
     private fun startMcSnapshotUpload(source: McServerBackupSource): PanoBackupJob {
         val zip = tempFile("mc-snapshot-zip")
@@ -863,17 +901,6 @@ class PanoRemoteBackupService(
 
             job.details = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId)
 
-            val direct = source.direct
-
-            if (direct == null) {
-                job.phase = PanoBackupService.PHASE_FETCHING
-                followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
-            }
-
-            job.phase = PanoBackupService.PHASE_UPLOADING
-            job.bytesDone = 0
-            job.bytesTotal = 0
-
             val name = (source.meta.getString("name") ?: "").take(SNAPSHOT_NAME_LENGTH).ifEmpty { null }
             val session = try {
                 client.startSnapshot(name, source.subject, source.trigger, source.meta.getString("serverName"))
@@ -882,6 +909,25 @@ class PanoRemoteBackupService(
             }
 
             job.remoteId = session.id
+
+            // The node only writes the snapshot itself with the server's own key. An older Pano Backup hands out the
+            // Pano's repository key, which opens every snapshot of this Pano: then Pano fetches the backup and writes it.
+            val direct = source.direct?.takeIf { session.subjectScoped }
+
+            try {
+                if (direct == null) {
+                    job.phase = PanoBackupService.PHASE_FETCHING
+                    followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
+                }
+            } catch (e: Throwable) {
+                withContext(NonCancellable) { runCatching { client.deleteSnapshot(session.id) } }
+
+                throw e
+            }
+
+            job.phase = PanoBackupService.PHASE_UPLOADING
+            job.bytesDone = 0
+            job.bytesTotal = 0
 
             val meta = source.meta.copy().put("serverId", source.serverId).put("serverUuid", source.subject)
             val stats = try {
@@ -1116,6 +1162,8 @@ class PanoRemoteBackupService(
         job.phase = PanoBackupService.PHASE_VERIFYING
         job.bytesDone = 0
         job.bytesTotal = 0
+
+        requireEnvelopeWhenKeyed(temp, key)
 
         val opened = withContext(Dispatchers.IO) { McServerArchive.open(temp, key, dir) }
 

@@ -2,7 +2,7 @@ package com.panomc.platform.route.api.panel.frontend.mode
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.panel.permission.ManageViewPermission
+import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.FileTooLarge
@@ -39,13 +39,14 @@ class PanelUploadCustomAppAPI(
             .setBodyLimit(MAX_UPLOAD_BYTES)
     )
 
-    // Asked before the upload is spooled to disk, not after.
+    // Asked before the upload is spooled to disk, not after. A custom app is server code run by Pano, so uploading
+    // one takes the add-ons permission, like a plugin.
     override suspend fun checkBeforeBody(context: RoutingContext) {
-        authProvider.requirePermission(ManageViewPermission(), context)
+        authProvider.requirePermission(ManageAddonsPermission(), context)
     }
 
     override suspend fun handle(context: RoutingContext): Result {
-        authProvider.requirePermission(ManageViewPermission(), context)
+        authProvider.requirePermission(ManageAddonsPermission(), context)
 
         val uploads = context.fileUploads()
         val upload = uploads.firstOrNull { it.name() == PART_NAME } ?: uploads.singleOrNull() ?: throw BadRequest()

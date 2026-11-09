@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.post
 
+import java.util.UUID
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
@@ -69,7 +71,7 @@ class PanelSavePostAutosaveAPI(
         val id = parameters.pathParameter("id")?.long
         val title = data.getString("title").orEmpty()
         val categoryId = data.getLong("category")
-        val text = data.getString("text").orEmpty()
+        val text = HtmlSanitizer.sanitize(data.getString("text"))
         val removeThumbnail = data.getBoolean("removeThumbnail") ?: false
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
@@ -78,6 +80,7 @@ class PanelSavePostAutosaveAPI(
 
         val postId = if (id == null) {
             val url = TextUtil.convertStringToUrl(title, 32)
+            val placeholderUrl = "new-post-" + UUID.randomUUID()
 
             val newId = databaseManager.postDao.insert(
                 Post(
@@ -87,12 +90,13 @@ class PanelSavePostAutosaveAPI(
                     text = "",
                     status = PostStatus.DRAFT,
                     thumbnailUrl = "",
-                    url = url
+                    // A one-off placeholder until the id is known: the slug alone can equal another post's url.
+                    url = placeholderUrl
                 ),
                 sqlClient
             )
 
-            databaseManager.postDao.updatePostUrlByUrl(url, "$url-$newId", sqlClient)
+            databaseManager.postDao.updatePostUrlByUrl(placeholderUrl, "$url-$newId", sqlClient)
 
             newId
         } else {

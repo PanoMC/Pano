@@ -47,7 +47,10 @@ val libsDir = file("${rootProject.layout.buildDirectory.get()}/libs")
 
 repositories {
     mavenCentral()
-    maven("https://jitpack.io")
+    exclusiveContent {
+        forRepository { maven("https://jitpack.io") }
+        filter { includeGroup("com.github.triologygmbh") }
+    }
 }
 
 dependencies {
@@ -73,6 +76,8 @@ dependencies {
     implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
     implementation("io.vertx:vertx-web-validation:$vertxVersion")
     implementation("io.vertx:vertx-json-schema:$vertxVersion")
+    // Cleans rich text from the panel editor (posts, ticket replies) before it is stored or served as HTML.
+    implementation("org.jsoup:jsoup:1.21.1")
     implementation("io.vertx:vertx-web-proxy:$vertxVersion")
     // Vert.x types carry io.vertx.codegen.annotations.Nullable; Kotlin 2.4 needs the annotation on the compile classpath
     compileOnly("io.vertx:vertx-codegen-api:$vertxVersion")

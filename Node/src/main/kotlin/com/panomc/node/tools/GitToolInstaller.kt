@@ -17,6 +17,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.PosixFilePermission
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import com.panomc.node.util.SafeDelete
 
 /**
  * What `<tool>/.pano-managed.json` says about a git this node downloaded: the release it came
@@ -184,7 +185,7 @@ class GitToolInstaller(
             )
 
             if (destination.exists()) {
-                destination.deleteRecursively()
+                SafeDelete.tree(destination)
             }
 
             moveIntoPlace(root, destination)
@@ -196,7 +197,7 @@ class GitToolInstaller(
             archive.delete()
 
             if (temporary.exists()) {
-                temporary.deleteRecursively()
+                SafeDelete.tree(temporary)
             }
         }
     }
@@ -205,7 +206,7 @@ class GitToolInstaller(
     fun cleanup() {
         gitRoot.listFiles()
             ?.filter { it.isDirectory && it.name.startsWith(TMP_PREFIX) }
-            ?.forEach { it.deleteRecursively() }
+            ?.forEach { SafeDelete.tree(it) }
 
         cacheDir.listFiles()
             ?.filter { it.name.startsWith(ASSET_PREFIX) }

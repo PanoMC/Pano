@@ -19,7 +19,9 @@ import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.ServerStatus
 import com.panomc.platform.setup.SetupManager
 import io.vertx.core.http.ServerWebSocket
+import com.panomc.platform.server.SecureChannel
 import io.vertx.ext.web.RoutingContext
+import java.util.Base64
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +68,20 @@ class ServerConnectAPI(
             return NeedPermission()
         }
 
+        // Channel v2 and the other capabilities (MC-PROTOCOL-SPEC.md): offered by the plugin on the
+        // upgrade request, answered on the upgrade response. A plugin that asks for nothing gets
+        // the original protocol, so released plugins keep working unchanged.
+        val negotiated = SecureChannel.negotiate(request.getHeader(SecureChannel.CAPABILITIES_HEADER), request.getHeader(SecureChannel.NONCE_HEADER))
+
+        if (negotiated.capabilities.isNotEmpty()) {
+            request.response().putHeader(SecureChannel.CAPABILITIES_HEADER, negotiated.capabilities.joinToString(","))
+        }
+        negotiated.platformNonce?.let {
+            request.response().putHeader(SecureChannel.NONCE_HEADER, Base64.getEncoder().encodeToString(it))
+        }
+
+        context.put(NEGOTIATED_KEY, negotiated)
+
         request.resume()
 
         val webSocket = request.toWebSocket()
@@ -104,7 +120,13 @@ class ServerConnectAPI(
         databaseManager.serverDao.updateStatusById(serverId, ServerStatus.ONLINE, sqlClient)
         databaseManager.serverDao.updateRemoteAddressById(serverId, remoteAddress, sqlClient)
 
-        serverManager.onServerConnect(server, serverWebSocket)
+        val negotiated = context.get<com.panomc.platform.server.ChannelNegotiation>(NEGOTIATED_KEY) ?: com.panomc.platform.server.ChannelNegotiation(emptySet(), null, null)
+
+        val channel = if (negotiated.pluginNonce != null && negotiated.platformNonce != null) {
+            SecureChannel.forPlatform(Base64.getDecoder().decode(server.aesKey), negotiated.pluginNonce, negotiated.platformNonce)
+        } else null
+
+        serverManager.onServerConnect(server, serverWebSocket, channel, negotiated.capabilities)
 
         // The node stops pinging this server's port now that something inside it can answer
         // better (SM-52).
@@ -118,7 +140,7 @@ class ServerConnectAPI(
 
         serverWebSocket.textMessageHandler {
             CoroutineScope(context.vertx().dispatcher()).launch {
-                serverManager.onServerWrite(it, server)
+                serverManager.onServerWrite(it, server, serverWebSocket)
             }
         }
 
@@ -133,6 +155,14 @@ class ServerConnectAPI(
     }
 
     private suspend fun onConnectionClosed(server: Server, serverWebSocket: ServerWebSocket) {
+        // The server reconnected before this old socket closed: the live connection owns the
+        // server's state now, so this close must not mark it offline or tell anyone it left.
+        if (serverManager.hasNewerConnection(server.id, serverWebSocket)) {
+            serverManager.onServerDisconnect(server, serverWebSocket)
+
+            return
+        }
+
         val sqlClient = databaseManager.getSqlClient()
 
         val serverExists = databaseManager.serverDao.existsById(server.id, sqlClient)
@@ -154,3 +184,5 @@ class ServerConnectAPI(
         }
     }
 }
+
+private const val NEGOTIATED_KEY = "panoServerNegotiated"

@@ -102,18 +102,34 @@ class PanelBanIpAPI(
         return Successful()
     }
 
-    private fun normalizeAndValidateIp(raw: String): String {
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) {
-            throw InvalidIpAddress()
-        }
-        if (trimmed.length > 45) {
-            throw InvalidIpAddress()
-        }
-        return try {
-            InetAddress.getByName(trimmed).hostAddress
-        } catch (e: Exception) {
-            throw InvalidIpAddress()
+    private fun normalizeAndValidateIp(raw: String): String = parseIpLiteral(raw) ?: throw InvalidIpAddress()
+
+    companion object {
+        private val IPV4 = Regex("^(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}$")
+        private val IPV6_CHARS = Regex("^[0-9A-Fa-f:.]+$")
+
+        /**
+         * [raw] as a normalised IPv4 / IPv6 address, or null when it is not an address literal. A host name is never
+         * looked up: only literals reach [InetAddress.getByName], which then parses without any DNS query.
+         */
+        fun parseIpLiteral(raw: String): String? {
+            val trimmed = raw.trim()
+
+            if (trimmed.isEmpty() || trimmed.length > 45) {
+                return null
+            }
+
+            val isLiteral = IPV4.matches(trimmed) || (trimmed.contains(':') && IPV6_CHARS.matches(trimmed))
+
+            if (!isLiteral) {
+                return null
+            }
+
+            return try {
+                InetAddress.getByName(trimmed).hostAddress
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 }

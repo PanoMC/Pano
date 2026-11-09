@@ -3,6 +3,7 @@ package com.panomc.platform.config
 import com.panomc.platform.Main.Companion.IS_DEV
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.hosted.HostedEnvConfig
+import com.panomc.platform.util.TrustedProxyIpResolver
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
@@ -238,7 +239,7 @@ open class ConfigManager(
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss") // Exp: 2025-01-28_15-45-30
         val formattedDate = now.format(formatter)
 
-        val filePath = configFile.parentFile.absolutePath + File.separator + "config-backup-$formattedDate.conf"
+        val filePath = backupFileFor(configFile, formattedDate).path
 
         configFile.copyTo(File(filePath))
 
@@ -247,6 +248,7 @@ open class ConfigManager(
 
     private fun updateConfig(newConfig: JsonObject) {
         config = PanoConfig.from(newConfig)
+        TrustedProxyIpResolver.trustPrivateProxies = config.server.trustPrivateProxies != false
         persistedPanoApiUrl = config.panoApiUrl
         persistedPanoWebsiteUrl = config.panoWebsiteUrl
         if (IS_DEV) {
@@ -263,3 +265,6 @@ open class ConfigManager(
         configJsonObject = newConfig.copy()
     }
 }
+/** Where a broken [configFile] is copied before defaults take over; works for a bare `config.conf` too. */
+internal fun backupFileFor(configFile: File, formattedDate: String): File =
+    File(configFile.absoluteFile.parentFile, "config-backup-$formattedDate.conf")

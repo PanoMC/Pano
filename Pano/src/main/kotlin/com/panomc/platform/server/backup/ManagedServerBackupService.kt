@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Starting, finishing and pruning managed-server backups.
@@ -44,6 +45,22 @@ class ManagedServerBackupService(
     private val panelRealtimeHub: PanelRealtimeHub,
     private val logger: Logger
 ) {
+    private data class PendingRetention(val keep: Int, val mode: BackupMode, val at: Long)
+
+    /** A schedule's own `keep`, waiting for the backup it took to be finished (see [retainWhenReady]). */
+    private val pendingRetention = ConcurrentHashMap<String, PendingRetention>()
+
+    /**
+     * Applies a schedule's `keep` once backup [backupUuid] is READY rather than while it is still
+     * being written: retention counts READY copies only, so trimming earlier kept one copy too
+     * many, and a backup that then failed would leave fewer good copies than asked for.
+     */
+    fun retainWhenReady(backupUuid: String, keep: Int, mode: BackupMode) {
+        val now = System.currentTimeMillis()
+        pendingRetention.entries.removeIf { now - it.value.at > PENDING_RETENTION_TTL_MS }
+        pendingRetention[backupUuid] = PendingRetention(keep, mode, now)
+    }
+
     /**
      * Starts a backup and returns the row and the task tracking it.
      *
@@ -228,7 +245,13 @@ class ManagedServerBackupService(
             sqlClient = sqlClient
         )
 
-        applyRetention(server, sqlClient)
+        val pending = pendingRetention.remove(backupId)
+
+        if (pending != null) {
+            applyRetention(server, sqlClient, pending.keep, pending.mode)
+        } else {
+            applyRetention(server, sqlClient)
+        }
 
         panelRealtimeHub.pushServerBackupsChanged(server.id)
 
@@ -473,6 +496,9 @@ class ManagedServerBackupService(
 
     companion object {
         const val MODE_NEXT_START = "next-start"
+
+        /** A backup not finished within a day has failed; its pending `keep` is dropped. */
+        private const val PENDING_RETENTION_TTL_MS = 24L * 60 * 60 * 1000
 
         const val MAX_NAME_LENGTH = 120
 

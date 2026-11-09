@@ -1,6 +1,9 @@
 package com.panomc.platform.archive
 
+import de.mkammerer.argon2.Argon2Advanced
 import de.mkammerer.argon2.Argon2Factory
+import org.bouncycastle.crypto.generators.Argon2BytesGenerator
+import org.bouncycastle.crypto.params.Argon2Parameters
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -77,6 +80,37 @@ object PanoArcCrypto {
 
     /** Argon2id(passphrase, salt) as a 32-byte master key. The passphrase is UTF-8 encoded. */
     fun argon2id(passphrase: CharArray, salt: ByteArray, t: Int, mKiB: Int, p: Int): ByteArray =
-        Argon2Factory.createAdvanced(Argon2Factory.Argon2Types.ARGON2id, SALT_BYTES, KEY_BYTES)
-            .rawHash(t, mKiB, p, passphrase, StandardCharsets.UTF_8, salt)
+        nativeArgon2?.rawHash(t, mKiB, p, passphrase, StandardCharsets.UTF_8, salt)
+            ?: javaArgon2id(passphrase, salt, t, mKiB, p)
+
+    /**
+     * The native argon2, or null where its library cannot load (Windows on ARM has no bundled build, Termux no
+     * glibc). Probed once with a tiny hash, because the library is only loaded on the first use.
+     */
+    private val nativeArgon2: Argon2Advanced? by lazy {
+        try {
+            Argon2Factory.createAdvanced(Argon2Factory.Argon2Types.ARGON2id, SALT_BYTES, KEY_BYTES)
+                .also { it.rawHash(1, 8, 1, "probe".toCharArray(), StandardCharsets.UTF_8, ByteArray(SALT_BYTES)) }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /** The same raw Argon2id (version 0x13) in pure Java: the same key for the same inputs. */
+    internal fun javaArgon2id(passphrase: CharArray, salt: ByteArray, t: Int, mKiB: Int, p: Int): ByteArray {
+        val parameters = Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
+            .withVersion(Argon2Parameters.ARGON2_VERSION_13)
+            .withIterations(t)
+            .withMemoryAsKB(mKiB)
+            .withParallelism(p)
+            .withSalt(salt)
+            .build()
+        val password = String(passphrase).toByteArray(StandardCharsets.UTF_8)
+
+        return try {
+            ByteArray(KEY_BYTES).also { Argon2BytesGenerator().apply { init(parameters) }.generateBytes(password, it) }
+        } finally {
+            password.fill(0)
+        }
+    }
 }

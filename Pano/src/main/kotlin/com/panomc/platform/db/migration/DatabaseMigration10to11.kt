@@ -15,21 +15,11 @@ class DatabaseMigration10to11 :
 
     private fun renameServerTypeColumnToTypeInServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}server` RENAME COLUMN `serverType` TO `type`;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            renameColumnIfPresent(sqlClient, "${getTablePrefix()}server", "serverType", "type")
         }
 
     private fun renameServerVersionColumnToVersionInServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}server` RENAME COLUMN `serverVersion` TO `version`;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            renameColumnIfPresent(sqlClient, "${getTablePrefix()}server", "serverVersion", "version")
         }
 }

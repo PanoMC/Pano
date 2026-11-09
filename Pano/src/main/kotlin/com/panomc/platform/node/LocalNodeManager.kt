@@ -514,7 +514,6 @@ class LocalNodeManager(
                 javaBin = java.launcher.absolutePath,
                 jarPath = jar.absolutePath,
                 panoUrl = LocalNodeLauncher.resolvePanoUrl(serverConfig.host, serverConfig.httpPort),
-                bootstrapToken = bootstrapToken,
                 dataDir = dataDir.absolutePath
             )
 
@@ -527,6 +526,7 @@ class LocalNodeManager(
                     .redirectInput(ProcessBuilder.Redirect.from(File(nullDevice())))
 
                 LocalNodeLauncher.sanitizeChildEnvironment(builder.environment())
+                LocalNodeLauncher.passBootstrapToken(builder.environment(), bootstrapToken)
 
                 builder.start()
             }

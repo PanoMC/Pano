@@ -4,7 +4,6 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.BannedPlayerLog
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.BanHistory
 import com.panomc.platform.error.InvalidData
@@ -44,7 +43,9 @@ class PanelBannedPlayersMigrationImportAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        if (!authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {
+        // Admins only: a migration writes users, passwords, bans and permission nodes directly,
+        // past the admin guards of the player and permission screens.
+        if (!authProvider.isUserAdmin(authProvider.getUserIdFromRoutingContext(context))) {
             throw NoPermission()
         }
 

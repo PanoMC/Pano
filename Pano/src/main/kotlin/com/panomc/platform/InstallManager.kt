@@ -68,6 +68,68 @@ class InstallManager(
         }
 
         private const val ROLLBACK_SUFFIX = ".pano-backup"
+
+        /** A theme id is also its folder name: the rule the themes folder is read with. */
+        val THEME_ID = Regex("^[a-zA-Z0-9-]{1,63}$")
+
+        private const val MAX_ZIP_ENTRIES = 50_000
+        private const val MAX_UNPACKED_BYTES = 2L shl 30
+
+        /**
+         * Unpacks [zipFile] into [outputDir]. False, with nothing written outside [outputDir], when an entry points
+         * outside it (`../`, an absolute path), or when the zip holds too many files or too many bytes.
+         */
+        internal fun extractZipSafely(zipFile: File, outputDir: File): Boolean {
+            if (!zipFile.exists() || !zipFile.isFile) return false
+
+            val root = outputDir.canonicalFile
+            var count = 0
+            var total = 0L
+
+            return try {
+                FileInputStream(zipFile).use { fis ->
+                    ZipInputStream(BufferedInputStream(fis)).use { zis ->
+                        var entry = zis.nextEntry
+                        while (entry != null) {
+                            if (++count > MAX_ZIP_ENTRIES) return false
+
+                            val outFile = File(root, entry.name).canonicalFile
+
+                            if (outFile != root && !outFile.path.startsWith(root.path + File.separator)) {
+                                return false
+                            }
+
+                            if (entry.isDirectory) {
+                                outFile.mkdirs()
+                            } else {
+                                outFile.parentFile?.mkdirs()
+
+                                FileOutputStream(outFile).use { fos ->
+                                    val buffer = ByteArray(16 * 1024)
+                                    var read = zis.read(buffer)
+
+                                    while (read >= 0) {
+                                        total += read
+
+                                        if (total > MAX_UNPACKED_BYTES) return false
+
+                                        fos.write(buffer, 0, read)
+                                        read = zis.read(buffer)
+                                    }
+                                }
+                            }
+
+                            zis.closeEntry()
+                            entry = zis.nextEntry
+                        }
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
     }
 
     private suspend fun addHash(hash: String, verified: Boolean) {
@@ -273,13 +335,19 @@ class InstallManager(
                 val tempThemeFolder = File(AppConstants.TEMP_FOLDER, "install-" + getCurrentTimeStamp())
 
                 // Extract zip and compute hash on worker thread (heavy blocking I/O)
-                val calculatedHash = vertx.executeBlocking<String> {
+                val calculatedHash = vertx.executeBlocking<String?> {
                     tempThemeFolder.mkdirs()
-                    extractZipStreamed(resourceFile, tempThemeFolder)
+                    val extracted = extractZipSafely(resourceFile, tempThemeFolder)
                     val h = resourceFile.inputStream().hash()
                     resourceFile.delete()
-                    h
+                    if (extracted) h else null
                 }.coAwait()
+
+                if (calculatedHash == null) {
+                    tempThemeFolder.deleteRecursively()
+
+                    throw InvalidResourceFile()
+                }
 
                 val manifestFile = File(tempThemeFolder, uiManager.manifestFileName)
 
@@ -352,6 +420,11 @@ class InstallManager(
                 try {
                     val manifest = uiManager.parseThemeManifest(manifestFile)
 
+                    // The id becomes the theme's folder name: nothing that leaves the themes folder.
+                    if (!THEME_ID.matches(manifest.id)) {
+                        throw IllegalArgumentException("Theme id may hold letters, digits and dashes only (up to 63).")
+                    }
+
                     val createdAt = if (isInstalled(manifest.id, type)) {
                         val existingTheme = uiManager.installedThemeList.find { it.id == manifest.id }!!
 
@@ -361,8 +434,9 @@ class InstallManager(
                     }
 
                     val screenshots = vertx.executeBlocking<Map<String, String>> {
-                        manifest.screenshots.map { it to File(tempThemeFolder, it) }.mapNotNull {
-                            if (it.second.exists()) {
+                        val themeRoot = tempThemeFolder.canonicalFile
+                        manifest.screenshots.map { it to File(tempThemeFolder, it).canonicalFile }.mapNotNull {
+                            if (it.second.path.startsWith(themeRoot.path + File.separator) && it.second.exists()) {
                                 it.first to it.second.inputStream().hash()
                             } else {
                                 null
@@ -745,40 +819,6 @@ class InstallManager(
                 }
             }
         } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun extractZipStreamed(zipFile: File, outputDir: File): Boolean {
-        if (!zipFile.exists() || !zipFile.isFile) return false
-
-        return try {
-            FileInputStream(zipFile).use { fis ->
-                ZipInputStream(BufferedInputStream(fis)).use { zis ->
-                    var entry = zis.nextEntry
-                    while (entry != null) {
-                        val outFile = File(outputDir, entry.name)
-
-                        if (entry.isDirectory) {
-                            outFile.mkdirs()
-                        } else {
-                            // Create sub directories
-                            outFile.parentFile?.mkdirs()
-
-                            // Write content
-                            FileOutputStream(outFile).use { fos ->
-                                zis.copyTo(fos)
-                            }
-                        }
-
-                        zis.closeEntry()
-                        entry = zis.nextEntry
-                    }
-                }
-            }
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
             false
         }
     }

@@ -4,9 +4,7 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageAddonsPermission
-import com.panomc.platform.auth.panel.permission.ManageViewPermission
 import com.panomc.platform.error.InvalidResourceFile
-import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
@@ -31,12 +29,8 @@ class PanelUploadResourceFileAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        if (!(
-                    authProvider.hasPermission(ManageAddonsPermission(), context) ||
-                            authProvider.hasPermission(ManageViewPermission(), context))
-        ) {
-            throw NoPermission()
-        }
+        // Theme zips and plugin jars from a file both run as server code: the add-ons permission.
+        authProvider.requirePermission(ManageAddonsPermission(), context)
 
         val fileUploads = context.fileUploads()
 
@@ -46,7 +40,8 @@ class PanelUploadResourceFileAPI(
 
         val file = fileUploads[0]
 
-        file.fileName()
+        // The name the browser sent is only a hint: keep its last segment, and only a theme zip or a plugin jar.
+        val fileName = safeFileName(file.fileName()) ?: throw InvalidResourceFile()
 
         val uploadedFile = File(file.uploadedFileName())
         val tempFolder = File(AppConstants.TEMP_FOLDER)
@@ -56,7 +51,7 @@ class PanelUploadResourceFileAPI(
             tempFolder.mkdirs()
         }
 
-        val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + file.fileName()
+        val temporaryFilePath = AppConstants.TEMP_FOLDER + File.separator + fileName
 
         vertx.executeBlocking<Unit> {
             uploadedFile.copyTo(File(temporaryFilePath), true)
@@ -65,7 +60,7 @@ class PanelUploadResourceFileAPI(
         return Successful(
             mapOf(
                 "data" to mapOf(
-                    "fileName" to file.fileName()
+                    "fileName" to fileName
                 )
             )
         )
@@ -74,6 +69,28 @@ class PanelUploadResourceFileAPI(
     override suspend fun getFailureHandler(context: RoutingContext) {
         if (context.failure() == null) {
             throw InvalidResourceFile()
+        }
+    }
+
+    companion object {
+        private val ALLOWED_EXTENSIONS = listOf(".zip", ".jar")
+
+        /**
+         * [raw] reduced to a plain file name that stays inside the folder it is joined to: the last path segment
+         * (either separator), no control characters, not `.` / `..`, and a `.zip` or `.jar` name. Null otherwise.
+         */
+        fun safeFileName(raw: String?): String? {
+            val name = raw?.substringAfterLast('/')?.substringAfterLast('\\')?.trim() ?: return null
+
+            if (name.isEmpty() || name.length > 255 || name == "." || name == ".." || name.any { it.isISOControl() }) {
+                return null
+            }
+
+            if (name.contains(':') || ALLOWED_EXTENSIONS.none { name.lowercase().endsWith(it) }) {
+                return null
+            }
+
+            return name
         }
     }
 }

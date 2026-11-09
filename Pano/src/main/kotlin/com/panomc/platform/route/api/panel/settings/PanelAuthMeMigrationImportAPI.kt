@@ -1,12 +1,13 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.token.UserTokens
+import com.panomc.platform.token.TokenTypeRegistry
 import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.api.event.PlayerEventListener
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.User
@@ -38,7 +39,8 @@ class PanelAuthMeMigrationImportAPI(
     private val configManager: ConfigManager,
     private val tokenProvider: TokenProvider,
     private val permissionManager: PermissionManager,
-    private val vertx: Vertx
+    private val vertx: Vertx,
+    private val tokenTypeRegistry: TokenTypeRegistry
 ) : PanelApi() {
     override val paths = listOf(Path("/migration/authme/import", RouteType.POST))
 
@@ -56,7 +58,9 @@ class PanelAuthMeMigrationImportAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        if (!authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {
+        // Admins only: a migration writes users, passwords, bans and permission nodes directly,
+        // past the admin guards of the player and permission screens.
+        if (!authProvider.isUserAdmin(authProvider.getUserIdFromRoutingContext(context))) {
             throw NoPermission()
         }
 
@@ -91,7 +95,7 @@ class PanelAuthMeMigrationImportAPI(
             ?: throw InvalidData(extras = mapOf("message" to "DataSource section not found"))
 
         val backend = (dataSource["backend"] as? String)?.uppercase() ?: "SQLITE"
-        val tableName = (dataSource["mySQLTablename"] as? String) ?: "authme"
+        val tableName = MigrationSqlNames.tableName((dataSource["mySQLTablename"] as? String) ?: "authme")
 
         // Column names from config
         // AuthMe stores column names inside mySQLColumnGroup (or mySQLColumnName as a map).
@@ -289,7 +293,7 @@ class PanelAuthMeMigrationImportAPI(
                     }
 
                     // Invalidate tokens
-                    tokenProvider.invalidateTokensBySubject(userId.toString(), sqlClient)
+                    UserTokens.invalidateAll(tokenProvider, tokenTypeRegistry, userId, sqlClient)
 
                     // Clean up notifications
                     databaseManager.notificationDao.deleteAllByUserId(userId, sqlClient)

@@ -7,6 +7,7 @@ import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
 import com.panomc.platform.model.Result
 import com.panomc.platform.model.RouteType
+import com.panomc.platform.route.api.UploadFileResolver
 import com.panomc.platform.util.HashUtil.hash
 import com.panomc.platform.util.MimeTypeUtil
 import io.vertx.ext.web.RoutingContext
@@ -26,6 +27,11 @@ class PanelGetUpdateIconAPI(
 
     companion object {
         private const val CACHE_TTL_SECONDS = 7 * 24 * 60 * 60 // 1 week
+
+        // Icons are stored under a random UUID; anything else (separators, "..") is never a stored icon.
+        private val ICON_FILE_NAME = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+        fun isValidIconFileName(filename: String) = ICON_FILE_NAME.matches(filename)
     }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -39,18 +45,23 @@ class PanelGetUpdateIconAPI(
         val parameters = getParameters(context)
 
         val filename = parameters.pathParameter("filename").string
-        val type = parameters.queryParameter("type").string
+        val type = parameters.queryParameter("type")?.string
         val requestedHash = parameters.queryParameter("hash")?.string
         val updateIconFolder = configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
 
-        val path = updateIconFolder + filename
-
-        val file = File(path)
-
-        if (!file.exists()) {
+        if (!isValidIconFileName(filename)) {
             sendDefault(context, requestedHash, type)
             return null
         }
+
+        val file = UploadFileResolver.resolve(updateIconFolder, filename)
+
+        if (file == null) {
+            sendDefault(context, requestedHash, type)
+            return null
+        }
+
+        val path = file.path
 
         val actualHash = file.inputStream().use { it.hash() }
 

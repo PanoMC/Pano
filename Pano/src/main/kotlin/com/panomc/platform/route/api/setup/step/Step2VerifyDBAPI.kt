@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.setup.step
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.InvalidData
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -35,19 +36,15 @@ class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        // Pano Host gives the database; the wizard never tests other servers from inside the Portal.
+        if (setupManager.isDatabaseManaged()) {
+            throw BadRequest()
+        }
+
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        var port = 3306
-        var host = data.getString("host")
-
-        if (host.contains(":")) {
-            val splitHost = host.split(":")
-
-            host = splitHost[0]
-
-            port = splitHost[1].toInt()
-        }
+        val (host, port) = parseDatabaseHost(data.getString("host")) ?: throw BadRequest()
 
         val connectOptions = MySQLConnectOptions()
             .setPort(port)
@@ -86,4 +83,43 @@ class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
 
         return Successful()
     }
+}
+
+/**
+ * `host`, `host:port`, `[ipv6]` or `[ipv6]:port` → host and port (3306 when absent); null for
+ * anything else, such as a non-numeric or out-of-range port or a bare IPv6 address with a port.
+ */
+internal fun parseDatabaseHost(raw: String?, defaultPort: Int = 3306): Pair<String, Int>? {
+    val value = raw?.trim().orEmpty()
+
+    if (value.isEmpty()) return null
+
+    val host: String
+    val portText: String?
+
+    if (value.startsWith("[")) {
+        val end = value.indexOf(']')
+        if (end < 2) return null
+        host = value.substring(1, end)
+        val rest = value.substring(end + 1)
+        portText = when {
+            rest.isEmpty() -> null
+            rest.startsWith(":") -> rest.substring(1)
+            else -> return null
+        }
+    } else {
+        val colons = value.count { it == ':' }
+        when {
+            colons == 0 -> { host = value; portText = null }
+            colons == 1 -> { host = value.substringBefore(':'); portText = value.substringAfter(':') }
+            // A bare IPv6 address: no port can be told apart from it.
+            else -> { host = value; portText = null }
+        }
+    }
+
+    if (host.isEmpty()) return null
+
+    val port = if (portText == null) defaultPort else portText.toIntOrNull()?.takeIf { it in 1..65535 } ?: return null
+
+    return host to port
 }

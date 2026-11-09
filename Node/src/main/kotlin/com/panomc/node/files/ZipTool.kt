@@ -7,6 +7,7 @@ import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import com.panomc.node.util.SafeDelete
 
 /**
  * Zip and unzip inside a server directory, with the two things an archive tool has to get right.
@@ -53,7 +54,21 @@ object ZipTool {
         var entries = 0
         var written = 0L
 
+        val realRoot = try {
+            root.toPath().toRealPath()
+        } catch (_: Exception) {
+            null
+        }
+
         ZipOutputStream(target.outputStream().buffered()).use { out ->
+            // The archive being written may sit inside the folder being archived; reading it into
+            // itself would grow it until the disk is full. Resolved now that the stream created it.
+            val targetReal = try {
+                target.toPath().toRealPath()
+            } catch (_: Exception) {
+                target.toPath().toAbsolutePath().normalize()
+            }
+
             paths.forEach { path ->
                 val source = PathSafety.resolveRelative(root, path)
                 val base = ServerFileDenylist.normalise(path)
@@ -62,7 +77,28 @@ object ZipTool {
                     return@forEach
                 }
 
-                source.walkTopDown().forEach inner@{ file ->
+                // A link is followed only when what it points at really lives inside [root]; one
+                // pointing at `/etc` or another server's folder is skipped, so nothing outside this
+                // server ends up in the archive. The target's own path must not be denied either,
+                // or a link to the credentials would carry them out under another name. Directories
+                // are entered once by their real path, so a link back up the tree cannot loop.
+                val visited = mutableSetOf<java.nio.file.Path>()
+
+                source.walkTopDown().onEnter { directory ->
+                    val real = realPathInside(realRoot, directory)
+
+                    real != null && visited.add(real)
+                }.forEach inner@{ file ->
+                    val real = realPathInside(realRoot, file) ?: return@inner
+
+                    if (real == targetReal) {
+                        return@inner
+                    }
+
+                    if (realRoot != null && ServerFileDenylist.isDenied(relativeName(realRoot.toFile(), real.toFile()))) {
+                        return@inner
+                    }
+
                     val relative = relativeName(root, file)
 
                     if (relative.isEmpty() || ServerFileDenylist.isDenied(relative) || exclude(relative)) {
@@ -109,7 +145,7 @@ object ZipTool {
      * on the next write would put a file outside the sandbox that every path check had already
      * approved.
      */
-    fun extract(root: File, archive: File, targetDirectory: File) {
+    fun extract(root: File, archive: File, targetDirectory: File, maxTotalBytes: Long = MAX_TOTAL_BYTES) {
         require(archive.isFile) { "The archive does not exist." }
 
         targetDirectory.mkdirs()
@@ -148,14 +184,19 @@ object ZipTool {
 
                 destination.parentFile?.mkdirs()
 
-                zip.getInputStream(entry).use { input ->
-                    destination.outputStream().buffered().use { output ->
-                        written += copy(input, output)
+                // The ceiling is the budget left for this entry, checked while it is written: one
+                // well-compressed entry can be far larger than the disk, and checking only after it
+                // was copied would fill the disk before the check ever ran.
+                try {
+                    zip.getInputStream(entry).use { input ->
+                        destination.outputStream().buffered().use { output ->
+                            written += copy(input, output, maxTotalBytes - written)
+                        }
                     }
-                }
+                } catch (exception: SizeLimitExceeded) {
+                    destination.delete()
 
-                if (written > MAX_TOTAL_BYTES) {
-                    throw IllegalStateException("This archive unpacks to more than $MAX_TOTAL_BYTES bytes.")
+                    throw IllegalStateException("This archive unpacks to more than $maxTotalBytes bytes.")
                 }
             }
         }
@@ -213,13 +254,29 @@ object ZipTool {
                     child.copyTo(target, overwrite = true)
                 }
 
-                child.deleteRecursively()
+                SafeDelete.tree(child)
             }
         }
 
-        root.deleteRecursively()
+        SafeDelete.tree(root)
 
         return true
+    }
+
+    /**
+     * Where [file] really is once every link on the way is resolved, or null when that is outside
+     * [realRoot] or cannot be resolved (a dangling link). Without a real root nothing resolves.
+     */
+    private fun realPathInside(realRoot: java.nio.file.Path?, file: File): java.nio.file.Path? {
+        realRoot ?: return null
+
+        val real = try {
+            file.toPath().toRealPath()
+        } catch (_: Exception) {
+            return null
+        }
+
+        return real.takeIf { it.startsWith(realRoot) }
     }
 
     /** The path of [file] relative to [root], with forward slashes and no leading one. */
@@ -234,7 +291,10 @@ object ZipTool {
         return rootPath.relativize(filePath).toString().replace(File.separatorChar, '/')
     }
 
-    private fun copy(input: InputStream, output: java.io.OutputStream): Long {
+    /** Thrown by [copy] the moment more than its limit has been read. */
+    private class SizeLimitExceeded : RuntimeException()
+
+    private fun copy(input: InputStream, output: java.io.OutputStream, limit: Long = Long.MAX_VALUE): Long {
         val buffer = ByteArray(BUFFER_SIZE)
         var total = 0L
 
@@ -244,6 +304,10 @@ object ZipTool {
 
                 if (read <= 0) {
                     break
+                }
+
+                if (total + read > limit) {
+                    throw SizeLimitExceeded()
                 }
 
                 output.write(buffer, 0, read)

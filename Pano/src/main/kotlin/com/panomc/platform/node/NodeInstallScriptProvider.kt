@@ -77,10 +77,11 @@ class NodeInstallScriptProvider(
     fun panoUrl(override: String? = null): String = override?.trim()?.ifEmpty { null } ?: websiteUrl()
 
     /** The POSIX shell installer, already filled in for this Pano. */
-    fun shellScript(panoUrlOverride: String? = null): String = render(SHELL_TEMPLATE, panoUrlOverride)
+    fun shellScript(panoUrlOverride: String? = null): String = render(SHELL_TEMPLATE, panoUrlOverride, ::shellQuote)
 
     /** The PowerShell installer, already filled in for this Pano. */
-    fun powerShellScript(panoUrlOverride: String? = null): String = render(POWERSHELL_TEMPLATE, panoUrlOverride)
+    fun powerShellScript(panoUrlOverride: String? = null): String =
+        render(POWERSHELL_TEMPLATE, panoUrlOverride, ::powerShellQuote)
 
     /**
      * The one line an admin pastes into a shell on the machine that should become a node.
@@ -89,7 +90,7 @@ class NodeInstallScriptProvider(
      * digits today, but a quoted argument is what keeps that an implementation detail.
      */
     fun installCommand(code: String, panoUrlOverride: String? = null): String =
-        shellInstallCommand(panoUrl(panoUrlOverride), code)
+        shellInstallCommand(panoUrl(panoUrlOverride), code, isOverridden(panoUrlOverride))
 
     /**
      * The PowerShell equivalent.
@@ -98,7 +99,10 @@ class NodeInstallScriptProvider(
      * first; that is the only shape of this command that can carry the pairing code.
      */
     fun installCommandWindows(code: String, panoUrlOverride: String? = null): String =
-        powerShellInstallCommand(panoUrl(panoUrlOverride), code)
+        powerShellInstallCommand(panoUrl(panoUrlOverride), code, isOverridden(panoUrlOverride))
+
+    /** Whether [panoUrlOverride] points the node somewhere other than the website URL. */
+    private fun isOverridden(panoUrlOverride: String?): Boolean = panoUrl(panoUrlOverride) != websiteUrl()
 
     /**
      * Where a Pano Agent is downloaded from: this Pano's own copy under the agent's name when it has
@@ -108,7 +112,8 @@ class NodeInstallScriptProvider(
     fun agentJarUrl(panoUrlOverride: String? = null): String =
         agentJarUrl(panoUrl(panoUrlOverride), nodeJarProvider.isAvailable(), version)
 
-    private fun render(templatePath: String, panoUrlOverride: String?): String {
+    /** Every value goes through [quote] because the templates put them inside single-quoted strings. */
+    private fun render(templatePath: String, panoUrlOverride: String?, quote: (String) -> String): String {
         val source = javaClass.classLoader.getResourceAsStream(templatePath)
             ?.bufferedReader()
             ?.use { it.readText() }
@@ -116,12 +121,12 @@ class NodeInstallScriptProvider(
 
         return handlebars.compileInline(source).apply(
             mapOf(
-                "version" to (version ?: "latest"),
-                "downloadUrl" to downloadUrl(panoUrlOverride),
-                "checksumUrl" to checksumUrl(panoUrlOverride),
-                "jarName" to JAR_NAME,
-                "shellScriptPath" to ApiPaths.core(SHELL_SCRIPT_PATH),
-                "powerShellScriptPath" to ApiPaths.core(POWERSHELL_SCRIPT_PATH)
+                "version" to quote(version ?: "latest"),
+                "downloadUrl" to quote(downloadUrl(panoUrlOverride)),
+                "checksumUrl" to quote(checksumUrl(panoUrlOverride)),
+                "jarName" to quote(JAR_NAME),
+                "shellScriptPath" to quote(ApiPaths.core(SHELL_SCRIPT_PATH)),
+                "powerShellScriptPath" to quote(ApiPaths.core(POWERSHELL_SCRIPT_PATH))
             )
         )
     }
@@ -173,15 +178,25 @@ class NodeInstallScriptProvider(
             else -> "$RELEASE_BASE/latest/download/$JAR_NAME"
         }
 
-        /** The one-line POSIX install command for [url] and [code]. Pure, so the exact text can be asserted. */
-        fun shellInstallCommand(url: String, code: String): String =
-            "curl -fsSL $url${ApiPaths.core(SHELL_SCRIPT_PATH)} | sh -s -- --pano '$url' --code '${shellQuote(code)}'"
+        /**
+         * The one-line POSIX install command for [url] and [code]. Pure, so the exact text can be asserted.
+         *
+         * [overridden] is set when [url] is not the website URL: the script is then asked for with
+         * the same `panoUrl`, so the daemon it downloads comes from where the node can reach Pano.
+         */
+        fun shellInstallCommand(url: String, code: String, overridden: Boolean = false): String =
+            "curl -fsSL '${shellQuote(scriptUrl(url, SHELL_SCRIPT_PATH, overridden))}' | " +
+                "sh -s -- --pano '${shellQuote(url)}' --code '${shellQuote(code)}'"
 
         /** The PowerShell counterpart of [shellInstallCommand]. */
-        fun powerShellInstallCommand(url: String, code: String): String =
+        fun powerShellInstallCommand(url: String, code: String, overridden: Boolean = false): String =
             "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& ([scriptblock]::Create(" +
-                "(Invoke-RestMethod '$url${ApiPaths.core(POWERSHELL_SCRIPT_PATH)}'))) " +
-                "-Pano '$url' -Code '${powerShellQuote(code)}'\""
+                "(Invoke-RestMethod '${powerShellQuote(scriptUrl(url, POWERSHELL_SCRIPT_PATH, overridden))}'))) " +
+                "-Pano '${powerShellQuote(url)}' -Code '${powerShellQuote(code)}'\""
+
+        private fun scriptUrl(url: String, path: String, overridden: Boolean): String =
+            url + ApiPaths.core(path) +
+                if (overridden) "?panoUrl=" + java.net.URLEncoder.encode(url, Charsets.UTF_8) else ""
 
         /**
          * Where the agent is downloaded from (see the instance [agentJarUrl]): Pano's route under the

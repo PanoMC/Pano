@@ -1,6 +1,7 @@
 package com.panomc.platform.node
 
 import com.panomc.platform.db.model.Server
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Picks a managed server's port on the Pano side, when the row is created.
@@ -22,6 +23,18 @@ import com.panomc.platform.db.model.Server
  * the walk above — a server that came up healthy and that nobody outside could connect to.
  */
 object ServerPortAllocator {
+    private val nodeLocks = java.util.concurrent.ConcurrentHashMap<Long, kotlinx.coroutines.sync.Mutex>()
+
+    /**
+     * Runs [block] while no other allocation on [nodeId] does.
+     *
+     * Reading the ports a node's rows hold and writing the new row are two awaits apart, and two
+     * create requests interleave between them on the event loop: both would see the same port as
+     * free. Whoever allocates holds this from the read until its row is written.
+     */
+    suspend fun <T> withNodeLock(nodeId: Long, block: suspend () -> T): T =
+        nodeLocks.computeIfAbsent(nodeId) { kotlinx.coroutines.sync.Mutex() }.withLock { block() }
+
     /** Where the walk starts: Minecraft's own default port. */
     const val FIRST_PORT = 25565
 

@@ -78,6 +78,12 @@ class PanelUpdateLocaleAPI(
             throw LocaleCannotBeDisabled()
         }
 
+        val takenBy = databaseManager.localeDao.getIdByCode(code, sqlClient)
+
+        if (takenBy != null && takenBy != locale.id) {
+            throw LocaleAlreadyExists()
+        }
+
         val oldCode = "" + locale.code
         locale.code = code
         locale.name = name
@@ -111,7 +117,10 @@ class PanelUpdateLocaleAPI(
             configManager.saveConfig()
         }
 
-        databaseManager.userDao.setLocaleCodeByLocaleCode(code, locale.code, sqlClient)
+        // Users who picked the language keep it under its new code.
+        if (oldCode != code) {
+            databaseManager.userDao.setLocaleCodeByLocaleCode(code, oldCode, sqlClient)
+        }
 
         return Successful()
     }

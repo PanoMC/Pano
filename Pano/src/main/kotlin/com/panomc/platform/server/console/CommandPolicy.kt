@@ -9,7 +9,8 @@ package com.panomc.platform.server.console
  * `context.denyCommands` rather than in a second table nobody remembers to keep in step with the
  * grants.
  *
- * Only the first token is matched, and matching is case-insensitive. That is deliberate rather
+ * Only the command word is matched (also without its `namespace:` and inside `execute ... run`),
+ * and matching is case-insensitive. That is deliberate rather
  * than lazy: a Minecraft command's first word is the command, and everything after it is
  * arguments that no pattern language could usefully constrain. A pattern may end in `*`, which
  * matches any command starting with what precedes it — `whitelist*` covers `whitelist` and
@@ -38,8 +39,8 @@ object CommandPolicy {
      *
      * A leading slash is dropped because a console takes commands without one and people type it
      * anyway, and letting `/op` slip past a deny list for `op` would make the whole feature a
-     * decoration. Namespaced commands keep their namespace (`worldedit:set`), since that is part
-     * of the name a server dispatches on.
+     * decoration. Namespaced commands keep their namespace here (`worldedit:set`); [matches] also
+     * tries the bare name, since `minecraft:op` is still `op`.
      */
     fun firstToken(command: String): String = command
         .trim()
@@ -47,6 +48,46 @@ object CommandPolicy {
         .trimStart()
         .takeWhile { !it.isWhitespace() }
         .lowercase()
+
+    /** Most `execute ... run` levels unwrapped; deeper nesting is refused by every pattern. */
+    private const val MAX_EXECUTE_DEPTH = 8
+
+    /**
+     * Every command word [command] would run, as the server would dispatch it.
+     *
+     * The namespaced form (`minecraft:op`) runs the same command as the bare one (`op`), so both
+     * are matched, and `execute ... run <command>` runs another command, so that one is unwrapped
+     * too. Without this, a deny list for `op` would let `minecraft:op` or `execute run op` through.
+     * Null when the nesting is too deep to unwrap, which every pattern then refuses.
+     */
+    private fun commandWords(command: String, depth: Int = 0): Set<String>? {
+        if (depth > MAX_EXECUTE_DEPTH) {
+            return null
+        }
+
+        val token = firstToken(command)
+
+        if (token.isEmpty()) {
+            return emptySet()
+        }
+
+        val bare = token.substringAfterLast(':')
+        val words = mutableSetOf(token, bare)
+
+        if (bare == "execute") {
+            val arguments = command.trim().removePrefix("/").trim().split(Regex("\\s+")).drop(1)
+
+            arguments.forEachIndexed { index, argument ->
+                if (argument.equals("run", ignoreCase = true)) {
+                    val inner = commandWords(arguments.drop(index + 1).joinToString(" "), depth + 1) ?: return null
+
+                    words.addAll(inner)
+                }
+            }
+        }
+
+        return words
+    }
 
     /** Whether [pattern] refuses [command]. */
     fun matches(pattern: String, command: String): Boolean {
@@ -56,8 +97,12 @@ object CommandPolicy {
             return false
         }
 
-        val token = firstToken(command)
+        val words = commandWords(command) ?: return true
 
+        return words.any { matchesWord(cleaned, it) }
+    }
+
+    private fun matchesWord(cleaned: String, token: String): Boolean {
         if (token.isEmpty()) {
             return false
         }

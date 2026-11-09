@@ -78,6 +78,34 @@ class WebhookSenderTest {
     }
 
     @Test
+    fun `a row made before the endpoint URL changed is not sent, not even with the new headers`(): Unit = runBlocking {
+        val old = receiver()
+        val headers = JsonObject().put("Authorization", "Bearer new-receiver").encode()
+        val endpoint = WebhookEndpoint(id = 1, url = "https://new.example/hook", headers = cipher.encrypt(headers))
+
+        val attempt = sender().send(WebhookTestSupport.row("${old.baseUrl}/hook"), endpoint)
+
+        assertEquals("ENDPOINT_CHANGED", attempt.error)
+        assertFalse(attempt.retryable)
+        assertTrue(old.requests.isEmpty())
+    }
+
+    @Test
+    fun `a retry is signed with the endpoint's current secret`(): Unit = runBlocking {
+        val r = receiver()
+        val fresh = "whsec_regenerated_secret_value"
+        val endpoint = WebhookEndpoint(
+            id = 1, url = "${r.baseUrl}/hook", signing = WebhookSigning.HMAC_SHA256, secret = cipher.encrypt(fresh)
+        )
+        val row = WebhookTestSupport.row("${r.baseUrl}/hook", signing = WebhookSigning.HMAC_SHA256, secret = cipher.encrypt(secret))
+
+        sender().send(row, endpoint)
+
+        val request = r.requests.single()
+        assertTrue(WebhookSigner.verify(request.header("X-Pano-Signature")!!, fresh, request.body, clock.get() / 1000))
+    }
+
+    @Test
     fun `signing NONE sends no signature header`(): Unit = runBlocking {
         val r = receiver { ReceiverReply(204) }
 
@@ -123,7 +151,7 @@ class WebhookSenderTest {
     fun `the stored admin headers are decrypted and sent, X-Pano ones are dropped`(): Unit = runBlocking {
         val r = receiver()
         val headers = JsonObject().put("X-Token", "abc").put("X-Pano-Event", "forged").put("Host", "evil.test").encode()
-        val endpoint = WebhookEndpoint(id = 1, headers = cipher.encrypt(headers))
+        val endpoint = WebhookEndpoint(id = 1, url = "${r.baseUrl}/hook", headers = cipher.encrypt(headers))
 
         sender().send(WebhookTestSupport.row("${r.baseUrl}/hook"), endpoint)
 
@@ -138,7 +166,7 @@ class WebhookSenderTest {
     fun `admin headers that cannot be read stop the delivery`(): Unit = runBlocking {
         val r = receiver()
 
-        val attempt = sender().send(WebhookTestSupport.row("${r.baseUrl}/hook"), WebhookEndpoint(id = 1, headers = "v1:AAAA"))
+        val attempt = sender().send(WebhookTestSupport.row("${r.baseUrl}/hook"), WebhookEndpoint(id = 1, url = "${r.baseUrl}/hook", headers = "v1:AAAA"))
 
         assertEquals("HEADERS_UNREADABLE", attempt.error)
         assertFalse(attempt.retryable)

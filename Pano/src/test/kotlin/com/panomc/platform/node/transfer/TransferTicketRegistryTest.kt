@@ -24,6 +24,19 @@ class TransferTicketRegistryTest {
     )
 
     @Test
+    fun `lists only live spooled uploads, oldest first`() {
+        val registry = TransferTicketRegistry()
+        val first = issue(registry, direction = TransferDirection.UPLOAD_SPOOL, nodeId = 0, ttlMs = 1_000_000)
+        val second = issue(registry, direction = TransferDirection.UPLOAD_SPOOL, nodeId = 0, ttlMs = 2_000_000)
+        issue(registry, direction = TransferDirection.UPLOAD_SPOOL, nodeId = 0, ttlMs = -1)
+        issue(registry, direction = TransferDirection.DOWNLOAD)
+
+        assertEquals(listOf(first.id, second.id), registry.liveSpools().map { it.id })
+        assertEquals(listOf(first.id, second.id), registry.liveSpools(3).map { it.id })
+        assertTrue(registry.liveSpools(4).isEmpty())
+    }
+
+    @Test
     fun `redeems a live ticket for the right node and direction`() {
         val registry = TransferTicketRegistry()
         val ticket = issue(registry)

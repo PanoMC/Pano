@@ -7,6 +7,7 @@ import com.panomc.platform.error.PostThumbnailExceedsSize
 import com.panomc.platform.error.PostThumbnailWrongContentType
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.PostStatus
+import com.panomc.platform.util.SafeImageReader
 import io.vertx.ext.web.FileUpload
 import org.imgscalr.Scalr
 import java.awt.image.BufferedImage
@@ -85,7 +86,7 @@ data class Post(
             var image: BufferedImage? = null
 
             try {
-                image = ImageIO.read(File(path))
+                image = SafeImageReader.read(File(path))
             } catch (_: Exception) {
             }
 

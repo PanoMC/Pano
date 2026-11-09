@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.theme
 
+import com.panomc.platform.ui.ThemeUiController
 import com.panomc.platform.UIManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -28,7 +29,8 @@ class PanelActivateThemeAPI(
     private val uiManager: UIManager,
     private val configManager: ConfigManager,
     private val authProvider: AuthProvider,
-    @param:Lazy private val router: Router
+    @param:Lazy private val router: Router,
+    private val themeUiController: ThemeUiController
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -39,7 +41,10 @@ class PanelActivateThemeAPI(
             .pathParameter(param("themeId", stringSchema()))
             .build()
 
-    override suspend fun handle(context: RoutingContext): Result {
+    // One front-end switch at a time: overlapping requests would each start a theme process.
+    override suspend fun handle(context: RoutingContext): Result = themeUiController.exclusive { handleExclusive(context) }
+
+    private suspend fun handleExclusive(context: RoutingContext): Result {
         authProvider.requirePermission(ManageViewPermission(), context)
 
         val parameters = getParameters(context)

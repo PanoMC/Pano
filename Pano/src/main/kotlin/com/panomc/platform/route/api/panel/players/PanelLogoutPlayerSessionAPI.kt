@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.error.NotExists
+import com.panomc.platform.token.AuthenticationTokenType
+import com.panomc.platform.auth.PlayerTargetGuard
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePlayersPermission
@@ -22,7 +25,8 @@ import io.vertx.kotlin.coroutines.coAwait
 @Endpoint
 class PanelLogoutPlayerSessionAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val playerTargetGuard: PlayerTargetGuard
 ) : PanelApi() {
     override val paths = listOf(Path("/players/:username/sessions/:id", RouteType.DELETE))
 
@@ -37,12 +41,18 @@ class PanelLogoutPlayerSessionAPI(
 
         val parameters = getParameters(context)
         val id = parameters.pathParameter("id").long
+        val username = parameters.pathParameter("username").string
 
         val sqlClient = getSqlClient()
 
+        val playerId = databaseManager.userDao.getUserIdFromUsername(username, sqlClient) ?: throw NotExists()
+
+        playerTargetGuard.requireCanManage(context, authProvider.getUserIdFromRoutingContext(context), playerId)
+
         val token = databaseManager.tokenDao.getById(id, sqlClient)
 
-        if (token != null) {
+        // Only a login session of this player: server and node tokens share the numeric subject.
+        if (token != null && token.subject == playerId.toString() && token.type.getName() == AuthenticationTokenType.getName()) {
             databaseManager.tokenDao.deleteById(id, sqlClient)
 
             val currentToken = authProvider.getTokenFromRoutingContext(context) // Administrator's token

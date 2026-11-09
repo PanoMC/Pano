@@ -20,6 +20,7 @@ import com.panomc.platform.backup.remote.TransferEstimate
 import com.panomc.platform.backup.remote.RemoteStateStore
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
+import com.panomc.platform.db.DatabaseAddress
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.db.model.SystemProperty
@@ -302,6 +303,20 @@ class PanoBackupManager(
         }
     }
 
+    // A failing scheduled backup (full disk, dump error) is not retried on every tick: each try dumps the whole
+    // database and archives every file again. It waits [scheduledBackoff] after a failure, doubling up to a day.
+    @Volatile
+    private var lastScheduledFailureAt: Long? = null
+
+    @Volatile
+    private var scheduledFailures = 0
+
+    internal fun scheduledRetryAllowed(now: Long): Boolean {
+        val failedAt = lastScheduledFailureAt ?: return true
+
+        return now - failedAt >= scheduledBackoff(scheduledFailures)
+    }
+
     suspend fun tick(now: Long) {
         if (!setupManager.isSetupDone()) {
             return
@@ -310,7 +325,7 @@ class PanoBackupManager(
         val settings = getSettings()
         val lastScheduled = store.list().filter { it.tag == PanoBackupTag.SCHEDULED }.maxOfOrNull { it.createdAt }
 
-        if (settings.isDue(lastScheduled, now)) {
+        if (settings.isDue(lastScheduled, now) && scheduledRetryAllowed(now)) {
             logger.info("Taking the scheduled Pano backup")
 
             // null = another backup job was running; the next tick tries again, nothing to record.
@@ -320,6 +335,20 @@ class PanoBackupManager(
                 logger.error("The scheduled Pano backup failed", e)
 
                 false
+            }
+
+            when (ok) {
+                true -> {
+                    scheduledFailures = 0
+                    lastScheduledFailureAt = null
+                }
+
+                false -> {
+                    scheduledFailures++
+                    lastScheduledFailureAt = now
+                }
+
+                null -> {}
             }
 
             if (ok != null) {
@@ -496,13 +525,21 @@ class PanoBackupManager(
         const val RESTART_DELAY_MS = 3000L
 
         private const val TICK_INTERVAL_MS = 10L * 60 * 1000
+
+        private const val SCHEDULED_RETRY_MS = 60L * 60 * 1000
+        private const val SCHEDULED_RETRY_MAX_MS = 24L * 60 * 60 * 1000
+
+        /** The wait after the [failures]th failed scheduled backup in a row: 1 h, 2 h, 4 h, ... at most 24 h. */
+        internal fun scheduledBackoff(failures: Int): Long =
+            if (failures <= 0) 0 else minOf(SCHEDULED_RETRY_MAX_MS, SCHEDULED_RETRY_MS shl minOf(failures - 1, 10))
         private const val INTERRUPTED_CHECK_DELAY_MS = 30L * 1000
 
         fun connectOptions(database: JsonObject): MySQLConnectOptions {
             val address = database.getString("host", "")
+            val parsed = DatabaseAddress.parse(address) ?: DatabaseAddress(address.substringBefore(':'), DatabaseAddress.DEFAULT_PORT)
             val options = MySQLConnectOptions()
-                .setHost(address.substringBefore(':'))
-                .setPort(address.substringAfter(':', "3306").toIntOrNull() ?: 3306)
+                .setHost(parsed.host)
+                .setPort(parsed.port)
                 .setDatabase(database.getString("name", ""))
                 .setUser(database.getString("username", ""))
 

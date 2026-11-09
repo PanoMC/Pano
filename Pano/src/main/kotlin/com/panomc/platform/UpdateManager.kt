@@ -76,6 +76,9 @@ class UpdateManager(
     private val releaseLookup: ReleaseLookup
 ) {
     companion object {
+        /** No data for this long while downloading a platform update = the download failed. */
+        const val PLATFORM_DOWNLOAD_IDLE_TIMEOUT_MS = 60_000L
+
         const val PLATFORM_UPDATE_CHECK_INFO = "platform_update_check_info"
         const val RESOURCES_UPDATE_CHECK_INFO = "resources_update_check_info"
         const val UPDATE_LAST_CHECK = "update_last_checked_at"
@@ -103,6 +106,9 @@ class UpdateManager(
      */
     private var lastPlatformCheckFailed: Boolean = false
     private var lastResourceUpdatesPayload: String? = null
+
+    /** One platform update at a time: a second tab or a retry must not start another download and updater. */
+    private val platformUpdateInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
 
     suspend fun checkPlatformUpdate(background: Boolean) {
         try {
@@ -478,6 +484,15 @@ class UpdateManager(
     }
 
     suspend fun updatePlatform(userId: Long?, state: UUID, background: Boolean = false, progressHandler: (result: Result) -> Unit) {
+        if (!platformUpdateInProgress.compareAndSet(false, true)) {
+            progressHandler.invoke(FailedToUpdatePlatform(extras = mapOf("message" to "An update is already in progress.")))
+            return
+        }
+
+        // Cleared again only when the update did not hand over to the updater (it failed); after a
+        // hand-over this Pano is shutting down and must not start a second one.
+        var handedOver = false
+
         try {
             val sqlClient = databaseManager.getSqlClient()
 
@@ -523,6 +538,8 @@ class UpdateManager(
 
             webClient
                 .getAbs(downloadUrl)
+                // Idle timeout: a stalled download fails instead of holding the update open forever.
+                .timeout(PLATFORM_DOWNLOAD_IDLE_TIMEOUT_MS)
                 .`as`(BodyCodec.pipe(progressWriteStream))
                 .send()
                 .coAwait()
@@ -551,6 +568,7 @@ class UpdateManager(
 
                 logPlatformUpdate(userId, version, sqlClient)
 
+                handedOver = true
                 containerMode.restartInPlace { main.shutdown(exitCode = it) }
                 return
             }
@@ -583,6 +601,14 @@ class UpdateManager(
                 "--restart"
             )
 
+            // Keep the JVM options (-Xmx, -D…) and program flags this Pano was started with.
+            args.addAll(
+                com.panomc.platform.update.UpdaterLaunchArgs.arguments(
+                    java.lang.management.ManagementFactory.getRuntimeMXBean().inputArguments,
+                    Main.STARTUP_ARGS.toList()
+                )
+            )
+
             // GUI and -bg are independent: GUI controls whether the Swing console window opens,
             // -bg controls whether the new process is detached from the launching terminal. We
             // preserve the current platform's GUI/no-GUI mode and OR the bg flag with the
@@ -596,6 +622,8 @@ class UpdateManager(
                 .inheritIO()
                 .start()
 
+            handedOver = true
+
             progressHandler.invoke(Successful()) // Installation start success
 
             logPlatformUpdate(userId, version, sqlClient)
@@ -607,6 +635,8 @@ class UpdateManager(
             progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
         } catch (e: Throwable) {
             progressHandler.invoke(InvalidPlatformUpdateFile(extras = mapOf("message" to e.message)))
+        } finally {
+            if (!handedOver) platformUpdateInProgress.set(false)
         }
     }
 

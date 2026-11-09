@@ -17,11 +17,6 @@ class DatabaseMigration16to17 : DatabaseMigration(
 
     private fun addCustomNameColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val addColumnQuery = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD COLUMN `customName` VARCHAR(255) NULL;
-        """.trimIndent()
-
-            sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}server", "customName" to "VARCHAR(255) NULL")
         }
 }

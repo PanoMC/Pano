@@ -176,7 +176,7 @@ class PanoAgentLinkTest {
     @Test
     fun `the node install commands and scripts are for nodes only`() {
         assertEquals(
-            "curl -fsSL http://p/api/v1/node/install.sh | sh -s -- --pano 'http://p' --code '654321'",
+            "curl -fsSL 'http://p/api/v1/node/install.sh' | sh -s -- --pano 'http://p' --code '654321'",
             NodeInstallScriptProvider.shellInstallCommand("http://p", "654321")
         )
 

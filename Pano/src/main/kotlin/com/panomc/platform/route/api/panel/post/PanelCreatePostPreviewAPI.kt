@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.post
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
@@ -56,7 +57,7 @@ class PanelCreatePostPreviewAPI(
 
         val data = getParameters(context).body().jsonObject
         val title = data.getString("title").orEmpty()
-        val text = data.getString("text").orEmpty()
+        val text = HtmlSanitizer.sanitize(data.getString("text"))
         val thumbnailUrl = data.getString("thumbnailUrl").orEmpty()
 
         if (title.length + text.length + thumbnailUrl.length > PostPreviewDrafts.MAX_CHARS) {

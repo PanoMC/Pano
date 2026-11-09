@@ -20,32 +20,17 @@ class DatabaseMigration32to33 : DatabaseMigration(
 
     private fun addProtocolVersionColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val addColumnQuery = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD COLUMN `protocolVersion` INT NOT NULL DEFAULT 1;
-        """.trimIndent()
-
-            sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}server", "protocolVersion" to "INT NOT NULL DEFAULT 1")
         }
 
     private fun addPluginVersionColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val addColumnQuery = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD COLUMN `pluginVersion` VARCHAR(64) NULL;
-        """.trimIndent()
-
-            sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}server", "pluginVersion" to "VARCHAR(64) NULL")
         }
 
     private fun addCapabilitiesColumnToServerTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val addColumnQuery = """
-            ALTER TABLE `${getTablePrefix()}server`
-            ADD COLUMN `capabilities` TEXT NULL;
-        """.trimIndent()
-
-            sqlClient.preparedQuery(addColumnQuery).execute().coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}server", "capabilities" to "TEXT NULL")
         }
 
     private fun fillCapabilitiesOfExistingServers(): suspend (sqlClient: SqlClient) -> Unit =

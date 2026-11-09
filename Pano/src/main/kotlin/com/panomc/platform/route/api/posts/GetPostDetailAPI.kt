@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.posts
 
 
+import com.panomc.platform.util.PostStatus
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
@@ -51,6 +53,11 @@ class GetPostDetailAPI(
         }
 
         val post = databaseManager.postDao.getByUrl(url, sqlClient) ?: throw PostNotFound()
+
+        // Drafts and trashed posts are only seen in the panel and its preview.
+        if (post.status != PostStatus.PUBLISHED) {
+            throw PostNotFound()
+        }
         var postCategory: PostCategory? = null
 
         if (post.categoryId != -1L) {
@@ -93,7 +100,7 @@ class GetPostDetailAPI(
                     "writer" to mapOf(
                         "username" to username
                     ),
-                    "text" to post.text,
+                    "text" to HtmlSanitizer.sanitize(post.text),
                     "date" to post.date,
                     "status" to post.status,
                     "thumbnailUrl" to post.thumbnailUrl,

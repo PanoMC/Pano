@@ -231,6 +231,12 @@ class TransferTicketRegistry(
     /** How many tickets are live. */
     fun size() = tickets.size
 
+    /** Live spooled uploads, oldest first; only those of [userId] when it is given. */
+    fun liveSpools(userId: Long? = null): List<TransferTicket> = tickets.values
+        .filter { it.direction == TransferDirection.UPLOAD_SPOOL && !it.isExpired }
+        .filter { userId == null || it.userId == userId }
+        .sortedBy { it.expiresAt }
+
     /** Drops every expired ticket and tells whoever was waiting on it. */
     fun sweep() {
         tickets.values
@@ -339,6 +345,8 @@ class TransferTicketStore(
     fun discard(ticket: TransferTicket) = registry.discard(ticket)
 
     fun size() = registry.size()
+
+    fun liveSpools(userId: Long? = null) = registry.liveSpools(userId)
 
     /** Where an upload is spooled while the node comes to fetch it. */
     fun spoolFileFor(ticketId: String): File = File(spoolDirectory(), ticketId)

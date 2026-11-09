@@ -14,13 +14,11 @@ class DatabaseMigration9to10 :
 
     private fun addCreatedAtUpdatedAtToSystemPropertyTable(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val query = "ALTER TABLE `${getTablePrefix()}system_property`\n" +
-                    "ADD COLUMN `createdAt` BIGINT(20) DEFAULT 0,\n" +
-                    "ADD COLUMN `updatedAt` BIGINT(20) DEFAULT 0;"
-
-            sqlClient
-                .preparedQuery(query)
-                .execute()
-                .coAwait()
+            addMissingColumns(
+                sqlClient,
+                "${getTablePrefix()}system_property",
+                "createdAt" to "BIGINT(20) DEFAULT 0",
+                "updatedAt" to "BIGINT(20) DEFAULT 0"
+            )
         }
 }

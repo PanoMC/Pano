@@ -200,14 +200,13 @@ class NodeSshBootstrapService(
 
         val command = SshBootstrapCommand.build(
             panoUrl = nodeInstallScriptProvider.panoUrl(entry.target.panoUrl),
-            code = token,
             sudo = entry.target.sudo,
             name = entry.target.name
         )
 
         // Rendered with the same address, so the host downloads the daemon from the Pano it can
-        // actually reach rather than from one it cannot.
-        val script = nodeInstallScriptProvider.shellScript(entry.target.panoUrl)
+        // actually reach rather than from one it cannot. The token rides in the script, not in the command.
+        val script = SshBootstrapCommand.withToken(nodeInstallScriptProvider.shellScript(entry.target.panoUrl), token)
 
         progress(task, 20, "Installing on ${entry.target.host}", sqlClient)
 

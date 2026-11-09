@@ -25,7 +25,10 @@ import com.panomc.platform.schema.dsl.Bodies
 import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
+import com.panomc.platform.error.PlatformAlreadyInstalled
 import io.vertx.kotlin.coroutines.coAwait
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.slf4j.Logger
 import org.springframework.context.annotation.Lazy
 
@@ -70,7 +73,12 @@ class FinishAPI(
             .predicate(RequestPredicate.BODY_REQUIRED)
             .build()
 
-    override suspend fun handle(context: RoutingContext): Result {
+    /** One finish at a time: two at once would both create the schema and an admin. */
+    private val finishLock = Mutex()
+
+    override suspend fun handle(context: RoutingContext): Result = finishLock.withLock { finish(context) }
+
+    private suspend fun finish(context: RoutingContext): Result {
         if (setupManager.getCurrentStep() != 4) {
             return Successful(setupManager.getCurrentStepData().map)
         }
@@ -102,7 +110,13 @@ class FinishAPI(
 
         val sqlClient = getSqlClient()
 
-        databaseManager.initDatabase(sqlClient)
+        try {
+            databaseManager.initDatabase(sqlClient)
+        } catch (e: PlatformAlreadyInstalled) {
+            // A schema without users is the one an earlier finish of this setup created before it
+            // failed: carry on with it instead of blocking the wizard for good.
+            if (databaseManager.userDao.count(sqlClient) != 0L) throw e
+        }
 
         val userId = RegisterUtil.register(
             databaseManager,

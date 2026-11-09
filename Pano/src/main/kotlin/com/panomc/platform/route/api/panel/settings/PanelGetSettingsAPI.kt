@@ -33,10 +33,7 @@ class PanelGetSettingsAPI(
     private val platformStateManager: PlatformStateManager,
     private val maintenanceModeManager: MaintenanceModeManager
 ) : PanelApi() {
-    override val paths = listOf(
-        Path("/settings", RouteType.GET),
-        Path("/settings/reveal-ssl", RouteType.POST)
-    )
+    override val paths = listOf(Path("/settings", RouteType.GET))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
         ValidationHandlerBuilder.create(schemaRepository)
@@ -47,21 +44,6 @@ class PanelGetSettingsAPI(
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManagePlatformSettingsPermission(), context)
-
-        if (context.request().method().name() == "POST") {
-            val parameters = getParameters(context)
-            val body = parameters.body().jsonObject
-            val password = body.getString("password")
-
-            authProvider.requirePassword(password, context)
-
-            return Successful(
-                mapOf(
-                    "sslCert" to configManager.config.server.sslCert,
-                    "sslKey" to configManager.config.server.sslKey
-                )
-            )
-        }
 
         val parameters = getParameters(context)
 

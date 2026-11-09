@@ -95,6 +95,9 @@ class SendTicketMessageAPI(
 
         val messageId = databaseManager.ticketMessageDao.addMessage(ticketMessage, sqlClient)
 
+        // The player wrote last: the ticket waits for staff again.
+        databaseManager.ticketDao.makeStatus(ticketId, TicketStatus.NEW, sqlClient)
+
         databaseManager.ticketDao.updateLastUpdateDate(
             ticketMessage.ticketId,
             System.currentTimeMillis(),

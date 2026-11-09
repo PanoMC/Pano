@@ -181,24 +181,16 @@ class PanelGetStatisticsAPI(
             val ticketsDateList = databaseManager.ticketDao.getDatesByPeriod(period, sqlClient)
             websiteActivityDataList["ticketsData"] = ticketsDateList.toGroupGetCountAndDates()
 
-            val websiteViewData =
-                databaseManager.websiteViewDao.getWebsiteViewListByPeriod(period, sqlClient)
+            // Summed per day by the database rather than loaded row by row: anybody can add rows.
+            val dailyTotals = databaseManager.websiteViewDao.getDailyTotalsByPeriod(period, sqlClient)
+                .filter { it.date in bucketSet }
+                .associateBy { it.date }
 
             // Zero-filled like the other series, so all lines start on the same day. Visitors are
             // distinct addresses, not rows: older installs can hold duplicate rows per IP and day.
-            val viewsDateMap = dayBuckets.associateWith { 0L }.toMutableMap()
-            val visitorIpsByDate = mutableMapOf<Long, MutableSet<String>>()
+            val viewsDateMap = dayBuckets.associateWith { dailyTotals[it]?.views ?: 0L }.toMutableMap()
 
-            websiteViewData.forEach { viewData ->
-                if (viewData.date !in bucketSet) {
-                    return@forEach
-                }
-
-                viewsDateMap[viewData.date] = viewsDateMap.getValue(viewData.date) + viewData.times
-                visitorIpsByDate.getOrPut(viewData.date) { mutableSetOf() }.add(viewData.ipAddress)
-            }
-
-            val visitorDateMap = dayBuckets.associateWith { (visitorIpsByDate[it]?.size ?: 0).toLong() }
+            val visitorDateMap = dayBuckets.associateWith { dailyTotals[it]?.visitors ?: 0L }
             websiteActivityDataList["visitorData"] = visitorDateMap
             websiteActivityDataList["viewData"] = viewsDateMap
 

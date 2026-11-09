@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.locale
 
+import com.panomc.platform.error.LocaleAlreadyExists
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.NewLocaleLog
@@ -55,6 +56,11 @@ class PanelCreateLocaleAPI(
         validateInput(code, name, dateFnsCode, derivatives)
 
         val sqlClient = getSqlClient()
+
+        // Codes compare like the column does (case-insensitive): "EN-us" is taken when "en-US" exists.
+        if (databaseManager.localeDao.getIdByCode(code, sqlClient) != null) {
+            throw LocaleAlreadyExists()
+        }
 
         val locale = Locale(
             code = code,

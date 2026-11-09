@@ -5,6 +5,7 @@ import com.panomc.node.config.NodeConfig
 import com.panomc.node.crypto.Aes256GcmUtil
 import com.panomc.node.crypto.NodeKeys
 import com.panomc.node.util.NodeLogger
+import io.vertx.core.Context
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpClient
@@ -50,7 +51,9 @@ class PlatformConnection(
     /** How often the node pings Pano; a parameter only so a test can run the watchdog in milliseconds. */
     private val pingIntervalMillis: Long = PING_INTERVAL_MILLIS,
     /** How long a socket may hear nothing from Pano before it is given up. */
-    private val livenessTimeoutMillis: Long = LIVENESS_TIMEOUT_MILLIS
+    private val livenessTimeoutMillis: Long = LIVENESS_TIMEOUT_MILLIS,
+    /** How long a new socket waits for Pano's [FrameSession.EVENT] before it takes Pano for an old one. */
+    private val sessionWaitMillis: Long = SESSION_WAIT_MILLIS
 ) {
     private val handlers = ConcurrentHashMap<String, (String) -> Unit>()
 
@@ -81,6 +84,32 @@ class PlatformConnection(
 
     @Volatile
     private var onConnected: (() -> Unit)? = null
+
+    /** How the current socket speaks (protocol 9, [FrameSession]); only touched on [socketContext]. */
+    private enum class Mode { PENDING, SESSION, LEGACY }
+
+    private class SocketState(val socket: WebSocket, val clientNonce: String) {
+        var mode = Mode.PENDING
+        var session: FrameSession? = null
+        var waitTimer = -1L
+
+        /** What the node said and what came in before Pano answered: nothing is lost or let in early. */
+        val outbound = ArrayList<JsonObject>()
+        val inbound = ArrayList<String>()
+    }
+
+    @Volatile
+    private var state: SocketState? = null
+
+    @Volatile
+    private var socketContext: Context? = null
+
+    /**
+     * Runs the first time a Pano confirms a frame session, after [NodeConfig.frameSession] was set,
+     * so the daemon can save it: from then on this node never talks to Pano without one.
+     */
+    @Volatile
+    var onFrameSessionConfirmed: (() -> Unit)? = null
 
     /** The current socket's liveness watchdog, or -1 when there has never been a socket. */
     @Volatile
@@ -240,28 +269,43 @@ class PlatformConnection(
      */
     fun send(event: String, payload: JsonObject) {
         val socket = webSocket ?: return
-        val key = secretKey ?: return
+        val current = state ?: return
+        val context = socketContext ?: return
 
         val frame = JsonObject().put("event", event)
 
         payload.forEach { entry -> frame.put(entry.key, entry.value) }
 
-        val encrypted = try {
-            Aes256GcmUtil.encrypt(frame.encode(), key)
-        } catch (exception: Exception) {
-            logger.warn("Could not encrypt $event: ${exception.message}")
-
-            return
-        }
-
-        vertx.runOnContext {
-            try {
-                if (webSocket === socket) {
-                    socket.writeTextMessage(encrypted)
-                }
-            } catch (exception: Exception) {
-                logger.warn("Could not send $event: ${exception.message}")
+        // Sealed, encrypted and written on the socket's own context, in one go: the sequence
+        // numbers must reach Pano in the order they were given out, which two threads each
+        // writing their own frame would not promise.
+        context.runOnContext {
+            if (webSocket !== socket || state !== current) {
+                return@runOnContext
             }
+
+            if (current.mode == Mode.PENDING) {
+                if (current.outbound.size < MAX_HELD_FRAMES) {
+                    current.outbound.add(frame)
+                }
+
+                return@runOnContext
+            }
+
+            write(current, frame, event)
+        }
+    }
+
+    /** Writes one frame of [current], sealed when it has a session. On the socket's context only. */
+    private fun write(current: SocketState, frame: JsonObject, event: String) {
+        val key = secretKey ?: return
+
+        try {
+            val body = current.session?.seal(frame) ?: frame
+
+            current.socket.writeTextMessage(Aes256GcmUtil.encrypt(body.encode(), key))
+        } catch (exception: Exception) {
+            logger.warn("Could not send $event: ${exception.message}")
         }
     }
 
@@ -294,11 +338,16 @@ class PlatformConnection(
             .setMethod(HttpMethod.GET)
             .addHeader("Authorization", "Bearer ${config.token}")
 
+        // A fresh nonce per socket: Pano binds this connection's frames to it (protocol 9).
+        val clientNonce = FrameSession.newNonce()
+
+        options.addHeader(FrameSession.HEADER, clientNonce)
+
         webSocketClient.connect(options).onComplete { result ->
             connecting.set(false)
 
             if (result.succeeded()) {
-                onSocketOpen(result.result())
+                onSocketOpen(result.result(), clientNonce)
 
                 return@onComplete
             }
@@ -307,7 +356,11 @@ class PlatformConnection(
         }
     }
 
-    private fun onSocketOpen(socket: WebSocket) {
+    private fun onSocketOpen(socket: WebSocket, clientNonce: String) {
+        val current = SocketState(socket, clientNonce)
+
+        socketContext = Vertx.currentContext() ?: vertx.orCreateContext
+        state = current
         webSocket = socket
         secretKey = Aes256GcmUtil.base64ToSecretKey(config.encryptionKey)
         backoffSeconds = MIN_BACKOFF_SECONDS
@@ -328,10 +381,15 @@ class PlatformConnection(
         // there is, and the text handler below never sees either of them.
         socket.frameHandler { liveness.heard() }
 
-        socket.textMessageHandler { message -> onTextMessage(message) }
+        socket.textMessageHandler { message -> onTextMessage(current, message) }
+
+        // A Pano that knows frame sessions answers before anything else; one that says nothing
+        // in this time is an older Pano, and the socket speaks the old way with it.
+        current.waitTimer = vertx.setTimer(sessionWaitMillis) { onSessionWaitOver(current, timer) }
 
         socket.closeHandler {
             vertx.cancelTimer(timer)
+            vertx.cancelTimer(current.waitTimer)
 
             if (release(socket)) {
                 outageReported = true
@@ -464,6 +522,7 @@ class PlatformConnection(
 
         webSocket = null
         secretKey = null
+        state = null
 
         return true
     }
@@ -480,7 +539,11 @@ class PlatformConnection(
         vertx.setTimer(delay * 1000L) { connect() }
     }
 
-    private fun onTextMessage(encrypted: String) {
+    private fun onTextMessage(current: SocketState, encrypted: String) {
+        if (state !== current) {
+            return
+        }
+
         val key = secretKey ?: return
 
         val text = try {
@@ -491,10 +554,115 @@ class PlatformConnection(
             return
         }
 
-        val event = try {
-            JsonObject(text).getString("event")
+        val body = try {
+            JsonObject(text)
         } catch (exception: Exception) {
             logger.warn("Dropped a malformed frame: ${exception.message}")
+
+            return
+        }
+
+        val event = body.getString("event")
+
+        when (current.mode) {
+            Mode.PENDING -> {
+                if (event == FrameSession.EVENT) {
+                    onSessionAnswer(current, body)
+                } else if (current.inbound.size < MAX_HELD_FRAMES) {
+                    // Held until it is clear whether this Pano seals its frames: a new one always
+                    // answers first, so anything before that is only ever let in for an old one.
+                    current.inbound.add(text)
+                }
+
+                return
+            }
+
+            Mode.SESSION -> if (!current.session!!.accept(body)) {
+                logger.warn("Dropped a frame that does not belong to this connection (\"$event\").")
+
+                return
+            }
+
+            Mode.LEGACY -> Unit
+        }
+
+        dispatch(event, text)
+    }
+
+    /** Pano's [FrameSession.EVENT]: the session starts, and what the node held goes out sealed. */
+    private fun onSessionAnswer(current: SocketState, body: JsonObject) {
+        val server = body.getString("server")
+
+        if (body.getString("client") != current.clientNonce || !FrameSession.isNonce(server)) {
+            logger.warn("Dropped a frame session answer meant for another connection.")
+
+            return
+        }
+
+        vertx.cancelTimer(current.waitTimer)
+
+        current.session = FrameSession.forNode(current.clientNonce, server)
+        current.mode = Mode.SESSION
+
+        if (current.inbound.isNotEmpty()) {
+            logger.warn("Dropped ${current.inbound.size} frame(s) that came before Pano opened the session.")
+
+            current.inbound.clear()
+        }
+
+        current.outbound.forEach { write(current, it, it.getString("event").orEmpty()) }
+        current.outbound.clear()
+
+        if (!config.frameSession) {
+            config.frameSession = true
+
+            try {
+                onFrameSessionConfirmed?.invoke()
+            } catch (exception: Exception) {
+                logger.warn("Could not remember that Pano seals its frames: ${exception.message}")
+            }
+        }
+    }
+
+    /** No answer: an older Pano, unless this node has seen a newer one, which never goes back. */
+    private fun onSessionWaitOver(current: SocketState, watchdog: Long) {
+        if (state !== current || current.mode != Mode.PENDING) {
+            return
+        }
+
+        if (config.frameSession) {
+            giveUp(
+                current.socket,
+                watchdog,
+                "Pano did not open a protected connection, which it always did before; not talking to it without one. Reconnecting."
+            )
+
+            return
+        }
+
+        current.mode = Mode.LEGACY
+
+        current.outbound.forEach { write(current, it, it.getString("event").orEmpty()) }
+        current.outbound.clear()
+
+        val held = current.inbound.toList()
+
+        current.inbound.clear()
+
+        held.forEach { text ->
+            val event = try {
+                JsonObject(text).getString("event")
+            } catch (_: Exception) {
+                null
+            }
+
+            dispatch(event, text)
+        }
+    }
+
+    private fun dispatch(event: String?, text: String) {
+        if (event == null) {
+            logger.warn("Dropped a frame that names no message.")
 
             return
         }
@@ -534,6 +702,12 @@ class PlatformConnection(
     companion object {
         const val NEED_PERMISSION = "NEED_PERMISSION"
         const val INVALID_TOKEN = "INVALID_TOKEN"
+
+        /** How long a new socket waits for Pano's frame session answer (protocol 9). */
+        const val SESSION_WAIT_MILLIS = 5_000L
+
+        /** Frames held per direction while that answer is outstanding. */
+        private const val MAX_HELD_FRAMES = 2_000
 
         const val MIN_BACKOFF_SECONDS = 3L
         const val MAX_BACKOFF_SECONDS = 30L

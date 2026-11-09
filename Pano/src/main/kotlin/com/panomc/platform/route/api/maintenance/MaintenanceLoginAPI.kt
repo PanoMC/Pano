@@ -1,14 +1,18 @@
 package com.panomc.platform.route.api.maintenance
 
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.api.event.AuthEventListener
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
+import com.panomc.platform.db.model.User
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.ERROR_CSRF
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.ERROR_INVALID
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.ERROR_IP_BANNED
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.ERROR_NO_ACCESS
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.ERROR_PARAM
+import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.LOGIN_CODE_FIELD
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.LOGIN_PASSWORD_FIELD
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.LOGIN_PATH
 import com.panomc.platform.maintenance.MaintenanceModeManager.Companion.LOGIN_USERNAME_FIELD
@@ -16,9 +20,13 @@ import com.panomc.platform.model.*
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.TextUtil
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.impl.RoutingContextInternal
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaRepository
+import io.vertx.sqlclient.SqlClient
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.Logger
 
 /**
@@ -77,11 +85,21 @@ class MaintenanceLoginAPI(
 
         val sqlClient = getSqlClient()
 
-        // ZERO plugin hooks, on purpose. LoginAPI runs AuthEventListener.onBeforeAuthenticate,
-        // onBeforeLogin and onAfterLogin inline; this endpoint calls AuthProvider directly and must
-        // keep doing so. Maintenance mode is the recovery path — a captcha, 2FA or social-login
-        // plugin that is itself broken must never be able to lock staff out. Do not "helpfully"
-        // wire the hooks in here.
+        // The site's own IP bans apply here as on the normal login: this door is for staff who are
+        // locked out by maintenance, not for an address the site has banned. Not counted as a
+        // failed attempt, like the maintenance ban above.
+        if (databaseManager.bannedIpDao.getActiveByIp(authProvider.getRemoteIP(context), sqlClient) != null) {
+            redirect(context, errorUrl(loginUrl, ERROR_IP_BANNED))
+
+            return null
+        }
+
+        // Almost no plugin hooks, on purpose. LoginAPI runs AuthEventListener.onBeforeAuthenticate,
+        // onBeforeLogin and onAfterLogin inline; this endpoint calls AuthProvider directly.
+        // Maintenance mode is the recovery path — a captcha or social-login plugin that is itself
+        // broken must never be able to lock staff out. The one exception is a second factor (see
+        // [checkSecondFactor]): a password alone must not open an account that has one, but a 2FA
+        // plugin that throws or hangs still fails open.
         try {
             authProvider.validateInput(usernameOrEmail, password)
 
@@ -112,6 +130,28 @@ class MaintenanceLoginAPI(
             return null
         }
 
+        when (checkSecondFactor(context, usernameOrEmail, request.getFormAttribute(LOGIN_CODE_FIELD), sqlClient)) {
+            SecondFactor.PASSED -> Unit
+
+            // Not a failed attempt: the password was right, the code is simply still to come.
+            SecondFactor.REQUIRED -> {
+                sendLoginPage(context, 401, MaintenanceModeManager.Notice.CODE_REQUIRED)
+
+                return null
+            }
+
+            SecondFactor.INVALID -> {
+                // Counted like a wrong password, so codes cannot be guessed without limit.
+                if (maintenanceModeManager.registerLoginFailure(context, usernameOrEmail)) {
+                    redirect(context, errorUrl(loginUrl, ERROR_IP_BANNED))
+                } else {
+                    sendLoginPage(context, 401, MaintenanceModeManager.Notice.CODE_INVALID)
+                }
+
+                return null
+            }
+        }
+
         maintenanceModeManager.registerLoginSuccess(context)
 
         val token = authProvider.login(usernameOrEmail, context, sqlClient)
@@ -126,6 +166,81 @@ class MaintenanceLoginAPI(
         redirect(context, resolveRedirectTarget(userId))
 
         return null
+    }
+
+    /**
+     * Whether the account's second factor, when it has one, lets this sign-in through.
+     *
+     * Asks the [AuthEventListener.onBeforeLogin] hooks the normal login asks, with the JSON body
+     * they expect (this form posts form data): first without a code, and a hook that answers with a
+     * `challengeField` is a second factor; then only those hooks again with [code] in that field.
+     * Every other answer of any hook is ignored here, and a hook that throws or does not answer in
+     * time counts as no answer, so a broken plugin can never lock staff out of a closed site.
+     */
+    private suspend fun checkSecondFactor(
+        context: RoutingContext,
+        usernameOrEmail: String,
+        code: String?,
+        sqlClient: SqlClient
+    ): SecondFactor {
+        val listeners = PluginEventManager.getPanoEventListeners<AuthEventListener>()
+
+        if (listeners.isEmpty()) {
+            return SecondFactor.PASSED
+        }
+
+        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)
+            ?: return SecondFactor.PASSED
+        val user = databaseManager.userDao.getById(userId, sqlClient) ?: return SecondFactor.PASSED
+
+        val internal = context as? RoutingContextInternal ?: run {
+            logger.warn("Maintenance login could not ask the sign-in plugins for a second factor.")
+
+            return SecondFactor.PASSED
+        }
+
+        val originalBody = context.body().buffer()
+
+        try {
+            return secondFactor(listeners, usernameOrEmail, code) { listener, body ->
+                internal.setBody(body.toBuffer())
+
+                askHook(listener, user, context, sqlClient)
+            }
+        } finally {
+            internal.setBody(originalBody)
+        }
+    }
+
+    private suspend fun askHook(
+        listener: AuthEventListener,
+        user: User,
+        context: RoutingContext,
+        sqlClient: SqlClient
+    ): AuthEventListener.LoginDecision? = try {
+        withTimeoutOrNull(HOOK_TIMEOUT_MS) { listener.onBeforeLogin(user, context, sqlClient) }
+    } catch (t: Throwable) {
+        logger.warn("A sign-in plugin failed during the maintenance login; ignoring it: ${t.message}")
+
+        null
+    }
+
+    private suspend fun sendLoginPage(context: RoutingContext, status: Int, notice: MaintenanceModeManager.Notice) {
+        // Pano's own form: the one in the maintenance folder may predate the code field.
+        val body = maintenanceModeManager.renderLoginPage(context, notice, bundledForm = true)
+
+        val response = context.response()
+
+        if (response.ended() || response.headWritten()) {
+            return
+        }
+
+        response
+            .setStatusCode(status)
+            .putHeader("content-type", "text/html; charset=utf-8")
+            .putHeader("Cache-Control", "no-store")
+            .putHeader("X-Robots-Tag", "noindex")
+            .end(body)
     }
 
     private suspend fun resolveRedirectTarget(userId: Long): String {
@@ -180,5 +295,55 @@ class MaintenanceLoginAPI(
             .putHeader("Location", location)
             .putHeader("Cache-Control", "no-store")
             .end()
+    }
+
+    enum class SecondFactor { PASSED, REQUIRED, INVALID }
+
+    companion object {
+        /** The extra a second-factor plugin names its code field in (auth-guard: `totpCode`). */
+        const val CHALLENGE_FIELD_KEY = "challengeField"
+
+        /**
+         * The second-factor decision, given how to [ask] each listener with a request body.
+         *
+         * A listener that denies with a [CHALLENGE_FIELD_KEY] is a second factor; only those are
+         * asked again, with [code] in their field, and only their denial then refuses the sign-in.
+         * Pure apart from [ask], so the rule can be asserted without a server.
+         */
+        suspend fun <T> secondFactor(
+            listeners: List<T>,
+            usernameOrEmail: String,
+            code: String?,
+            ask: suspend (T, JsonObject) -> AuthEventListener.LoginDecision?
+        ): SecondFactor {
+            val challenges = listeners.mapNotNull { listener ->
+                val decision = ask(listener, JsonObject().put(LOGIN_USERNAME_FIELD, usernameOrEmail))
+                    as? AuthEventListener.LoginDecision.Deny
+
+                (decision?.extras?.get(CHALLENGE_FIELD_KEY) as? String)?.takeIf { it.isNotBlank() }?.let { listener to it }
+            }
+
+            if (challenges.isEmpty()) {
+                return SecondFactor.PASSED
+            }
+
+            val cleanedCode = code?.trim().orEmpty()
+
+            if (cleanedCode.isEmpty()) {
+                return SecondFactor.REQUIRED
+            }
+
+            challenges.forEach { (listener, field) ->
+                val body = JsonObject().put(LOGIN_USERNAME_FIELD, usernameOrEmail).put(field, cleanedCode)
+
+                if (ask(listener, body) is AuthEventListener.LoginDecision.Deny) {
+                    return SecondFactor.INVALID
+                }
+            }
+
+            return SecondFactor.PASSED
+        }
+
+        private const val HOOK_TIMEOUT_MS = 5_000L
     }
 }

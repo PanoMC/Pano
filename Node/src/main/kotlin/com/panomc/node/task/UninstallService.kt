@@ -15,6 +15,7 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import com.panomc.node.util.SafeDelete
 
 /**
  * Removes this node from its host because Pano deleted it (`NODE_UNINSTALL`, SM-64, §2.4.29 B).
@@ -261,7 +262,7 @@ class UninstallService(
             val protected = kept.filter { it.toPath().startsWith(target.absoluteFile.normalize().toPath()) }
 
             val left = if (protected.isEmpty()) {
-                if (target.deleteRecursively()) emptyList() else listOf(target.absolutePath)
+                if (SafeDelete.tree(target)) emptyList() else listOf(target.absolutePath)
             } else {
                 RetiredMarker.clearAllBut(target, protected)
             }
@@ -328,12 +329,12 @@ class UninstallService(
         // Only a node has anything else on the host: an agent's jar sits in its server's folder,
         // which is never the uninstall's to delete, and it runs as whoever runs that server.
         if (host.agentFolder == null) {
-            File(host.systemdEnvPath).let { if (it.isDirectory) it.deleteRecursively() else it.delete() }
+            File(host.systemdEnvPath).let { if (it.isDirectory) SafeDelete.tree(it) else it.delete() }
 
             host.installDir
                 ?.let { File(it) }
                 ?.takeIf { it.isDirectory && it.name.contains(service) && !it.absolutePath.startsWith(dataDir.absolutePath) }
-                ?.deleteRecursively()
+                ?.let { SafeDelete.tree(it) }
 
             if (commands.run(listOf("id", UninstallEnvironment.SERVICE_USER)) == 0) {
                 commands.run(listOf("userdel", UninstallEnvironment.SERVICE_USER))

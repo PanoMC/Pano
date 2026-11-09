@@ -237,7 +237,7 @@ class PanoHostManager(
                 mcUuid = RegisterUtil.generateOfflineUuid(username)
             )
 
-            return userDao.add(user, passwordHasher.hash(password, algorithm), sqlClient, false)
+            return userDao.add(user, passwordHasher.hashAsync(password, algorithm), sqlClient, false)
         }
 
         override suspend fun grantAdmin(userId: Long) {

@@ -255,6 +255,10 @@
     "code": "LOCAL_NODE_JAVA_MISSING",
     "status": 400
   },
+  "com.panomc.platform.error.LocaleAlreadyExists": {
+    "code": "LOCALE_ALREADY_EXISTS",
+    "status": 409
+  },
   "com.panomc.platform.error.LocaleCannotBeDisabled": {
     "code": "LOCALE_CANNOT_BE_DISABLED",
     "status": 422
@@ -530,6 +534,10 @@
   "com.panomc.platform.error.ServerOffline": {
     "code": "SERVER_OFFLINE",
     "status": 409
+  },
+  "com.panomc.platform.error.SetupPendingOnHost": {
+    "code": "SETUP_PENDING_ON_HOST",
+    "status": 503
   },
   "com.panomc.platform.error.SomePermissionsArentExists": {
     "code": "SOME_PERMISSIONS_ARENT_EXISTS",

@@ -5,6 +5,7 @@ import com.panomc.node.server.ExternalServerIndex
 import com.panomc.node.util.NodeLogger
 import com.panomc.node.util.PathSafety
 import java.io.File
+import com.panomc.node.util.SafeDelete
 
 /**
  * Removes the backups of servers that no longer exist, once, at boot (SM-64, §2.4.29 A).
@@ -69,7 +70,7 @@ object BackupOrphanSweep {
                 0L
             }
 
-            if (!directory.deleteRecursively()) {
+            if (!SafeDelete.tree(directory)) {
                 logger.warn("Could not remove the backups of deleted server $uuid from ${directory.absolutePath}.")
 
                 return@forEach

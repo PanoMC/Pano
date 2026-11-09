@@ -1255,4 +1255,16 @@ class AgentFolderTest {
 
         return registry.get(uuid)?.spec?.jar
     }
+
+    @Test
+    fun `the node's own systemd unit quotes paths with spaces`() {
+        val data = File(hostDir, "Pano Node/data")
+        val unit = ServiceInstaller(data, quiet).systemdUnit("/opt/Pano Node/pano-node.jar", "/usr/bin/java")
+        val exec = unit.lines().single { it.trim().startsWith("ExecStart=") }.trim()
+
+        assertEquals(
+            "ExecStart=/usr/bin/java -jar \"/opt/Pano Node/pano-node.jar\" --data \"${data.absolutePath.replace("\\", "\\\\")}\"",
+            exec
+        )
+    }
 }

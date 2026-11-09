@@ -64,7 +64,7 @@ class HostedAutoSetup(
     private val wait: suspend (Long) -> Unit = { delay(it) }
 ) {
     enum class Outcome {
-        /** `setup.step != 0`: the wizard was started or setup is done. */
+        /** Setup is done, or a MANUAL instance whose wizard was already started. */
         SKIPPED,
 
         /** The control plane has no first boot for this instance (or it is done / restored). */
@@ -113,8 +113,12 @@ class HostedAutoSetup(
     }
 
     suspend fun run(): Outcome {
-        if (target.currentStep() != 0) return Outcome.SKIPPED
+        val step = target.currentStep()
 
+        if (step >= 5) return Outcome.SKIPPED
+
+        // Asked on every boot until setup is done, not only at step 0: a step call on the public
+        // wizard must not switch the automatic setup of an AUTOMATIC order off for good.
         val bootstrap = fetch() ?: return Outcome.UNAVAILABLE
 
         return when (bootstrap) {
@@ -124,7 +128,8 @@ class HostedAutoSetup(
             }
 
             is Result.Got -> when (val answers = bootstrap.value) {
-                is Bootstrap.Manual -> {
+                // The installer already started: what they typed is not overwritten.
+                is Bootstrap.Manual -> if (step != 0) Outcome.SKIPPED else {
                     target.updateConfig { applySite(it, answers.site, automatic = false) }
                     log("Pano Host: manual setup, the installer is prefilled with the order form answers")
                     Outcome.PREFILLED

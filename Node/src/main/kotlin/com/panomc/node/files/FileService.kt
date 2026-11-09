@@ -15,6 +15,7 @@ import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.attribute.PosixFilePermissions
+import com.panomc.node.util.SafeDelete
 
 /**
  * Every `FILE_*` request, answered from inside one server's directory and nowhere else.
@@ -212,11 +213,13 @@ class FileService(
         requested.forEach { path ->
             val file = resolveMutable(root, path)
 
-            if (!file.exists()) {
+            // Not followed: a link (even one pointing nowhere) is removed as a link, and a
+            // directory never empties whatever a link inside it points at.
+            if (!Files.exists(file.toPath(), LinkOption.NOFOLLOW_LINKS)) {
                 return@forEach
             }
 
-            val ok = if (file.isDirectory) file.deleteRecursively() else file.delete()
+            val ok = SafeDelete.tree(file)
 
             if (!ok) {
                 throw IllegalStateException("${ServerFileDenylist.normalise(path)} could not be removed.")

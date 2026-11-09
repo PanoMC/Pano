@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.ticket
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -107,7 +108,8 @@ class GetTicketAPI(
                     "userId" to ticketMessage.userId,
                     "ticketId" to ticketMessage.ticketId,
                     "username" to (usernameList[ticketMessage.userId] ?: "-"),
-                    "message" to ticketMessage.message,
+                    // Staff replies are rendered as HTML; a player's own message is shown as text.
+                    "message" to if (ticketMessage.panel == 1) HtmlSanitizer.sanitize(ticketMessage.message) else ticketMessage.message,
                     "date" to ticketMessage.date,
                     "panel" to ticketMessage.panel
                 )

@@ -63,14 +63,13 @@ class DatabaseMigration18to19 : DatabaseMigration(
         val table = "${getTablePrefix()}permission_group"
 
         // add new columns
-        sqlClient.preparedQuery(
-            """
-                ALTER TABLE `$table`
-                ADD COLUMN `displayName` varchar(64) NULL,
-                ADD COLUMN `createdAt` BIGINT(20) NULL,
-                ADD COLUMN `updatedAt` BIGINT(20) NULL;
-            """.trimIndent()
-        ).execute().coAwait()
+        addMissingColumns(
+            sqlClient,
+            table,
+            "displayName" to "varchar(64) NULL",
+            "createdAt" to "BIGINT(20) NULL",
+            "updatedAt" to "BIGINT(20) NULL"
+        )
 
         val now = System.currentTimeMillis()
 
@@ -105,8 +104,13 @@ class DatabaseMigration18to19 : DatabaseMigration(
     }
 
     private fun migrateAdminUsersToPermissionNodesAndDropUserPermissionGroupId(): suspend (sqlClient: SqlClient) -> Unit =
-        { sqlClient ->
+        migrate@{ sqlClient ->
             val prefix = getTablePrefix()
+
+            // Already done by an earlier, interrupted run: the column this step reads is gone.
+            if (!hasColumn(sqlClient, "${prefix}user", "permissionGroupId")) {
+                return@migrate
+            }
 
             // find admin group id
             val adminIdRows: RowSet<io.vertx.sqlclient.Row> = sqlClient

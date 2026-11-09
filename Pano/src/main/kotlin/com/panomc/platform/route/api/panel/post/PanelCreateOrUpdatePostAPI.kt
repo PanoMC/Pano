@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.post
 
+import java.util.UUID
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -64,10 +66,11 @@ class PanelCreateOrUpdatePostAPI(
         val id = parameters.pathParameter("id")?.long
         val title = data.getString("title")
         val categoryId = data.getLong("category")
-        val text = data.getString("text")
+        val text = HtmlSanitizer.sanitize(data.getString("text"))
         val removeThumbnail = data.getBoolean("removeThumbnail") ?: false
         val publish = data.getBoolean("publish") ?: true
         val url = TextUtil.convertStringToUrl(title, 32)
+        val placeholderUrl = "new-post-" + UUID.randomUUID()
 
         var thumbnailUrl = ""
         val body = mutableMapOf<String, Any?>()
@@ -123,7 +126,9 @@ class PanelCreateOrUpdatePostAPI(
                     PostStatus.PUBLISHED
                 else // for save button
                     postInDb.status,
-            url = if (id == null) url else "$url-$id"
+            // A new post gets a one-off placeholder until its id is known: the slug alone can equal another post's url
+            // ("Foo 5" gives foo-5, the url of post 5 "Foo"), and the rename below goes by url.
+            url = if (id == null) placeholderUrl else "$url-$id"
         )
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
@@ -131,7 +136,7 @@ class PanelCreateOrUpdatePostAPI(
         if (id == null) {
             val postId = databaseManager.postDao.insert(post, sqlClient)
 
-            databaseManager.postDao.updatePostUrlByUrl(url, "$url-$postId", sqlClient)
+            databaseManager.postDao.updatePostUrlByUrl(placeholderUrl, "$url-$postId", sqlClient)
 
             body["id"] = postId
 

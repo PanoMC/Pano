@@ -47,6 +47,8 @@ class DockerCommandsTest {
         assertTrue(args.containsPair("--workdir", "/data"))
         // One argument, so a directory with a space in it can never become two.
         assertTrue(args.containsPair("--volume", "/srv/a b:/data"))
+        // The daemon's own folder is hidden from the container.
+        assertTrue(args.containsPair("--tmpfs", "/data/.pano-node"))
         assertTrue(args.containsPair("-e", "JAVA_TOOL_OPTIONS="))
         assertTrue(args.contains("--interactive"))
         assertTrue(args.containsPair("--restart", "no"))

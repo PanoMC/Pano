@@ -190,12 +190,12 @@ class UserDaoImpl : UserDao() {
             )
             .coAwait()
 
-        if (rows.size() == 0) return false
-
-        val storedHash = rows.toList()[0].getString(0) ?: return false
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
 
-        return passwordHasher.verify(password, storedHash)
+        // An unknown account costs the same hash as a known one, so the answer time does not tell them apart.
+        val storedHash = rows.firstOrNull()?.getString(0) ?: return passwordHasher.verifyDummyAsync(password)
+
+        return passwordHasher.verifyAsync(password, storedHash)
     }
 
     override suspend fun count(sqlClient: SqlClient): Long {
@@ -565,20 +565,17 @@ class UserDaoImpl : UserDao() {
     }
 
     override suspend fun areUsernamesExists(usernames: List<String>, sqlClient: SqlClient): Boolean {
-        var listText = ""
-
-        usernames.forEach { username ->
-            if (listText == "")
-                listText = "'$username'"
-            else
-                listText += ", '$username'"
+        if (usernames.isEmpty()) {
+            return true
         }
 
-        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` IN ($listText)"
+        val placeholders = usernames.joinToString(", ") { "?" }
+
+        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` IN ($placeholders)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.wrap(usernames))
             .coAwait()
 
         return rows.toList()[0].getLong(0) == usernames.size.toLong()
@@ -975,7 +972,7 @@ class UserDaoImpl : UserDao() {
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
         val configManager = applicationContext.getBean(ConfigManager::class.java)
         val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
-        val hashedPassword = passwordHasher.hash(password, algorithm)
+        val hashedPassword = passwordHasher.hashAsync(password, algorithm)
 
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `password` = ? WHERE `id` = ?"
@@ -1223,7 +1220,7 @@ class UserDaoImpl : UserDao() {
         val storedHash = rows.toList()[0].getString(0) ?: return false
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
 
-        return passwordHasher.verify(password, storedHash)
+        return passwordHasher.verifyAsync(password, storedHash)
     }
 
     override suspend fun updatePendingEmailById(

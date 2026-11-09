@@ -5,9 +5,11 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.PanoBackupActionLog
 import com.panomc.platform.auth.panel.permission.ManagePanoBackupsPermission
 import com.panomc.platform.backup.PanoBackupAudit
+import com.panomc.platform.backup.PanoBackupJob
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.PanoBackupStore
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.PanoBackupBusy
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -38,6 +40,14 @@ class PanelDeletePanoBackupAPI(
 
         if (!PanoBackupStore.isValidId(id)) {
             throw NotExists()
+        }
+
+        // A running restore reads its source and writes its pre-restore safety backup here; deleting one of
+        // them under it could leave the restore without its rollback.
+        val job = panoBackupManager.service.job
+
+        if (job?.type == PanoBackupJob.Type.RESTORE && job.status == PanoBackupJob.Status.RUNNING) {
+            throw PanoBackupBusy()
         }
 
         val deleted = context.vertx().executeBlocking { panoBackupManager.store.delete(id) }.coAwait()

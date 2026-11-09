@@ -6,6 +6,8 @@ import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.ServerActiveTaskStore
 import com.panomc.platform.server.ServerProcessState
 import com.panomc.platform.server.alert.AlertManager
+import com.panomc.platform.server.plugins.ManagedServerPluginService
+import com.panomc.platform.server.plugins.PanoPluginUpdateService
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.sqlclient.SqlClient
@@ -15,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.Logger
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -42,7 +45,10 @@ class ServerTaskService(
     private val alertManager: AlertManager,
     private val activeTaskStore: ServerActiveTaskStore,
     private val vertx: Vertx,
-    private val logger: Logger
+    private val logger: Logger,
+    // Looked up when used, not at construction: both services sit above this one in the graph.
+    private val managedServerPluginService: ObjectProvider<ManagedServerPluginService>,
+    private val panoPluginUpdateService: ObjectProvider<PanoPluginUpdateService>
 ) {
     /**
      * One mutex per task uuid.
@@ -244,6 +250,14 @@ class ServerTaskService(
         takeStartCarriedByLink(task.uuid)
 
         onTaskFailed(task.kind, task.serverId, task.error, sqlClient, task.uuid)
+
+        // A plugin download that went silent settles its provenance row like a failed one, as the
+        // progress handler does for a FAILED frame: otherwise the row keeps the task id for good
+        // and the plugin is never checked for updates again.
+        if (task.kind == ServerTaskKind.PLUGIN_INSTALL) {
+            managedServerPluginService.ifAvailable?.onInstallTaskFinished(task.uuid, task.serverId, task.status, sqlClient)
+            panoPluginUpdateService.ifAvailable?.onNodeTaskFinished(task.uuid, task.serverId, task.status, sqlClient)
+        }
 
         return true
     }

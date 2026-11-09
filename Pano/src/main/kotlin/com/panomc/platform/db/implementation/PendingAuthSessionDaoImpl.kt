@@ -80,6 +80,15 @@ class PendingAuthSessionDaoImpl : PendingAuthSessionDao() {
             .coAwait()
     }
 
+    override suspend fun deleteByUserId(userId: Long, sqlClient: SqlClient) {
+        val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `userId` = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(userId))
+            .coAwait()
+    }
+
     override suspend fun deleteExpired(sqlClient: SqlClient) {
         val query = "DELETE FROM `${getTablePrefix() + tableName}` WHERE `expiresAt` < ?"
 

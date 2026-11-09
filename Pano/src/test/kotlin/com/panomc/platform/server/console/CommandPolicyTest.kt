@@ -96,4 +96,16 @@ class CommandPolicyTest {
 
         assertTrue(CommandPolicy.matches(pattern, pattern))
     }
+
+    @Test
+    fun `a namespaced or execute-wrapped command is still the command`() {
+        assertTrue(CommandPolicy.matches("op", "minecraft:op Notch"))
+        assertTrue(CommandPolicy.matches("op", "/bukkit:op Notch"))
+        assertTrue(CommandPolicy.matches("op", "execute run op Notch"))
+        assertTrue(CommandPolicy.matches("op", "execute as @a at @s run minecraft:op Notch"))
+        assertTrue(CommandPolicy.matches("op", "minecraft:execute run execute run op Notch"))
+        assertTrue(CommandPolicy.matches("whitelist*", "execute run minecraft:whitelistadd x"))
+        assertFalse(CommandPolicy.matches("op", "execute as @a run say hi"))
+        assertFalse(CommandPolicy.matches("op", "minecraft:opme"))
+    }
 }

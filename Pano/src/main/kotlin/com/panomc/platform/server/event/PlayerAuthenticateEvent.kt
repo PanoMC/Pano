@@ -14,7 +14,18 @@ class PlayerAuthenticateEvent(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager
 ) : ServerEvent<PlayerAuthenticateEventRequest, PlayerAuthenticateEventResponse>() {
+    private val attemptLimiter = ServerAuthAttemptLimiter()
+
     override suspend fun handle(request: PlayerAuthenticateEventRequest, server: Server): PlayerAuthenticateEventResponse {
+        // Login through a server is only allowed while that server's auth integration is on.
+        if (!server.settings.authIntegration) {
+            return PlayerAuthenticateEventResponse(false)
+        }
+
+        if (attemptLimiter.isBlocked(server.id, request.username)) {
+            return PlayerAuthenticateEventResponse(false)
+        }
+
         val sqlClient = databaseManager.getSqlClient()
 
         var success = true
@@ -29,6 +40,12 @@ class PlayerAuthenticateEvent(
             )
         } catch (_: Error) {
             success = false
+        }
+
+        if (success) {
+            attemptLimiter.recordSuccess(server.id, request.username)
+        } else {
+            attemptLimiter.recordFailure(server.id, request.username)
         }
 
         return PlayerAuthenticateEventResponse(success)

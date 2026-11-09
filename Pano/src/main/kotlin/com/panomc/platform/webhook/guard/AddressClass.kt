@@ -51,6 +51,13 @@ enum class AddressClass(private val allowedWithPrivateFlag: Boolean, private val
             }
             // NAT64 64:ff9b::/96
             if (u[0] == 0x00 && u[1] == 0x64 && u[2] == 0xff && u[3] == 0x9b && zero(4, 12)) return ofV4(u[12], u[13], u[14], u[15])
+            // Local-use NAT64 64:ff9b:1::/48 (RFC 8215): where the IPv4 address sits depends on the
+            // operator's prefix length, so it cannot be decoded; a local translator may reach anything.
+            if (u[0] == 0x00 && u[1] == 0x64 && u[2] == 0xff && u[3] == 0x9b && u[4] == 0x00 && u[5] == 0x01) return RESERVED
+            // Teredo 2001::/32 tunnels to an IPv4 address of the relay's choosing.
+            if (u[0] == 0x20 && u[1] == 0x01 && u[2] == 0x00 && u[3] == 0x00) return RESERVED
+            // Discard-only 100::/64
+            if (u[0] == 0x01 && u[1] == 0x00 && zero(2, 8)) return RESERVED
             // 6to4 2002::/16 (the IPv4 address is bits 16..47)
             if (u[0] == 0x20 && u[1] == 0x02) return ofV4(u[2], u[3], u[4], u[5])
             // ff00::/8
@@ -79,6 +86,8 @@ enum class AddressClass(private val allowedWithPrivateFlag: Boolean, private val
             a == 192 && b == 0 && c == 0 && d == 192 -> METADATA
             a == 192 && b == 0 && c == 0 -> RESERVED
             a == 192 && b == 0 && c == 2 -> RESERVED
+            // 6to4 relay anycast
+            a == 192 && b == 88 && c == 99 -> RESERVED
             a == 192 && b == 168 -> PRIVATE
             a == 198 && (b and 0xfe) == 18 -> RESERVED
             a == 198 && b == 51 && c == 100 -> RESERVED

@@ -12,6 +12,14 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 class MailTemplateServiceTest {
+    @Test
+    fun `numeric entities beyond unicode stay as written in the plain text`() {
+        assertEquals(
+            "a &#1114112; &#x110000; é 😀",
+            MailTemplateService.toPlainText("<p>a &#1114112; &#x110000; &#233; &#x1F600;</p>")
+        )
+    }
+
     private val index = MailTemplateIndex.parse(
         JsonObject(
             """

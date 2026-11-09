@@ -68,33 +68,34 @@ object LocalNodeLauncher {
     }
 
     /**
-     * The argument list, with the bootstrap token left out entirely when there is none.
-     *
-     * A daemon that has already paired keeps its own token in `node-data/config.conf` and ignores
-     * the flag, but passing an empty value would put a meaningless argument on the command line
-     * (and into every process listing) for no reason.
+     * The argument list. The bootstrap token is never on it: a command line is readable by every
+     * user of the machine (`ps`, `/proc/<pid>/cmdline`), and the token pairs a node with full
+     * rights. It goes into the child's environment instead, see [passBootstrapToken].
      */
     fun buildArguments(
         javaBin: String,
         jarPath: String,
         panoUrl: String,
-        bootstrapToken: String?,
         dataDir: String,
         name: String = DEFAULT_NAME
-    ): List<String> {
-        val arguments = mutableListOf(javaBin, "-jar", jarPath, "--pano", panoUrl)
+    ): List<String> = listOf(javaBin, "-jar", jarPath, "--pano", panoUrl, "--data", dataDir, "--name", name)
 
-        if (!bootstrapToken.isNullOrBlank()) {
-            arguments.add("--bootstrap-token")
-            arguments.add(bootstrapToken)
+    /** The node's `PANO_BOOTSTRAP_TOKEN`, which only the same OS user (and root) can read. */
+    const val BOOTSTRAP_TOKEN_ENV = "PANO_BOOTSTRAP_TOKEN"
+
+    /**
+     * Hands [bootstrapToken] to the child through [environment], or makes sure none is inherited
+     * when there is none: a daemon that has already paired keeps its own token in
+     * `node-data/config.conf`.
+     */
+    fun passBootstrapToken(environment: MutableMap<String, String>, bootstrapToken: String?): MutableMap<String, String> {
+        if (bootstrapToken.isNullOrBlank()) {
+            environment.remove(BOOTSTRAP_TOKEN_ENV)
+        } else {
+            environment[BOOTSTRAP_TOKEN_ENV] = bootstrapToken
         }
 
-        arguments.add("--data")
-        arguments.add(dataDir)
-        arguments.add("--name")
-        arguments.add(name)
-
-        return arguments
+        return environment
     }
 
     /**

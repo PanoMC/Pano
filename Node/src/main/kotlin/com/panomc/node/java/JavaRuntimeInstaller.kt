@@ -20,6 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
+import com.panomc.node.util.SafeDelete
 
 /**
  * What `<runtime>/.pano-managed.json` says: this directory was put here by the node, from where,
@@ -252,7 +253,7 @@ class JavaRuntimeInstaller(
             archive.delete()
 
             if (temporary.exists()) {
-                temporary.deleteRecursively()
+                SafeDelete.tree(temporary)
             }
         }
     }
@@ -278,12 +279,12 @@ class JavaRuntimeInstaller(
         javaRoot.listFiles()
             ?.filter { it.isDirectory && (it.name.startsWith(TMP_PREFIX) || it.name.startsWith(TRASH_PREFIX)) }
             ?.forEach { leftover ->
-                if (!leftover.deleteRecursively()) {
+                if (!SafeDelete.tree(leftover)) {
                     logger.warn("Could not delete ${leftover.absolutePath}; trying again on the next start.")
                 }
             }
 
-        cacheDir.listFiles()?.forEach { stale -> stale.deleteRecursively() }
+        cacheDir.listFiles()?.forEach { stale -> SafeDelete.tree(stale) }
 
         var removed = false
 
@@ -356,7 +357,7 @@ class JavaRuntimeInstaller(
         }
 
         repeat(DELETE_ATTEMPTS) { attempt ->
-            if (target.deleteRecursively() || !target.exists()) {
+            if (SafeDelete.tree(target) || !target.exists()) {
                 return
             }
 

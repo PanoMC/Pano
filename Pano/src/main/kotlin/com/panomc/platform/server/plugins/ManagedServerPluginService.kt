@@ -57,6 +57,15 @@ class ManagedServerPluginService(
     private val replacements = ConcurrentHashMap<String, String>()
 
     /**
+     * The confirmed row an in-flight install of the same file name overwrote, by task uuid.
+     *
+     * An update or reinstall that lands under the jar's own name rewrites that jar's row to point
+     * at the new task; if the task then fails, the old jar is still on disk and its row is put
+     * back instead of being deleted with the failed promise.
+     */
+    private val overwritten = ConcurrentHashMap<String, ServerPluginInstall>()
+
+    /**
      * Starts one plugin install and returns the task tracking it.
      *
      * The row exists before the push goes out, so a node that dies mid-download leaves a task an
@@ -155,6 +164,14 @@ class ManagedServerPluginService(
         }
 
         try {
+            databaseManager.serverPluginInstallDao.getByServerIdAndFilename(target.server.id, filename, sqlClient)
+                ?.takeIf { it.taskId == null }
+                ?.let { overwritten[taskUuid] = it }
+        } catch (e: Exception) {
+            logger.warn("Could not read where $filename came from: ${e.message}")
+        }
+
+        try {
             databaseManager.serverPluginInstallDao.upsert(
                 ServerPluginInstall(
                     serverId = target.server.id,
@@ -193,6 +210,7 @@ class ManagedServerPluginService(
         val outcome = PluginInstallTracking.outcomeOf(ServerTaskKind.PLUGIN_INSTALL, status)
 
         val replaced = replacements.remove(taskUuid)
+        val previous = overwritten.remove(taskUuid)
 
         try {
             when (outcome) {
@@ -206,7 +224,12 @@ class ManagedServerPluginService(
                 }
 
                 PluginInstallTracking.Outcome.DISCARD ->
-                    databaseManager.serverPluginInstallDao.deleteByTaskId(taskUuid, sqlClient)
+                    if (previous != null) {
+                        // The jar that was there before is still there: it keeps its own row.
+                        databaseManager.serverPluginInstallDao.upsert(previous, sqlClient)
+                    } else {
+                        databaseManager.serverPluginInstallDao.deleteByTaskId(taskUuid, sqlClient)
+                    }
 
                 PluginInstallTracking.Outcome.IGNORE -> Unit
             }

@@ -346,6 +346,27 @@ class AccessPlaneHandlerTest {
     }
 
     @Test
+    fun `a key that rotates its declared client ip still meets one ceiling on the login tier`() {
+        val key = createKey("rotating")
+        val ceiling = RateLimitManager.Tier.FRONTEND_KEY_SENSITIVE.maxRequests
+
+        // Every request claims a new address, so every per-address bucket is full; the key-wide one is not.
+        repeat(ceiling) { i ->
+            val ip = "198.51.${i / 250}.${i % 250 + 1}"
+
+            assertEquals(200, get("/api/v1/auth/login", keyed(key.key, "X-Pano-Client-Ip" to ip)).status)
+        }
+
+        val limited = get("/api/v1/auth/login", keyed(key.key, "X-Pano-Client-Ip" to "203.0.113.200"))
+
+        assertEquals(429, limited.status)
+        assertEquals("RATE_LIMIT_EXCEEDED", limited.json.getJsonObject("error").getString("code"))
+
+        // Other tiers are not touched by that ceiling.
+        assertEquals(200, get("/api/v1/posts", keyed(key.key, "X-Pano-Client-Ip" to "203.0.113.200")).status)
+    }
+
+    @Test
     fun `a key without a client ip counts in the FRONTEND_KEY tier under its own id`() {
         val key = createKey("one")
         val other = createKey("two")

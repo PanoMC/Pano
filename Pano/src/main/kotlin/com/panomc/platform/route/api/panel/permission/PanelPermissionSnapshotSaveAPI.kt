@@ -3,21 +3,23 @@ package com.panomc.platform.route.api.panel.permission
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
-import com.panomc.platform.auth.PermissionNodeContext
 import com.panomc.platform.auth.panel.permission.ManagePermissionGroupsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionNode
+import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
 import com.panomc.platform.db.model.PermissionTrack
-import com.panomc.platform.error.InvalidData
+import com.panomc.platform.error.LastAdmin
+import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
-import io.vertx.core.json.JsonArray
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.kotlin.coroutines.coAwait
+import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.SqlClient
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 @Endpoint
 class PanelPermissionSnapshotSaveAPI(
@@ -33,103 +35,52 @@ class PanelPermissionSnapshotSaveAPI(
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(ManagePermissionGroupsPermission(), context)
 
-        val body = context.body().asJsonObject()
+        // The whole payload is read and checked before a table is touched: a payload refused halfway through
+        // would otherwise take the existing permission grid with it.
+        val snapshot = PermissionSnapshot.parse(context.body().asJsonObject(), permissionManager.defaultGroupName)
+
         val sqlClient = getSqlClient()
+        val previous = PermissionSnapshot.fromRows(
+            databaseManager.permissionGroupDao.getPermissionGroups(sqlClient),
+            databaseManager.permissionTrackDao.getAll(sqlClient),
+            databaseManager.permissionNodeDao.getPermissionNodes(sqlClient)
+        )
 
-        val incomingGroups = body.getJsonArray("groups") ?: JsonArray()
-        val incomingTracks = body.getJsonArray("tracks") ?: JsonArray()
-        val incomingNodes = body.getJsonArray("nodes") ?: JsonArray()
+        val requesterIsAdmin = context.get<Boolean>("isAdmin") ?: false
+        val adminsBefore = permissionManager.getUserIdsWithNode("*").toSet()
 
-        // Parse groups
-        val groupsFromPayload = incomingGroups.mapNotNull { el ->
-            (el as? JsonObject)?.let { obj ->
-                PermissionGroup(
-                    id = obj.getLong("id") ?: -1,
-                    name = obj.getString("name"),
-                    displayName = obj.getString("displayName") ?: obj.getString("name"),
-                    createdAt = obj.getLong("createdAt") ?: System.currentTimeMillis(),
-                    updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()
-                )
+        // Only an administrator changes who is an administrator: `*`, the admin groups, membership in them and the
+        // nodes of current administrators, as the per-player permission route already rules.
+        if (!requesterIsAdmin) {
+            val adminGroups = previous.adminGroups() + snapshot.adminGroups()
+            val defaultGroup = permissionManager.defaultGroupName
+
+            if (previous.adminKeys(adminsBefore, adminGroups, defaultGroup) != snapshot.adminKeys(adminsBefore, adminGroups, defaultGroup)) {
+                throw NoPermission()
             }
-        }.toMutableList()
-
-        // Ensure admin and default exist
-        ensureGroup(groupsFromPayload, name = permissionManager.defaultGroupName, displayName = permissionManager.defaultGroupName, weight = 10)
-
-        // Every node's context is checked before anything is written. The inserts below happen
-        // after the tables are emptied, so a payload refused halfway through would take the
-        // existing permission grid with it.
-        val contexts = incomingNodes.map { el ->
-            val obj = el as? JsonObject ?: return@map JsonObject()
-
-            // Refused rather than dropped: a picker that quietly saved no scope would hand
-            // somebody the whole estate when they meant to grant two servers.
-            PermissionNodeContext.sanitize(obj.getValue("context")) ?: throw InvalidData()
         }
 
-        // Reset tables
-        truncatePermissionTables(sqlClient)
-
-        // Insert groups and keep name->id map
-        val groupIdByName = mutableMapOf<String, Long>()
-        groupsFromPayload.forEach { grp ->
-            val newId = databaseManager.permissionGroupDao.add(grp, sqlClient)
-            groupIdByName[grp.name] = newId
-        }
-
-        // Insert tracks
-        incomingTracks.forEach { el ->
-            val obj = el as? JsonObject ?: return@forEach
-            val groupNames = obj.getJsonArray("groupNames")?.mapNotNull { it as? String } ?: listOf<String>()
-            val track = PermissionTrack(
-                name = obj.getString("name"),
-                description = obj.getString("description") ?: "",
-                groupIds = groupNames.mapNotNull { groupIdByName[it] },
-                createdAt = obj.getLong("createdAt") ?: System.currentTimeMillis(),
-                updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()
-            )
-            databaseManager.permissionTrackDao.add(track, sqlClient)
-        }
-
-        // Insert nodes (skip user->default group nodes if it's not false)
-        incomingNodes.forEachIndexed { index, el ->
-            val obj = el as? JsonObject ?: return@forEachIndexed
-             val holderTypeStr = obj.getString("holderType") ?: return@forEachIndexed
-             val holderType = PermissionNode.Companion.HolderType.valueOf(holderTypeStr)
-            val holderId = obj.getLong("holderId") ?: return@forEachIndexed
-            val nodeStr = obj.getString("node") ?: return@forEachIndexed
-
-             if (holderType == PermissionNode.Companion.HolderType.USER && nodeStr == "group.${permissionManager.defaultGroupName}" && obj.getBoolean("active") ?: true) {
-                return@forEachIndexed
-            }
-
-            val mappedHolderId = if (holderType == PermissionNode.Companion.HolderType.GROUP) {
-                groupIdByName[obj.getString("holderName")] ?: groupIdByName.entries.find { it.value == holderId }?.value
-            } else holderId
-
-            if (holderType == PermissionNode.Companion.HolderType.GROUP && mappedHolderId == null) {
-                return@forEachIndexed
-            }
-
-            if (obj.getLong("expiresAt") != null && obj.getLong("expiresAt") < System.currentTimeMillis()) {
-                return@forEachIndexed
-            }
-
-            val permissionNode = PermissionNode(
-                holderType = holderType,
-                holderId = mappedHolderId ?: holderId,
-                node = nodeStr,
-                active = obj.getBoolean("active") ?: true,
-                context = contexts[index],
-                expiresAt = obj.getLong("expiresAt"),
-                createdAt = obj.getLong("createdAt") ?: System.currentTimeMillis(),
-                updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()
-            )
-
-            databaseManager.permissionNodeDao.add(permissionNode, sqlClient)
-        }
+        // One transaction: a write the database refuses (or a crash mid-way) rolls back to the grid as it was.
+        inTransaction { conn -> write(snapshot, conn) }
 
         permissionManager.refresh()
+
+        // Judged on the result as well, as the per-player route does: nobody may be left without an administrator,
+        // and someone who is not one may not have changed who is.
+        val adminsAfter = permissionManager.getUserIdsWithNode("*").toSet()
+        val refusal = when {
+            adminsAfter.isEmpty() -> LastAdmin()
+            !requesterIsAdmin && adminsAfter != adminsBefore -> NoPermission()
+            else -> null
+        }
+
+        if (refusal != null) {
+            inTransaction { conn -> write(previous, conn) }
+
+            permissionManager.refresh()
+
+            throw refusal
+        }
 
         // Broadcast to connected servers that permission snapshot has changed.
         // Only send to servers where permission integration is enabled.
@@ -143,13 +94,72 @@ class PanelPermissionSnapshotSaveAPI(
         return Successful()
     }
 
-    private fun ensureGroup(list: MutableList<PermissionGroup>, name: String, displayName: String, weight: Int) {
-        if (list.none { it.name == name }) {
-            list.add(
+    private suspend fun inTransaction(block: suspend (SqlClient) -> Unit) {
+        val conn = (databaseManager.getSqlClient() as Pool).connection.coAwait()
+
+        try {
+            val transaction = conn.begin().coAwait()
+
+            try {
+                block(conn)
+
+                transaction.commit().coAwait()
+            } catch (e: Throwable) {
+                withContext(NonCancellable) { runCatching { transaction.rollback().coAwait() } }
+
+                throw e
+            }
+        } finally {
+            withContext(NonCancellable) { runCatching { conn.close().coAwait() } }
+        }
+    }
+
+    private suspend fun write(snapshot: PermissionSnapshot, sqlClient: SqlClient) {
+        truncatePermissionTables(sqlClient)
+
+        val groupIdByName = mutableMapOf<String, Long>()
+        snapshot.groups.forEach { grp ->
+            groupIdByName[grp.name] = databaseManager.permissionGroupDao.add(
                 PermissionGroup(
-                    name = name,
-                    displayName = displayName,
-                )
+                    name = grp.name,
+                    displayName = grp.displayName,
+                    createdAt = grp.createdAt,
+                    updatedAt = grp.updatedAt
+                ),
+                sqlClient
+            )
+        }
+
+        snapshot.tracks.forEach { track ->
+            databaseManager.permissionTrackDao.add(
+                PermissionTrack(
+                    name = track.name,
+                    description = track.description,
+                    groupIds = track.groupNames.mapNotNull { groupIdByName[it] },
+                    createdAt = track.createdAt,
+                    updatedAt = track.updatedAt
+                ),
+                sqlClient
+            )
+        }
+
+        snapshot.nodes.forEach { node ->
+            val holderId = if (node.holderType == HolderType.GROUP) {
+                groupIdByName[node.groupName] ?: return@forEach
+            } else node.holderId
+
+            databaseManager.permissionNodeDao.add(
+                PermissionNode(
+                    holderType = node.holderType,
+                    holderId = holderId,
+                    node = node.node,
+                    active = node.active,
+                    context = node.context,
+                    expiresAt = node.expiresAt,
+                    createdAt = node.createdAt,
+                    updatedAt = node.updatedAt
+                ),
+                sqlClient
             )
         }
     }
@@ -167,4 +177,3 @@ class PanelPermissionSnapshotSaveAPI(
         }
     }
 }
-

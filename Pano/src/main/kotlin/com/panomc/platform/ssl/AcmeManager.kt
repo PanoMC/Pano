@@ -14,11 +14,16 @@ import org.shredzone.acme4j.util.CSRBuilder
 import org.shredzone.acme4j.util.KeyPairUtils
 import org.slf4j.Logger
 import org.springframework.stereotype.Component
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 import java.net.URI
 import java.security.KeyPair
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 @Component
@@ -39,6 +44,39 @@ class AcmeManager(
 
     private val currentOptions = AtomicReference<PemKeyCertOptions?>(null)
 
+    /** Pending HTTP-01 challenges, token to key authorization. Request input never touches the filesystem. */
+    private val pendingChallenges = ConcurrentHashMap<String, String>()
+
+    private val running = AtomicBoolean(false)
+
+    private var renewTimerId: Long? = null
+
+    /** Called (off the event loop) with the new certificate after every successful issuance or renewal. */
+    @Volatile
+    var onCertificateIssued: ((PemKeyCertOptions) -> Unit)? = null
+
+    companion object {
+        /** The ACME token alphabet (base64url); anything else is answered with 404 without a lookup. */
+        private val TOKEN = Regex("^[A-Za-z0-9_-]{1,128}$")
+
+        /** Renew when the certificate expires within this window. */
+        private const val RENEW_BEFORE_MS = 30L * 24 * 60 * 60 * 1000
+
+        /** How often the expiry is checked while Pano runs. */
+        private const val RENEW_CHECK_INTERVAL_MS = 12L * 60 * 60 * 1000
+
+        fun isValidToken(token: String?) = token != null && TOKEN.matches(token)
+
+        /** True when the first certificate in [pem] expires within [RENEW_BEFORE_MS] of [now] or cannot be read. */
+        fun needsRenewal(pem: ByteArray, now: Long = System.currentTimeMillis()): Boolean = try {
+            val certificate = CertificateFactory.getInstance("X.509")
+                .generateCertificate(ByteArrayInputStream(pem)) as X509Certificate
+            certificate.notAfter.time - now < RENEW_BEFORE_MS
+        } catch (_: Exception) {
+            true
+        }
+    }
+
     fun init(router: Router) {
         if (!certDir.exists()) {
             certDir.mkdirs()
@@ -47,17 +85,20 @@ class AcmeManager(
         // Add route for ACME HTTP-01 challenge
         router.get("/.well-known/acme-challenge/:token").order(0).handler { ctx ->
             val token = ctx.pathParam("token")
-            logger.info("Received ACME challenge request for token: $token")
-            val challengeFile = File(certDir, "challenge-$token")
-            if (challengeFile.exists()) {
-                ctx.response().putHeader("Content-Type", "text/plain").end(challengeFile.readText())
+            val content = if (isValidToken(token)) pendingChallenges[token] else null
+
+            if (content != null) {
+                ctx.response().putHeader("Content-Type", "text/plain").end(content)
             } else {
-                logger.warn("ACME challenge token not found locally: $token")
-                ctx.fail(404)
+                ctx.response().setStatusCode(404).end()
             }
         }
 
         loadExistingCertificates()
+
+        if (configManager.config.server.sslMode == PanoConfig.Companion.SslMode.LETS_ENCRYPT && renewTimerId == null) {
+            renewTimerId = vertx.setPeriodic(RENEW_CHECK_INTERVAL_MS) { prepareCertificates() }
+        }
     }
 
     private fun loadExistingCertificates() {
@@ -93,6 +134,8 @@ class AcmeManager(
             return
         }
 
+        if (!running.compareAndSet(false, true)) return
+
         // Run in a separate thread to avoid blocking Vert.x event loop
         Thread {
             try {
@@ -105,17 +148,16 @@ class AcmeManager(
             } catch (e: Exception) {
                 logger.error("Let's Encrypt process failed: ${e.message}")
                 e.printStackTrace()
+            } finally {
+                running.set(false)
             }
         }.start()
     }
 
     private fun shouldRenew(): Boolean {
         if (!fullChainFile.exists() || !domainKeyFile.exists()) return true
-        
-        // Basic check for expiration could be added here.
-        // For now, if files exist, we assume they are valid unless we manually trigger renewal.
-        // A real implementation should parse the cert and check expiration date.
-        return false 
+
+        return needsRenewal(fullChainFile.readBytes())
     }
 
     private fun requestCertificate(domain: String) {
@@ -142,30 +184,32 @@ class AcmeManager(
             // Save challenge token to be served by Vert.x
             val token = challenge.getToken()
             val content = challenge.getAuthorization()
-            File(certDir, "challenge-$token").writeText(content)
+            if (!isValidToken(token)) throw Exception("ACME server sent an unexpected challenge token for $domain")
+            pendingChallenges[token] = content
 
-            // Trigger challenge validation
-            challenge.trigger()
+            try {
+                // Trigger challenge validation
+                challenge.trigger()
 
-            // Wait for validation
-            var attempts = 15
-            while (auth.status != Status.VALID && attempts-- > 0) {
-                if (auth.status == Status.INVALID) {
-                    val chalError = challenge.getError().orElse(null)
-                    val reason = chalError?.detail ?: chalError?.toString() ?: "Unknown error"
-                    throw Exception("ACME authorization failed for $domain. Reason: $reason")
+                // Wait for validation
+                var attempts = 15
+                while (auth.status != Status.VALID && attempts-- > 0) {
+                    if (auth.status == Status.INVALID) {
+                        val chalError = challenge.getError().orElse(null)
+                        val reason = chalError?.detail ?: chalError?.toString() ?: "Unknown error"
+                        throw Exception("ACME authorization failed for $domain. Reason: $reason")
+                    }
+                    logger.info("Waiting for domain verification... Status: ${auth.status} (Attempts left: $attempts)")
+                    Thread.sleep(3000)
+                    auth.update()
                 }
-                logger.info("Waiting for domain verification... Status: ${auth.status} (Attempts left: $attempts)")
-                Thread.sleep(3000)
-                auth.update()
+            } finally {
+                pendingChallenges.remove(token)
             }
 
             if (auth.status != Status.VALID) {
                 throw Exception("ACME authorization timed out for $domain. Current status: ${auth.status}")
             }
-            
-            // Clean up challenge file
-            File(certDir, "challenge-$token").delete()
         }
 
         // Finalize order
@@ -190,11 +234,16 @@ class AcmeManager(
         
         logger.info("Successfully obtained and saved Let's Encrypt certificates for $domain.")
 
-        // Update current options and notify Pano to reload if necessary
+        // Update current options and hand the new certificate to the running (or waiting) HTTPS server
         loadExistingCertificates()
-        
-        // In a real scenario, you might want to call a "reload" method on the Vert.x server options.
-        // For now, it will be used on next restart.
+
+        currentOptions.get()?.let { options ->
+            try {
+                onCertificateIssued?.invoke(options)
+            } catch (e: Exception) {
+                logger.error("Failed to apply the new Let's Encrypt certificate: ${e.message}")
+            }
+        }
     }
 
     private fun loadOrCreateKeyPair(file: File): KeyPair {

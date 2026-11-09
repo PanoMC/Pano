@@ -141,30 +141,43 @@ class NodeRemovalService(
             }
         }
 
-        servers.forEach { server ->
-            serverRemovalService.remove(server.id, sqlClient)
+        // A failure from here until the row is gone leaves the node in Pano: it must not stay
+        // marked as being removed (which silences its offline alerts) nor, for the local node,
+        // retired (which keeps its supervisor from ever starting it again).
+        try {
+            servers.forEach { server ->
+                serverRemovalService.remove(server.id, sqlClient)
 
-            databaseManager.panelActivityLogDao.add(
-                // "force" means the server's files were left behind, which is true of every managed
-                // server here unless the node removed them.
-                DeletedServerLog(userId, username, server.id, server.customName ?: server.name, server.isManaged && !removedFiles),
-                sqlClient
-            )
+                databaseManager.panelActivityLogDao.add(
+                    // "force" means the server's files were left behind, which is true of every managed
+                    // server here unless the node removed them.
+                    DeletedServerLog(userId, username, server.id, server.customName ?: server.name, server.isManaged && !removedFiles),
+                    sqlClient
+                )
+            }
+
+            // Revoking the token and closing the socket is what actually cuts the node off; deleting
+            // the row alone would leave a daemon that keeps reconnecting with a token nothing has
+            // invalidated.
+            nodeManager.closeConnection(node.id)
+
+            tokenProvider.invalidateTokensBySubjectAndType(node.id.toString(), NodeAuthenticationTokenType, sqlClient)
+
+            databaseManager.serverBackupDao.deleteByNodeId(node.id, sqlClient)
+            databaseManager.serverTaskDao.deleteByNodeId(node.id, sqlClient)
+            databaseManager.serverAlertDao.deleteByNodeId(node.id, sqlClient)
+            databaseManager.nodePendingDeletionDao.deleteByNodeId(node.id, sqlClient)
+
+            databaseManager.nodeDao.deleteById(node.id, sqlClient)
+        } catch (throwable: Throwable) {
+            nodeManager.setRemoving(node.id, false)
+
+            if (local) {
+                localNodeManager.cancelRetire()
+            }
+
+            throw throwable
         }
-
-        // Revoking the token and closing the socket is what actually cuts the node off; deleting
-        // the row alone would leave a daemon that keeps reconnecting with a token nothing has
-        // invalidated.
-        nodeManager.closeConnection(node.id)
-
-        tokenProvider.invalidateTokensBySubjectAndType(node.id.toString(), NodeAuthenticationTokenType, sqlClient)
-
-        databaseManager.serverBackupDao.deleteByNodeId(node.id, sqlClient)
-        databaseManager.serverTaskDao.deleteByNodeId(node.id, sqlClient)
-        databaseManager.serverAlertDao.deleteByNodeId(node.id, sqlClient)
-        databaseManager.nodePendingDeletionDao.deleteByNodeId(node.id, sqlClient)
-
-        databaseManager.nodeDao.deleteById(node.id, sqlClient)
 
         nodeManager.onNodeDeleted(node.id)
 

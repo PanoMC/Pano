@@ -245,14 +245,37 @@ class HostedAutoSetupTest {
     }
 
     @Test
-    fun `a started or finished setup never asks for the bootstrap`() = runBlocking {
+    fun `a finished setup never asks for the bootstrap`() = runBlocking {
         automatic()
-        for (step in listOf(1, 4, 5)) {
-            val target = MemoryTarget().also { it.config.setup.step = step }
-            assertEquals(HostedAutoSetup.Outcome.SKIPPED, setup(target).run())
-        }
+        val target = MemoryTarget().also { it.config.setup.step = 5 }
+        assertEquals(HostedAutoSetup.Outcome.SKIPPED, setup(target).run())
 
         assertTrue(plane.requests.isEmpty())
+    }
+
+    @Test
+    fun `a wizard step taken by someone else does not switch the automatic setup off`() = runBlocking {
+        automatic()
+        for (step in listOf(1, 4)) {
+            val target = MemoryTarget().also { it.config.setup.step = step }
+            assertEquals(HostedAutoSetup.Outcome.COMPLETED, setup(target).run())
+            assertEquals(5, target.config.setup.step)
+        }
+    }
+
+    @Test
+    fun `a manual setup the installer already started is not prefilled again`() = runBlocking {
+        plane.bootstrapStatus = 200
+        plane.bootstrapData = JsonObject().put("mode", "MANUAL").put(
+            "prefill",
+            JsonObject().put("siteName", "Legacy Land").put("description", "")
+                .put("websiteUrl", "https://legacy.panomc.site/").put("locale", "ru").put("telemetry", false)
+        )
+        val target = MemoryTarget().also { it.config.setup.step = 2 }
+        val before = target.config.toString()
+
+        assertEquals(HostedAutoSetup.Outcome.SKIPPED, setup(target).run())
+        assertEquals(before, target.config.toString())
     }
 
     @Test

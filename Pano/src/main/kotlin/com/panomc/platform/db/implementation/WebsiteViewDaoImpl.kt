@@ -96,4 +96,26 @@ class WebsiteViewDaoImpl : WebsiteViewDao() {
 
         return rows.toEntities()
     }
+
+    override suspend fun getDailyTotalsByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlClient: SqlClient
+    ): List<WebsiteViewDao.DailyTotals> {
+        val query =
+            "SELECT `date`, CAST(SUM(`times`) AS SIGNED) AS `views`, COUNT(DISTINCT `ipAddress`) AS `visitors` " +
+                "FROM `${getTablePrefix() + tableName}` WHERE `date` >= ? GROUP BY `date`"
+
+        val rows: RowSet<Row> = sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(TimeUtil.getTimeToCompareByDashboardPeriodType(dashboardPeriodType)))
+            .coAwait()
+
+        return rows.map { row ->
+            WebsiteViewDao.DailyTotals(
+                date = row.getLong("date"),
+                views = row.getLong("views") ?: 0L,
+                visitors = row.getLong("visitors") ?: 0L
+            )
+        }
+    }
 }

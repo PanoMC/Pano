@@ -437,6 +437,16 @@ class PlatformFrontendUrlInputs(
     @Volatile
     private var themeMeta: ThemeMeta? = null
 
+    private class CustomAppUrls(
+        val appId: String,
+        val modified: Long,
+        val checkedAt: Long,
+        val urls: Map<String, Any?>
+    )
+
+    @Volatile
+    private var customAppUrlsCache: CustomAppUrls? = null
+
     override fun mode(): FrontendMode = uiManager.getObject().frontendMode
 
     override fun websiteUrl(): String = configManager.config.websiteUrl.trim().trimEnd('/')
@@ -554,19 +564,38 @@ class PlatformFrontendUrlInputs(
         return ThemeMeta(themeId, modified, now, routes, parseUrls(runCatching { json.getJsonObject("urls") }.getOrNull()))
     }
 
+    /** The urls of the active custom app's manifest.json, looked at again after [RECHECK_MS] like the theme meta. */
     private fun customAppUrls(): Map<String, Any?> {
         val id = uiManager.getObject().activeFrontendId()
+        val now = System.currentTimeMillis()
+        val cached = customAppUrlsCache
+
+        if (cached != null && cached.appId == id && now - cached.checkedAt < RECHECK_MS) {
+            return cached.urls
+        }
+
         val manifest = File(File(uiManager.getObject().customAppsFolder, id), "manifest.json")
+        val modified = if (manifest.isFile) manifest.lastModified() else -1L
 
-        if (!manifest.isFile) {
-            return emptyMap()
+        if (cached != null && cached.appId == id && cached.modified == modified) {
+            customAppUrlsCache = CustomAppUrls(id, modified, now, cached.urls)
+
+            return cached.urls
         }
 
-        return try {
-            parseUrls(JsonObject(manifest.readText()).getJsonObject("urls"))
-        } catch (e: Exception) {
+        val urls = if (modified == -1L) {
             emptyMap()
+        } else {
+            try {
+                parseUrls(JsonObject(manifest.readText()).getJsonObject("urls"))
+            } catch (e: Exception) {
+                emptyMap()
+            }
         }
+
+        customAppUrlsCache = CustomAppUrls(id, modified, now, urls)
+
+        return urls
     }
 
     companion object {

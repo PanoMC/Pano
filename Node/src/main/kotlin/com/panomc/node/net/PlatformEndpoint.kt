@@ -60,19 +60,24 @@ data class PlatformEndpoint(
                 return true
             }
 
-            if (lower.startsWith("10.") || lower.startsWith("192.168.")) {
-                return true
-            }
-
+            // Only an IPv4 literal: a DNS name such as `10.mc.example.com` is a public host like
+            // any other, and must not get plain HTTP because of how its name starts.
             val octets = lower.split('.')
 
-            if (octets.size == 4 && octets[0] == "172") {
-                val second = octets[1].toIntOrNull() ?: return false
-
-                return second in 16..31
+            if (octets.size != 4 || octets.any { it.isEmpty() || it.length > 3 || !it.all(Char::isDigit) }) {
+                return false
             }
 
-            return false
+            val numbers = octets.map { it.toInt() }
+
+            if (numbers.any { it > 255 }) {
+                return false
+            }
+
+            return numbers[0] == 127 ||
+                numbers[0] == 10 ||
+                (numbers[0] == 192 && numbers[1] == 168) ||
+                (numbers[0] == 172 && numbers[1] in 16..31)
         }
     }
 }

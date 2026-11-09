@@ -81,6 +81,9 @@ class MaintenanceModeManager(
         const val LOGIN_PASSWORD_FIELD = "password"
         const val LOGIN_NONCE_FIELD = "_nonce"
 
+        /** The two-factor code, for accounts that have a second factor; left empty by everybody else. */
+        const val LOGIN_CODE_FIELD = "code"
+
         /** Query parameter the login endpoint redirects back with; values below. */
         const val ERROR_PARAM = "e"
         const val ERROR_INVALID = "invalid"
@@ -200,6 +203,8 @@ class MaintenanceModeManager(
         companion object {
             val THEME_SWITCHING = Notice("maintenance.notice.theme-switching", Kind.INFO)
             val IP_BANNED = Notice("maintenance.notice.ip-banned")
+            val CODE_REQUIRED = Notice("maintenance.notice.code-required", Kind.INFO)
+            val CODE_INVALID = Notice("maintenance.notice.code-invalid")
 
             /** Maps a `?e=` wire code (snake_case) onto a translation key (kebab-case). */
             fun fromErrorCode(code: String?): Notice? = when (code) {
@@ -987,11 +992,22 @@ class MaintenanceModeManager(
         return render(notice, loginBlock, skipBlock)
     }
 
-    suspend fun renderLoginPage(context: RoutingContext, notice: Notice?): String {
+    /**
+     * The login page. [bundledForm] renders Pano's own login form instead of the one in the
+     * maintenance folder: an account with a second factor is asked for its code, and a form saved
+     * before the code field existed has nowhere to type it.
+     */
+    suspend fun renderLoginPage(context: RoutingContext, notice: Notice?, bundledForm: Boolean = false): String {
         val banned = isBanned(resolveBanIdentity(context))
 
+        val drafts = if (bundledForm) {
+            readBundled(PageTemplate.LOGIN_FORM.resource)?.let { mapOf(PageTemplate.LOGIN_FORM to it) }
+        } else {
+            null
+        }
+
         // A banned identity gets the page and the reason, never the form.
-        val loginBlock = if (banned) "" else renderLoginFormBlock(context)
+        val loginBlock = if (banned) "" else renderLoginFormBlock(context, drafts)
 
         return render(notice ?: (if (banned) Notice.IP_BANNED else null), loginBlock, "")
     }
@@ -1106,11 +1122,14 @@ class MaintenanceModeManager(
             "nonceField" to LOGIN_NONCE_FIELD,
             "usernameField" to LOGIN_USERNAME_FIELD,
             "passwordField" to LOGIN_PASSWORD_FIELD,
+            "codeField" to LOGIN_CODE_FIELD,
             "heading" to escapeHtml(translate("maintenance.login.heading")),
             "usernameLabel" to escapeHtml(translate("maintenance.login.username-or-email-label")),
             "usernamePlaceholder" to escapeHtml(translate("maintenance.login.username-or-email-placeholder")),
             "passwordLabel" to escapeHtml(translate("maintenance.login.password-label")),
             "passwordPlaceholder" to escapeHtml(translate("maintenance.login.password-placeholder")),
+            "codeLabel" to escapeHtml(translate("maintenance.login.code-label")),
+            "codePlaceholder" to escapeHtml(translate("maintenance.login.code-placeholder")),
             "submit" to escapeHtml(translate("maintenance.login.submit-button"))
         ),
         drafts

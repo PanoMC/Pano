@@ -9,6 +9,8 @@
       "username-or-email-placeholder": "Kullanıcı adınızı veya e-postanızı girin",
       "password-label": "Şifre",
       "password-placeholder": "Şifrenizi girin",
+      "code-label": "İki adımlı doğrulama kodu",
+      "code-placeholder": "Yalnızca hesabınızda açıksa",
       "submit-button": "Giriş yap"
     },
     "notice": {
@@ -17,7 +19,9 @@
       "no-access": "Giriş yaptınız ancak hesabınızın bakım modunu atlama izni yok.",
       "rate-limited": "Çok fazla deneme yaptınız. Lütfen biraz bekleyip tekrar deneyin.",
       "csrf": "Bu istek doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin.",
-      "theme-switching": "Site teması şu anda değiştiriliyor. Lütfen birazdan tekrar deneyin."
+      "theme-switching": "Site teması şu anda değiştiriliyor. Lütfen birazdan tekrar deneyin.",
+      "code-required": "Girişi tamamlamak için doğrulama uygulamanızdaki kodu girin.",
+      "code-invalid": "İki adımlı doğrulama kodu yanlış."
     },
     "button": {
       "login": "Giriş yap",

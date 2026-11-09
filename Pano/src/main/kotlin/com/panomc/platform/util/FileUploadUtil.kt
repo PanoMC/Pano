@@ -30,14 +30,20 @@ object FileUploadUtil {
                     }
                 }
 
+                val file = File(fileUpload.uploadedFileName())
+
+                // The extension comes from what the bytes are, never from the client's file name,
+                // and only for an image type this field accepts.
+                val detected = detectImage(file)
+                    ?.takeIf { (contentType, _) -> fieldConfig.accepts(contentType) }
+                    ?: throw fieldConfig.contentTypeError
+
                 val newPath = configManager.config.fileUploadsFolder + File.separator +
                         fieldConfig.path +
                         (if (fieldConfig.withTempName)
                             File.separator + fileUpload.uploadedFileName().split(File.separator).last()
                         else "") +
-                        "." + fileUpload.fileName().split(".").last()
-
-                val file = File(fileUpload.uploadedFileName())
+                        "." + detected.second
 
                 val newPathFile = File(newPath)
 
@@ -58,6 +64,42 @@ object FileUploadUtil {
         }
 
         return savedFiles
+    }
+
+    private val ICO_TYPES = setOf("image/x-icon", "image/vnd.microsoft.icon")
+
+    private fun FieldConfig.accepts(contentType: String) =
+        acceptedContentTypes.contains(contentType) ||
+                (contentType in ICO_TYPES && acceptedContentTypes.any { it in ICO_TYPES })
+
+    /**
+     * The image type and file extension of [file] read from its first bytes, or null when it is
+     * not a PNG, JPEG, GIF, WebP or ICO image.
+     */
+    fun detectImage(file: File): Pair<String, String>? {
+        val head = ByteArray(12)
+        val read = file.inputStream().use { input ->
+            var total = 0
+            while (total < head.size) {
+                val n = input.read(head, total, head.size - total)
+                if (n < 0) break
+                total += n
+            }
+            total
+        }
+
+        fun startsWith(vararg bytes: Int) = read >= bytes.size && bytes.indices.all { head[it] == bytes[it].toByte() }
+        fun ascii(offset: Int, text: String) =
+            read >= offset + text.length && text.indices.all { head[offset + it] == text[it].code.toByte() }
+
+        return when {
+            startsWith(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) -> "image/png" to "png"
+            startsWith(0xFF, 0xD8, 0xFF) -> "image/jpeg" to "jpg"
+            ascii(0, "GIF87a") || ascii(0, "GIF89a") -> "image/gif" to "gif"
+            ascii(0, "RIFF") && ascii(8, "WEBP") -> "image/webp" to "webp"
+            startsWith(0x00, 0x00, 0x01, 0x00) -> "image/x-icon" to "ico"
+            else -> null
+        }
     }
 
     fun List<FileUpload>.areFieldsExist(acceptedFileFields: List<Field>) =

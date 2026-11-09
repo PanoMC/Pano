@@ -28,6 +28,7 @@ import java.nio.channels.Channels
 import java.security.MessageDigest
 import java.time.Duration
 import java.util.Base64
+import com.panomc.node.util.SafeDelete
 
 /**
  * Sends one backup to Pano Backup straight from this node (`BACKUP_UPLOAD`, protocol 8), so the bytes never travel
@@ -45,7 +46,7 @@ class PanoBackupUploader(
 ) {
     init {
         // An upload that was under way when the daemon stopped is over: Pano gave up on it with the connection.
-        File(dataDir, SCRATCH_DIRECTORY).deleteRecursively()
+        SafeDelete.tree(File(dataDir, SCRATCH_DIRECTORY))
     }
 
     private val http: HttpClient by lazy {
@@ -86,7 +87,7 @@ class PanoBackupUploader(
 
             FileService.failure(e.message?.takeIf { it.isNotBlank() } ?: ERROR_UPLOAD_FAILED)
         } finally {
-            scratch.deleteRecursively()
+            SafeDelete.tree(scratch)
         }
     }
 

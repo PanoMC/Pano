@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.auth.PlayerTargetGuard
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
@@ -29,7 +30,8 @@ class PanelSendValidationEmailAPI(
     private val mailManager: MailManager,
     private val authProvider: AuthProvider,
     private val tokenProvider: TokenProvider,
-    private val permissionManager: PermissionManager
+    private val permissionManager: PermissionManager,
+    private val playerTargetGuard: PlayerTargetGuard
 ) : PanelApi() {
     override val paths = listOf(Path("/players/:username/verificationMail", RouteType.POST))
 
@@ -63,6 +65,8 @@ class PanelSendValidationEmailAPI(
         if (isUserAdmin && !isAdmin) {
             throw NoPermission()
         }
+
+        playerTargetGuard.requireCanManage(authProvider.getUserIdFromRoutingContext(context), isAdmin, playerId)
 
         val isEmailVerified = databaseManager.userDao.isEmailVerifiedById(playerId, sqlClient)
 

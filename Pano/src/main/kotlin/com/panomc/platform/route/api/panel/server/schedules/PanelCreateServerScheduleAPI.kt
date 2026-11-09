@@ -8,6 +8,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.server.schedule.ScheduleDefinitions
+import com.panomc.platform.server.schedule.ScheduleTaskGuard
 import com.panomc.platform.server.schedule.ServerScheduleService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -29,7 +30,8 @@ import com.panomc.platform.util.UsageMode
 class PanelCreateServerScheduleAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val scheduleService: ServerScheduleService
+    private val scheduleService: ServerScheduleService,
+    private val scheduleTaskGuard: ScheduleTaskGuard
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
@@ -71,6 +73,9 @@ class PanelCreateServerScheduleAPI(
             backupsAllowed = scheduleService.backupsAllowed(server),
             defaultTimezone = java.time.ZoneId.systemDefault().id
         )
+
+        // Each step needs the same right as doing it by hand (console, power, backups).
+        scheduleTaskGuard.requireAllowed(context, id, definition)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient) ?: throw NotExists()

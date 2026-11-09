@@ -30,6 +30,7 @@ import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.panomc.node.util.SafeDelete
 
 /**
  * An incremental, deduplicated backup repository for one server — restic's idea, in plain Kotlin.
@@ -330,7 +331,7 @@ class SnapshotRepository(val root: File) {
                     return@forEach
                 }
 
-                destination.deleteRecursively()
+                SafeDelete.tree(destination)
             } else if (Files.isSymbolicLink(path)) {
                 Files.delete(path)
             }

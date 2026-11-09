@@ -44,17 +44,18 @@ class GetPostThumbnailAPI(private val configManager: ConfigManager) : Api() {
 
         val filename = parameters.pathParameter("filename").string
 
-        val path = configManager.config
-            .fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH + File.separator +
-                filename
+        val file = UploadFileResolver.resolve(
+            configManager.config.fileUploadsFolder + File.separator + AppConstants.DEFAULT_POST_THUMBNAIL_UPLOAD_PATH,
+            filename
+        )
 
-        val file = File(path)
-
-        if (!file.exists()) {
+        if (file == null) {
             context.response().setStatusCode(404).end()
 
             return null
         }
+
+        val path = file.path
 
         val etag = "\"$filename\"" // strong ETag
 

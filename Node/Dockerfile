@@ -24,15 +24,20 @@ ENV PANO_NODE_DATA=/data
 # node keeps handing out ports from 25565-25600 that the container does not publish.
 EXPOSE 25565-25600
 
-RUN mkdir -p /data
+# The daemon and every server it starts run as this user, never as root: code in a server (a
+# plugin, a mod) must not get root in the container. 10001 stays clear of the base image's own
+# users. The entrypoint starts as root only to hand an older, root-owned volume over to it once.
+RUN groupadd --system --gid 10001 pano     && useradd --system --uid 10001 --gid pano --create-home --home-dir /home/pano --shell /usr/sbin/nologin pano     && mkdir -p /data /app     && chown pano:pano /data /app
 
 VOLUME /data
 
 WORKDIR /data
 
-COPY build/libs/pano-node.jar /app/pano-node.jar
+# Owned by pano: a self-update replaces this jar in place (exit 75, then the container restarts).
+COPY --chown=pano:pano build/libs/pano-node.jar /app/pano-node.jar
+COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/pano-node-entrypoint
 
 # No pairing arguments: a container is configured through its environment (PANO_URL,
 # PANO_BOOTSTRAP_TOKEN, PANO_NODE_NAME, PANO_NODE_PORT_RANGE), which is the only way a deployment
-# platform can configure it at all.
-ENTRYPOINT ["java", "-jar", "/app/pano-node.jar"]
+# platform can configure it at all. Arguments given to the container still reach the daemon.
+ENTRYPOINT ["/usr/local/bin/pano-node-entrypoint"]

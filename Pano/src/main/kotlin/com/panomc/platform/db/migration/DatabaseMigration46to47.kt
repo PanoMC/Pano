@@ -24,11 +24,8 @@ class DatabaseMigration46to47 : DatabaseMigration(
     )
 
     private fun addColumn(name: String): suspend (sqlClient: SqlClient) -> Unit = { sqlClient: SqlClient ->
-        // IF NOT EXISTS is MariaDB's, and it is what makes a migration interrupted between its two
-        // handlers safe to run again.
-        sqlClient
-            .preparedQuery("ALTER TABLE `${getTablePrefix()}server_metric` ADD COLUMN IF NOT EXISTS `$name` BIGINT DEFAULT NULL")
-            .execute()
-            .coAwait()
+        // Skipped when the column is there: a migration interrupted between its two handlers is safe
+        // to run again.
+        addMissingColumns(sqlClient, "${getTablePrefix()}server_metric", name to "BIGINT DEFAULT NULL")
     }
 }

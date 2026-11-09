@@ -123,9 +123,21 @@ object TrustedProxyIpResolver {
         return normalized == "localhost" || WebsiteUrlUtil.isNonPublicHost(mapped) && WebsiteUrlUtil.isIpLiteral(mapped)
     }
 
+    /**
+     * `server.trust-private-proxies`: whether loopback and private-network peers are trusted without being
+     * listed. ConfigManager sets it on every config load; true (the default) keeps the behaviour of older
+     * versions.
+     */
+    @Volatile
+    var trustPrivateProxies: Boolean = true
+
     /** A peer whose forwarded-client-address headers are believed. */
-    fun isTrustedPeer(socketPeer: String, trustedProxies: List<String>): Boolean =
-        isTrustedProxy(socketPeer, trustedProxies) || isPrivateOrLoopback(socketPeer)
+    fun isTrustedPeer(
+        socketPeer: String,
+        trustedProxies: List<String>,
+        trustPrivate: Boolean = trustPrivateProxies
+    ): Boolean =
+        isTrustedProxy(socketPeer, trustedProxies) || trustPrivate && isPrivateOrLoopback(socketPeer)
 
     /**
      * THE client address, used everywhere an address is stored, counted or limited.
@@ -187,11 +199,12 @@ object TrustedProxyIpResolver {
         socketPeerRaw: String?,
         forwardedFor: String?,
         realIp: String?,
-        trustedProxies: List<String>
+        trustedProxies: List<String>,
+        trustPrivate: Boolean = trustPrivateProxies
     ): String {
         val socketPeer = normalizeIp(socketPeerRaw) ?: return "unknown"
 
-        if (!isTrustedPeer(socketPeer, trustedProxies)) {
+        if (!isTrustedPeer(socketPeer, trustedProxies, trustPrivate)) {
             return socketPeer
         }
 

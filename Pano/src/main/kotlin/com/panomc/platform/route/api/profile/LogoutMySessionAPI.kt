@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.profile
 
+import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -41,7 +42,7 @@ class LogoutMySessionAPI(
         // Verify the token belongs to the user to prevent deleting other users' sessions
         val token = databaseManager.tokenDao.getById(id, sqlClient)
 
-        if (token != null && token.subject == userId.toString()) {
+        if (token != null && token.subject == userId.toString() && token.type.getName() == AuthenticationTokenType.getName()) {
             databaseManager.tokenDao.deleteById(id, sqlClient)
 
             val currentToken = authProvider.getTokenFromRoutingContext(context)

@@ -14,4 +14,7 @@ abstract class PendingAuthSessionDao : Dao<PendingAuthSession>(PendingAuthSessio
     abstract suspend fun deleteByToken(token: String, sqlClient: SqlClient)
 
     abstract suspend fun deleteExpired(sqlClient: SqlClient)
+
+    /** Drops every pending sign-in of the user, e.g. after a password reset. */
+    abstract suspend fun deleteByUserId(userId: Long, sqlClient: SqlClient)
 }

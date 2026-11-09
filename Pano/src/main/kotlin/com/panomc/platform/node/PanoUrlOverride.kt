@@ -24,6 +24,15 @@ object PanoUrlOverride {
     const val MAX_LENGTH = 255
 
     /**
+     * What a normalized override may look like: scheme, host (name, IPv4 or bracketed IPv6), an
+     * optional port and a plain path. The value is pasted into shell and PowerShell commands on
+     * another machine, so quotes, `$`, parentheses, `;`, `&` and the like are never allowed.
+     */
+    private val SAFE_URL = Regex(
+        "^https?://([A-Za-z0-9.-]+|\\[[0-9A-Fa-f:.]+])(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$"
+    )
+
+    /**
      * The normalized override, or null when none was given.
      *
      * A value that was given but cannot be used is a [BadRequest] rather than a silent fallback
@@ -56,6 +65,12 @@ object PanoUrlOverride {
             throw BadRequest()
         }
 
-        return WebsiteUrlUtil.normalize(trimmed)
+        val normalized = WebsiteUrlUtil.normalize(trimmed)
+
+        if (!SAFE_URL.matches(normalized)) {
+            throw BadRequest()
+        }
+
+        return normalized
     }
 }

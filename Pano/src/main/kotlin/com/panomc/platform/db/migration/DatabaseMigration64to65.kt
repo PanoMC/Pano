@@ -24,22 +24,10 @@ class DatabaseMigration64to65 : DatabaseMigration(
                 .coAwait()
         },
         { sqlClient: SqlClient ->
-            sqlClient
-                .query(
-                    "ALTER TABLE `${getTablePrefix()}ticket_category` " +
-                            "ADD COLUMN IF NOT EXISTS `autoReplyTemplateId` bigint NOT NULL DEFAULT -1"
-                )
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}ticket_category", "autoReplyTemplateId" to "bigint NOT NULL DEFAULT -1")
         },
         { sqlClient: SqlClient ->
-            sqlClient
-                .query(
-                    "ALTER TABLE `${getTablePrefix()}ticket_message` " +
-                            "ADD COLUMN IF NOT EXISTS `system` TINYINT(1) NOT NULL DEFAULT 0"
-                )
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}ticket_message", "system" to "TINYINT(1) NOT NULL DEFAULT 0")
         }
     )
 }

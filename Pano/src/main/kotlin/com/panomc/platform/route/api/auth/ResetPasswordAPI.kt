@@ -74,14 +74,10 @@ class ResetPasswordAPI(
 
         validateInput(usernameOrEmail)
 
-        val exists = databaseManager.userDao.existsByUsernameOrEmail(usernameOrEmail, sqlClient)
-
-        if (!exists) {
-            throw NotExists()
-        }
-
-        val userId =
-            databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient) ?: throw NotExists()
+        // Same answer whether or not the account exists or a link was just sent, so this form cannot be used to find
+        // out which usernames and e-mail addresses are registered. The mail goes out only for a real account.
+        val userId = databaseManager.userDao.getUserIdFromUsernameOrEmail(usernameOrEmail, sqlClient)
+            ?: return Successful()
 
         val lastToken =
             databaseManager.tokenDao.getLastBySubjectAndType(userId.toString(), ResetPasswordTokenType, sqlClient)
@@ -90,7 +86,7 @@ class ResetPasswordAPI(
             val cooldownEndMillis = lastToken.startDate + 5 * 60 * 1000
 
             if (System.currentTimeMillis() < cooldownEndMillis) {
-                throw CantResetPasswordWait5Minutes()
+                return Successful()
             }
         }
 

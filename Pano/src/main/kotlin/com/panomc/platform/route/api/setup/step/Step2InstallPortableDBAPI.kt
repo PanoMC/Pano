@@ -3,6 +3,7 @@ package com.panomc.platform.route.api.setup.step
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.MariaDBManager
+import com.panomc.platform.error.BadRequest
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -22,6 +23,11 @@ class Step2InstallPortableDBAPI(
         ValidationHandlerBuilder.create(schemaRepository).build()
 
     override suspend fun handle(context: RoutingContext): Result? {
+        // Pano Host gives the database; no second one is installed inside the container.
+        if (setupManager.isDatabaseManaged()) {
+            throw BadRequest()
+        }
+
         mariaDBManager.install()
 
         // Start the DB

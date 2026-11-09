@@ -101,10 +101,12 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
                 .end()
             return null
         }
-        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(path)
+        val mimeType = MimeTypeUtil.imageMimeTypeOrBinary(path)
 
         val response = context.response()
         response.putHeader("Content-Type", mimeType)
+        response.putHeader("X-Content-Type-Options", "nosniff")
+        response.putHeader("Content-Security-Policy", "default-src 'none'; sandbox")
         response.putHeader("ETag", etag)
         response.putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS, immutable")
         response.sendFile(path)
@@ -153,10 +155,12 @@ class GetWebsiteLogoAPI(private val configManager: ConfigManager) : Api() {
                 .end()
             return
         }
-        val mimeType = MimeTypeUtil.getMimeTypeFromFileName(path)
+        val mimeType = MimeTypeUtil.imageMimeTypeOrBinary(path)
 
         val response = context.response()
         response.putHeader("Content-Type", mimeType)
+        response.putHeader("X-Content-Type-Options", "nosniff")
+        response.putHeader("Content-Security-Policy", "default-src 'none'; sandbox")
         response.putHeader("ETag", etag)
         response.putHeader("Cache-Control", "public, max-age=$CACHE_TTL_SECONDS, immutable")
         response.sendFile(path)

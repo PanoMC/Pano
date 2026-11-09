@@ -379,7 +379,13 @@ class ServerProcess(
             // restart that only stopped. Wait for the booking, then start as a separate step, so
             // an adopted server's exit (queued on this same executor) is handled first too.
             awaitExitBooked()
-            lifecycle.execute { doStart(issuedBy) }
+            // A stop or kill that came in while this restart was still stopping wins: the
+            // operator asked for the server to stay down, so the start half is dropped.
+            lifecycle.execute {
+                if (!startCancelled) {
+                    doStart(issuedBy)
+                }
+            }
         }
     }
 
@@ -1616,14 +1622,31 @@ class ServerProcess(
         )
 
         /**
+         * Flags that make the JVM run a shell command or load code that is not the server jar,
+         * matched case-insensitively as prefixes. `-XX:OnError` / `-XX:OnOutOfMemoryError` run
+         * their value through `/bin/sh`, agents and native libraries are code of their own, and
+         * the option files and class loaders bring in either one indirectly.
+         */
+        private val CODE_LOADING_PREFIXES = listOf(
+            "-xx:onerror", "-xx:onoutofmemoryerror", "-xx:flags", "-xx:vmoptionsfile",
+            "-javaagent", "-agentpath", "-agentlib", "-xrun", "--patch-module",
+            "-djava.system.class.loader", "-djava.ext.dirs", "-djava.endorsed.dirs"
+        )
+
+        /**
          * [args] without anything that would change what is launched: Pano refuses these when the
          * settings are saved, and a spec written before it did (or by hand) must not start another
-         * jar either. A bare word would be read by `java` as the main class.
+         * jar either. A bare word would be read by `java` as the main class, and an `@argfile`
+         * would bring in flags nobody checked. Nor anything in [CODE_LOADING_PREFIXES]: the startup
+         * settings are a permission of their own, and they must not become a shell on this host.
          */
         fun launchSafeJvmArgs(args: List<String>): List<String> = args.filter { arg ->
+            val lower = arg.trim().lowercase()
+
             arg.isNotBlank() &&
                 arg.startsWith("-") &&
-                arg.substringBefore('=').substringBefore(':') !in LAUNCH_CHANGING_FLAGS
+                arg.substringBefore('=').substringBefore(':') !in LAUNCH_CHANGING_FLAGS &&
+                CODE_LOADING_PREFIXES.none { lower.startsWith(it) }
         }
 
         /** Keeps jansi's colour escapes in a piped stdout; see [buildCommand]. */

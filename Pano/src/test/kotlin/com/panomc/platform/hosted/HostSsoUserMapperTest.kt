@@ -186,4 +186,18 @@ class HostSsoUserMapperTest {
         assertFalse(mapping.chosen)
         assertEquals("pano_support", store.user(mapping.userId).username)
     }
+
+    @Test
+    fun `only the roles that may open the panel are signed in`() = runBlocking {
+        assertEquals(false, mapper.resolve(identity("acc-m", "manager@example.com", role = "manager")).chosen)
+
+        listOf("viewer", "", "OWNER", "admin").forEach { role ->
+            assertThrows(HostSsoUserMapper.Denied::class.java) {
+                runBlocking { mapper.resolve(identity("acc-$role", "x$role@example.com", role = role)) }
+            }
+        }
+
+        // nobody was created or promoted for a refused role
+        assertTrue(store.users.none { it.email.startsWith("x") })
+    }
 }

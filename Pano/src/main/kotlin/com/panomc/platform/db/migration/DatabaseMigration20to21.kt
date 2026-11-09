@@ -13,12 +13,6 @@ class DatabaseMigration20to21 : DatabaseMigration(20, 21, "Add pluginId to panel
 
     private fun addPluginIdToPanelActivityLog(): suspend (sqlClient: SqlClient) -> Unit =
         { sqlClient: SqlClient ->
-            val prefix = getTablePrefix()
-            val query = "ALTER TABLE `${prefix}panel_activity_log` ADD COLUMN `pluginId` varchar(255) AFTER `userId`"
-
-            sqlClient
-                .query(query)
-                .execute()
-                .coAwait()
+            addMissingColumns(sqlClient, "${getTablePrefix()}panel_activity_log", "pluginId" to "varchar(255) AFTER `userId`")
         }
 }

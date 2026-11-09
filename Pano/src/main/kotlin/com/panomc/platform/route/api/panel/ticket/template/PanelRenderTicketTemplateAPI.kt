@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket.template
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
@@ -55,6 +56,6 @@ class PanelRenderTicketTemplateAPI(
 
         val values = TicketTemplateRenderer.values(ticket, staff, databaseManager, configManager, sqlClient)
 
-        return Successful(mapOf("message" to TicketTemplateRenderer.render(template.body, values)))
+        return Successful(mapOf("message" to HtmlSanitizer.sanitize(TicketTemplateRenderer.render(template.body, values))))
     }
 }

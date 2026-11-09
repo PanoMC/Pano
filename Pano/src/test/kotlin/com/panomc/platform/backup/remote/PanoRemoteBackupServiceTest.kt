@@ -217,6 +217,29 @@ class PanoRemoteBackupServiceTest {
     }
 
     @Test
+    fun `with a passphrase a plain archive from the storage is refused`(): Unit = runBlocking {
+        // What a storage swapping in an archive of its own looks like: the download is a plain zip.
+        val plain = awaitJob(service.startUpload())
+        assertEquals(PanoBackupJob.Status.DONE, plain.status, plain.error)
+
+        service.setPassphrase(passphrase.toCharArray())
+
+        val saved = awaitJob(service.startRestore(plain.remoteId!!, null))
+        val typed = awaitJob(service.startRestore(plain.remoteId!!, passphrase.toCharArray()))
+
+        assertEquals("TAMPERED", saved.error)
+        assertEquals("TAMPERED", typed.error)
+        assertTrue(runner.restored.isEmpty())
+        assertTrue(tempLeftovers().isEmpty())
+
+        // Without a passphrase nothing is promised, and the plain backup restores.
+        service.setPassphrase(null)
+
+        val open = awaitJob(service.startRestore(plain.remoteId!!, null))
+        assertEquals(PanoBackupJob.Status.DONE, open.status, open.error)
+    }
+
+    @Test
     fun `host refusals end the job with the host code and its details`(): Unit = runBlocking {
         service.setPassphrase(passphrase.toCharArray())
 
@@ -372,24 +395,37 @@ class PanoRemoteBackupServiceTest {
         host.exportArchive = archive.readBytes()
         host.exportPendingReads = 2
 
-        val job = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+        // The e-mailed code: a wrong one is refused, the right one gives the grant the whole move uses.
+        assertEquals("a***@y*****.com", service.requestExportCode(FakePanoHost.WORKLOAD_ID).getString("email"))
+        assertEquals("TRANSFER_CODE_INVALID", assertThrows<PanoHostException> { service.verifyExportCode(FakePanoHost.WORKLOAD_ID, "000000") }.code)
+
+        val grant = service.verifyExportCode(FakePanoHost.WORKLOAD_ID, FakePanoHost.EXPORT_CODE)
+
+        assertEquals(FakePanoHost.EXPORT_GRANT, grant)
+
+        val job = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, grant, pollIntervalMs = 10))
 
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
         assertEquals(PanoBackupJob.Type.RESTORE, job.type)
         assertEquals(1, host.exportStarts)
+        assertTrue(host.exportGrantHeaders.isNotEmpty() && host.exportGrantHeaders.all { it == grant }, "every status read sends the grant")
         assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, runner.restored.single().kind)
         assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
 
         // An export that failed on Pano Host fails the move with its own code; nothing is restored.
         host.exportFails = true
-        val failed = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+        val failed = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, grant, pollIntervalMs = 10))
 
         assertEquals(PanoRemoteBackupService.EXPORT_FAILED_CODE, failed.error)
         assertEquals(1, runner.restored.size)
 
         // Another account's (or an unknown) instance is not found.
         host.exportFails = false
-        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startHostMove("p-other0001", pollIntervalMs = 10)).error)
+        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startHostMove("p-other0001", grant, pollIntervalMs = 10)).error)
+
+        // Without a valid grant Pano Host does not start the export; the move fails with its code and restores nothing.
+        assertEquals("TRANSFER_CODE_REQUIRED", awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, "stale", pollIntervalMs = 10)).error)
+        assertEquals(1, runner.restored.size)
     }
 
     @Test

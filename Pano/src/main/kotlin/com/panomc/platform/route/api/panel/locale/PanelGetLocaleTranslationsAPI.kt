@@ -140,23 +140,30 @@ class PanelGetLocaleTranslationsAPI(
 
             TranslationType.PANEL, TranslationType.THEME -> {
                 // Get original translations from UI (runtime SvelteKit applications)
-                val activatedUI = uiManager.activatedUIList[routeType]!!
-                val panelPrefix = if (routeType == Type.PANEL_UI) "/panel" else ""
-                val url =
-                    "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${locale.code}.json"
+                // No such UI runs (front-end mode "none", or it failed to start): there is nothing
+                // to compare against, but the custom rows are still listed.
+                val activatedUI = uiManager.activatedUIList[routeType]
 
-                originalTranslations = getTranslationsFromUI(url)
-
-                if (locale.code != AppConstants.DEFAULT_LOCALE_CODE) {
+                if (activatedUI == null) {
+                    originalTranslations = mutableMapOf()
+                } else {
+                    val panelPrefix = if (routeType == Type.PANEL_UI) "/panel" else ""
                     val url =
-                        "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${AppConstants.DEFAULT_LOCALE_CODE}.json"
-
-                    val originalTranslationsCopy = originalTranslations.toMap()
+                        "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${locale.code}.json"
 
                     originalTranslations = getTranslationsFromUI(url)
 
-                    originalTranslationsCopy.forEach {
-                        originalTranslations[it.key] = it.value
+                    if (locale.code != AppConstants.DEFAULT_LOCALE_CODE) {
+                        val url =
+                            "http://${activatedUI.host}:${activatedUI.port}${panelPrefix}/${type.name.lowercase()}-api/languages/${AppConstants.DEFAULT_LOCALE_CODE}.json"
+
+                        val originalTranslationsCopy = originalTranslations.toMap()
+
+                        originalTranslations = getTranslationsFromUI(url)
+
+                        originalTranslationsCopy.forEach {
+                            originalTranslations[it.key] = it.value
+                        }
                     }
                 }
             }

@@ -1,5 +1,7 @@
 package com.panomc.platform.db
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.panomc.platform.StartupFailure
 import com.panomc.platform.Main
 import com.panomc.platform.annotation.Dao
@@ -111,20 +113,15 @@ class DatabaseManager(
             throw StartupFailure("The database is not configured yet.")
         }
 
-        var port = 3306
-        var host = databaseConfig.host
-
-        if (host.contains(":")) {
-            val splitHost = host.split(":")
-
-            host = splitHost[0]
-
-            port = splitHost[1].toInt()
-        }
+        val address = DatabaseAddress.parse(databaseConfig.host)
+            ?: throw StartupFailure(
+                "The database host \"${databaseConfig.host}\" is not valid, use host, host:port or [IPv6]:port. " +
+                        "Please check your configuration!"
+            )
 
         val connectOptions = MySQLConnectOptions()
-            .setPort(port)
-            .setHost(host)
+            .setPort(address.port)
+            .setHost(address.host)
             .setDatabase(databaseConfig.name)
             .setUser(databaseConfig.username)
 
@@ -158,7 +155,10 @@ class DatabaseManager(
         checkMigration()
     }
 
-    internal suspend fun initDatabase(sqlClient: SqlClient) {
+    // Two set-up finishes at once would both see an empty database and both fill it (twice the default rows).
+    private val initDatabaseLock = Mutex()
+
+    internal suspend fun initDatabase(sqlClient: SqlClient) = initDatabaseLock.withLock {
         try {
             val lastSchemeVersion = schemeVersionDao.getLastSchemeVersion(sqlClient)
 
@@ -193,9 +193,7 @@ class DatabaseManager(
         }
 
         if (databaseVersion == 0) {
-            logger.error("Database Error: Database scheme is not correct, please reinstall platform")
-
-            return
+            throw StartupFailure("Database Error: Database scheme is not correct, please reinstall platform")
         }
 
         migrate(sqlClient, databaseVersion)
@@ -212,9 +210,12 @@ class DatabaseManager(
 
                     it.updateSchemeVersion(sqlClient)
                 } catch (e: Exception) {
-                    logger.error("Database Error: Migration failed from version ${it.from} to ${it.to}, error: " + e)
-
-                    return
+                    // Fatal: the DAOs are written for the latest schema, so booting on a half-migrated one only
+                    // turns into random errors later. The next start runs this migration again.
+                    throw StartupFailure(
+                        "Database Error: Migration failed from version ${it.from} to ${it.to}: ${e.message}",
+                        e
+                    )
                 }
 
                 migrate(sqlClient, it.to)

@@ -4,9 +4,13 @@ import com.typesafe.config.ConfigFactory
 import com.typesafe.config.ConfigRenderOptions
 import com.typesafe.config.ConfigValueFactory
 import java.io.File
+import java.nio.ByteBuffer
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.PosixFilePermissions
 
 /**
  * Reads and writes `<data>/config.conf`.
@@ -57,7 +61,9 @@ object NodeConfigStore {
             toolAutoDownload = boolean("node.tool-auto-download", true),
             // Absent on every ordinary node, which is exactly what the defaults say.
             agent = boolean("node.agent", false),
-            agentServer = string("node.agent-server")
+            agentServer = string("node.agent-server"),
+            // Absent until a Pano first sealed this node's frames.
+            frameSession = boolean("platform.frame-session", false)
         )
     }
 
@@ -69,9 +75,7 @@ object NodeConfigStore {
         val target = file(dataDir)
         val temporary = File(dataDir, "$FILE_NAME.tmp")
 
-        temporary.writeText(rendered)
-
-        restrictPermissions(temporary)
+        writeOwnerOnly(temporary, rendered)
 
         Files.move(
             temporary.toPath(),
@@ -96,6 +100,10 @@ object NodeConfigStore {
             .withValue("node.stop-servers-on-exit", ConfigValueFactory.fromAnyRef(config.stopServersOnExit))
             .withValue("node.java-auto-download", ConfigValueFactory.fromAnyRef(config.javaAutoDownload))
             .withValue("node.tool-auto-download", ConfigValueFactory.fromAnyRef(config.toolAutoDownload))
+
+        if (config.frameSession) {
+            rendered = rendered.withValue("platform.frame-session", ConfigValueFactory.fromAnyRef(true))
+        }
 
         // Only on an agent: an ordinary node's file stays exactly what it was before agents existed.
         if (config.agent) {
@@ -141,8 +149,39 @@ object NodeConfigStore {
             javaAutoDownload = boolean("node.java-auto-download", true),
             toolAutoDownload = boolean("node.tool-auto-download", true),
             agent = boolean("node.agent", false),
-            agentServer = string("node.agent-server")
+            agentServer = string("node.agent-server"),
+            // Absent until a Pano first sealed this node's frames.
+            frameSession = boolean("platform.frame-session", false)
         )
+    }
+
+    /**
+     * Writes [text] into a brand-new [file] that is owner-only from the moment it exists. Whatever
+     * was there is removed first (a link as a link, never followed), and the file is created
+     * exclusively: a leftover or planted `config.conf.tmp`, or a symlink in its place, can neither
+     * receive the credentials nor be read while they are being written.
+     */
+    private fun writeOwnerOnly(file: File, text: String) {
+        val path = file.toPath()
+
+        Files.deleteIfExists(path)
+
+        val options = setOf(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS)
+        val posix = path.fileSystem.supportedFileAttributeViews().contains("posix")
+        val channel = if (posix) {
+            Files.newByteChannel(
+                path,
+                options,
+                PosixFilePermissions.asFileAttribute(setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE))
+            )
+        } else {
+            Files.newByteChannel(path, options)
+        }
+
+        channel.use { it.write(ByteBuffer.wrap(text.toByteArray(Charsets.UTF_8))) }
+
+        // The umask can only take bits away, but set them explicitly anyway.
+        restrictPermissions(file)
     }
 
     private fun restrictPermissions(file: File) {

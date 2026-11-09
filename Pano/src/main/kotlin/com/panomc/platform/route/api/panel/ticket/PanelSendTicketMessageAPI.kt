@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -52,7 +53,7 @@ class PanelSendTicketMessageAPI(
         val data = parameters.body().jsonObject
 
         val ticketId = parameters.pathParameter("id").long
-        val message = data.getString("message")
+        val message = HtmlSanitizer.sanitize(data.getString("message"))
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 

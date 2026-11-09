@@ -47,6 +47,9 @@ class RateLimitManager(
         private const val HEADER_RETRY_AFTER = "Retry-After"
 
         /** The tier of an already normalised request path; everything outside the API falls to [Tier.PUBLIC_API]. */
+        /** Tiers where a key that declares client IPs also shares one [Tier.FRONTEND_KEY_SENSITIVE] bucket per key. */
+        internal val KEY_WIDE_CAPPED_TIERS = setOf(Tier.AUTH, Tier.MAINTENANCE_AUTH, Tier.SETUP_API, Tier.SERVER_API)
+
         internal fun tierForPath(path: String): Tier {
             return when {
                 // Read on every navigation of a server-side front-end; they are not brute-force targets.
@@ -59,6 +62,8 @@ class RateLimitManager(
                 path.startsWith(ApiPaths.core("/server/connect")) -> Tier.SERVER_API
                 path.startsWith(ApiPaths.core("/server/disconnect")) -> Tier.SERVER_API
                 path.startsWith(ApiPaths.core("/server/connection")) -> Tier.SERVER_API
+                // Node pairing checks a six-digit code: as strict as the server pairing above.
+                path.startsWith(ApiPaths.core("/node/connect")) -> Tier.SERVER_API
                 path.startsWith(ApiPaths.core("/setup/")) -> Tier.SETUP_API
                 path.startsWith(ApiPaths.core("/favicon")) -> Tier.FILE_SERVE
                 path.startsWith(ApiPaths.core("/website-logo")) -> Tier.FILE_SERVE
@@ -146,6 +151,11 @@ class RateLimitManager(
             maxRequests = 2000,
             refillMs = 10,
             description = "A front-end key that declares no client IP"
+        ),
+        FRONTEND_KEY_SENSITIVE(
+            maxRequests = 200,
+            refillMs = 300,
+            description = "All sign-in, set-up and pairing requests of one front-end key, whatever client IPs it declares"
         )
     }
 
@@ -242,7 +252,16 @@ class RateLimitManager(
 
             // A front-end key has buckets of its own, so it can neither drain nor borrow a visitor's.
             if (AccessContext.of(context)?.clientIpFromKey == true) {
-                enforce(context, getTierForPath(path), "k${key.id}:$clientIp", keyed = true)
+                val tier = getTierForPath(path)
+
+                // The key picks the client IP it declares, so a fresh IP would be a fresh bucket: on the strict
+                // tiers the key as a whole also has one shared ceiling, whatever IPs it sends.
+                if (tier in KEY_WIDE_CAPPED_TIERS && !isAllowed("k${key.id}", Tier.FRONTEND_KEY_SENSITIVE, keyed = true)) {
+                    reject(context, Tier.FRONTEND_KEY_SENSITIVE, "k${key.id}", keyed = true)
+                    return@Handler
+                }
+
+                enforce(context, tier, "k${key.id}:$clientIp", keyed = true)
             } else {
                 enforce(context, Tier.FRONTEND_KEY, "k${key.id}", keyed = true)
             }
@@ -257,19 +276,23 @@ class RateLimitManager(
 
             context.next()
         } else {
-            val retryAfterVal = retryAfter(bucket, tier, keyed)
-
-            val error = RateLimitExceeded(extras = mapOf("retryAfter" to retryAfterVal))
-
-            context.response()
-                .putHeader(HEADER_LIMIT, tier.maxRequests.toString())
-                .putHeader(HEADER_REMAINING, "0")
-                .putHeader(HEADER_RETRY_AFTER, retryAfterVal.toString())
-                .putHeader("content-type", "application/json; charset=utf-8")
-                .setStatusCode(error.getStatusCode())
-                .setStatusMessage(error.getStatusMessage())
-                .end(error.encode())
+            reject(context, tier, bucket, keyed)
         }
+    }
+
+    private fun reject(context: RoutingContext, tier: Tier, bucket: String, keyed: Boolean) {
+        val retryAfterVal = retryAfter(bucket, tier, keyed)
+
+        val error = RateLimitExceeded(extras = mapOf("retryAfter" to retryAfterVal))
+
+        context.response()
+            .putHeader(HEADER_LIMIT, tier.maxRequests.toString())
+            .putHeader(HEADER_REMAINING, "0")
+            .putHeader(HEADER_RETRY_AFTER, retryAfterVal.toString())
+            .putHeader("content-type", "application/json; charset=utf-8")
+            .setStatusCode(error.getStatusCode())
+            .setStatusMessage(error.getStatusMessage())
+            .end(error.encode())
     }
 
     /**

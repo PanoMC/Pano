@@ -210,7 +210,9 @@ class ScheduleRunner(
                 server.emit(ConsoleLevel.INFO, "Pano is taking a scheduled backup.")
 
                 // Ids are invented here because this run is the node's: Pano first hears about the
-                // archive when BACKUP_CREATED arrives and writes its row from that.
+                // archive when BACKUP_CREATED arrives and writes its row from that. The outcome is
+                // the step's: a failed backup stops the run, so "back up, then restart" does not
+                // restart (and report success) over a backup that never happened.
                 backupService.create(
                     BackupCreateMessage(
                         serverUuid = server.uuid,
@@ -226,8 +228,6 @@ class ScheduleRunner(
                         include = stringList(payload?.get("include"))
                     )
                 )
-
-                null
             }
 
             else -> "\"$kind\" is not a step this node understands."

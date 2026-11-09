@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * The clock behind every linked server's schedules.
@@ -52,6 +53,12 @@ class ScheduleRunner(
 
     private val lastWarnedMinute = ConcurrentHashMap<String, Long>()
 
+    /**
+     * The last minute a tick has looked at. A tick checks every minute since then (a few at most),
+     * so a late or jittery tick that lands two minutes on cannot skip the minute in between.
+     */
+    private val lastProcessedMinute = AtomicLong(-1)
+
     fun start() {
         logger.info("Started server schedule runner.")
 
@@ -72,6 +79,15 @@ class ScheduleRunner(
             return
         }
 
+        val minute = now / TICK_INTERVAL_MS
+
+        val previous = lastProcessedMinute.getAndUpdate { maxOf(it, minute) }
+        val minutes = minutesToCheck(previous.takeIf { it >= 0 }, minute)
+
+        if (minutes.isEmpty()) {
+            return
+        }
+
         val sqlClient = databaseManager.getSqlClient()
 
         val schedules = databaseManager.serverScheduleDao.getAllEnabled(sqlClient)
@@ -79,8 +95,6 @@ class ScheduleRunner(
         if (schedules.isEmpty()) {
             return
         }
-
-        val minute = now / TICK_INTERVAL_MS
 
         // One lookup per server rather than per schedule: a server commonly has several.
         val servers = mutableMapOf<Long, Server?>()
@@ -98,7 +112,7 @@ class ScheduleRunner(
             }
 
             try {
-                apply(server, schedule, now, minute, sqlClient)
+                apply(server, schedule, now, minutes, sqlClient)
             } catch (e: Exception) {
                 logger.warn("Schedule \"${schedule.name}\" of server ${server.id} failed: ${e.message}")
             }
@@ -111,13 +125,24 @@ class ScheduleRunner(
         server: Server,
         schedule: ServerSchedule,
         now: Long,
-        minute: Long,
+        minutes: List<Long>,
         sqlClient: SqlClient
     ) {
-        if (CronSchedules.firesAt(schedule.cron, schedule.timezone, now)) {
-            if (lastFiredMinute.put(schedule.id, minute) == minute) {
+        val minute = minutes.last()
+
+        // Earlier minutes a late tick skipped over: checked at their own start. A schedule fires
+        // once per tick at most, even if several of those minutes match.
+        val fired = minutes.firstOrNull { m ->
+            val at = if (m == minute) now else m * TICK_INTERVAL_MS
+            CronSchedules.firesAt(schedule.cron, schedule.timezone, at)
+        }
+
+        if (fired != null) {
+            val last = lastFiredMinute[schedule.id]
+            if (last != null && last >= fired) {
                 return
             }
+            lastFiredMinute[schedule.id] = minute
 
             runNow(server, schedule, issuedBy = null, sqlClient = sqlClient)
 
@@ -185,5 +210,19 @@ class ScheduleRunner(
         const val TICK_INTERVAL_MS = 60L * 1000L
 
         private const val GUARD_RETENTION_MINUTES = 5
+
+        /** How many skipped minutes a tick catches up on; a longer gap (Pano was down) is missed. */
+        const val MAX_CATCH_UP_MINUTES = 3L
+
+        /**
+         * The minutes a tick at [current] must check, oldest first: every minute after [last] up to
+         * [current], at most [MAX_CATCH_UP_MINUTES] + 1 of them. Empty when [current] was done.
+         */
+        fun minutesToCheck(last: Long?, current: Long): List<Long> {
+            if (last == null) return listOf(current)
+            if (current <= last) return emptyList()
+            val from = maxOf(last + 1, current - MAX_CATCH_UP_MINUTES)
+            return (from..current).toList()
+        }
     }
 }

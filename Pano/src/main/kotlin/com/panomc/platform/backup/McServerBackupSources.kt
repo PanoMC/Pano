@@ -243,9 +243,15 @@ class McServerBackupSources(
                 throw PanoHostException(FETCH_FAILED, message = "The backup's node no longer serves this server.")
             }
 
-            val ticket = uploadTickets.issue(nodeId, handler)
             val encryption = request.encryption
             val snapshot = request.snapshot
+
+            // The node may only ever hold the server's own repository key, never the Pano's.
+            if (snapshot != null && !snapshot.subjectScoped) {
+                throw PanoHostException(FETCH_FAILED, message = "The snapshot key is not the server's own; the node does not get it.")
+            }
+
+            val ticket = uploadTickets.issue(nodeId, handler)
             val base64 = Base64.getEncoder()
 
             try {

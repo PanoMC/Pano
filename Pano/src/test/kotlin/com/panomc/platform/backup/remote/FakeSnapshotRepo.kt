@@ -20,7 +20,13 @@ import java.util.concurrent.CopyOnWriteArrayList
 class FakeSnapshotRepo(private val host: FakePanoHost) {
     val key = ByteArray(32) { (it * 7 + 1).toByte() }
     val keyId = "k1"
-    private val aesKey = SnapshotSeal.deriveKey(key)
+
+    /** Whether `start` knows `keyScope` (a control plane from before per-server repositories refuses it). */
+    @Volatile
+    var knowsKeyScope = true
+
+    /** The key of server [subject]'s own repository (`keyScope SUBJECT`). */
+    fun subjectKey(subject: String) = ByteArray(32) { (it * 13 + subject.hashCode()).toByte() }
 
     /** `repoConfig.pack` handed out (the real one is 32 MiB; the minimum a repository may have is 1 MiB). */
     @Volatile
@@ -30,7 +36,16 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
     @Volatile
     var failComplete: String? = null
 
-    private class Snapshot(val view: JsonObject, val instanceId: String) {
+    private class Snapshot(
+        val view: JsonObject,
+        val instanceId: String,
+        /** The repository it is in: the Pano's (its instance id) or a server's own (`<instance>:s:<subject>`). */
+        val repo: String = instanceId,
+        val key: ByteArray = ByteArray(0),
+        val keyId: String = ""
+    ) {
+        val aesKey: ByteArray by lazy { SnapshotSeal.deriveKey(key) }
+
         val packs = ArrayList<String>()
         var manifestKey: String? = null
 
@@ -65,6 +80,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
         completes.clear()
         chunkQueries.clear()
         failComplete = null
+        knowsKeyScope = true
         packBytes = 1L shl 20
     }
 
@@ -84,7 +100,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
         snapshots[id] = Snapshot(
             JsonObject().put("id", id).put("instanceId", instanceId).put("instanceName", "Other Pano").put("name", name).put("status", "DONE")
                 .put("createdAt", System.currentTimeMillis()).put("fileCount", 1).put("logicalBytes", 1).put("downloadBytes", 1).put("uniqueBytes", 1),
-            instanceId
+            instanceId, instanceId, key, keyId
         )
 
         return id
@@ -147,8 +163,8 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
                 snapshots.remove(id)
 
                 // Like the control plane's collection: a pack another snapshot of this Pano still reads from stays.
-                val needed = snapshots.values.filter { it.instanceId == instanceId }
-                    .flatMap { other -> other.chunkIds.mapNotNull { chunks["$instanceId/$it"]?.pack } }.toSet()
+                val needed = snapshots.values.filter { it.repo == snapshot.repo }
+                    .flatMap { other -> other.chunkIds.mapNotNull { chunks["${snapshot.repo}/$it"]?.pack } }.toSet()
 
                 snapshot.packs.filter { it !in needed }.forEach { objects.remove("snap/packs/$it"); reserved.remove(it) }
                 snapshot.manifestKey?.let { objects.remove(it) }
@@ -163,7 +179,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
 
                 chunkQueries += asked.size
 
-                JsonObject().put("missing", JsonArray(asked.filter { !chunks.containsKey("$instanceId/$it") }))
+                JsonObject().put("missing", JsonArray(asked.filter { !chunks.containsKey("${snapshot.repo}/$it") }))
             }
 
             action == "packs" -> {
@@ -194,7 +210,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
             action == "open" -> {
                 if (snapshot.view.getString("status") != "DONE") throw FakePanoHost.Failure(404, "SNAPSHOT_NOT_FOUND", JsonObject().put("reason", snapshot.view.getString("status")))
 
-                JsonObject().put("keyId", keyId).put("key", Base64.getEncoder().encodeToString(key)).put("repoConfig", repoConfig())
+                JsonObject().put("keyId", snapshot.keyId).put("key", Base64.getEncoder().encodeToString(snapshot.key)).put("repoConfig", repoConfig())
                     .put("manifestGet", JsonObject().put("url", "${host.baseUrl}/s3/snap/manifests/$id").put("expiresAt", System.currentTimeMillis() + 43_200_000))
             }
 
@@ -202,7 +218,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
                 if (snapshot.view.getString("status") != "DONE") throw FakePanoHost.Failure(404, "SNAPSHOT_NOT_FOUND")
 
                 val ids = body.getJsonArray("ids").map { it as String }
-                val found = ids.mapNotNull { chunkId -> chunks.entries.firstOrNull { it.key.endsWith("/$chunkId") }?.let { chunkId to it.value } }
+                val found = ids.mapNotNull { chunkId -> chunks["${snapshot.repo}/$chunkId"]?.let { chunkId to it } }
                 val known = found.map { it.first }.toSet()
 
                 JsonObject()
@@ -246,9 +262,19 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
             .put("subjectName", body.getString("subjectName"))
             .put("status", "RUNNING").put("createdAt", System.currentTimeMillis())
 
-        snapshots[id] = Snapshot(view, instanceId)
+        val subject = body.getString("subject")
+        val scoped = body.getString("keyScope") == "SUBJECT" && subject != null
 
-        return JsonObject().put("snapshotId", id).put("keyId", keyId).put("key", Base64.getEncoder().encodeToString(key)).put("repoConfig", repoConfig())
+        if (body.containsKey("keyScope") && !knowsKeyScope) {
+            throw FakePanoHost.Failure(400, "INVALID_INPUT", JsonObject().put("field", "keyScope").put("reason", "unknown"))
+        }
+
+        val snapshot = if (scoped) Snapshot(view, instanceId, "$instanceId:s:$subject", subjectKey(subject!!), "1") else Snapshot(view, instanceId, instanceId, key, keyId)
+
+        snapshots[id] = snapshot
+
+        return JsonObject().put("snapshotId", id).put("keyId", snapshot.keyId).put("key", Base64.getEncoder().encodeToString(snapshot.key)).put("repoConfig", repoConfig())
+            .also { if (scoped) it.put("keyScope", "SUBJECT") }
             .put("manifestPut", JsonObject().put("url", "${host.baseUrl}/s3/snap/manifests/$id").put("expiresAt", System.currentTimeMillis() + 86_400_000))
     }
 
@@ -265,7 +291,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
         val id = snapshot.view.getString("id")
         val manifestKey = "snap/manifests/$id"
         val sealed = objects[manifestKey] ?: return fail("MANIFEST_MISSING")
-        val manifest = runCatching { SnapshotFormat.decodeManifest(SnapshotSeal.open({ aesKey }, SnapshotFormat.manifestPath(id), sealed)) }.getOrNull() ?: return fail("INTEGRITY_FAILED")
+        val manifest = runCatching { SnapshotFormat.decodeManifest(SnapshotSeal.open({ snapshot.aesKey }, SnapshotFormat.manifestPath(id), sealed)) }.getOrNull() ?: return fail("INTEGRITY_FAILED")
 
         val scope = if (snapshot.view.getString("subject") == null) SnapshotFormat.SCOPE_PANO_INSTANCE else McServerSnapshot.SCOPE
 
@@ -283,8 +309,8 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
             try {
                 file.writeBytes(bytes)
 
-                PackReader(file, packId) { aesKey }.use { reader ->
-                    reader.entries.forEach { found["$instanceId/${it.id}"] = Chunk(packId, it.offset, it.length) }
+                PackReader(file, packId) { snapshot.aesKey }.use { reader ->
+                    reader.entries.forEach { found["${snapshot.repo}/${it.id}"] = Chunk(packId, it.offset, it.length) }
                 }
             } catch (e: Exception) {
                 return fail("INTEGRITY_FAILED")
@@ -293,7 +319,7 @@ class FakeSnapshotRepo(private val host: FakePanoHost) {
             }
         }
 
-        if (manifest.chunkIds().any { !chunks.containsKey("$instanceId/$it") && !found.containsKey("$instanceId/$it") }) return fail("MISSING_CHUNKS")
+        if (manifest.chunkIds().any { !chunks.containsKey("${snapshot.repo}/$it") && !found.containsKey("${snapshot.repo}/$it") }) return fail("MISSING_CHUNKS")
 
         chunks.putAll(found)
         snapshot.chunkIds = manifest.chunkIds().toSet()

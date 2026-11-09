@@ -1,5 +1,9 @@
 package com.panomc.platform.route.api.panel.players
 
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
+import io.vertx.kotlin.coroutines.coAwait
+import io.vertx.sqlclient.Pool
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
@@ -116,23 +120,16 @@ class PanelUpdatePlayerPermissionsAPI(
             throw InvalidData()
         }
 
-        val oldNodes = databaseManager.permissionNodeDao.getPermissionNodes(sqlClient)
-            .filter { it.holderType == HolderType.USER && it.holderId == playerId }
+        // Judged on the result, not on the node names: a group can carry `*`, and so can a node of the user. The
+        // result is computed before anything is written, so a refused grant is never live, not even for a moment.
+        val preview = permissionManager.previewUserNodes(playerId, newNodes)
+
+        when {
+            !preview.anyAdminLeft -> throw LastAdmin()
+            preview.userIsAdmin && !requesterIsAdmin -> throw NoPermission()
+        }
 
         replaceNodes(playerId, newNodes, sqlClient)
-
-        // Judged on the result, not on the node names: a group can carry `*`, and so can a node of the user.
-        val refusal = when {
-            permissionManager.getUserIdsWithNode("*").isEmpty() -> LastAdmin()
-            authProvider.isUserAdmin(playerId) && !requesterIsAdmin -> NoPermission()
-            else -> null
-        }
-
-        if (refusal != null) {
-            replaceNodes(playerId, oldNodes, sqlClient)
-
-            throw refusal
-        }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
@@ -158,10 +155,33 @@ class PanelUpdatePlayerPermissionsAPI(
         return Successful()
     }
 
+    // One transaction: a failure halfway keeps the user's old nodes instead of leaving them with none.
     private suspend fun replaceNodes(playerId: Long, nodes: List<PermissionNode>, sqlClient: SqlClient) {
-        databaseManager.permissionNodeDao.deleteByUserId(playerId, sqlClient)
+        val pool = sqlClient as? Pool
 
-        nodes.forEach { databaseManager.permissionNodeDao.add(it, sqlClient) }
+        if (pool == null) {
+            databaseManager.permissionNodeDao.deleteByUserId(playerId, sqlClient)
+            nodes.forEach { databaseManager.permissionNodeDao.add(it, sqlClient) }
+        } else {
+            val connection = pool.connection.coAwait()
+
+            try {
+                val transaction = connection.begin().coAwait()
+
+                try {
+                    databaseManager.permissionNodeDao.deleteByUserId(playerId, connection)
+                    nodes.forEach { databaseManager.permissionNodeDao.add(it, connection) }
+
+                    transaction.commit().coAwait()
+                } catch (e: Throwable) {
+                    withContext(NonCancellable) { runCatching { transaction.rollback().coAwait() } }
+
+                    throw e
+                }
+            } finally {
+                withContext(NonCancellable) { runCatching { connection.close().coAwait() } }
+            }
+        }
 
         permissionManager.refresh()
     }

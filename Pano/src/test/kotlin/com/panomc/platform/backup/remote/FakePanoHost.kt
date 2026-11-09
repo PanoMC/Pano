@@ -131,6 +131,8 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         const val WORKLOAD_ID = "p-test00001"
         const val TRANSFER_CODE = "123456"
         const val TRANSFER_GRANT = "grant-abc"
+        const val EXPORT_CODE = "654321"
+        const val EXPORT_GRANT = "export-grant-xyz"
     }
 
     fun start(): FakePanoHost {
@@ -211,7 +213,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
                 "workloads",
                 JsonArray().add(JsonObject().put("id", WORKLOAD_ID).put("name", "Test").put("state", "RUNNING").put("exportable", true))
             )
-            segments[0] == "workloads" && segments.getOrNull(2) == "export" -> exportRoute(method, segments[1])
+            segments[0] == "workloads" && segments.getOrNull(2) == "export" -> exportRoute(method, segments, context, body)
             segments[0] == "workloads" -> JsonObject().put("workloads", JsonArray().add(JsonObject().put("id", WORKLOAD_ID).put("name", "Test").put("maxBytes", 10L shl 30)))
             segments[0] == "transfers" -> transfersRoute(method, segments, instance(context, true)!!, body)
             else -> throw Failure(404, "NOT_FOUND")
@@ -323,10 +325,32 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
     /** Aborted multipart uploads: their part PUTs answer 404 (as S3 does). */
     val aborted: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
-    private fun exportRoute(method: String, workloadId: String): JsonObject {
-        if (workloadId != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+    /** Export grants seen in `X-Pano-Export-Grant` on status reads (null = the header was missing). */
+    val exportGrantHeaders: MutableList<String?> = java.util.Collections.synchronizedList(mutableListOf())
 
-        if (method == "POST") exportStarts++
+    private fun exportRoute(method: String, segments: List<String>, context: RoutingContext, body: JsonObject): JsonObject {
+        if (segments[1] != WORKLOAD_ID) throw Failure(404, "WORKLOAD_NOT_FOUND")
+
+        when {
+            segments.getOrNull(3) == "code" && segments.getOrNull(4) == null && method == "POST" ->
+                return JsonObject().put("email", "a***@y*****.com").put("expiresAt", 1_800_000_900_000L).put("resendAfter", 1_800_000_060_000L)
+
+            segments.getOrNull(3) == "code" && segments.getOrNull(4) == "verify" -> {
+                if (body.getString("code") != EXPORT_CODE) throw Failure(400, "TRANSFER_CODE_INVALID")
+
+                return JsonObject().put("grant", EXPORT_GRANT).put("expiresAt", 1_800_086_400_000L)
+            }
+        }
+
+        if (method == "POST") {
+            if (body.getString("grant") != EXPORT_GRANT) throw Failure(400, "TRANSFER_CODE_REQUIRED")
+
+            exportStarts++
+        }
+
+        val grant = context.request().getHeader("X-Pano-Export-Grant")
+
+        if (method == "GET") exportGrantHeaders.add(grant)
 
         val archive = exportArchive ?: return JsonObject().putNull("export")
         val view = JsonObject().put("exportId", "e1").put("sizeBytes", archive.size.toLong())
@@ -335,7 +359,12 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
             exportFails -> JsonObject().put("export", view.put("status", "FAILED").put("error", "disk full"))
             method == "GET" && exportPendingReads-- <= 0 -> {
                 objects["exports/e1"] = archive
-                JsonObject().put("export", view.put("status", "DONE").put("url", "$baseUrl/s3/exports/e1"))
+                view.put("status", "DONE")
+
+                // The control plane only hands out the link to a holder of the grant.
+                if (grant == EXPORT_GRANT) view.put("url", "$baseUrl/s3/exports/e1")
+
+                JsonObject().put("export", view)
             }
             else -> JsonObject().put("export", view.put("status", "PENDING"))
         }

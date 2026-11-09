@@ -21,14 +21,9 @@ class DatabaseMigration53to54 : DatabaseMigration(
 ) {
     override val handlers: List<suspend (SqlClient) -> Unit> = listOf(
         { sqlClient: SqlClient ->
-            // IF NOT EXISTS is MariaDB's, and it is what makes a migration that was interrupted
-            // safe to run again.
-            sqlClient
-                .preparedQuery(
-                    "ALTER TABLE `${getTablePrefix()}server_metric` ADD COLUMN IF NOT EXISTS `memRss` bigint DEFAULT NULL"
-                )
-                .execute()
-                .coAwait()
+            // Skipped when the column is there, so a migration that was interrupted is safe to run
+            // again.
+            addMissingColumns(sqlClient, "${getTablePrefix()}server_metric", "memRss" to "bigint DEFAULT NULL")
         }
     )
 }

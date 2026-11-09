@@ -117,21 +117,14 @@ class ServerPlayerDaoImpl : ServerPlayerDao() {
             return mapOf()
         }
 
-        var listText = ""
-
-        usernameList.forEach { id ->
-            if (listText == "")
-                listText = "'$id'"
-            else
-                listText += ", '$id'"
-        }
+        val listText = usernameList.joinToString(", ") { "?" }
 
         val query =
             "SELECT `username`, COUNT(id) AS cnt FROM `${getTablePrefix() + tableName}` where `username` IN ($listText) GROUP BY `username`"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.wrap(usernameList))
             .coAwait()
 
         val map = mutableMapOf<String, Boolean>()

@@ -7,6 +7,7 @@ import com.panomc.platform.auth.panel.permission.ManageServerSchedulesPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
+import com.panomc.platform.server.schedule.ScheduleTaskGuard
 import com.panomc.platform.server.schedule.ServerScheduleService
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -25,7 +26,8 @@ import com.panomc.platform.util.UsageMode
 class PanelToggleServerScheduleAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val scheduleService: ServerScheduleService
+    private val scheduleService: ServerScheduleService,
+    private val scheduleTaskGuard: ScheduleTaskGuard
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
@@ -60,6 +62,16 @@ class PanelToggleServerScheduleAPI(
 
         if (schedule.serverId != id) {
             throw NotExists()
+        }
+
+        // Turning a schedule on lets it run its steps, so it needs the rights those steps need.
+        if (enabled) {
+            val tasks = databaseManager.serverScheduleTaskDao.getAllByScheduleId(scheduleId, sqlClient)
+            scheduleTaskGuard.requireAllowed(
+                context,
+                id,
+                tasks.map { it.kind to it.payloadObject().getString("command") }
+            )
         }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)

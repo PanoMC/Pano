@@ -109,6 +109,11 @@ class HostSsoAPI(
 
         val userId = try {
             panoHostManager.redeem(ticket)
+        } catch (e: PanoHostClient.HostApiException) {
+            // Only a ticket the control plane refused counts against the instance's shared budget.
+            if (e.status in 400..499) guard.recordFailure(clientIp)
+
+            throw e
         } finally {
             guard.release()
         }

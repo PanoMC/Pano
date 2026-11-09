@@ -45,19 +45,20 @@ class GetThemeSettingResourceAPI(private val configManager: ConfigManager) : Api
 
         val filename = parameters.pathParameter("filename").string
 
-        val path = configManager.config
-            .fileUploadsFolder + File.separator + AppConstants.THEME_SETTINS_FILE_UPLOAD_FOLDER + File.separator +
-                filename
+        val file = UploadFileResolver.resolve(
+            configManager.config.fileUploadsFolder + File.separator + AppConstants.THEME_SETTINS_FILE_UPLOAD_FOLDER,
+            filename
+        )
 
-        val file = File(path)
-
-        if (!file.exists()) {
+        if (file == null) {
             context.response().setStatusCode(404).end()
 
             return null
         }
 
-        val actualHash = File(path).inputStream().hash()
+        val path = file.path
+
+        val actualHash = file.inputStream().use { it.hash() }
 
         val etag = "\"$actualHash\"" // strong ETag
         val ifNoneMatch = context.request().getHeader("If-None-Match")

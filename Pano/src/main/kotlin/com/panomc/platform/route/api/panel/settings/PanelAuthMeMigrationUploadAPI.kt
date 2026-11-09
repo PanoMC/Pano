@@ -3,7 +3,6 @@ package com.panomc.platform.route.api.panel.settings
 import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InvalidData
@@ -40,7 +39,9 @@ class PanelAuthMeMigrationUploadAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository) = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        if (!authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {
+        // Admins only: a migration writes users, passwords, bans and permission nodes directly,
+        // past the admin guards of the player and permission screens.
+        if (!authProvider.isUserAdmin(authProvider.getUserIdFromRoutingContext(context))) {
             throw NoPermission()
         }
 
@@ -66,8 +67,10 @@ class PanelAuthMeMigrationUploadAPI(
             ?: throw InvalidData(extras = mapOf("message" to "DataSource section not found in config"))
 
         val backend = (dataSource["backend"] as? String)?.uppercase() ?: "SQLITE"
-        val tableName = context.request().getFormAttribute("dbTable")?.takeIf { it.isNotBlank() }
-            ?: (dataSource["mySQLTablename"] as? String) ?: "authme"
+        val tableName = MigrationSqlNames.tableName(
+            context.request().getFormAttribute("dbTable")?.takeIf { it.isNotBlank() }
+                ?: (dataSource["mySQLTablename"] as? String) ?: "authme"
+        )
 
         // Column names from config
         // AuthMe stores column names inside mySQLColumnGroup (or mySQLColumnName as a map).

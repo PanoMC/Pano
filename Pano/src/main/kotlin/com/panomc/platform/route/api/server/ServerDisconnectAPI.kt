@@ -4,9 +4,10 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.InstallationRequired
 import com.panomc.platform.error.InvalidToken
+import com.panomc.platform.error.NoPermission
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerAuthProvider
-import com.panomc.platform.server.ServerManager
+import com.panomc.platform.server.ServerRemovalService
 import com.panomc.platform.setup.SetupManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
@@ -16,7 +17,7 @@ class ServerDisconnectAPI(
     private val databaseManager: DatabaseManager,
     private val setupManager: SetupManager,
     private val serverAuthProvider: ServerAuthProvider,
-    private val serverManager: ServerManager
+    private val serverRemovalService: ServerRemovalService
 ) : Api() {
     override val paths = listOf(Path("/server/disconnect", RouteType.POST))
 
@@ -38,33 +39,17 @@ class ServerDisconnectAPI(
 
         val sqlClient = getSqlClient()
 
-        val exists = databaseManager.serverDao.existsById(serverId, sqlClient)
+        val server = databaseManager.serverDao.getById(serverId, sqlClient) ?: return InvalidToken()
 
-        if (!exists) {
-            return InvalidToken()
+        // A managed server is created and removed from the panel: deleting its row from here would
+        // leave its directory and process on the node with nothing in Pano that could reach them.
+        if (server.isManaged) {
+            return NoPermission()
         }
 
-        val mainServerId = databaseManager.systemPropertyDao.getByOption(
-            "main_server",
-            sqlClient
-        )!!.value.toLong()
-
-        if (mainServerId == serverId) {
-            databaseManager.systemPropertyDao.update(
-                "main_server",
-                "-1",
-                sqlClient
-            )
-        }
-
-        databaseManager.serverPlayerDao.deleteByServerId(serverId, sqlClient)
-
-        databaseManager.serverMetricDao.deleteByServerId(serverId, sqlClient)
-        databaseManager.serverMetricDailyDao.deleteByServerId(serverId, sqlClient)
-
-        databaseManager.serverDao.deleteById(serverId, sqlClient)
-
-        serverManager.onServerDeleted(serverId)
+        // The same cleanup as a delete from the panel: socket closed, every dependent row and the
+        // server's tokens removed, the main server handed on.
+        serverRemovalService.remove(serverId, sqlClient)
 
         return Successful()
     }

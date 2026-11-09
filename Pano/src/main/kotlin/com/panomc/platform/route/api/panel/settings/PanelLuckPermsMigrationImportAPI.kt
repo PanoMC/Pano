@@ -4,7 +4,6 @@ import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.PermissionManager
-import com.panomc.platform.auth.panel.permission.ManagePlatformSettingsPermission
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.PermissionGroup
 import com.panomc.platform.db.model.PermissionNode
@@ -60,7 +59,9 @@ class PanelLuckPermsMigrationImportAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
-        if (!authProvider.hasPermission(ManagePlatformSettingsPermission(), context)) {
+        // Admins only: a migration writes users, passwords, bans and permission nodes directly,
+        // past the admin guards of the player and permission screens.
+        if (!authProvider.isUserAdmin(authProvider.getUserIdFromRoutingContext(context))) {
             throw NoPermission()
         }
 
@@ -134,8 +135,10 @@ class PanelLuckPermsMigrationImportAPI(
 
         val storageMethod = sourceInfo?.getString("storageMethod")?.uppercase()
             ?: (configMap["storage-method"] as? String)?.uppercase() ?: "H2"
-        val tablePrefix = sourceInfo?.getString("tablePrefix")
-            ?: (dataSection?.get("table-prefix") as? String) ?: "luckperms_"
+        val tablePrefix = MigrationSqlNames.tablePrefix(
+            sourceInfo?.getString("tablePrefix")
+                ?: (dataSection?.get("table-prefix") as? String) ?: "luckperms_"
+        )
 
         // Read LuckPerms data again from source
         val luckPermsData: PanelLuckPermsMigrationUploadAPI.LuckPermsData = when (storageMethod) {
@@ -718,6 +721,11 @@ class PanelLuckPermsMigrationImportAPI(
 
     private suspend fun readFromH2(dbPath: String, tablePrefix: String): PanelLuckPermsMigrationUploadAPI.LuckPermsData {
         return vertx.executeBlocking {
+            // Opening an H2 file runs the SQL stored in it; only plain table exports are opened.
+            if (!MigrationSqlNames.isPlainH2Export(File(dbPath))) {
+                throw InvalidData(extras = mapOf("message" to "This H2 database contains more than LuckPerms tables and cannot be imported."))
+            }
+
             // H2 requires an absolute path
             val absolutePath = File(dbPath).absolutePath
             val jdbcPath = if (absolutePath.endsWith(".mv.db")) {
@@ -731,6 +739,13 @@ class PanelLuckPermsMigrationImportAPI(
                 Class.forName("org.h2.Driver")
             } catch (e: ClassNotFoundException) {
                 throw InvalidData(extras = mapOf("message" to "H2 database driver not found. Please ensure H2 is included in the build."))
+            }
+
+            // Refuse a crafted file before H2 replays (and runs) the SQL stored in it.
+            try {
+                LuckPermsH2Guard.requireSafe(File(absolutePath))
+            } catch (e: IllegalArgumentException) {
+                throw InvalidData(extras = mapOf("message" to (e.message ?: "Unsafe database file.")))
             }
 
             val conn = try {

@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.post
 
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
@@ -56,7 +57,7 @@ class PanelGetPostAPI(
                     "title" to post.title,
                     "category" to post.categoryId,
                     "writerUserId" to post.writerUserId,
-                    "text" to post.text,
+                    "text" to HtmlSanitizer.sanitize(post.text),
                     "date" to post.date,
                     "status" to post.status,
                     "thumbnailUrl" to post.thumbnailUrl,
@@ -66,7 +67,7 @@ class PanelGetPostAPI(
                     mapOf(
                         "title" to it.title,
                         "category" to it.categoryId,
-                        "text" to it.text,
+                        "text" to HtmlSanitizer.sanitize(it.text),
                         "thumbnailUrl" to it.thumbnailUrl,
                         "removeThumbnail" to it.removeThumbnail,
                         "updatedAt" to it.updatedAt

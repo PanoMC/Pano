@@ -11,6 +11,7 @@ import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
+import com.panomc.node.util.SafeDelete
 
 /**
  * Which softwares can hand their files to one another (SM-66, §2.4.31).
@@ -301,7 +302,7 @@ object ReinstallCarryOver {
                     // A fresh install never has a world yet; if it somehow does, the old one wins,
                     // because it is the one somebody played on.
                     if (target.exists()) {
-                        target.deleteRecursively()
+                        SafeDelete.tree(target)
                     }
 
                     move(world, target)
@@ -337,7 +338,7 @@ object ReinstallCarryOver {
             if (oldMoved) {
                 attempt {
                     if (finalDirectory.exists()) {
-                        finalDirectory.deleteRecursively()
+                        SafeDelete.tree(finalDirectory)
                     }
 
                     move(oldDirectory, finalDirectory)
@@ -346,12 +347,12 @@ object ReinstallCarryOver {
                 oldMoved = false
             }
 
-            workDirectory.deleteRecursively()
+            SafeDelete.tree(workDirectory)
         }
 
         /** The new install is registered and reported: the old directory can go. */
         fun commit(logger: NodeLogger? = null) {
-            if (oldDirectory.exists() && !oldDirectory.deleteRecursively()) {
+            if (oldDirectory.exists() && !SafeDelete.tree(oldDirectory)) {
                 // Left for the next boot's sweep rather than failing a finished install over it.
                 logger?.warn("Could not delete ${oldDirectory.absolutePath}; it is removed on the next start.")
             }
@@ -397,7 +398,7 @@ object ReinstallCarryOver {
 
             try {
                 if (File(final, SERVER_JSON).isFile) {
-                    old.deleteRecursively()
+                    SafeDelete.tree(old)
 
                     logger.info("Removed the old directory of reinstalled server $uuid.")
                 } else {
@@ -408,7 +409,7 @@ object ReinstallCarryOver {
                     }
 
                     if (final.exists()) {
-                        final.deleteRecursively()
+                        SafeDelete.tree(final)
                     }
 
                     move(old, final)
@@ -422,7 +423,7 @@ object ReinstallCarryOver {
 
         serversRoot.listFiles()
             ?.filter { it.isDirectory && it.name.endsWith(INSTALLING_SUFFIX) }
-            ?.forEach { it.deleteRecursively() }
+            ?.forEach { SafeDelete.tree(it) }
     }
 
     private const val SERVER_JSON = "server.json"

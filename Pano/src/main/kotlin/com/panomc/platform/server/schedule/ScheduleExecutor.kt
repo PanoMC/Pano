@@ -170,10 +170,10 @@ class ScheduleExecutor(
 
             backupService.recordScheduled(server.id, backup, sqlClient)
 
-            // Trimmed now rather than when the archive finishes: the row already exists and
-            // counts, so the oldest copies go while this one is still being written.
+            // Trimmed once the archive is READY: retention only counts finished copies, so doing
+            // it now kept one too many, and a backup that then failed left fewer good ones.
             if (keep != null) {
-                backupService.applyRetention(server, sqlClient, keep, options.mode)
+                backupService.retainWhenReady(backup.uuid, keep, options.mode)
             }
 
             null

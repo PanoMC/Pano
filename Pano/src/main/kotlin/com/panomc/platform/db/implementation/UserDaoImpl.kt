@@ -195,7 +195,7 @@ class UserDaoImpl : UserDao() {
         val storedHash = rows.toList()[0].getString(0) ?: return false
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
 
-        return passwordHasher.verify(password, storedHash)
+        return passwordHasher.verifyAsync(password, storedHash)
     }
 
     override suspend fun count(sqlClient: SqlClient): Long {
@@ -972,7 +972,7 @@ class UserDaoImpl : UserDao() {
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
         val configManager = applicationContext.getBean(ConfigManager::class.java)
         val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
-        val hashedPassword = passwordHasher.hash(password, algorithm)
+        val hashedPassword = passwordHasher.hashAsync(password, algorithm)
 
         val query =
             "UPDATE `${getTablePrefix() + tableName}` SET `password` = ? WHERE `id` = ?"
@@ -1220,7 +1220,7 @@ class UserDaoImpl : UserDao() {
         val storedHash = rows.toList()[0].getString(0) ?: return false
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
 
-        return passwordHasher.verify(password, storedHash)
+        return passwordHasher.verifyAsync(password, storedHash)
     }
 
     override suspend fun updatePendingEmailById(

@@ -13,6 +13,11 @@ import org.springframework.stereotype.Component
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.withContext
 
 @Lazy
 @Component
@@ -48,6 +53,26 @@ class PasswordHasher {
         null
     }
     private val secureRandom = SecureRandom()
+
+    /**
+     * Hashing is slow on purpose (Argon2id: 64 MB, three passes). Request handlers run on the HTTP event loop, so they
+     * hash through [hashAsync] / [verifyAsync], which run here: a few threads of their own, so a flood of logins waits
+     * in line instead of freezing every other request, and the memory the hashes use stays bounded.
+     */
+    private val hashDispatcher = Executors.newFixedThreadPool(HASH_THREADS, object : ThreadFactory {
+        private val counter = AtomicInteger()
+
+        override fun newThread(runnable: Runnable) =
+            Thread(runnable, "pano-password-hash-${counter.incrementAndGet()}").apply { isDaemon = true }
+    }).asCoroutineDispatcher()
+
+    /** [hash] off the calling thread; use it from request handlers and other event-loop code. */
+    suspend fun hashAsync(password: String, algorithm: Algorithm = Algorithm.ARGON2ID): String =
+        withContext(hashDispatcher) { hash(password, algorithm) }
+
+    /** [verify] off the calling thread; use it from request handlers and other event-loop code. */
+    suspend fun verifyAsync(password: String, storedHash: String): Boolean =
+        withContext(hashDispatcher) { verify(password, storedHash) }
 
     /**
      * Hash a plaintext password using the specified algorithm.
@@ -222,5 +247,9 @@ class PasswordHasher {
 
     private fun verifyMd5(password: String, hash: String): Boolean {
         return DigestUtils.md5Hex(password).equals(hash, ignoreCase = true)
+    }
+
+    companion object {
+        private val HASH_THREADS = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
     }
 }

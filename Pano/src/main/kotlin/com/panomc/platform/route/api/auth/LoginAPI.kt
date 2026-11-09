@@ -242,7 +242,7 @@ class LoginAPI(
         if (storedHash != null) {
             val targetAlgorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
             if (passwordHasher.needsRehash(storedHash, targetAlgorithm)) {
-                val newHash = passwordHasher.hash(password, targetAlgorithm)
+                val newHash = passwordHasher.hashAsync(password, targetAlgorithm)
                 databaseManager.userDao.setHashedPasswordById(userId, newHash, sqlClient)
             }
         }

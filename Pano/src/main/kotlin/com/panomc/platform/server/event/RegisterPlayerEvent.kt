@@ -30,7 +30,7 @@ class RegisterPlayerEvent(
         val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
         val configManager = applicationContext.getBean(ConfigManager::class.java)
         val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
-        val hashedPassword = passwordHasher.hash(request.password, algorithm)
+        val hashedPassword = passwordHasher.hashAsync(request.password, algorithm)
 
         databaseManager.userDao.add(user, hashedPassword, sqlClient, false)
 

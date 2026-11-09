@@ -19,6 +19,7 @@ import java.io.FileReader
 import java.io.FileWriter
 import java.net.URI
 import java.security.KeyPair
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 @Component
@@ -39,6 +40,16 @@ class AcmeManager(
 
     private val currentOptions = AtomicReference<PemKeyCertOptions?>(null)
 
+    /** Pending HTTP-01 challenges, token to key authorization. Request input never touches the filesystem. */
+    private val pendingChallenges = ConcurrentHashMap<String, String>()
+
+    companion object {
+        /** The ACME token alphabet (base64url); anything else is answered with 404 without a lookup. */
+        private val TOKEN = Regex("^[A-Za-z0-9_-]{1,128}$")
+
+        fun isValidToken(token: String?) = token != null && TOKEN.matches(token)
+    }
+
     fun init(router: Router) {
         if (!certDir.exists()) {
             certDir.mkdirs()
@@ -47,13 +58,12 @@ class AcmeManager(
         // Add route for ACME HTTP-01 challenge
         router.get("/.well-known/acme-challenge/:token").order(0).handler { ctx ->
             val token = ctx.pathParam("token")
-            logger.info("Received ACME challenge request for token: $token")
-            val challengeFile = File(certDir, "challenge-$token")
-            if (challengeFile.exists()) {
-                ctx.response().putHeader("Content-Type", "text/plain").end(challengeFile.readText())
+            val content = if (isValidToken(token)) pendingChallenges[token] else null
+
+            if (content != null) {
+                ctx.response().putHeader("Content-Type", "text/plain").end(content)
             } else {
-                logger.warn("ACME challenge token not found locally: $token")
-                ctx.fail(404)
+                ctx.response().setStatusCode(404).end()
             }
         }
 
@@ -142,30 +152,32 @@ class AcmeManager(
             // Save challenge token to be served by Vert.x
             val token = challenge.getToken()
             val content = challenge.getAuthorization()
-            File(certDir, "challenge-$token").writeText(content)
+            if (!isValidToken(token)) throw Exception("ACME server sent an unexpected challenge token for $domain")
+            pendingChallenges[token] = content
 
-            // Trigger challenge validation
-            challenge.trigger()
+            try {
+                // Trigger challenge validation
+                challenge.trigger()
 
-            // Wait for validation
-            var attempts = 15
-            while (auth.status != Status.VALID && attempts-- > 0) {
-                if (auth.status == Status.INVALID) {
-                    val chalError = challenge.getError().orElse(null)
-                    val reason = chalError?.detail ?: chalError?.toString() ?: "Unknown error"
-                    throw Exception("ACME authorization failed for $domain. Reason: $reason")
+                // Wait for validation
+                var attempts = 15
+                while (auth.status != Status.VALID && attempts-- > 0) {
+                    if (auth.status == Status.INVALID) {
+                        val chalError = challenge.getError().orElse(null)
+                        val reason = chalError?.detail ?: chalError?.toString() ?: "Unknown error"
+                        throw Exception("ACME authorization failed for $domain. Reason: $reason")
+                    }
+                    logger.info("Waiting for domain verification... Status: ${auth.status} (Attempts left: $attempts)")
+                    Thread.sleep(3000)
+                    auth.update()
                 }
-                logger.info("Waiting for domain verification... Status: ${auth.status} (Attempts left: $attempts)")
-                Thread.sleep(3000)
-                auth.update()
+            } finally {
+                pendingChallenges.remove(token)
             }
 
             if (auth.status != Status.VALID) {
                 throw Exception("ACME authorization timed out for $domain. Current status: ${auth.status}")
             }
-            
-            // Clean up challenge file
-            File(certDir, "challenge-$token").delete()
         }
 
         // Finalize order

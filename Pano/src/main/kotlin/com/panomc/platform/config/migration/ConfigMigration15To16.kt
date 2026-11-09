@@ -16,9 +16,10 @@ class ConfigMigration15To16 : ConfigMigration(15, 16, "Add saving hash of websit
             File(config.getString("file-uploads-folder") + File.separator + filePaths.getString("websiteLogo"))
 
         if (websiteLogoFile.exists()) {
-            val hash = websiteLogoFile.inputStream().hash()
+            val hash = websiteLogoFile.inputStream().use { it.hash() }
 
-            newFilePaths["websiteLogo"] = mapOf(
+            // The keys PanoConfig.FilePaths reads (websiteLogoFile / faviconFile); the old ones hold the paths.
+            newFilePaths["websiteLogoFile"] = mapOf(
                 "path" to filePaths.getString("websiteLogo"),
                 "hash" to hash
             )
@@ -28,9 +29,9 @@ class ConfigMigration15To16 : ConfigMigration(15, 16, "Add saving hash of websit
             File(config.getString("file-uploads-folder") + File.separator + filePaths.getString("favicon"))
 
         if (favicon.exists()) {
-            val hash = favicon.inputStream().hash()
+            val hash = favicon.inputStream().use { it.hash() }
 
-            newFilePaths["favicon"] = mapOf(
+            newFilePaths["faviconFile"] = mapOf(
                 "path" to filePaths.getString("favicon"),
                 "hash" to hash
             )

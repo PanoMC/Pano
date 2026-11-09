@@ -124,7 +124,27 @@ class ServerManager(
         startHeartbeatSweep()
     }
 
-    fun onServerConnect(server: Server, serverWebSocket: ServerWebSocket) {
+    /** Channel v2 state of each socket that negotiated it (see [SecureChannel]). */
+    private val channels = ConcurrentHashMap<ServerWebSocket, SecureChannel>()
+
+    /** Capabilities each socket negotiated on its upgrade (empty for a plugin older than them). */
+    private val socketCapabilities = ConcurrentHashMap<ServerWebSocket, Set<String>>()
+
+    /** Whether the live connection of [serverId] negotiated [capability]. */
+    fun hasCapability(serverId: Long, capability: String): Boolean {
+        val socket = connectedServers.entries.firstOrNull { it.key.id == serverId }?.value ?: return false
+        return socketCapabilities[socket]?.contains(capability) == true
+    }
+
+    fun onServerConnect(
+        server: Server,
+        serverWebSocket: ServerWebSocket,
+        channel: SecureChannel? = null,
+        capabilities: Set<String> = emptySet()
+    ) {
+        channel?.let { channels[serverWebSocket] = it }
+        socketCapabilities[serverWebSocket] = capabilities
+
         // See heartbeatSweepStarted's own doc: this is what actually covers the fresh-install
         // gap, since init() alone isn't guaranteed to run before the first connection.
         startHeartbeatSweep()
@@ -196,6 +216,9 @@ class ServerManager(
         // a still-connected server has disconnected. ConcurrentHashMap.remove(key, value) makes
         // the check-and-remove atomic so a racing onServerConnect can never be observed halfway
         // through.
+        channels.remove(serverWebSocket)
+        socketCapabilities.remove(serverWebSocket)
+
         if (!connectedServers.remove(server, serverWebSocket)) {
             return
         }
@@ -320,8 +343,21 @@ class ServerManager(
         }
     }
 
-    suspend fun onServerWrite(encryptedText: String, server: Server) {
-        val text = Aes256GcmUtil.decrypt(encryptedText, serverSecretKeyMap[server]!!)
+    suspend fun onServerWrite(encryptedText: String, server: Server, serverWebSocket: ServerWebSocket? = null) {
+        val channel = serverWebSocket?.let { channels[it] }
+
+        val text = if (channel != null) {
+            try {
+                channel.open(encryptedText)
+            } catch (e: SecurityException) {
+                // A replayed, reordered or forged frame: the connection cannot be trusted any more.
+                logger.warn("Closing the connection of \"${server.customName ?: server.name}\": ${e.message}")
+                serverWebSocket.close()
+                return
+            }
+        } else {
+            Aes256GcmUtil.decrypt(encryptedText, serverSecretKeyMap[server]!!)
+        }
 
         val body = JsonObject(text)
         val event = body.getString("event")
@@ -349,9 +385,21 @@ class ServerManager(
 
     fun sendMessage(platformMessage: PlatformMessage, server: Server) {
         val message = platformMessage.encode()
+        val socket = getConnectedServers()[server]!!
+        val channel = channels[socket]
+
+        if (channel != null) {
+            // Sealed and written together, so frames leave in sequence order.
+            synchronized(channel) {
+                socket.writeTextMessage(channel.seal(message))
+            }
+
+            return
+        }
+
         val encryptedMessage = Aes256GcmUtil.encrypt(message, serverSecretKeyMap[server]!!)
 
-        getConnectedServers()[server]!!.writeTextMessage(encryptedMessage)
+        socket.writeTextMessage(encryptedMessage)
     }
 
     /**

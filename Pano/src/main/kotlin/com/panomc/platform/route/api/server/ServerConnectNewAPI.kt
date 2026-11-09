@@ -82,7 +82,7 @@ class ServerConnectNewAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        if (data.getString("platformCode", "") != platformCodeManager.getPlatformKey().toString()) {
+        if (!platformCodeManager.verify(data.getString("platformCode", ""))) {
             throw InvalidPlatformCode()
         }
 

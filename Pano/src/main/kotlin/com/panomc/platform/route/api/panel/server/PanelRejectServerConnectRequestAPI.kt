@@ -8,6 +8,8 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotExists
 import com.panomc.platform.model.*
 import com.panomc.platform.server.ServerManager
+import com.panomc.platform.token.ServerAuthenticationTokenType
+import com.panomc.platform.token.TokenProvider
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
 import com.panomc.platform.schema.dsl.Parameters.param
@@ -19,7 +21,8 @@ import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 class PanelRejectServerConnectRequestAPI(
     private val databaseManager: DatabaseManager,
     private val serverManager: ServerManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val tokenProvider: TokenProvider
 ) : PanelApi() {
     override val paths = listOf(Path("/servers/:id/reject", RouteType.POST))
 
@@ -51,6 +54,8 @@ class PanelRejectServerConnectRequestAPI(
         }
 
         databaseManager.serverDao.deleteById(id, sqlClient)
+
+        tokenProvider.invalidateTokensBySubjectAndType(id.toString(), ServerAuthenticationTokenType, sqlClient)
 
         return Successful()
     }

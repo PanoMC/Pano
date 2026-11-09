@@ -4,6 +4,8 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.alert.AlertManager
 import com.panomc.platform.server.plugins.PluginIdentificationService
+import com.panomc.platform.token.ServerAuthenticationTokenType
+import com.panomc.platform.token.TokenProvider
 import io.vertx.sqlclient.SqlClient
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
@@ -30,7 +32,8 @@ class ServerRemovalService(
     private val pluginIdentificationService: PluginIdentificationService,
     private val serverStopReasonStore: ServerStopReasonStore,
     private val serverSelectionService: ServerSelectionService,
-    private val activeTaskStore: ServerActiveTaskStore
+    private val activeTaskStore: ServerActiveTaskStore,
+    private val tokenProvider: TokenProvider
 ) {
     /**
      * Removes the server with [serverId] and everything that pointed at it.
@@ -82,6 +85,9 @@ class ServerRemovalService(
         databaseManager.serverTaskDao.clearServerIdByServerId(serverId, sqlClient)
 
         databaseManager.serverDao.deleteById(serverId, sqlClient)
+
+        // A token of a deleted server must not keep opening sockets or calling the server API.
+        tokenProvider.invalidateTokensBySubjectAndType(serverId.toString(), ServerAuthenticationTokenType, sqlClient)
 
         // The main server is gone: the next one takes over rather than leaving the spot empty.
         if (mainServerId == serverId) {

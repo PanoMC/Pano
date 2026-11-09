@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.error.CurrentPasswordNotCorrect
 import com.panomc.platform.token.TokenProvider
 import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.auth.PlayerTargetGuard
@@ -47,6 +48,7 @@ class PanelUpdatePlayerAPI(
                         .requiredProperty("canCreateTicket", booleanSchema())
                         .requiredProperty("localeCode", stringSchema())
                         .requiredProperty("clearPassword", booleanSchema())
+                        .optionalProperty("currentPassword", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -67,6 +69,7 @@ class PanelUpdatePlayerAPI(
         val canCreateTicket = data.getBoolean("canCreateTicket")
         val localeCode = data.getString("localeCode")
         val clearPassword = data.getBoolean("clearPassword") == true
+        val currentPassword = data.getString("currentPassword") ?: ""
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
@@ -119,6 +122,20 @@ class PanelUpdatePlayerAPI(
 
         val user = databaseManager.userDao.getById(playerId, sqlClient)!!
 
+        // Editing only your own account (no players permission): the e-mail goes through the profile's confirmation
+        // flow, and a new password needs the current one, so a borrowed session cannot lock the owner out.
+        if (!hasManagePlayerPermission) {
+            if (emailNormalized != user.email) {
+                throw NoPermission()
+            }
+
+            if (newPassword.isNotEmpty() &&
+                !databaseManager.userDao.isPasswordCorrectWithId(userId, currentPassword, sqlClient)
+            ) {
+                throw CurrentPasswordNotCorrect()
+            }
+        }
+
         if (username != user.username) {
             val usernameExists = databaseManager.userDao.existsByUsername(username, sqlClient)
 
@@ -156,6 +173,12 @@ class PanelUpdatePlayerAPI(
         // A new or cleared password signs the account out everywhere else.
         if (playerId != userId && (clearPassword || newPassword.isNotEmpty())) {
             tokenProvider.invalidateTokensBySubjectAndType(playerId.toString(), AuthenticationTokenType, sqlClient)
+        } else if (playerId == userId && newPassword.isNotEmpty()) {
+            val currentToken = authProvider.getTokenFromRoutingContext(context)
+
+            databaseManager.tokenDao.getAllBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
+                .filter { it.token != currentToken }
+                .forEach { databaseManager.tokenDao.deleteById(it.id, sqlClient) }
         }
 
         if (playerId != userId) {

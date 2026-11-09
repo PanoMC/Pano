@@ -34,7 +34,10 @@ class AddressClassTest {
             "::" to AddressClass.UNSPECIFIED, "::1" to AddressClass.LOOPBACK, "fe80::1" to AddressClass.LINK_LOCAL,
             "febf::1" to AddressClass.LINK_LOCAL, "fc00::1" to AddressClass.PRIVATE, "fd12:3456::1" to AddressClass.PRIVATE,
             "fd00:ec2::254" to AddressClass.LINK_LOCAL, "ff02::1" to AddressClass.MULTICAST, "2001:db8::1" to AddressClass.RESERVED,
-            "2606:4700::1111" to AddressClass.PUBLIC, "fec0::1" to AddressClass.PRIVATE
+            "2606:4700::1111" to AddressClass.PUBLIC, "fec0::1" to AddressClass.PRIVATE,
+            "64:ff9b:1::a00:1" to AddressClass.RESERVED, "2001:0:4136:e378::1" to AddressClass.RESERVED,
+            "100::1" to AddressClass.RESERVED, "2001:4860::8888" to AddressClass.PUBLIC,
+            "::ffff:192.88.99.1" to AddressClass.RESERVED, "192.88.99.1" to AddressClass.RESERVED
         )
         for ((text, c) in expected) assertEquals(c, cls(text), text)
     }

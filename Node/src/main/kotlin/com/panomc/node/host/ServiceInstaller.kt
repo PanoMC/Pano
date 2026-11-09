@@ -77,7 +77,13 @@ class ServiceInstaller(
         else -> "$name.service"
     }
 
-    private fun systemdUnit(jarPath: String, javaPath: String) = """
+    /**
+     * The ordinary node's unit. ExecStart is split on whitespace by systemd, so every word is
+     * quoted the way the agent's unit already is: a data directory such as `/home/u/Pano Node`
+     * must not turn into `--data /home/u/Pano` and a stray argument. WorkingDirectory takes the
+     * rest of its line as one path and stays as it is.
+     */
+    internal fun systemdUnit(jarPath: String, javaPath: String) = """
         [Unit]
         Description=Pano node daemon
         After=network-online.target
@@ -85,7 +91,7 @@ class ServiceInstaller(
 
         [Service]
         Type=simple
-        ExecStart=$javaPath -jar $jarPath --data ${dataDir.absolutePath}
+        ExecStart=${listOf(javaPath, "-jar", jarPath, "--data", dataDir.absolutePath).joinToString(" ") { systemdQuote(it) }}
         WorkingDirectory=${dataDir.absolutePath}
         Restart=always
         RestartSec=5

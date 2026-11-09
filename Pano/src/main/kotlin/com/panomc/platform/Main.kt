@@ -33,9 +33,11 @@ import io.vertx.core.Vertx
 import io.vertx.core.VertxException
 import io.vertx.core.VertxOptions
 import io.vertx.core.buffer.Buffer
+import io.vertx.core.http.HttpServer
 import io.vertx.core.http.HttpServerOptions
 import io.vertx.core.http.HttpServerRequest
 import io.vertx.core.net.PemKeyCertOptions
+import io.vertx.core.net.ServerSSLOptions
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.coAwait
@@ -302,6 +304,8 @@ class Main : CoroutineVerticle() {
     private lateinit var pluginManager: PluginManager
     private lateinit var uiManager: UIManager
     private lateinit var acmeManager: AcmeManager
+    @Volatile
+    private var httpsServer: HttpServer? = null
     private lateinit var localNodeManager: LocalNodeManager
     private lateinit var databaseManager: DatabaseManager
     private val shutdownDeferred = CompletableDeferred<Unit>()
@@ -1014,17 +1018,43 @@ class Main : CoroutineVerticle() {
     }
 
     private fun startHttpsServer(serverConfig: PanoConfig.Companion.ServerConfig, handler: Handler<HttpServerRequest>) {
-        val host = serverConfig.host
-        val port = serverConfig.httpsPort
         val (options, canStart) = prepareHttpsOptions(serverConfig)
+
+        if (serverConfig.sslMode == PanoConfig.Companion.SslMode.LETS_ENCRYPT) {
+            // A first issuance starts the HTTPS server, a renewal swaps the certificate of the running one.
+            acmeManager.onCertificateIssued = { certOptions ->
+                vertx.runOnContext {
+                    val running = httpsServer
+                    if (running != null) {
+                        running.updateSSLOptions(ServerSSLOptions().setKeyCertOptions(certOptions)).onSuccess {
+                            logger.info("HTTPS server now uses the renewed Let's Encrypt certificate.")
+                        }.onFailure { logger.error("Failed to apply the renewed Let's Encrypt certificate: ${it.message}") }
+                    } else {
+                        listenHttps(HttpServerOptions().setSsl(true).setKeyCertOptions(certOptions), serverConfig, handler)
+                    }
+                }
+            }
+        }
 
         if (!canStart) {
             UiConsole.markReady()
             return
         }
 
+        listenHttps(options, serverConfig, handler)
+    }
+
+    private fun listenHttps(
+        options: HttpServerOptions,
+        serverConfig: PanoConfig.Companion.ServerConfig,
+        handler: Handler<HttpServerRequest>
+    ) {
+        val host = serverConfig.host
+        val port = serverConfig.httpsPort
+
         logger.info("Creating HTTPS server on port $port (Mode: ${serverConfig.sslMode})")
         vertx.createHttpServer(options).requestHandler(handler).listen(port, host).onSuccess {
+                httpsServer = it
                 logWebServerReady("https", host, port)
             }.onFailure { result ->
                 logger.error(ListenFailure.message("https", host, port, result, OPERATING_SYSTEM, "https-port"))

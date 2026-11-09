@@ -3,6 +3,7 @@ package com.panomc.platform.config
 import com.panomc.platform.Main.Companion.IS_DEV
 import com.panomc.platform.annotation.Migration
 import com.panomc.platform.hosted.HostedEnvConfig
+import com.panomc.platform.util.TrustedProxyIpResolver
 import io.vertx.config.ConfigRetriever
 import io.vertx.config.ConfigRetrieverOptions
 import io.vertx.config.ConfigStoreOptions
@@ -247,6 +248,7 @@ open class ConfigManager(
 
     private fun updateConfig(newConfig: JsonObject) {
         config = PanoConfig.from(newConfig)
+        TrustedProxyIpResolver.trustPrivateProxies = config.server.trustPrivateProxies != false
         persistedPanoApiUrl = config.panoApiUrl
         persistedPanoWebsiteUrl = config.panoWebsiteUrl
         if (IS_DEV) {

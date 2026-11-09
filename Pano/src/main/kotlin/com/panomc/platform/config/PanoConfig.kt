@@ -464,15 +464,25 @@ data class PanoConfig(
                 "Reverse proxies allowed to declare the real client IP via X-Forwarded-For.",
                 "The header is honoured ONLY when the connecting socket peer is listed here (single",
                 "addresses or CIDR ranges) or is a loopback / private-network address (a local nginx",
-                "or Docker proxy); otherwise the socket peer address itself is the client IP.",
+                "or Docker proxy, see trust-private-proxies); otherwise the socket peer address itself is",
+                "the client IP.",
                 "List a public proxy here so its hop is skipped; behind Cloudflare add the word \"cloudflare\"",
                 "(its published ranges). Without it every visitor looks like the Cloudflare edge address.",
-                "Loopback and private-network peers are always trusted and cannot be switched off, so",
-                "behind a NAT or a container bridge that hides real client addresses the header is believed.",
                 "Maintenance mode trusts only the addresses listed here.",
                 "Example: [\"127.0.0.1\", \"::1\", \"cloudflare\", \"203.0.113.0/24\"]"
             )
-            @SerializedName("trusted-proxies") var trustedProxies: List<String> = emptyList()
+            @SerializedName("trusted-proxies") var trustedProxies: List<String> = emptyList(),
+
+            @ConfigComment(
+                "true (default): loopback and private-network peers (a local nginx, a Docker bridge) may",
+                "declare the client IP without being listed in trusted-proxies.",
+                "false: forwarded IP headers are believed only from the peers listed in trusted-proxies.",
+                "Set false when a NAT, a container port forward or a TCP proxy that does not rewrite the",
+                "headers sits in front of Pano: there visitors could otherwise send any X-Forwarded-For."
+            )
+            // Nullable: a config.conf written before this key existed has no value for it, and a missing
+            // value must keep today's behaviour (trusted). Read it as `!= false`.
+            @SerializedName("trust-private-proxies") var trustPrivateProxies: Boolean? = true
         )
 
         data class AuthConfig(

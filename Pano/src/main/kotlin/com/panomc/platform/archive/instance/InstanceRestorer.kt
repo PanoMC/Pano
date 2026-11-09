@@ -34,8 +34,8 @@ import java.util.UUID
  *    verified, reject other kinds and `ARCHIVE_NEWER_THAN_TARGET` (scheme or config versions this Pano
  *    does not know), rewrite the archived config for this target, and dry-run the whole dump through
  *    [SanitisedSqlImporter] so a rejected dump never gets as far as dropping anything.
- * 2. [apply] (Pano in maintenance mode, caller's job): drop the target's and the archive's prefix
- *    tables, import the dump, swap the contents of plugins/themes/file-uploads/maintenance (keeping
+ * 2. [apply] (Pano in maintenance mode, caller's job): drop the target's own prefix tables and the
+ *    tables the dump creates (never another app's: see dropReplacedTables), import the dump, swap the contents of plugins/themes/file-uploads/maintenance (keeping
  *    the target's uploads cache/temp/transfer and theme license tokens), then hand the rewritten config
  *    to [apply]'s config sink. A running Pano must take the config through its ConfigManager (it
  *    rewrites config.conf on shutdown); the default sink writes the file for a stopped Pano.
@@ -145,11 +145,11 @@ class InstanceRestorer(
         connection: SqlConnection,
         configSink: suspend (JsonObject) -> Unit = { config -> withContext(Dispatchers.IO) { writeConfigFile(config) } }
     ): Result {
-        val dropped = dropPrefixTables(connection, setOf(targetPrefix, staged.archivePrefix))
+        val dropped = dropReplacedTables(connection, staged.dump.tables)
         val dump = withContext(Dispatchers.IO) { File(staged.root, ArchiveManifest.DB_DUMP_ENTRY).inputStream().buffered() }
 
         val summary = try {
-            SanitisedSqlImporter(staged.archivePrefix).importGzip(dump, connection)
+            SanitisedSqlImporter(staged.archivePrefix, allowedTables = staged.dump.tables).importGzip(dump, connection)
         } finally {
             withContext(Dispatchers.IO) { dump.close() }
         }
@@ -184,12 +184,30 @@ class InstanceRestorer(
         layout.configFile.writeText(HoconWriter.render(config, PanoConfig::class.java))
     }
 
-    private suspend fun dropPrefixTables(connection: SqlConnection, prefixes: Set<String>): List<String> {
-        val tables = connection
+    /**
+     * Drops this Pano's own tables (the target's non-empty prefix) and the tables the dump creates. A dump table that
+     * already exists but does not carry the target's prefix belongs to something else in the same database
+     * (another app, or another Pano with an archive prefix that only looks like ours, e.g. an empty one):
+     * the restore stops before anything is dropped instead of replacing it.
+     */
+    private suspend fun dropReplacedTables(connection: SqlConnection, dumpTables: Set<String>): List<String> {
+        val existing = connection
             .query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME")
             .execute().coAwait()
             .map { it.getString(0) }
-            .filter { name -> prefixes.any { name.startsWith(it) } }
+        val created = dumpTables.map { it.lowercase() }.toSet()
+        // An empty target prefix says nothing about which tables are Pano's: only the dump's own are replaced.
+        val owned = { name: String -> targetPrefix.isNotEmpty() && name.startsWith(targetPrefix) }
+        val foreign = existing.filter { it.lowercase() in created && targetPrefix.isNotEmpty() && !owned(it) }
+
+        if (foreign.isNotEmpty()) {
+            throw PanoArcException(
+                Code.UNSAFE_SQL,
+                "The archive would replace tables that do not belong to this Pano: ${foreign.joinToString(", ")}"
+            )
+        }
+
+        val tables = existing.filter { owned(it) || it.lowercase() in created }
 
         if (tables.isNotEmpty()) {
             connection.query("SET SESSION foreign_key_checks = 0").execute().coAwait()

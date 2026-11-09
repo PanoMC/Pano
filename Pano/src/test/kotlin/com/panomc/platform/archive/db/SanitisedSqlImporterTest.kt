@@ -284,4 +284,22 @@ class SanitisedSqlImporterTest {
         )
         assertEquals("CREATE VIEW `v` AS SELECT 1", PanoNativeDumper.cleanCreateTable("CREATE DEFINER=`root`@`%` VIEW `v` AS SELECT 1"))
     }
+
+    @Test
+    fun `with an allowed table list only the dump's own tables may be named`() {
+        // An empty prefix matches every name, so the list of tables the dump creates is what limits it.
+        val limited = SanitisedSqlImporter("", allowedTables = setOf("posts"))
+
+        limited.validate("DROP TABLE IF EXISTS `Posts`; CREATE TABLE `posts` (`id` int); INSERT INTO `posts` VALUES (1);".reader())
+
+        listOf(
+            "DROP TABLE IF EXISTS `shop_orders`;",
+            "INSERT INTO `shop_orders` VALUES (1);",
+            "CREATE TABLE `shop_orders` (`id` int);"
+        ).forEach { sql ->
+            val error = assertThrows<PanoArcException>(sql) { limited.validate(sql.reader()) }
+
+            assertEquals(Code.UNSAFE_SQL, error.code, error.message)
+        }
+    }
 }

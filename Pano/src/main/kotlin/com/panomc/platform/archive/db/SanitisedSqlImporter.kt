@@ -31,7 +31,18 @@ import java.util.zip.GZIPInputStream
  * so comments never reach the server; the session sql_mode is pinned so the server lexes strings the
  * same way [SqlTokenizer] did.
  */
-class SanitisedSqlImporter(private val prefix: String, private val maxStatementChars: Long = SqlTokenizer.DEFAULT_MAX_STATEMENT_CHARS) {
+class SanitisedSqlImporter(
+    private val prefix: String,
+    private val maxStatementChars: Long = SqlTokenizer.DEFAULT_MAX_STATEMENT_CHARS,
+    /**
+     * When set, the only tables a statement may name (compared case-insensitively): the ones the dump itself
+     * creates, from [validate]'s [Summary.tables]. The prefix alone does not say which tables are the
+     * archive's when it is empty or short, so without this a dump could drop or fill any table it can name.
+     */
+    allowedTables: Set<String>? = null
+) {
+    private val allowed = allowedTables?.map { it.lowercase() }?.toSet()
+
     init {
         require(PREFIX.matches(prefix)) { "Invalid table prefix." }
     }
@@ -372,7 +383,8 @@ class SanitisedSqlImporter(private val prefix: String, private val maxStatementC
 
     private fun render(tokens: List<SqlToken>) = tokens.joinToString(" ") { it.raw }
 
-    private fun isPrefixTable(name: String) = TABLE_NAME.matches(name) && name.startsWith(prefix)
+    private fun isPrefixTable(name: String) =
+        TABLE_NAME.matches(name) && name.startsWith(prefix) && (allowed == null || name.lowercase() in allowed)
 
     private inner class Cursor(val tokens: List<SqlToken>, var index: Int = 0) {
         fun peek(): SqlToken? = tokens.getOrNull(index)

@@ -5,6 +5,7 @@ import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.CreateServersPermission
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.FileTooLarge
+import com.panomc.platform.error.RateLimited
 import com.panomc.platform.model.*
 import com.panomc.platform.node.transfer.TransferDirection
 import com.panomc.platform.node.transfer.TransferTicketStore
@@ -18,6 +19,8 @@ import io.vertx.kotlin.coroutines.coAwait
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import com.panomc.platform.util.UsageMode
 
 /**
@@ -56,9 +59,34 @@ class PanelUploadTransferAPI(
             .setBodyLimit(MAX_UPLOAD_BYTES)
     )
 
+    /** Uploads whose body is still arriving, per user and in total. */
+    private val inFlightByUser = ConcurrentHashMap<Long, AtomicInteger>()
+    private val inFlightTotal = AtomicInteger()
+
     // Login, panel access and the permission are checked before the (up to 1 GiB) upload is spooled.
+    // So are the limits: each spool can be a gigabyte on Pano's disk for half an hour, so one user
+    // gets one upload at a time and Pano holds only a few spools at once.
     override suspend fun checkBeforeBody(context: RoutingContext) {
         authProvider.requirePermission(CreateServersPermission(), context)
+
+        val userId = authProvider.getUserIdFromRoutingContext(context)
+        val userCounter = inFlightByUser.computeIfAbsent(userId) { AtomicInteger() }
+
+        if (userCounter.incrementAndGet() > MAX_IN_FLIGHT_PER_USER) {
+            userCounter.decrementAndGet()
+            throw RateLimited()
+        }
+
+        if (inFlightTotal.incrementAndGet() + transferTicketStore.liveSpools().size > MAX_SPOOLS_TOTAL + MAX_IN_FLIGHT_TOTAL) {
+            inFlightTotal.decrementAndGet()
+            userCounter.decrementAndGet()
+            throw RateLimited()
+        }
+
+        context.addEndHandler {
+            inFlightTotal.decrementAndGet()
+            userCounter.decrementAndGet()
+        }
     }
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -90,6 +118,12 @@ class PanelUploadTransferAPI(
             fileName = fileName,
             ttlMs = TransferTicketStore.SPOOL_TTL_MS
         )
+
+        // A user keeps only their newest few spools; older unredeemed ones are dropped with their file.
+        transferTicketStore.liveSpools(userId)
+            .filter { it.id != ticket.id }
+            .dropLast(MAX_SPOOLS_PER_USER - 1)
+            .forEach { transferTicketStore.discard(it) }
 
         val spool = transferTicketStore.spoolFileFor(ticket.id)
 
@@ -139,6 +173,18 @@ class PanelUploadTransferAPI(
         const val MAX_UPLOAD_BYTES = 1024L * 1024 * 1024
 
         private const val MAX_NAME_LENGTH = 255
+
+        /** Uploads one user may have arriving at once. */
+        const val MAX_IN_FLIGHT_PER_USER = 1
+
+        /** Uploads arriving at once across every user. */
+        const val MAX_IN_FLIGHT_TOTAL = 2
+
+        /** Spooled uploads one user may keep waiting for a wizard (the newest ones win). */
+        const val MAX_SPOOLS_PER_USER = 2
+
+        /** Spooled uploads Pano keeps waiting at once, across every user. */
+        const val MAX_SPOOLS_TOTAL = 4
         private const val DEFAULT_NAME = "upload.zip"
     }
 }

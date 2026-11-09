@@ -395,7 +395,9 @@ class PanoBackupService(
         safetyArchive: Boolean,
         maintenance: Boolean
     ): PanoBackupInfo? {
-        val restorer = restorer()
+        val restorer = restorer(
+            withContext(Dispatchers.IO) { restoreLimits(limits, source.length(), usableSpace(host.layout.tempDir)) }
+        )
         val keys = PanoArcKeys(passphrase = passphrase?.takeIf { it.isNotEmpty() })
 
         // Everything that can reject the archive happens here, before anything is changed.
@@ -511,13 +513,24 @@ class PanoBackupService(
         logger.info("No database is configured; restoring into the archive's own database.")
     }
 
-    private fun restorer() = InstanceRestorer(
+    private fun restorer(limits: ArchiveLimits = this.limits) = InstanceRestorer(
         layout = host.layout,
         targetConfig = host.targetConfig(),
         targetSchemeVersions = host.knownSchemeVersions(),
         targetConfigVersion = host.configVersion(),
         limits = limits
     )
+
+    /** Free bytes where [directory] is (or would be created). */
+    private fun usableSpace(directory: File): Long {
+        var dir: File? = directory.absoluteFile
+
+        while (dir != null && !dir.exists()) {
+            dir = dir.parentFile
+        }
+
+        return dir?.usableSpace ?: Long.MAX_VALUE
+    }
 
     /** The database type belongs to the machine too (a portable Windows DB is not portable elsewhere). */
     private fun forTarget(config: JsonObject): JsonObject {
@@ -552,6 +565,26 @@ class PanoBackupService(
     }
 
     companion object {
+        /** An archive may unpack to at most this many times its own size (and at least [RESTORE_MIN_UNPACKED_BYTES]). */
+        const val RESTORE_MAX_RATIO = 50L
+        const val RESTORE_MIN_UNPACKED_BYTES = 1L shl 30
+
+        /** Kept free on the staging disk while an archive unpacks. */
+        const val RESTORE_FREE_SPACE_RESERVE = 512L shl 20
+
+        /**
+         * The unpack limits for restoring an archive of [archiveBytes]: an uploaded file is staged before its
+         * manifest (the last entry) is checked, so a small zip bomb could otherwise fill the disk up to [base]'s
+         * 64 GiB. Capped by a ratio of the file's size and by the free space of the staging disk.
+         */
+        fun restoreLimits(base: ArchiveLimits, archiveBytes: Long, freeBytes: Long): ArchiveLimits {
+            val byRatio = maxOf(RESTORE_MIN_UNPACKED_BYTES, if (archiveBytes > Long.MAX_VALUE / RESTORE_MAX_RATIO) Long.MAX_VALUE else archiveBytes * RESTORE_MAX_RATIO)
+            val bySpace = maxOf(0L, freeBytes - RESTORE_FREE_SPACE_RESERVE)
+            val total = minOf(base.maxTotalBytes, byRatio, bySpace)
+
+            return base.copy(maxTotalBytes = total, maxEntryBytes = minOf(base.maxEntryBytes, total))
+        }
+
         const val BUSY = "BACKUP_BUSY"
         const val RESTORE_FAILED = "RESTORE_FAILED"
         const val ROLLBACK_FAILED = "ROLLBACK_FAILED"

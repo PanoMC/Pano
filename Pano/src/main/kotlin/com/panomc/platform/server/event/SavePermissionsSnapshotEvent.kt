@@ -23,7 +23,9 @@ import io.vertx.sqlclient.SqlClient
 /**
  * Accepts a full permissions snapshot from a connected server and writes it to DB.
  *
- * IMPORTANT: This will reset permission_group/permission_track/permission_node tables.
+ * IMPORTANT: This will reset permission_group/permission_track/permission_node tables, except the
+ * rows that decide panel access: those are kept and never taken from the server
+ * ([ServerPermissionSyncGuard]). Nothing is written when the server's permission integration is off.
  *
  * Pano user rows are auto-created when the snapshot references a USER holder by
  * `holderName` (Minecraft username) that does not yet exist on the platform. This
@@ -38,6 +40,9 @@ class SavePermissionsSnapshotEvent(
 ) : ServerEvent<SavePermissionsSnapshotEventRequest, ServerEventResponse>() {
 
     override suspend fun handle(request: SavePermissionsSnapshotEventRequest, server: Server): ServerEventResponse? {
+        // Permission sync is a per-server switch; a server with it turned off must not write.
+        if (!server.settings.permissionIntegration) return null
+
         val sqlClient = databaseManager.getSqlClient()
 
         val body = try {
@@ -79,6 +84,28 @@ class SavePermissionsSnapshotEvent(
                 )
             }
         }.toMutableList()
+
+        // Rows that decide panel access stay owned by the panel (see ServerPermissionSyncGuard):
+        // read them before the reset, put them back afterwards, and drop their incoming versions.
+        val existingGroups = databaseManager.permissionGroupDao.getPermissionGroups(sqlClient)
+        val existingNodes = databaseManager.permissionNodeDao.getPermissionNodes(sqlClient)
+        val existingGroupNameById = existingGroups.associate { it.id to it.name }
+        val panelGroups = ServerPermissionSyncGuard.panelGroups(existingGroups, existingNodes)
+        val preservedNodes = existingNodes.mapNotNull { node ->
+            val holderGroupName =
+                if (node.holderType == HolderType.GROUP) existingGroupNameById[node.holderId] else null
+            if (node.holderType == HolderType.GROUP && holderGroupName == null) return@mapNotNull null
+            if (!ServerPermissionSyncGuard.isProtected(
+                    node.holderType, holderGroupName, node.node, node.context, panelGroups
+                )
+            ) return@mapNotNull null
+            node to holderGroupName
+        }
+        existingGroups
+            .filter { it.name in panelGroups }
+            .forEach { grp ->
+                if (groupsFromPayload.none { it.name == grp.name }) groupsFromPayload.add(grp)
+            }
 
         // Ensure default group exists
         ensureGroup(
@@ -153,6 +180,20 @@ class SavePermissionsSnapshotEvent(
             }
 
             val nodeStr = obj.getString("node") ?: return@forEach
+            val nodeContext = obj.getJsonObject("context")
+                ?: (obj.getValue("context") as? Map<*, *>)?.let { JsonObject.mapFrom(it) }
+                ?: JsonObject()
+
+            if (ServerPermissionSyncGuard.isProtected(
+                    holderType,
+                    if (holderType == HolderType.GROUP) obj.getString("holderName") else null,
+                    nodeStr,
+                    nodeContext,
+                    panelGroups
+                )
+            ) {
+                return@forEach
+            }
 
             // Skip explicit user->default group nodes (LP already implies default group in platform logic)
             if (holderType == HolderType.USER &&
@@ -185,16 +226,22 @@ class SavePermissionsSnapshotEvent(
                 holderId = mappedHolderId,
                 node = nodeStr,
                 active = obj.getBoolean("active") ?: true,
-                context = (obj.getJsonObject("context")
-                    ?: (obj.getValue("context") as? Map<*, *>)?.let { JsonObject.mapFrom(it) }
-                    ?: JsonObject()
-                    ),
+                context = nodeContext,
                 expiresAt = expiresAt,
                 createdAt = obj.getLong("createdAt") ?: System.currentTimeMillis(),
                 updatedAt = obj.getLong("updatedAt") ?: System.currentTimeMillis()
             )
 
             databaseManager.permissionNodeDao.add(permissionNode, sqlClient)
+        }
+
+        preservedNodes.forEach { (node, holderGroupName) ->
+            val holderId = if (node.holderType == HolderType.GROUP) {
+                groupIdByName[holderGroupName] ?: return@forEach
+            } else {
+                node.holderId
+            }
+            databaseManager.permissionNodeDao.add(node.copy(id = -1, holderId = holderId), sqlClient)
         }
 
         permissionManager.refresh()

@@ -93,6 +93,11 @@ object DockerCommands {
             "--memory", "${spec.memoryMb}m",
             "--workdir", WORK_DIR,
             "--volume", "$hostDirectory:$WORK_DIR",
+            // The node's own folder in the server directory (console log, process record) is
+            // written by the daemon on the host. Covered by an empty tmpfs inside the container,
+            // the server never sees it, so it cannot swap a file there for a link that the
+            // daemon would then write through onto a host path.
+            "--tmpfs", "$WORK_DIR/${ProcessRecordStore.DIRECTORY}",
             "-e", "JAVA_TOOL_OPTIONS=",
             // The same allocator setting a plain process gets (JvmHeap.MALLOC_ARENA_MAX).
             "-e", "MALLOC_ARENA_MAX=${JvmHeap.MALLOC_ARENA_MAX}",

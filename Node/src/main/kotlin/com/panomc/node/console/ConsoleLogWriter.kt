@@ -1,9 +1,9 @@
 package com.panomc.node.console
 
+import com.panomc.node.util.NoFollowWrite
 import com.panomc.node.util.NodeLogger
 import java.io.BufferedOutputStream
 import java.io.File
-import java.io.FileOutputStream
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -110,7 +110,7 @@ class ConsoleLogWriter(
         try {
             val file = file(serverDirectory)
 
-            file.parentFile.mkdirs()
+            NoFollowWrite.ensureDirectory(file.parentFile)
 
             var length = if (file.isFile) file.length() else 0L
             var out: OutputStream = open(file)
@@ -140,7 +140,7 @@ class ConsoleLogWriter(
         }
     }
 
-    private fun open(file: File): OutputStream = BufferedOutputStream(FileOutputStream(file, true))
+    private fun open(file: File): OutputStream = BufferedOutputStream(NoFollowWrite.append(file))
 
     /** `console.log` → `.1` → `.2`, the old `.2` dropped. */
     private fun rotate(file: File) {

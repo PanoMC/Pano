@@ -1,5 +1,6 @@
 package com.panomc.node.server
 
+import com.panomc.node.util.NoFollowWrite
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import java.io.File
@@ -85,9 +86,10 @@ object ProcessRecordStore {
      * has already happened.
      */
     fun write(serverDirectory: File, record: ProcessRecord): Boolean = try {
-        directory(serverDirectory).mkdirs()
+        // The server can write this folder too; a link in it must not carry the record elsewhere.
+        NoFollowWrite.ensureDirectory(directory(serverDirectory))
 
-        file(serverDirectory).writeText(gson.toJson(record))
+        NoFollowWrite.writeText(file(serverDirectory), gson.toJson(record))
 
         true
     } catch (_: Exception) {

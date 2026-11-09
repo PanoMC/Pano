@@ -59,6 +59,8 @@ class RateLimitManager(
                 path.startsWith(ApiPaths.core("/server/connect")) -> Tier.SERVER_API
                 path.startsWith(ApiPaths.core("/server/disconnect")) -> Tier.SERVER_API
                 path.startsWith(ApiPaths.core("/server/connection")) -> Tier.SERVER_API
+                // Node pairing checks a six-digit code: as strict as the server pairing above.
+                path.startsWith(ApiPaths.core("/node/connect")) -> Tier.SERVER_API
                 path.startsWith(ApiPaths.core("/setup/")) -> Tier.SETUP_API
                 path.startsWith(ApiPaths.core("/favicon")) -> Tier.FILE_SERVE
                 path.startsWith(ApiPaths.core("/website-logo")) -> Tier.FILE_SERVE

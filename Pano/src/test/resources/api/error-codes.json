@@ -531,6 +531,10 @@
     "code": "SERVER_OFFLINE",
     "status": 409
   },
+  "com.panomc.platform.error.SetupPendingOnHost": {
+    "code": "SETUP_PENDING_ON_HOST",
+    "status": 503
+  },
   "com.panomc.platform.error.SomePermissionsArentExists": {
     "code": "SOME_PERMISSIONS_ARENT_EXISTS",
     "status": 404

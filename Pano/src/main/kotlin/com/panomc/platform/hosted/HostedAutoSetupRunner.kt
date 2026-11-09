@@ -35,10 +35,14 @@ class HostedAutoSetupRunner(
 ) {
     /** True when setup was finished here (the boot then continues as an installed platform). */
     suspend fun run(): Boolean {
-        if (!HostedEnvConfig.current.isHosted || setupManager.getCurrentStep() != 0) return false
+        if (!HostedEnvConfig.current.isHosted || setupManager.isSetupDone()) return false
         val client = panoHostManager.client ?: return false
 
         val outcome = HostedAutoSetup(client, Target(), HostedEnvConfig.current.workloadId, { logger.info(it) }).run()
+
+        // An AUTOMATIC order whose setup failed part-way keeps the public wizard closed: nobody but
+        // the automatic setup (retried on the next start) may create this site's first admin.
+        if (outcome == HostedAutoSetup.Outcome.FAILED) setupManager.wizardLocked = true
 
         return outcome == HostedAutoSetup.Outcome.COMPLETED
     }

@@ -27,6 +27,13 @@ class SetupManager(private val configManager: ConfigManager, applicationContext:
         applicationContext.getBean(MariaDBManager::class.java)
     }
 
+    /**
+     * Pano Host: true while an AUTOMATIC order's setup has not finished (it failed part-way and is
+     * retried on the next start). The anonymous wizard is closed then, so nobody else can claim the site.
+     */
+    @Volatile
+    var wizardLocked: Boolean = false
+
     /** Replaceable in tests; the process environment otherwise. */
     internal var envConfig: HostedEnvConfig = HostedEnvConfig.current
 

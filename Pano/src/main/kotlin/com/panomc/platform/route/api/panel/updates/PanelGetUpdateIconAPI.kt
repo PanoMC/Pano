@@ -27,6 +27,11 @@ class PanelGetUpdateIconAPI(
 
     companion object {
         private const val CACHE_TTL_SECONDS = 7 * 24 * 60 * 60 // 1 week
+
+        // Icons are stored under a random UUID; anything else (separators, "..") is never a stored icon.
+        private val ICON_FILE_NAME = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+        fun isValidIconFileName(filename: String) = ICON_FILE_NAME.matches(filename)
     }
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
@@ -43,6 +48,11 @@ class PanelGetUpdateIconAPI(
         val type = parameters.queryParameter("type").string
         val requestedHash = parameters.queryParameter("hash")?.string
         val updateIconFolder = configManager.config.fileUploadsFolder + File.separator + UPDATE_ICON_FOLDER
+
+        if (!isValidIconFileName(filename)) {
+            sendDefault(context, requestedHash, type)
+            return null
+        }
 
         val file = UploadFileResolver.resolve(updateIconFolder, filename)
 

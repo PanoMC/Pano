@@ -60,6 +60,14 @@ object ZipTool {
         }
 
         ZipOutputStream(target.outputStream().buffered()).use { out ->
+            // The archive being written may sit inside the folder being archived; reading it into
+            // itself would grow it until the disk is full. Resolved now that the stream created it.
+            val targetReal = try {
+                target.toPath().toRealPath()
+            } catch (_: Exception) {
+                target.toPath().toAbsolutePath().normalize()
+            }
+
             paths.forEach { path ->
                 val source = PathSafety.resolveRelative(root, path)
                 val base = ServerFileDenylist.normalise(path)
@@ -81,6 +89,10 @@ object ZipTool {
                     real != null && visited.add(real)
                 }.forEach inner@{ file ->
                     val real = realPathInside(realRoot, file) ?: return@inner
+
+                    if (real == targetReal) {
+                        return@inner
+                    }
 
                     if (realRoot != null && ServerFileDenylist.isDenied(relativeName(realRoot.toFile(), real.toFile()))) {
                         return@inner

@@ -191,6 +191,34 @@ class ZipToolTest {
         assertFalse(names.any { it.startsWith("plugins/loop/") }, names.toString())
     }
 
+    @Test
+    fun `never puts the archive it is writing into itself`() {
+        val plugins = File(root, "plugins").apply { mkdirs() }
+
+        File(plugins, "a.yml").writeText("hello")
+
+        val archive = File(plugins, "plugins.zip")
+
+        ZipTool.archive(root, listOf("plugins"), archive)
+
+        val names = java.util.zip.ZipFile(archive).use { zip -> zip.entries().toList().map { it.name } }
+
+        assertTrue("plugins/a.yml" in names, names.toString())
+        assertFalse(names.any { it.endsWith("plugins.zip") }, names.toString())
+
+        // Reached through a link inside the server, it is still the same file.
+        linkDirectory(File(root, "linked"), plugins)
+
+        val linked = File(plugins, "again.zip")
+
+        ZipTool.archive(root, listOf("linked"), linked)
+
+        val linkedNames = java.util.zip.ZipFile(linked).use { zip -> zip.entries().toList().map { it.name } }
+
+        assertTrue("linked/a.yml" in linkedNames, linkedNames.toString())
+        assertFalse(linkedNames.any { it.endsWith("again.zip") }, linkedNames.toString())
+    }
+
     /** A symlink where the OS allows one, else a directory junction (Windows without the symlink right). */
     private fun linkDirectory(link: File, target: File) {
         try {

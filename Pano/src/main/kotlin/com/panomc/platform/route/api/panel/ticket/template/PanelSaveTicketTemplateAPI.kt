@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket.template
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
@@ -55,7 +56,7 @@ class PanelSaveTicketTemplateAPI(
 
         val id = parameters.pathParameter("id")?.long
         val title = data.getString("title").trim()
-        val body = data.getString("body")
+        val body = HtmlSanitizer.sanitize(data.getString("body"))
 
         val errors = mutableMapOf<String, Boolean>()
 

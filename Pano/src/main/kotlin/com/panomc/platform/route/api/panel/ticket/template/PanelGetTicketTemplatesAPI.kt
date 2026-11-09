@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket.template
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
@@ -52,7 +53,7 @@ class PanelGetTicketTemplatesAPI(
                     mapOf(
                         "id" to it.id,
                         "title" to it.title,
-                        "body" to it.body,
+                        "body" to HtmlSanitizer.sanitize(it.body),
                         "updatedAt" to it.updatedAt
                     )
                 },

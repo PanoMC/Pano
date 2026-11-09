@@ -45,6 +45,18 @@ class PanelUpdateLocaleTranslationsAPI(
 
         val translations = requestBody.getJsonObject("translations").map
 
+        translations.forEach { (key, value) ->
+            if (!isSafeMarkup(value.toString())) {
+                throw BadRequest(
+                    extras = mapOf(
+                        "field" to "translations",
+                        "key" to key,
+                        "message" to "\"$key\" holds HTML that is not allowed in a translation."
+                    )
+                )
+            }
+        }
+
         val localeId = parameters.pathParameter("localeId").long
         val type = try {
             TranslationType.valueOf(parameters.pathParameter("type").string)
@@ -111,5 +123,67 @@ class PanelUpdateLocaleTranslationsAPI(
                 "count" to translations.count()
             )
         )
+    }
+
+    companion object {
+        private val TAG = Regex("""<\s*(/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^<>]*)>""")
+        private val ATTRIBUTE = Regex("""\s*([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+        private val MARKUP_START = Regex("""<\s*[a-zA-Z!/?]""")
+        private val SAFE_HREF = Regex("""^((https?://|/|#|mailto:)[^\s<>"'`]*|\{[a-zA-Z0-9_.-]+})$""", RegexOption.IGNORE_CASE)
+        private val SAFE_CLASS = Regex("""^[a-zA-Z0-9_ -]*$""")
+
+        private val PLAIN_TAGS = setOf("b", "strong", "i", "em", "u", "s", "br", "code", "small", "span", "p", "ul", "ol", "li", "mark")
+        private val LINK_ATTRIBUTES = setOf("href", "target", "rel", "class")
+
+        /**
+         * Whether [value] is plain text or uses only simple formatting tags.
+         *
+         * Translations are rendered as HTML in the panel and on the maintenance page, so a value
+         * may not carry scripts, event handlers or anything but a few formatting tags (with at most
+         * a `class`) and `<a href>` links to web, relative or mail addresses or a `{placeholder}`.
+         */
+        fun isSafeMarkup(value: String): Boolean {
+            var rest = value
+
+            TAG.findAll(value).forEach { match ->
+                val closing = match.groupValues[1].isNotEmpty()
+                val tag = match.groupValues[2].lowercase()
+                val attributes = match.groupValues[3].trim().removeSuffix("/").trim()
+
+                val allowed = when {
+                    closing -> attributes.isEmpty() && (tag in PLAIN_TAGS || tag == "a")
+                    tag in PLAIN_TAGS -> attributesAreSafe(attributes, setOf("class"))
+                    tag == "a" -> attributesAreSafe(attributes, LINK_ATTRIBUTES)
+                    else -> false
+                }
+
+                if (!allowed) {
+                    return false
+                }
+
+                rest = rest.replace(match.value, "")
+            }
+
+            return !MARKUP_START.containsMatchIn(rest)
+        }
+
+        private fun attributesAreSafe(attributes: String, allowed: Set<String>): Boolean {
+            val matches = ATTRIBUTE.findAll(attributes).toList()
+
+            if (ATTRIBUTE.replace(attributes, "").isNotBlank()) {
+                return false
+            }
+
+            return matches.all { match ->
+                val name = match.groupValues[1].lowercase()
+                val attributeValue = match.groupValues[2].ifEmpty { match.groupValues[3] }
+
+                name in allowed && when (name) {
+                    "href" -> SAFE_HREF.matches(attributeValue.trim())
+                    "class" -> SAFE_CLASS.matches(attributeValue)
+                    else -> attributeValue.none { it == '<' || it == '>' }
+                }
+            }
+        }
     }
 }

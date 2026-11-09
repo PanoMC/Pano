@@ -111,7 +111,10 @@ class PanelUpdateLocaleAPI(
             configManager.saveConfig()
         }
 
-        databaseManager.userDao.setLocaleCodeByLocaleCode(code, locale.code, sqlClient)
+        // Users who picked the language keep it under its new code.
+        if (oldCode != code) {
+            databaseManager.userDao.setLocaleCodeByLocaleCode(code, oldCode, sqlClient)
+        }
 
         return Successful()
     }

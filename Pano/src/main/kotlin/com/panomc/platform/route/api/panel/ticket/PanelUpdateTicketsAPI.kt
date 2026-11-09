@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket
 
+import io.vertx.core.json.JsonArray
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.ClosedTicketsLog
@@ -34,7 +35,7 @@ class PanelUpdateTicketsAPI(
             .body(
                 json(
                     objectSchema()
-                        .requiredProperty("tickets", arraySchema().items(numberSchema()))
+                        .requiredProperty("tickets", arraySchema().items(intSchema()))
                         .optionalProperty("status", enumSchema(*TicketStatus.entries.map { it.name }.toTypedArray()))
                 )
             )
@@ -46,7 +47,9 @@ class PanelUpdateTicketsAPI(
 
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
-        val selectedTickets = data.getJsonArray("tickets")
+        // The same ticket twice is one ticket.
+        val ticketIds = data.getJsonArray("tickets").map { (it as Number).toLong() }.distinct()
+        val selectedTickets = JsonArray(ticketIds)
         val ticketStatus =
             if (data.getString("status") == null) null else TicketStatus.valueOf(data.getString("status"))
 
@@ -60,7 +63,7 @@ class PanelUpdateTicketsAPI(
             val sqlClient = getSqlClient()
 
             val areIdListExist =
-                databaseManager.ticketDao.areIdListExist(selectedTickets.map { it.toString().toLong() }, sqlClient)
+                databaseManager.ticketDao.areIdListExist(ticketIds, sqlClient)
 
             if (!areIdListExist) {
                 throw SomeTicketsArentExists()
@@ -70,7 +73,7 @@ class PanelUpdateTicketsAPI(
 
             val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
-            selectedTickets.map { it.toString().toLong() }.forEach {
+            ticketIds.forEach {
                 val ticket = databaseManager.ticketDao.getById(it, sqlClient)!!
 
                 notificationManager.sendNotification(

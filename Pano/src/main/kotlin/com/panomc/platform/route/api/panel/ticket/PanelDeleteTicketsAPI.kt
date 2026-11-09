@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket
 
+import io.vertx.core.json.JsonArray
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.DeletedTicketsLog
@@ -35,7 +36,7 @@ class PanelDeleteTicketsAPI(
         authProvider.requirePermission(ManageTicketsPermission(), context)
 
         val parameters = getParameters(context)
-        val selectedTickets = parameters.queryParameter("ids").jsonArray
+        val selectedTickets = parameters.queryParameter("ids")?.jsonArray ?: JsonArray()
 
         if (selectedTickets.isEmpty) {
             return Successful()

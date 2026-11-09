@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.InputStream
 import java.util.UUID
 
 /** What the backup service needs from the Pano it runs in (the running panel, setup mode or a test). */
@@ -411,6 +412,9 @@ class PanoBackupService(
             // Opened before anything changes, so a bad target database fails with nothing touched.
             val connection = connect()
             var safety: PanoBackupInfo? = null
+            // Opened as soon as it exists: the rollback reads from this stream, so deleting the backup
+            // file meanwhile (from the panel) cannot leave the rollback without it.
+            var safetyInput: InputStream? = null
 
             try {
                 // Before maintenance mode goes on: the safety archive holds the config too, and
@@ -424,6 +428,8 @@ class PanoBackupService(
                     throw PanoBackupException(SAFETY_BACKUP_FAILED, e.message, cause = e)
                 }
 
+                safetyInput = safety?.let { withContext(Dispatchers.IO) { store.archiveFile(it.id).inputStream() } }
+
                 val previousMaintenance = if (maintenance) host.setMaintenance(true) else null
 
                 progress(PHASE_APPLYING)
@@ -435,12 +441,13 @@ class PanoBackupService(
                         throw PanoBackupException(RESTORE_FAILED, e.message, cause = e)
                     }
 
-                    rollback(safety!!, e)
+                    rollback(safety!!, safetyInput!!, e)
                     previousMaintenance?.let { host.setMaintenance(it) }
 
                     throw PanoBackupException(RESTORE_FAILED, e.message, rolledBack = true, cause = e)
                 }
             } finally {
+                safetyInput?.let { input -> withContext(Dispatchers.IO) { runCatching { input.close() } } }
                 close(connection)
             }
 
@@ -462,12 +469,12 @@ class PanoBackupService(
     }
 
     /** Puts the pre-restore state back after a failed apply; throws [ROLLBACK_FAILED] if that fails too. */
-    private suspend fun rollback(safety: PanoBackupInfo, error: Throwable) {
+    private suspend fun rollback(safety: PanoBackupInfo, safetyInput: InputStream, error: Throwable) {
         logger.error("Restore failed, rolling back to the pre-restore backup ${safety.id}", error)
 
         try {
             withConnection { connection ->
-                withContext(Dispatchers.IO) { store.archiveFile(safety.id).inputStream().buffered(256 * 1024) }.use { input ->
+                safetyInput.buffered(256 * 1024).use { input ->
                     restorer().restore(input, PanoArcKeys.NONE, connection) { host.applyConfig(forTarget(it)) }
                 }
             }

@@ -174,8 +174,9 @@ class PanoSnapshotTest {
      * pano-node's side of a direct upload, in-process: the shared upload code cuts [zip], asking the job's handler what
      * the control plane answers and PUTting to the (fake) storage itself.
      */
-    private fun fakeNode(zip: File, sent: MutableList<String>) = McServerDirectUpload { request, handler ->
+    private fun fakeNode(zip: File, sent: MutableList<String>, keys: MutableList<ByteArray> = ArrayList()) = McServerDirectUpload { request, handler ->
         sent += if (request.archive) "ARCHIVE" else "SNAPSHOT"
+        request.snapshot?.let { keys += it.key }
 
         val storage = PanoHostClient({ host.baseUrl }, { FakePanoHost.TOKEN }, { PanoIdentity(INSTANCE_ID, "My Server") }, RetryPolicy(3, 5)).snapshotRemote
         val remote = object : SnapshotRemote {
@@ -207,6 +208,51 @@ class PanoSnapshotTest {
 
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error + " " + job.message)
         assertEquals(listOf("SNAPSHOT"), sent)
+
+        var files: Map<String, ByteArray>? = null
+        val imported = awaitJob(service.startMcImport(job.remoteId!!, null, 9, McServerBackupImporter { _, back, _, _ ->
+            files = entries(back.readBytes())
+            "imported"
+        }, snapshot = true))
+
+        assertEquals(PanoBackupJob.Status.DONE, imported.status, imported.error + " " + imported.message)
+        assertArrayEquals(region, files!!.getValue("world/region/r.0.0.mca"))
+    }
+
+    @Test
+    fun `the node gets the server's own repository key, never the Pano's`(): Unit = runBlocking {
+        val zip = serverZip(Random(3).nextBytes(64 * 1024))
+        val sent = ArrayList<String>()
+        val keys = ArrayList<ByteArray>()
+        val source = McServerBackupSource(
+            4, "server-uuid-4", "b-1", JsonObject().put("id", "b-1").put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"),
+            direct = fakeNode(zip, sent, keys)
+        ) { error("A direct upload never pulls the backup to Pano.") }
+
+        val job = awaitJob(service.startMcUpload(source))
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error + " " + job.message)
+        assertEquals(listOf("SNAPSHOT"), sent)
+        assertArrayEquals(host.snapshotRepo.subjectKey("server-uuid-4"), keys.single())
+        assertFalse(keys.single().contentEquals(host.snapshotRepo.key))
+    }
+
+    @Test
+    fun `with an older Pano Backup the node does not get the key and Pano uploads the server snapshot itself`(): Unit = runBlocking {
+        host.snapshotRepo.knowsKeyScope = false
+
+        val region = Random(4).nextBytes(256 * 1024)
+        val zip = serverZip(region)
+        val sent = ArrayList<String>()
+        val source = McServerBackupSource(
+            4, "server-uuid-4", "b-1", JsonObject().put("id", "b-1").put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"),
+            direct = fakeNode(zip, sent)
+        ) { target -> zip.copyTo(target, overwrite = true) }
+
+        val job = awaitJob(service.startMcUpload(source))
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error + " " + job.message)
+        assertTrue(sent.isEmpty(), "the node was not asked to upload with the Pano's key")
 
         var files: Map<String, ByteArray>? = null
         val imported = awaitJob(service.startMcImport(job.remoteId!!, null, 9, McServerBackupImporter { _, back, _, _ ->

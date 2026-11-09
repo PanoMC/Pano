@@ -93,9 +93,13 @@ internal fun snapshotSessionOf(json: JsonObject, id: String, urlKey: String): Sn
         keyId = json.getString("keyId")?.takeIf { it.isNotEmpty() } ?: bad("a key id"),
         key = key,
         repoConfig = config,
-        manifestUrl = json.getJsonObject(urlKey)?.getString("url") ?: bad("a manifest URL")
+        manifestUrl = json.getJsonObject(urlKey)?.getString("url") ?: bad("a manifest URL"),
+        subjectScoped = json.getString("keyScope") == KEY_SCOPE_SUBJECT
     )
 }
+
+/** `keyScope` of a server snapshot: its own repository and key at Pano Backup, so its node never gets the Pano's key. */
+const val KEY_SCOPE_SUBJECT = "SUBJECT"
 
 /** Retries of one part PUT / download: network errors, 408, 429 and 5xx; [baseDelayMs] doubles each time. */
 data class RetryPolicy(
@@ -173,12 +177,25 @@ class PanoHostClient(
     /** Opens a snapshot; `PAYMENT_REQUIRED`, `QUOTA_EXCEEDED` and `SNAPSHOT_BUSY` are thrown as [PanoHostException]s. */
     /** [subject]: the uuid of the managed server the snapshot is of; null = this Pano itself. */
     suspend fun startSnapshot(name: String?, subject: String? = null, trigger: String? = null, subjectName: String? = null): SnapshotSession {
-        val data = call("POST", "/host/connected/snapshots", JsonObject().apply {
+        fun body(scoped: Boolean) = JsonObject().apply {
             name?.let { put("name", it) }
             subject?.let { put("subject", it) }
             trigger?.let { put("trigger", it) }
             subjectName?.takeIf { subject != null && it.isNotBlank() }?.let { put("subjectName", it.take(SNAPSHOT_SUBJECT_NAME_LENGTH)) }
-        })
+
+            // A server snapshot asks for the server's own repository and key.
+            if (scoped) put("keyScope", KEY_SCOPE_SUBJECT)
+        }
+
+        val data = try {
+            call("POST", "/host/connected/snapshots", body(subject != null))
+        } catch (e: PanoHostException) {
+            // An older control plane does not know keyScope: the snapshot goes into the Pano's repository, and the session
+            // says it is not subject-scoped, so its key stays here.
+            if (subject == null || e.code != "INVALID_INPUT" || e.extras.getString("field") != "keyScope") throw e
+
+            call("POST", "/host/connected/snapshots", body(false))
+        }
 
         return snapshotSessionOf(data, data.getString("snapshotId") ?: "", "manifestPut")
     }

@@ -889,8 +889,8 @@ class PanoRemoteBackupService(
 
     /**
      * A server snapshot to Pano Backup: the node's snapshot (streamed to Pano as a zip) is cut into the account's snapshot
-     * repository under `server/`, deduplicated against every snapshot of this Pano, with the server's uuid as its subject.
-     * Snapshots are sealed with the repository key like the Pano's own (not with the passphrase).
+     * repository under `server/`, with the server's uuid as its subject. Pano Backup keeps it in the server's own repository
+     * (deduplicated against that server's snapshots only), sealed with that repository's key, not the Pano's (nor the passphrase).
      */
     private fun startMcSnapshotUpload(source: McServerBackupSource): PanoBackupJob {
         val zip = tempFile("mc-snapshot-zip")
@@ -901,17 +901,6 @@ class PanoRemoteBackupService(
 
             job.details = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId)
 
-            val direct = source.direct
-
-            if (direct == null) {
-                job.phase = PanoBackupService.PHASE_FETCHING
-                followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
-            }
-
-            job.phase = PanoBackupService.PHASE_UPLOADING
-            job.bytesDone = 0
-            job.bytesTotal = 0
-
             val name = (source.meta.getString("name") ?: "").take(SNAPSHOT_NAME_LENGTH).ifEmpty { null }
             val session = try {
                 client.startSnapshot(name, source.subject, source.trigger, source.meta.getString("serverName"))
@@ -920,6 +909,25 @@ class PanoRemoteBackupService(
             }
 
             job.remoteId = session.id
+
+            // The node only writes the snapshot itself with the server's own key. An older Pano Backup hands out the
+            // Pano's repository key, which opens every snapshot of this Pano: then Pano fetches the backup and writes it.
+            val direct = source.direct?.takeIf { session.subjectScoped }
+
+            try {
+                if (direct == null) {
+                    job.phase = PanoBackupService.PHASE_FETCHING
+                    followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
+                }
+            } catch (e: Throwable) {
+                withContext(NonCancellable) { runCatching { client.deleteSnapshot(session.id) } }
+
+                throw e
+            }
+
+            job.phase = PanoBackupService.PHASE_UPLOADING
+            job.bytesDone = 0
+            job.bytesTotal = 0
 
             val meta = source.meta.copy().put("serverId", source.serverId).put("serverUuid", source.subject)
             val stats = try {

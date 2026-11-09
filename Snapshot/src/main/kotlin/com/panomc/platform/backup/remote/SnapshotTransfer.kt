@@ -42,7 +42,18 @@ interface SnapshotRemote {
 }
 
 /** `POST /host/connected/snapshots` / `…/:id/open`: the sealing key of the Pano's repository and the manifest URL (PUT when starting, GET when opening). */
-class SnapshotSession(val id: String, val keyId: String, val key: ByteArray, val repoConfig: SnapshotRepoConfig, val manifestUrl: String)
+class SnapshotSession(
+    val id: String,
+    val keyId: String,
+    val key: ByteArray,
+    val repoConfig: SnapshotRepoConfig,
+    val manifestUrl: String,
+    /**
+     * The snapshot is of one managed server and lives in that server's own repository, so [key] opens only that server's
+     * snapshots (`keyScope SUBJECT`). Only such a key may be handed to the server's node; false = the Pano's repository key.
+     */
+    val subjectScoped: Boolean = false
+)
 
 /** A pack upload slot: the pack's id (the sealed index is bound to it) and its presigned PUT. */
 data class PackSlot(val id: String, val url: String)

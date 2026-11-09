@@ -20,6 +20,7 @@ import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
 import com.panomc.platform.util.HashUtil.hash
+import com.panomc.platform.util.SafeImageReader
 import com.panomc.platform.util.UpdatePeriod
 import com.panomc.platform.ui.FrontendMode
 import com.panomc.platform.mail.MailManager
@@ -258,7 +259,7 @@ class PanelUpdateSettingsAPI(
                                 .fileUploadsFolder + File.separator + savedFile.path
                         )
                         file.inputStream().use { input ->
-                            val original = ImageIO.read(input)
+                            val original = SafeImageReader.read(input) ?: return@use
                             val resized = Scalr.resize(original, 128, 128)
 
                             ImageIO.write(resized, "PNG", file)

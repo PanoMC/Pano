@@ -39,7 +39,7 @@ object ImageCompressionUtil {
         }
 
         // Read image first (outside try block so we can use it in last resort)
-        val originalImage = ImageIO.read(ByteArrayInputStream(originalBytes))
+        val originalImage = SafeImageReader.read(ByteArrayInputStream(originalBytes))
             ?: return originalBytes to mimeType
         
         // Check if image has transparency (alpha channel)

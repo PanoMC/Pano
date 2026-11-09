@@ -57,7 +57,7 @@ class PanelStopCurrentThemeAPI(
             throw NoPermission()
         }
 
-        val stopped = themeUiController.stop() ?: return Successful()
+        val stopped = themeUiController.exclusive { themeUiController.stop() } ?: return Successful()
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 

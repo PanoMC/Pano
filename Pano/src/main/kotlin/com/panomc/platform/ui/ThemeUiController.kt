@@ -60,6 +60,13 @@ class ThemeUiController(
 
     private val applyLock = Mutex()
 
+    /**
+     * Runs [block] while no other front-end switch runs: a start or [apply], a theme activation or a theme delete.
+     * Two overlapping switches would each start a process and stop only the old one, leaving one running unrouted.
+     * [block] must not call [start] or [apply] (the lock is not re-entrant).
+     */
+    suspend fun <T> exclusive(block: suspend () -> T): T = applyLock.withLock { block() }
+
     /** Whether a front-end is currently bound to the wildcard route. */
     val isRunning: Boolean get() = uiManager.activatedUIList.containsKey(Route.Type.THEME_UI)
 

@@ -565,20 +565,17 @@ class UserDaoImpl : UserDao() {
     }
 
     override suspend fun areUsernamesExists(usernames: List<String>, sqlClient: SqlClient): Boolean {
-        var listText = ""
-
-        usernames.forEach { username ->
-            if (listText == "")
-                listText = "'$username'"
-            else
-                listText += ", '$username'"
+        if (usernames.isEmpty()) {
+            return true
         }
 
-        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` IN ($listText)"
+        val placeholders = usernames.joinToString(", ") { "?" }
+
+        val query = "SELECT COUNT(username) FROM `${getTablePrefix() + tableName}` where `username` IN ($placeholders)"
 
         val rows: RowSet<Row> = sqlClient
             .preparedQuery(query)
-            .execute()
+            .execute(Tuple.wrap(usernames))
             .coAwait()
 
         return rows.toList()[0].getLong(0) == usernames.size.toLong()

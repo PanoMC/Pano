@@ -43,7 +43,50 @@ internal class PermissionSnapshot(
         val updatedAt: Long
     )
 
+    /** Groups that make their members administrators: they carry `*`, or inherit a group that does. */
+    fun adminGroups(): Set<String> {
+        val active = nodes.filter { it.active && it.holderType == HolderType.GROUP }
+        val admin = active.filter { it.node == "*" }.mapNotNull { it.groupName }.toMutableSet()
+
+        do {
+            val inherited = active
+                .filter { it.node.startsWith(GROUP_PREFIX) && it.node.removePrefix(GROUP_PREFIX) in admin }
+                .mapNotNull { it.groupName }
+        } while (admin.addAll(inherited))
+
+        return admin
+    }
+
+    /**
+     * What decides who is an administrator, as comparable text: every `*` node, every node of [adminUserIds], every
+     * node of and membership in [adminGroups], and those groups themselves. Two snapshots with the same keys give the
+     * same people administrator rights.
+     */
+    fun adminKeys(adminUserIds: Set<Long>, adminGroups: Set<String>, defaultGroupName: String, now: Long = System.currentTimeMillis()): List<String> {
+        val groupKeys = groups.filter { it.name in adminGroups }.map { "group:${it.name}" }
+
+        val nodeKeys = nodes
+            .filter { it.expiresAt == null || it.expiresAt >= now }
+            .filterNot { it.holderType == HolderType.USER && it.node == "$GROUP_PREFIX$defaultGroupName" && it.active }
+            .filter { node ->
+                node.node == "*" ||
+                    (node.holderType == HolderType.USER && node.holderId in adminUserIds) ||
+                    (node.holderType == HolderType.GROUP && node.groupName in adminGroups) ||
+                    (node.node.startsWith(GROUP_PREFIX) && node.node.removePrefix(GROUP_PREFIX) in adminGroups)
+            }
+            .map { node ->
+                val holder = if (node.holderType == HolderType.GROUP) "g:${node.groupName}" else "u:${node.holderId}"
+                val context = JsonObject(node.context.map.toSortedMap()).encode()
+
+                "node:$holder|${node.node}|${node.active}|$context|${node.expiresAt}"
+            }
+
+        return (groupKeys + nodeKeys).sorted()
+    }
+
     companion object {
+        private const val GROUP_PREFIX = "group."
+
         const val MAX_GROUPS = 1_000
         const val MAX_TRACKS = 1_000
         const val MAX_NODES = 20_000

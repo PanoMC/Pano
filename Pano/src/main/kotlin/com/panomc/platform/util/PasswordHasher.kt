@@ -45,13 +45,8 @@ class PasswordHasher {
     // Termux, other libcs) the same hashes are made and checked in pure Java (Bouncy Castle), in the same format.
     // The library is only loaded on the first hash (Windows on ARM has no bundled build), so one tiny hash is made
     // here: a native argon2 that cannot run is found now, not on somebody's sign-in.
-    private val argon2: Argon2? = try {
-        Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id).also { it.hash(1, 8, 1, "probe".toCharArray()) }
-    } catch (e: Throwable) {
-        LoggerFactory.getLogger(PasswordHasher::class.java)
-            .warn("Native Argon2 is not available here ({}), using the Java implementation.", e.toString())
-        null
-    }
+    private val argon2: Argon2? = nativeArgon2
+
     private val secureRandom = SecureRandom()
 
     /**
@@ -266,5 +261,22 @@ class PasswordHasher {
 
     companion object {
         private val HASH_THREADS = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
+
+        /** Probed once per process: imports build a hasher per row, and the warning belongs in the log once. */
+        private val nativeArgon2: Argon2? by lazy {
+            try {
+                Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id).also { it.hash(1, 8, 1, "probe".toCharArray()) }
+            } catch (e: Throwable) {
+                // One plain line: this is expected on some systems and nothing for the owner to fix, so the loader's
+                // multi-line error (and its exception name) only goes to the debug log.
+                val logger = LoggerFactory.getLogger(PasswordHasher::class.java)
+                logger.warn(
+                    "Native Argon2 is not available here ({}/{}), using the Java implementation.",
+                    System.getProperty("os.name"), System.getProperty("os.arch")
+                )
+                logger.debug("Native Argon2 failed to load", e)
+                null
+            }
+        }
     }
 }

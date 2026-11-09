@@ -74,7 +74,10 @@ class UpdateTicketAPI(
             throw NoPermission()
         }
 
-        if (ticketStatus != null && ticketStatus == TicketStatus.CLOSED) {
+        // Closing a closed ticket again changes nothing and tells nobody.
+        if (ticketStatus != null && ticketStatus == TicketStatus.CLOSED &&
+            databaseManager.ticketDao.getStatusById(id, sqlClient) != TicketStatus.CLOSED
+        ) {
             databaseManager.ticketDao.closeTicketById(id, sqlClient)
 
             val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

@@ -608,11 +608,15 @@ class MailTemplateService internal constructor(
             val entity = match.groupValues[1]
 
             when {
+                // Only real code points are decoded; anything else (&#1114112;) stays as written,
+                // rather than making every send of the mail fail.
                 entity.startsWith("#x") || entity.startsWith("#X") ->
-                    entity.substring(2).toIntOrNull(16)?.let { String(Character.toChars(it)) } ?: match.value
+                    entity.substring(2).toIntOrNull(16)?.takeIf { Character.isValidCodePoint(it) }
+                        ?.let { String(Character.toChars(it)) } ?: match.value
 
                 entity.startsWith("#") ->
-                    entity.substring(1).toIntOrNull()?.let { String(Character.toChars(it)) } ?: match.value
+                    entity.substring(1).toIntOrNull()?.takeIf { Character.isValidCodePoint(it) }
+                        ?.let { String(Character.toChars(it)) } ?: match.value
 
                 else -> NAMED_ENTITIES[entity] ?: match.value
             }

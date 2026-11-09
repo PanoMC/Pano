@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.posts
 
+import com.panomc.platform.util.PostStatus
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -57,6 +58,10 @@ class TrackPostViewAPI(
 
         val sqlClient = getSqlClient()
         val post = databaseManager.postDao.getByUrl(url, sqlClient) ?: throw PostNotFound()
+
+        if (post.status != PostStatus.PUBLISHED) {
+            throw PostNotFound()
+        }
 
         // Ignore obvious non-human clients for view analytics.
         if (isLikelyBot(context)) {

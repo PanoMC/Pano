@@ -2,6 +2,7 @@ package com.panomc.platform.route.api.panel.task
 
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
+import com.panomc.platform.auth.panel.ServerVisibility
 import com.panomc.platform.auth.panel.permission.CreateServersPermission
 import com.panomc.platform.auth.panel.permission.ManageNodesPermission
 import com.panomc.platform.db.DatabaseManager
@@ -45,6 +46,18 @@ class PanelGetTaskAPI(
         val sqlClient = getSqlClient()
 
         val task = databaseManager.serverTaskDao.getById(id, sqlClient) ?: throw NotExists()
+
+        // Node managers see every task. Anyone else sees the tasks they started, and the tasks of
+        // servers they may see; any other id answers as if it did not exist.
+        if (!authProvider.hasPermission(ManageNodesPermission(), context) &&
+            task.createdBy != authProvider.getUserIdFromRoutingContext(context)
+        ) {
+            val serverId = task.serverId ?: throw NotExists()
+
+            if (!ServerVisibility.canSee(authProvider, context, serverId)) {
+                throw NotExists()
+            }
+        }
 
         return Successful(mapOf("task" to task.toPublicJsonObject()))
     }

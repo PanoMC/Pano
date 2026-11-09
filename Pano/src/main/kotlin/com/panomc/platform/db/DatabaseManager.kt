@@ -193,9 +193,7 @@ class DatabaseManager(
         }
 
         if (databaseVersion == 0) {
-            logger.error("Database Error: Database scheme is not correct, please reinstall platform")
-
-            return
+            throw StartupFailure("Database Error: Database scheme is not correct, please reinstall platform")
         }
 
         migrate(sqlClient, databaseVersion)
@@ -212,9 +210,12 @@ class DatabaseManager(
 
                     it.updateSchemeVersion(sqlClient)
                 } catch (e: Exception) {
-                    logger.error("Database Error: Migration failed from version ${it.from} to ${it.to}, error: " + e)
-
-                    return
+                    // Fatal: the DAOs are written for the latest schema, so booting on a half-migrated one only
+                    // turns into random errors later. The next start runs this migration again.
+                    throw StartupFailure(
+                        "Database Error: Migration failed from version ${it.from} to ${it.to}: ${e.message}",
+                        e
+                    )
                 }
 
                 migrate(sqlClient, it.to)

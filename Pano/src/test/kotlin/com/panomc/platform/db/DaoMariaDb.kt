@@ -39,6 +39,9 @@ class DaoMariaDb(private val prefix: String = PREFIX) : AutoCloseable {
 
     private val previousContext = runCatching { Main.applicationContext }.getOrNull()
 
+    /** Built without Spring: only the fields a test sets (configManager here, more with [setField]) are there. */
+    val databaseManager: DatabaseManager = ObjenesisStd().newInstance(DatabaseManager::class.java)
+
     init {
         if (runCatching { DBEntity.gson }.isFailure) {
             DBEntity.gson = GsonBuilder()
@@ -48,7 +51,6 @@ class DaoMariaDb(private val prefix: String = PREFIX) : AutoCloseable {
         }
 
         val objenesis = ObjenesisStd()
-        val databaseManager = objenesis.newInstance(DatabaseManager::class.java)
         val configManager = ConfigManager(vertx, LoggerFactory.getLogger("DaoMariaDb"), AnnotationConfigApplicationContext())
         val config = objenesis.newInstance(PanoConfig::class.java)
 
@@ -72,7 +74,7 @@ class DaoMariaDb(private val prefix: String = PREFIX) : AutoCloseable {
         previousContext?.let { Main.applicationContext = it }
     }
 
-    private fun setField(target: Any, name: String, value: Any) {
+    fun setField(target: Any, name: String, value: Any) {
         target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
     }
 

@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.setup
 
+import com.panomc.platform.setup.SetupAccountSession
+
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
@@ -33,7 +35,8 @@ import io.vertx.json.schema.SchemaRepository
 @Endpoint
 class SetupGetPanoHostBackupsAPI(
     private val panoBackupManager: PanoBackupManager,
-    private val platformConfig: ConfigManager
+    private val platformConfig: ConfigManager,
+    private val setupAccountSession: SetupAccountSession
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/pano-host/backups", RouteType.GET))
 
@@ -42,6 +45,7 @@ class SetupGetPanoHostBackupsAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val remote = panoBackupManager.setupRemote
 
+        setupAccountSession.require(context)
         PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
 
         val list = host { remote.listBackups() }
@@ -68,7 +72,10 @@ class SetupGetPanoHostBackupsAPI(
  * target database (omitted = the one from setup step 2), then Pano restarts as the restored site.
  */
 @Endpoint
-class SetupRestorePanoHostBackupAPI(private val panoBackupManager: PanoBackupManager) : SetupApi() {
+class SetupRestorePanoHostBackupAPI(
+    private val panoBackupManager: PanoBackupManager,
+    private val setupAccountSession: SetupAccountSession
+) : SetupApi() {
     override val paths = listOf(Path("/setup/pano-host/restore", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
@@ -78,6 +85,7 @@ class SetupRestorePanoHostBackupAPI(private val panoBackupManager: PanoBackupMan
         val backupId = body.getString("backupId")?.takeIf { PanoRemoteBackupService.isValidRemoteId(it) } ?: throw NotExists()
         val remote = panoBackupManager.setupRemote
 
+        setupAccountSession.require(context)
         PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
 
         val hostAddress = body.getString("host")?.trim()
@@ -105,7 +113,8 @@ class SetupRestorePanoHostBackupAPI(private val panoBackupManager: PanoBackupMan
 @Endpoint
 class SetupGetPanoHostInstancesAPI(
     private val panoBackupManager: PanoBackupManager,
-    private val platformConfig: ConfigManager
+    private val platformConfig: ConfigManager,
+    private val setupAccountSession: SetupAccountSession
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/pano-host/instances", RouteType.GET))
 
@@ -114,6 +123,7 @@ class SetupGetPanoHostInstancesAPI(
     override suspend fun handle(context: RoutingContext): Result {
         val remote = panoBackupManager.setupRemote
 
+        setupAccountSession.require(context)
         PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
 
         val list = host { remote.listHostInstances() }
@@ -133,7 +143,10 @@ class SetupGetPanoHostInstancesAPI(
  * (omitted = the one from setup step 2); Pano restarts as the moved site. Polled with `GET /api/v1/setup/restore`.
  */
 @Endpoint
-class SetupMovePanoHostInstanceAPI(private val panoBackupManager: PanoBackupManager) : SetupApi() {
+class SetupMovePanoHostInstanceAPI(
+    private val panoBackupManager: PanoBackupManager,
+    private val setupAccountSession: SetupAccountSession
+) : SetupApi() {
     override val paths = listOf(Path("/setup/pano-host/instances/:id/move", RouteType.POST))
 
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
@@ -145,6 +158,7 @@ class SetupMovePanoHostInstanceAPI(private val panoBackupManager: PanoBackupMana
         val body = body(context)
         val remote = panoBackupManager.setupRemote
 
+        setupAccountSession.require(context)
         PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
 
         val hostAddress = body.getString("host")?.trim()

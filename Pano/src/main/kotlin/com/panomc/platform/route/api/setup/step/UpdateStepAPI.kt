@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.setup.step
 
+import com.panomc.platform.setup.SetupAccountSession
+
 import com.panomc.platform.AppConstants.DEFAULT_LOCALES
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
@@ -21,7 +23,8 @@ import io.vertx.json.schema.common.dsl.Schemas.*
 @Endpoint
 class UpdateStepAPI(
     private val configManager: ConfigManager,
-    private val panoMailService: PanoMailService
+    private val panoMailService: PanoMailService,
+    private val setupAccountSession: SetupAccountSession
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/step", RouteType.PUT))
 
@@ -83,7 +86,12 @@ class UpdateStepAPI(
             }
         }
 
-        return Successful(setupManager.getCurrentStepData().map)
+        val stepData = setupManager.getCurrentStepData().map.toMutableMap()
+
+        // Like `GET /setup/step`: the connected account only for the browser that connected it.
+        if (!setupAccountSession.matches(context)) stepData.remove("panoAccount")
+
+        return Successful(stepData)
     }
 
     private suspend fun validateInput(data: JsonObject): Boolean {

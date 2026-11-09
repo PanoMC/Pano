@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.setup.step
 
+import com.panomc.platform.setup.SetupAccountSession
+
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
@@ -10,7 +12,8 @@ import io.vertx.json.schema.SchemaRepository
 
 @Endpoint
 class Step4DisconnectPlatformAPI(
-    private val panoApiManager: PanoApiManager
+    private val panoApiManager: PanoApiManager,
+    private val setupAccountSession: SetupAccountSession
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/steps/4/platform/disconnect", RouteType.POST))
 
@@ -19,7 +22,12 @@ class Step4DisconnectPlatformAPI(
             .build()
 
     override suspend fun handle(context: RoutingContext): Result {
+        if (panoApiManager.isConnected()) {
+            setupAccountSession.require(context)
+        }
+
         panoApiManager.disconnectPlatform()
+        setupAccountSession.clear()
 
         return Successful()
     }

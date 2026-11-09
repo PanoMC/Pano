@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.setup.step
 
+import com.panomc.platform.setup.SetupAccountSession
+
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.model.*
@@ -14,7 +16,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class Step4ConnectPlatformAPI(
-    private val panoApiManager: PanoApiManager
+    private val panoApiManager: PanoApiManager,
+    private val setupAccountSession: SetupAccountSession
 ) : SetupApi() {
     override val paths = listOf(Path("/setup/steps/4/platform/connect", RouteType.POST))
 
@@ -38,6 +41,9 @@ class Step4ConnectPlatformAPI(
         val state = data.getString("state")
 
         val (username, email, platformId) = panoApiManager.connectPlatform(encodedData, state)
+
+        // Only this browser may use the account for the rest of the setup.
+        setupAccountSession.issue(context)
 
         return Successful(
             mapOf(

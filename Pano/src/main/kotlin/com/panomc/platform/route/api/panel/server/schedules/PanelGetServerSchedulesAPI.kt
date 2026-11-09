@@ -75,9 +75,10 @@ class PanelGetServerSchedulesAPI(
         return Successful(
             mapOf(
                 "schedules" to JsonArray(schedules),
-                // A linked server has no directory Pano can reach, so the panel hides the backup
-                // step rather than offering one that would be refused on save.
-                "backupsSupported" to server.isManaged,
+                // Same rule as saving: a node, or a plugin with the `backups` capability. Without
+                // either the panel hides the backup step rather than offering one that would be
+                // refused on save.
+                "backupsSupported" to scheduleService.backupsAllowed(server),
                 "timezone" to java.time.ZoneId.systemDefault().id
             )
         )

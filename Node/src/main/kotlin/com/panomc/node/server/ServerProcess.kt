@@ -1616,14 +1616,31 @@ class ServerProcess(
         )
 
         /**
+         * Flags that make the JVM run a shell command or load code that is not the server jar,
+         * matched case-insensitively as prefixes. `-XX:OnError` / `-XX:OnOutOfMemoryError` run
+         * their value through `/bin/sh`, agents and native libraries are code of their own, and
+         * the option files and class loaders bring in either one indirectly.
+         */
+        private val CODE_LOADING_PREFIXES = listOf(
+            "-xx:onerror", "-xx:onoutofmemoryerror", "-xx:flags", "-xx:vmoptionsfile",
+            "-javaagent", "-agentpath", "-agentlib", "-xrun", "--patch-module",
+            "-djava.system.class.loader", "-djava.ext.dirs", "-djava.endorsed.dirs"
+        )
+
+        /**
          * [args] without anything that would change what is launched: Pano refuses these when the
          * settings are saved, and a spec written before it did (or by hand) must not start another
-         * jar either. A bare word would be read by `java` as the main class.
+         * jar either. A bare word would be read by `java` as the main class, and an `@argfile`
+         * would bring in flags nobody checked. Nor anything in [CODE_LOADING_PREFIXES]: the startup
+         * settings are a permission of their own, and they must not become a shell on this host.
          */
         fun launchSafeJvmArgs(args: List<String>): List<String> = args.filter { arg ->
+            val lower = arg.trim().lowercase()
+
             arg.isNotBlank() &&
                 arg.startsWith("-") &&
-                arg.substringBefore('=').substringBefore(':') !in LAUNCH_CHANGING_FLAGS
+                arg.substringBefore('=').substringBefore(':') !in LAUNCH_CHANGING_FLAGS &&
+                CODE_LOADING_PREFIXES.none { lower.startsWith(it) }
         }
 
         /** Keeps jansi's colour escapes in a piped stdout; see [buildCommand]. */

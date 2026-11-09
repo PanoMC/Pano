@@ -106,6 +106,22 @@ class ServerLaunchTest {
     }
 
     @Test
+    fun `a value ending in a backslash cannot swallow the next setting`() {
+        val file = File(directory, "server.properties")
+
+        file.writeText("motd=old\nwhite-list=true\n")
+
+        ServerProperties.merge(file, mapOf("motd" to "Welcome \\"))
+
+        val loaded = java.util.Properties().apply { file.inputStream().use { load(it) } }
+
+        assertEquals("Welcome \\", loaded.getProperty("motd"))
+        assertEquals("true", loaded.getProperty("white-list"))
+        assertFalse(ServerProperties.isSafeKey("white list"))
+        assertFalse(ServerProperties.isSafeKey("#motd"))
+    }
+
+    @Test
     fun `reads a java major out of both version shapes`() {
         assertEquals(8, JavaRuntimeLocator.parseMajor("1.8.0_432"))
         assertEquals(21, JavaRuntimeLocator.parseMajor("21.0.5"))

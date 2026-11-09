@@ -75,8 +75,22 @@ object ServerProperties {
     }
 
     /** A key must be one plain token; anything else could inject a second setting. */
-    internal fun isSafeKey(key: String) = key.none { it == '=' || it == '\n' || it == '\r' || it == ':' }
+    // Whitespace separates a key from its value in Properties, `#` / `!` start a comment and a
+    // backslash escapes.
+    internal fun isSafeKey(key: String) = key.none {
+        it == '=' || it == ':' || it == '#' || it == '!' || it == '\\' || it.isWhitespace()
+    }
 
-    /** A value may not carry a newline, for the same reason. */
-    internal fun sanitiseValue(value: String) = value.replace("\r", "").replace("\n", " ")
+    /**
+     * A value may not carry a newline, for the same reason. Nor end in an odd run of
+     * backslashes: Properties reads that as "continued on the next line", and the next setting
+     * (a `white-list=true`, say) would silently become part of this value. One more backslash
+     * makes the run an escaped one.
+     */
+    internal fun sanitiseValue(value: String): String {
+        val clean = value.replace("\r", "").replace("\n", " ")
+        val trailing = clean.length - clean.trimEnd('\\').length
+
+        return if (trailing % 2 == 1) "$clean\\" else clean
+    }
 }

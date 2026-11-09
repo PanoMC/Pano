@@ -21,6 +21,7 @@ import com.panomc.node.util.NodeLogger
 import com.panomc.node.util.PathSafety
 import io.vertx.core.json.JsonObject
 import java.io.File
+import com.panomc.node.util.SafeDelete
 
 /**
  * Turns somebody's existing server into a managed one (`IMPORT_SERVER`).
@@ -136,7 +137,7 @@ class ImportService(
 
             // The half-built directory goes with the failure: a directory with no jar is not a
             // server somebody can retry from, it is one the next boot would try to load.
-            directory.deleteRecursively()
+            SafeDelete.tree(directory)
 
             reporter.failed(taskId, uuid, KIND, exception.message ?: exception.javaClass.simpleName)
         } finally {
@@ -155,7 +156,7 @@ class ImportService(
 
         registry.get(uuid)?.shutdown()
 
-        directory.deleteRecursively()
+        SafeDelete.tree(directory)
         directory.mkdirs()
 
         var packVersion: String? = null
@@ -593,7 +594,7 @@ class ImportService(
         applyOverrides(File(unpacked, OVERRIDES_DIR), directory)
         applyOverrides(File(unpacked, SERVER_OVERRIDES_DIR), directory)
 
-        unpacked.deleteRecursively()
+        SafeDelete.tree(unpacked)
 
         downloadPackFiles(uuid, taskId, pack, directory)
 

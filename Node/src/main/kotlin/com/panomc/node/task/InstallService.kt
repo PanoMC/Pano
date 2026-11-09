@@ -19,6 +19,7 @@ import com.panomc.node.util.NodeLogger
 import com.panomc.node.util.PathSafety
 import io.vertx.core.json.JsonObject
 import java.io.File
+import com.panomc.node.util.SafeDelete
 
 /**
  * Turns `INSTALL_SERVER` into a directory that can actually be started.
@@ -195,7 +196,7 @@ class InstallService(
             finalDirectory
         }
 
-        workDirectory.deleteRecursively()
+        SafeDelete.tree(workDirectory)
         workDirectory.mkdirs()
 
         val jarFile = File(workDirectory, ServerSpec.DEFAULT_JAR)
@@ -236,7 +237,7 @@ class InstallService(
             }
 
             if (!jarFile.isFile) {
-                workDirectory.deleteRecursively()
+                SafeDelete.tree(workDirectory)
 
                 reporter.failed(taskId, uuid, kind, "The $label installer left no server jar Pano can start.")
 
@@ -256,7 +257,7 @@ class InstallService(
         }
 
         if (!Downloader.isZip(jarFile)) {
-            workDirectory.deleteRecursively()
+            SafeDelete.tree(workDirectory)
 
             reporter.failed(
                 taskId,
@@ -304,7 +305,7 @@ class InstallService(
 
             finishInstall(uuid, taskId, spec, kind, workDirectory, finalDirectory, javaWarning, previous)
         } catch (exception: Exception) {
-            workDirectory.deleteRecursively()
+            SafeDelete.tree(workDirectory)
 
             // The old directory is where it was (the swap rolls itself back), so the server this
             // node had is registered again and can start as if nothing had been tried -- unless
@@ -361,7 +362,7 @@ class InstallService(
                     throw IllegalStateException("No free port left in the configured range.")
                 }
 
-                workDirectory.deleteRecursively()
+                SafeDelete.tree(workDirectory)
 
                 reporter.failed(taskId, uuid, kind, "No free port left in the configured range.")
 

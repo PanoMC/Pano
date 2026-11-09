@@ -7,6 +7,7 @@ import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import com.panomc.node.util.SafeDelete
 
 /**
  * Zip and unzip inside a server directory, with the two things an archive tool has to get right.
@@ -248,11 +249,11 @@ object ZipTool {
                     child.copyTo(target, overwrite = true)
                 }
 
-                child.deleteRecursively()
+                SafeDelete.tree(child)
             }
         }
 
-        root.deleteRecursively()
+        SafeDelete.tree(root)
 
         return true
     }

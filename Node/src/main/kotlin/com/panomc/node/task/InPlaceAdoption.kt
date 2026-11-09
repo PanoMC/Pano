@@ -12,6 +12,7 @@ import java.nio.channels.OverlappingFileLockException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import com.panomc.node.util.SafeDelete
 
 /**
  * Decides whether a directory on this host may be adopted where it is (`IMPORT_SERVER` mode
@@ -371,7 +372,7 @@ object InPlaceAdoption {
         // Not followed if it is a link: deleteRecursively would walk into wherever it points.
         if (Files.isSymbolicLink(own.toPath())) {
             if (!own.delete()) left.add(own.absolutePath)
-        } else if (own.exists() && !own.deleteRecursively()) {
+        } else if (own.exists() && !SafeDelete.tree(own)) {
             left.add(own.absolutePath)
         }
 

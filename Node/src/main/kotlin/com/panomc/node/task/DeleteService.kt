@@ -8,6 +8,7 @@ import com.panomc.node.util.NodeLogger
 import com.panomc.node.util.PathSafety
 import io.vertx.core.json.JsonObject
 import java.io.File
+import com.panomc.node.util.SafeDelete
 
 /**
  * Removes a server's files once Pano has decided it should go.
@@ -87,7 +88,7 @@ class DeleteService(
             } else {
                 reporter.running(taskId, uuid, KIND, 40, "Deleting files")
 
-                if (directory.exists() && !directory.deleteRecursively()) {
+                if (directory.exists() && !SafeDelete.tree(directory)) {
                     throw IllegalStateException("Some files could not be removed from ${directory.absolutePath}.")
                 }
 
@@ -100,7 +101,7 @@ class DeleteService(
 
             val backups = PathSafety.resolveUnder(backupsRoot, uuid)
 
-            if (backups.exists() && !backups.deleteRecursively()) {
+            if (backups.exists() && !SafeDelete.tree(backups)) {
                 throw IllegalStateException("Some backups could not be removed from ${backups.absolutePath}.")
             }
 

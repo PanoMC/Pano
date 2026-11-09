@@ -2,6 +2,7 @@ package com.panomc.node
 
 import io.vertx.core.json.JsonObject
 import java.io.File
+import com.panomc.node.util.SafeDelete
 
 /**
  * The one file a removed node leaves in its data directory (SM-64, §2.4.29 B).
@@ -66,7 +67,7 @@ object RetiredMarker {
             val protected = keep.filter { it.toPath().startsWith(path.toPath()) }
 
             when {
-                protected.isEmpty() -> if (!child.deleteRecursively()) failures.add(path.path)
+                protected.isEmpty() -> if (!SafeDelete.tree(child)) failures.add(path.path)
                 protected.any { it == path } -> Unit
                 else -> failures.addAll(clearAllBut(child, protected, marker))
             }

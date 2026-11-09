@@ -38,8 +38,10 @@ class PasswordHasher {
 
     // The native argon2 is loaded through JNA, whose bundled libraries need glibc. Where they cannot load (Android /
     // Termux, other libcs) the same hashes are made and checked in pure Java (Bouncy Castle), in the same format.
+    // The library is only loaded on the first hash (Windows on ARM has no bundled build), so one tiny hash is made
+    // here: a native argon2 that cannot run is found now, not on somebody's sign-in.
     private val argon2: Argon2? = try {
-        Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id)
+        Argon2Factory.create(Argon2Factory.Argon2Types.ARGON2id).also { it.hash(1, 8, 1, "probe".toCharArray()) }
     } catch (e: Throwable) {
         LoggerFactory.getLogger(PasswordHasher::class.java)
             .warn("Native Argon2 is not available here ({}), using the Java implementation.", e.toString())

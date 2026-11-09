@@ -11,6 +11,7 @@ import com.panomc.platform.mail.MailManager
 import com.panomc.platform.mail.templates.PasswordUpdatedMail
 import com.panomc.platform.model.*
 import com.panomc.platform.token.TokenProvider
+import com.panomc.platform.token.AuthenticationTokenType
 import com.panomc.platform.token.ResetPasswordTokenType
 import com.panomc.platform.util.RegisterUtil
 import io.vertx.ext.web.RoutingContext
@@ -92,6 +93,12 @@ class RenewPasswordAPI(
         databaseManager.userDao.setPasswordById(userId, newPassword, sqlClient)
 
         tokenProvider.invalidateToken(token, sqlClient)
+
+        // A reset is how a taken-over account is recovered: whoever was signed in before is signed out, and every
+        // other reset link and half-finished sign-in of the account stops working.
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), AuthenticationTokenType, sqlClient)
+        tokenProvider.invalidateTokensBySubjectAndType(userId.toString(), ResetPasswordTokenType, sqlClient)
+        databaseManager.pendingAuthSessionDao.deleteByUserId(userId, sqlClient)
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 

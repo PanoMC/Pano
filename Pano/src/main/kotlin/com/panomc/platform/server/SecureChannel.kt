@@ -79,8 +79,11 @@ class SecureChannel(private val sendKey: SecretKey, private val receiveKey: Secr
         /** Encrypted channel with per-direction keys and sequence numbers. */
         const val CAP_CHANNEL_V2 = "channel-v2"
 
+        /** CHANGE_PASSWORD carries `currentPassword` (or `reset`) and is checked against it. */
+        const val CAP_PASSWORD_CHECK = "password-check"
+
         /** Capabilities this Pano offers, in the order it answers them. */
-        val SUPPORTED = listOf(CAP_CHANNEL_V2)
+        val SUPPORTED = listOf(CAP_CHANNEL_V2, CAP_PASSWORD_CHECK)
 
         const val NONCE_SIZE = 32
 

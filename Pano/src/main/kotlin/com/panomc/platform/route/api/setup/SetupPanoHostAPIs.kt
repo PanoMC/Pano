@@ -3,7 +3,9 @@ package com.panomc.platform.route.api.setup
 import com.panomc.platform.setup.SetupAccountSession
 
 import com.panomc.platform.annotation.Endpoint
+import com.panomc.platform.backup.PanoBackupException
 import com.panomc.platform.backup.PanoBackupManager
+import com.panomc.platform.backup.PanoBackupService
 import com.panomc.platform.backup.remote.PanoRemoteBackupService
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.error.BadRequest
@@ -138,10 +140,36 @@ class SetupGetPanoHostInstancesAPI(
     }
 }
 
+private fun moveWorkloadId(context: RoutingContext): String = context.pathParam("id")
+    ?.takeIf { it.length in 3..64 && it.all { c -> c.isLetterOrDigit() || c == '-' } }
+    ?: throw NotExists()
+
 /**
- * `POST /api/v1/setup/pano-host/instances/:id/move {host?, dbName?, username?, password?}` → `{job}`: exports that
- * Pano Host instance (or reuses its valid export), downloads it and restores it into the target database
- * (omitted = the one from setup step 2); Pano restarts as the moved site. Polled with `GET /api/v1/setup/restore`.
+ * `POST /api/v1/setup/pano-host/instances/:id/move/code` → `{email (masked), expiresAt, resendAfter}`: Pano Host
+ * e-mails the account owner the code that confirms moving that instance here (`hostError TRANSFER_CODE_COOLDOWN
+ * {retryAfterSeconds}` when asked again too soon).
+ */
+@Endpoint
+class SetupPanoHostMoveCodeAPI(private val panoBackupManager: PanoBackupManager) : SetupApi() {
+    override val paths = listOf(Path("/setup/pano-host/instances/:id/move/code", RouteType.POST))
+
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
+
+    override suspend fun handle(context: RoutingContext): Result {
+        val workloadId = moveWorkloadId(context)
+        val remote = panoBackupManager.setupRemote
+
+        PanoBackupRemoteRoutes.requireReady(remote, passphrase = false)
+
+        return Successful(host { remote.requestExportCode(workloadId) }.map)
+    }
+}
+
+/**
+ * `POST /api/v1/setup/pano-host/instances/:id/move {code, host?, dbName?, username?, password?}` → `{job}`: checks
+ * the e-mailed [code][SetupPanoHostMoveCodeAPI] (`hostError TRANSFER_CODE_INVALID`), then exports that Pano Host
+ * instance (or reuses its valid export), downloads it and restores it into the target database (omitted = the one
+ * from setup step 2); Pano restarts as the moved site. Polled with `GET /api/v1/setup/restore`.
  */
 @Endpoint
 class SetupMovePanoHostInstanceAPI(
@@ -153,10 +181,11 @@ class SetupMovePanoHostInstanceAPI(
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        val workloadId = context.pathParam("id")
-            ?.takeIf { it.length in 3..64 && it.all { c -> c.isLetterOrDigit() || c == '-' } }
-            ?: throw NotExists()
+        val workloadId = moveWorkloadId(context)
         val body = body(context)
+        val code = (body.getValue("code") as? String)?.trim()
+            ?.takeIf { it.length in 4..12 && it.all { c -> c.isLetterOrDigit() } }
+            ?: throw BadRequest(extras = mapOf("field" to "code"))
         val remote = panoBackupManager.setupRemote
 
         setupAccountSession.require(context)
@@ -172,7 +201,12 @@ class SetupMovePanoHostInstanceAPI(
 
         val service = panoBackupManager.prepareSetupService(database)
 
-        val job = PanoBackupRemoteRoutes.job { remote.startHostMove(workloadId, service = service) }
+        // A busy setup is refused before the code is spent.
+        if (service.isBusy()) PanoBackupRemoteRoutes.job { throw PanoBackupException(PanoBackupService.BUSY) }
+
+        val grant = host { remote.verifyExportCode(workloadId, code) }
+
+        val job = PanoBackupRemoteRoutes.job { remote.startHostMove(workloadId, grant, service = service) }
 
         return Successful(mapOf("job" to job.toJson()))
     }

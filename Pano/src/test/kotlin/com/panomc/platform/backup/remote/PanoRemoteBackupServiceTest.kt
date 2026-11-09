@@ -372,24 +372,37 @@ class PanoRemoteBackupServiceTest {
         host.exportArchive = archive.readBytes()
         host.exportPendingReads = 2
 
-        val job = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+        // The e-mailed code: a wrong one is refused, the right one gives the grant the whole move uses.
+        assertEquals("a***@y*****.com", service.requestExportCode(FakePanoHost.WORKLOAD_ID).getString("email"))
+        assertEquals("TRANSFER_CODE_INVALID", assertThrows<PanoHostException> { service.verifyExportCode(FakePanoHost.WORKLOAD_ID, "000000") }.code)
+
+        val grant = service.verifyExportCode(FakePanoHost.WORKLOAD_ID, FakePanoHost.EXPORT_CODE)
+
+        assertEquals(FakePanoHost.EXPORT_GRANT, grant)
+
+        val job = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, grant, pollIntervalMs = 10))
 
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
         assertEquals(PanoBackupJob.Type.RESTORE, job.type)
         assertEquals(1, host.exportStarts)
+        assertTrue(host.exportGrantHeaders.isNotEmpty() && host.exportGrantHeaders.all { it == grant }, "every status read sends the grant")
         assertEquals(ArchiveManifest.KIND_PANO_INSTANCE, runner.restored.single().kind)
         assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
 
         // An export that failed on Pano Host fails the move with its own code; nothing is restored.
         host.exportFails = true
-        val failed = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, pollIntervalMs = 10))
+        val failed = awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, grant, pollIntervalMs = 10))
 
         assertEquals(PanoRemoteBackupService.EXPORT_FAILED_CODE, failed.error)
         assertEquals(1, runner.restored.size)
 
         // Another account's (or an unknown) instance is not found.
         host.exportFails = false
-        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startHostMove("p-other0001", pollIntervalMs = 10)).error)
+        assertEquals("WORKLOAD_NOT_FOUND", awaitJob(service.startHostMove("p-other0001", grant, pollIntervalMs = 10)).error)
+
+        // Without a valid grant Pano Host does not start the export; the move fails with its code and restores nothing.
+        assertEquals("TRANSFER_CODE_REQUIRED", awaitJob(service.startHostMove(FakePanoHost.WORKLOAD_ID, "stale", pollIntervalMs = 10)).error)
+        assertEquals(1, runner.restored.size)
     }
 
     @Test

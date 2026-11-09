@@ -474,14 +474,30 @@ class PanoRemoteBackupService(
         return client.listExports()
     }
 
+    /** E-mails the owner a code that confirms moving [workloadId] here; `{email, expiresAt, resendAfter}`. */
+    suspend fun requestExportCode(workloadId: String): JsonObject {
+        requireConnected()
+
+        return client.requestExportCode(workloadId)
+    }
+
+    /** Checks [code] at Pano Host; the returned grant is passed to [startHostMove]. */
+    suspend fun verifyExportCode(workloadId: String, code: String): String {
+        requireConnected()
+
+        return client.verifyExportCode(workloadId, code)
+    }
+
     /**
      * Moves Pano Host instance [workloadId] here (setup-ui "Transfer → Pano Host"): asks for its export (an
      * export still valid is reused), waits until Pano Host has made it, downloads the plain archive and
-     * restores it through [service]. Exports are plain, so no passphrase; the instance on Pano Host keeps
-     * running — its subscription is the owner's to end.
+     * restores it through [service]. [grant] is what [verifyExportCode] returned (the owner confirmed with the
+     * e-mailed code); it is sent with every export call of the move. Exports are plain, so no passphrase; the
+     * instance on Pano Host keeps running — its subscription is the owner's to end.
      */
     fun startHostMove(
         workloadId: String,
+        grant: String,
         service: PanoBackupRunner = backups,
         safetyArchive: Boolean = false,
         maintenance: Boolean = false,
@@ -496,7 +512,7 @@ class PanoRemoteBackupService(
             job.remoteId = workloadId
             job.phase = PHASE_EXPORTING
 
-            var export = client.startExport(workloadId).getJsonObject("export")
+            var export = client.startExport(workloadId, grant).getJsonObject("export")
             val deadline = clock() + timeoutMs
 
             while (export?.getString("status") != EXPORT_DONE) {
@@ -511,7 +527,7 @@ class PanoRemoteBackupService(
 
                 delay(pollIntervalMs)
 
-                export = client.exportStatus(workloadId).getJsonObject("export")
+                export = client.exportStatus(workloadId, grant).getJsonObject("export")
             }
 
             val url = export.getString("url") ?: throw PanoHostException(EXPORT_FAILED_CODE, message = "The export has no download link.")

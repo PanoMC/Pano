@@ -243,13 +243,23 @@ class PanoHostClient(
     /** `{workloads[{id, name, label, state, exportable, reason?, export{availableAt, current?}}]}`: the account's instances. */
     suspend fun listExports(): JsonObject = call("GET", "/host/connected/exports")
 
-    /** `{export{exportId, status, sizeBytes, expiresAt, url?}}`: the instance's valid export, or a new live one. */
-    suspend fun startExport(workloadId: String): JsonObject =
-        call("POST", "/host/connected/workloads/${segment(workloadId)}/export", JsonObject())
+    /** E-mails the account owner a code that confirms exporting [workloadId]: `{email (masked), expiresAt, resendAfter}`; `TRANSFER_CODE_COOLDOWN` when asked too early. */
+    suspend fun requestExportCode(workloadId: String): JsonObject =
+        call("POST", "/host/connected/workloads/${segment(workloadId)}/export/code", JsonObject())
 
-    /** `{export}` of [workloadId] (null when there is none); `url` once it is `DONE`. */
-    suspend fun exportStatus(workloadId: String): JsonObject =
-        call("GET", "/host/connected/workloads/${segment(workloadId)}/export")
+    /** Checks the e-mailed export code: the `grant` (valid 24 h, this Pano and instance only) for [startExport] and [exportStatus]; `TRANSFER_CODE_INVALID` otherwise. */
+    suspend fun verifyExportCode(workloadId: String, code: String): String =
+        call("POST", "/host/connected/workloads/${segment(workloadId)}/export/code/verify", JsonObject().put("code", code)).getString("grant")
+            ?.takeIf { grant -> grant.length in 1..256 && grant.all { it in '!'..'~' } }
+            ?: throw PanoHostException(PanoHostException.UNAVAILABLE, message = "No grant in the answer.")
+
+    /** `{export{exportId, status, sizeBytes, expiresAt, url?}}`: the instance's valid export, or a new live one; `TRANSFER_CODE_REQUIRED` without a valid [grant]. */
+    suspend fun startExport(workloadId: String, grant: String): JsonObject =
+        call("POST", "/host/connected/workloads/${segment(workloadId)}/export", JsonObject().put("grant", grant))
+
+    /** `{export}` of [workloadId] (null when there is none); `url` once it is `DONE` (only shown with the [grant]). */
+    suspend fun exportStatus(workloadId: String, grant: String): JsonObject =
+        call("GET", "/host/connected/workloads/${segment(workloadId)}/export", headers = mapOf(HEADER_EXPORT_GRANT to grant))
 
     // Transfers
 
@@ -509,12 +519,18 @@ class PanoHostClient(
     }
 
     /** One control-plane call; returns `data` of an ok response, throws [PanoHostException] otherwise. */
-    private suspend fun call(method: String, path: String, body: JsonObject? = null, timeout: Duration = Duration.ofSeconds(60)): JsonObject {
+    private suspend fun call(
+        method: String,
+        path: String,
+        body: JsonObject? = null,
+        timeout: Duration = Duration.ofSeconds(60),
+        headers: Map<String, String> = emptyMap()
+    ): JsonObject {
         val token = token()?.takeIf { it.isNotBlank() }
             ?: throw PanoHostException(PanoHostException.CONNECT_REQUIRED, extras = JsonObject().put("reason", "NOT_CONNECTED"))
         val identity = identity()
 
-        return send(method, path, token, identity, body, timeout)
+        return send(method, path, token, identity, body, timeout, headers)
     }
 
     private suspend fun send(
@@ -523,7 +539,8 @@ class PanoHostClient(
         token: String?,
         identity: PanoIdentity?,
         body: JsonObject?,
-        timeout: Duration = Duration.ofSeconds(60)
+        timeout: Duration = Duration.ofSeconds(60),
+        headers: Map<String, String> = emptyMap()
     ): JsonObject = withContext(Dispatchers.IO) {
         val base = baseUrl().trim().trimEnd('/')
 
@@ -534,6 +551,8 @@ class PanoHostClient(
         val builder = HttpRequest.newBuilder(URI(base + path))
             .timeout(timeout)
             .header("Accept", "application/json")
+
+        headers.forEach { (name, value) -> builder.header(name, value) }
 
         if (token != null && identity != null) {
             builder.header("Authorization", "Bearer $token")
@@ -595,6 +614,7 @@ class PanoHostClient(
 
         const val HEADER_INSTANCE_ID = "X-Pano-Instance-Id"
         const val HEADER_INSTANCE_NAME = "X-Pano-Instance-Name"
+        const val HEADER_EXPORT_GRANT = "X-Pano-Export-Grant"
         private const val NOT_CONNECTED = "NOT_CONNECTED"
 
         /**

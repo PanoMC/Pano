@@ -148,6 +148,18 @@ class ServerLaunchTest {
     }
 
     @Test
+    fun `a public name that starts like a private address still gets tls`() {
+        assertTrue(PlatformEndpoint.parse("10.mc.example.com").ssl)
+        assertTrue(PlatformEndpoint.parse("192.168.example.net:8443").ssl)
+        assertTrue(PlatformEndpoint.parse("172.16.example.org").ssl)
+        assertTrue(PlatformEndpoint.parse("10.0.0.256").ssl)
+        assertFalse(PlatformEndpoint.parse("10.0.0.5").ssl)
+        assertFalse(PlatformEndpoint.parse("192.168.1.20:8080").ssl)
+        assertFalse(PlatformEndpoint.parse("172.20.0.1").ssl)
+        assertFalse(PlatformEndpoint.parse("localhost:8080").ssl)
+    }
+
+    @Test
     fun `knows when a proxy is up as well as when a game server is`() {
         assertTrue(ServerProcess.isReadyLine("[12:00:01 INFO]: Done (3.214s)! For help, type \"help\""))
         assertTrue(ServerProcess.isReadyLine("12:00:01 [INFO] Listening on /0.0.0.0:25577"))

@@ -535,11 +535,16 @@ class MailManager(
     suspend fun validateConfig(config: JsonObject, sender: String) {
         val safeConfig = smtpTestConfig(config) ?: throw InvalidData(extras = mapOf("mailError" to "INVALID_CONFIG"))
 
+        // Closed whatever happens: a failed test used to leave the client and its pool behind.
+        val mailClient = try {
+            MailClient.create(vertx, MailConfig(safeConfig))
+        } catch (e: Exception) {
+            logger.error(e.toString())
+
+            throw InvalidData(extras = mapOf("mailError" to "INVALID_CONFIG"))
+        }
+
         try {
-            val mailConfig = MailConfig(safeConfig)
-
-            val mailClient = MailClient.create(vertx, mailConfig)
-
             val message = MailMessage()
 
             message.from = sender
@@ -548,16 +553,15 @@ class MailManager(
             message.html = "Hello world! E-mail is working!"
 
             mailClient.sendMail(message).coAwait()
-
-            mailClient.close()
         } catch (e: Exception) {
             logger.error(e.toString())
 
             throw InvalidData(extras = mapOf("mailError" to smtpFailureReason(e)))
-        } catch (e: SMTPException) {
-            logger.error(e.toString())
-
-            throw InvalidData(extras = mapOf("mailError" to smtpFailureReason(e)))
+        } finally {
+            try {
+                mailClient.close()
+            } catch (_: Exception) {
+            }
         }
     }
 }

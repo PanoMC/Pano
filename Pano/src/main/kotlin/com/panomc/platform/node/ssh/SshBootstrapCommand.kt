@@ -11,14 +11,16 @@ package com.panomc.platform.node.ssh
  * `sudo -n` never prompts. A host whose sudo wants a password fails immediately with a message
  * saying so, which is a far better outcome than a session that hangs on an invisible prompt until
  * the ten-minute cap.
+ *
+ * The bootstrap token is not part of the command: a command line is readable by every user of the target from the
+ * process list for as long as the install runs, and the token pairs a node without an admin. It travels in the
+ * script instead ([withToken]), over the same channel.
  */
 object SshBootstrapCommand {
-    fun build(panoUrl: String, code: String, sudo: Boolean, name: String? = null): String {
+    fun build(panoUrl: String, sudo: Boolean, name: String? = null): String {
         val command = buildString {
             append("sh -s -- --pano ")
             append(quote(panoUrl))
-            append(" --code ")
-            append(quote(code))
 
             if (!name.isNullOrBlank()) {
                 append(" --name ")
@@ -37,4 +39,7 @@ object SshBootstrapCommand {
      * quote survives inside single quotes.
      */
     fun quote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+    /** [script] with the bootstrap [token] set as its first line, where the installer picks it up. */
+    fun withToken(script: String, token: String): String = "PANO_BOOTSTRAP_TOKEN=${quote(token)}\n$script"
 }

@@ -54,32 +54,41 @@ class SshBootstrapTest {
     @Test
     fun `the command pipes the script into sh with the pairing credential`() {
         assertEquals(
-            "sh -s -- --pano 'https://pano.example.com' --code 'abc123'",
-            SshBootstrapCommand.build("https://pano.example.com", "abc123", sudo = false)
+            "sh -s -- --pano 'https://pano.example.com'",
+            SshBootstrapCommand.build("https://pano.example.com", sudo = false)
         )
     }
 
     @Test
     fun `sudo never prompts`() {
         assertTrue(
-            SshBootstrapCommand.build("https://pano.example.com", "abc", sudo = true).startsWith("sudo -n sh -s --")
+            SshBootstrapCommand.build("https://pano.example.com", sudo = true).startsWith("sudo -n sh -s --")
         )
     }
 
     @Test
     fun `a name is passed through when one was given`() {
         assertEquals(
-            "sh -s -- --pano 'https://p' --code 'c' --name 'box one'",
-            SshBootstrapCommand.build("https://p", "c", sudo = false, name = "box one")
+            "sh -s -- --pano 'https://p' --name 'box one'",
+            SshBootstrapCommand.build("https://p", sudo = false, name = "box one")
         )
 
-        assertFalse(SshBootstrapCommand.build("https://p", "c", sudo = false, name = " ").contains("--name"))
+        assertFalse(SshBootstrapCommand.build("https://p", sudo = false, name = " ").contains("--name"))
     }
 
     @Test
     fun `a quote in any value cannot break out of its argument`() {
-        val command = SshBootstrapCommand.build("https://p", "'; rm -rf / #", sudo = false)
+        val command = SshBootstrapCommand.build("https://p'; rm -rf / #", sudo = false)
 
-        assertEquals("sh -s -- --pano 'https://p' --code ''\\''; rm -rf / #'", command)
+        assertEquals("sh -s -- --pano 'https://p'\\''; rm -rf / #'", command)
+    }
+
+    @Test
+    fun `the token travels in the script, never on the command line`() {
+        val command = SshBootstrapCommand.build("https://p", sudo = true, name = "box")
+        val script = SshBootstrapCommand.withToken("#!/bin/sh\necho hi\n", "tok'en; id")
+
+        assertFalse(command.contains("tok"))
+        assertEquals("PANO_BOOTSTRAP_TOKEN='tok'\\''en; id'\n#!/bin/sh\necho hi\n", script)
     }
 }

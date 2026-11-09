@@ -11,7 +11,9 @@ set -eu
 
 PANO_URL=""
 PAIR_CODE=""
-BOOTSTRAP_TOKEN=""
+# Pano's SSH set-up hands its token over in the script it pipes in, never on the command line, where any user on
+# this machine could read it from the process list.
+BOOTSTRAP_TOKEN="${PANO_BOOTSTRAP_TOKEN:-}"
 NODE_NAME=""
 USER_INSTALL=0
 

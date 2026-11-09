@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.posts
 
+import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -25,7 +26,7 @@ import com.panomc.platform.schema.CoreSchemas
  *
  * The answer has the shape of `GET /api/v1/posts/:url`, so a theme renders the preview with the same
  * view it renders a published post with. The caller must be logged in and must be allowed into
- * the panel, which is exactly what the panel endpoint demanded.
+ * the panel, and must hold the posts permission or be the post's writer.
  */
 @Endpoint
 class GetPostPreviewAPI(
@@ -60,6 +61,13 @@ class GetPostPreviewAPI(
         val sqlClient = getSqlClient()
 
         val post = requirePost(databaseManager.postDao.getById(id, sqlClient))
+
+        // A saved post (drafts and trash included) is for the post staff and the post's own writer, as in the panel.
+        if (post.writerUserId != authProvider.getUserIdFromRoutingContext(context) &&
+            !authProvider.hasPermission(ManagePostsPermission(), context)
+        ) {
+            throw NoPermission()
+        }
 
         val category = if (post.categoryId != -1L) {
             databaseManager.postCategoryDao.getById(post.categoryId, sqlClient)

@@ -145,7 +145,7 @@ object ZipTool {
      * on the next write would put a file outside the sandbox that every path check had already
      * approved.
      */
-    fun extract(root: File, archive: File, targetDirectory: File) {
+    fun extract(root: File, archive: File, targetDirectory: File, maxTotalBytes: Long = MAX_TOTAL_BYTES) {
         require(archive.isFile) { "The archive does not exist." }
 
         targetDirectory.mkdirs()
@@ -184,14 +184,19 @@ object ZipTool {
 
                 destination.parentFile?.mkdirs()
 
-                zip.getInputStream(entry).use { input ->
-                    destination.outputStream().buffered().use { output ->
-                        written += copy(input, output)
+                // The ceiling is the budget left for this entry, checked while it is written: one
+                // well-compressed entry can be far larger than the disk, and checking only after it
+                // was copied would fill the disk before the check ever ran.
+                try {
+                    zip.getInputStream(entry).use { input ->
+                        destination.outputStream().buffered().use { output ->
+                            written += copy(input, output, maxTotalBytes - written)
+                        }
                     }
-                }
+                } catch (exception: SizeLimitExceeded) {
+                    destination.delete()
 
-                if (written > MAX_TOTAL_BYTES) {
-                    throw IllegalStateException("This archive unpacks to more than $MAX_TOTAL_BYTES bytes.")
+                    throw IllegalStateException("This archive unpacks to more than $maxTotalBytes bytes.")
                 }
             }
         }
@@ -286,7 +291,10 @@ object ZipTool {
         return rootPath.relativize(filePath).toString().replace(File.separatorChar, '/')
     }
 
-    private fun copy(input: InputStream, output: java.io.OutputStream): Long {
+    /** Thrown by [copy] the moment more than its limit has been read. */
+    private class SizeLimitExceeded : RuntimeException()
+
+    private fun copy(input: InputStream, output: java.io.OutputStream, limit: Long = Long.MAX_VALUE): Long {
         val buffer = ByteArray(BUFFER_SIZE)
         var total = 0L
 
@@ -296,6 +304,10 @@ object ZipTool {
 
                 if (read <= 0) {
                     break
+                }
+
+                if (total + read > limit) {
+                    throw SizeLimitExceeded()
                 }
 
                 output.write(buffer, 0, read)

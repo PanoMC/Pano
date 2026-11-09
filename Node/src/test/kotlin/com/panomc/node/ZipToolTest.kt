@@ -96,6 +96,26 @@ class ZipToolTest {
     }
 
     @Test
+    fun `stops a single oversized entry while it is being written`() {
+        val archive = File(root, "bomb.zip")
+
+        ZipOutputStream(archive.outputStream()).use { out ->
+            out.putNextEntry(ZipEntry("zeros.bin"))
+            val block = ByteArray(64 * 1024)
+            repeat(64) { out.write(block) }
+            out.closeEntry()
+        }
+
+        val target = File(root, "out")
+
+        assertThrows(IllegalStateException::class.java) {
+            ZipTool.extract(root, archive, target, maxTotalBytes = 1024L * 1024)
+        }
+
+        assertFalse(File(target, "zeros.bin").exists(), "the partial file is removed")
+    }
+
+    @Test
     fun `spots something that is not an archive`() {
         val notAZip = File(root, "index.html")
 

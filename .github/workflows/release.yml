@@ -140,10 +140,8 @@ jobs:
 
       - name: Get Time
         id: time
-        uses: nanzm/get-time-action@v1.1
-        with:
-          timeZone: 8
-          format: 'YYYYMMDDHHmmss'
+        # UTC+8, same value the old nanzm/get-time-action step produced
+        run: echo "time=$(TZ=Etc/GMT-8 date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
 
       - uses: actions/setup-java@v4
         with:

@@ -63,7 +63,7 @@ class ApiPathsCodemodTest {
         assertEquals("/api/v1/server/pano-plugin/jar", ApiPaths.core(PanoPluginUpdateService.SERVER_JAR_PATH))
         assertEquals("/api/v1/node/plugin-jars/spigot", ManagedPluginJarResolver.pluginJarPath("spigot"))
         assertEquals(
-            "curl -fsSL http://p/api/v1/node/install.sh | sh -s -- --pano 'http://p' --code '1'",
+            "curl -fsSL 'http://p/api/v1/node/install.sh' | sh -s -- --pano 'http://p' --code '1'",
             NodeInstallScriptProvider.shellInstallCommand("http://p", "1")
         )
         assertTrue(NodeInstallScriptProvider.powerShellInstallCommand("http://p", "1").contains("'http://p/api/v1/node/install.ps1'"))

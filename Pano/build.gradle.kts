@@ -47,7 +47,10 @@ val libsDir = file("${rootProject.layout.buildDirectory.get()}/libs")
 
 repositories {
     mavenCentral()
-    maven("https://jitpack.io")
+    exclusiveContent {
+        forRepository { maven("https://jitpack.io") }
+        filter { includeGroup("com.github.triologygmbh") }
+    }
 }
 
 dependencies {

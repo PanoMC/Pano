@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.posts
 
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
@@ -93,7 +94,7 @@ class GetPostDetailAPI(
                     "writer" to mapOf(
                         "username" to username
                     ),
-                    "text" to post.text,
+                    "text" to HtmlSanitizer.sanitize(post.text),
                     "date" to post.date,
                     "status" to post.status,
                     "thumbnailUrl" to post.thumbnailUrl,

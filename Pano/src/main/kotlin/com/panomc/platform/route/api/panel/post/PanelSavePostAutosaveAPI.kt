@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.post
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
@@ -69,7 +70,7 @@ class PanelSavePostAutosaveAPI(
         val id = parameters.pathParameter("id")?.long
         val title = data.getString("title").orEmpty()
         val categoryId = data.getLong("category")
-        val text = data.getString("text").orEmpty()
+        val text = HtmlSanitizer.sanitize(data.getString("text"))
         val removeThumbnail = data.getBoolean("removeThumbnail") ?: false
 
         val userId = authProvider.getUserIdFromRoutingContext(context)

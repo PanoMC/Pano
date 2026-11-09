@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.posts
 
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Post
 import com.panomc.platform.db.model.PostCategory
@@ -96,7 +97,7 @@ class GetPostsService(private val databaseManager: DatabaseManager) {
                                     post.categoryId,
                                     mapOf("id" to -1, "title" to "-")
                                 ),
-                    "text" to StringUtil.truncateHTML(post.text, 500, "&hellip;"),
+                    "text" to StringUtil.truncateHTML(HtmlSanitizer.sanitize(post.text), 500, "&hellip;"),
                     "writer" to mapOf(
                         "username" to (usernameList[post.writerUserId] ?: "-")
                     ),

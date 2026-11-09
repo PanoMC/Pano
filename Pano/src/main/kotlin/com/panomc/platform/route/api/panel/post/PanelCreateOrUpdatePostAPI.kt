@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.post
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -64,7 +65,7 @@ class PanelCreateOrUpdatePostAPI(
         val id = parameters.pathParameter("id")?.long
         val title = data.getString("title")
         val categoryId = data.getLong("category")
-        val text = data.getString("text")
+        val text = HtmlSanitizer.sanitize(data.getString("text"))
         val removeThumbnail = data.getBoolean("removeThumbnail") ?: false
         val publish = data.getBoolean("publish") ?: true
         val url = TextUtil.convertStringToUrl(title, 32)

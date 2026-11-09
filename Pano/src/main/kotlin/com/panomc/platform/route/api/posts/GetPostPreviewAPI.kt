@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.posts
 
+import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -107,7 +108,7 @@ class GetPostPreviewAPI(
                         else
                             mapOf<String, Any?>("title" to category.title, "url" to category.url),
                 "writer" to mapOf("username" to (writerUsername ?: "-")),
-                "text" to post.text,
+                "text" to HtmlSanitizer.sanitize(post.text),
                 "date" to post.date,
                 "status" to post.status,
                 "thumbnailUrl" to post.thumbnailUrl,

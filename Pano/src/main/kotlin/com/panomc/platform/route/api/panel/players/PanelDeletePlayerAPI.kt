@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.players
 
 
+import com.panomc.platform.token.UserTokens
+import com.panomc.platform.token.TokenTypeRegistry
 import com.panomc.platform.auth.PlayerTargetGuard
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.PluginEventManager
@@ -35,7 +37,8 @@ class PanelDeletePlayerAPI(
     private val tokenProvider: TokenProvider,
     private val permissionManager: PermissionManager,
     private val serverManager: ServerManager,
-    private val playerTargetGuard: PlayerTargetGuard
+    private val playerTargetGuard: PlayerTargetGuard,
+    private val tokenTypeRegistry: TokenTypeRegistry
 ) : PanelApi() {
     override val paths = listOf(Path("/players/:username/delete", RouteType.POST))
 
@@ -101,7 +104,7 @@ class PanelDeletePlayerAPI(
             eventHandler.onDelete(user)
         }
 
-        tokenProvider.invalidateTokensBySubject(userId.toString(), sqlClient)
+        UserTokens.invalidateAll(tokenProvider, tokenTypeRegistry, userId, sqlClient)
         databaseManager.notificationDao.deleteAllByUserId(userId, sqlClient)
         databaseManager.panelNotificationDao.deleteAllByUserId(userId, sqlClient)
         databaseManager.postDao.updateUserIdByUserId(userId, -1, sqlClient)

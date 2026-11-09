@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.token.UserTokens
+import com.panomc.platform.token.TokenTypeRegistry
 import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginEventManager
 import com.panomc.platform.annotation.Endpoint
@@ -37,7 +39,8 @@ class PanelAuthMeMigrationImportAPI(
     private val configManager: ConfigManager,
     private val tokenProvider: TokenProvider,
     private val permissionManager: PermissionManager,
-    private val vertx: Vertx
+    private val vertx: Vertx,
+    private val tokenTypeRegistry: TokenTypeRegistry
 ) : PanelApi() {
     override val paths = listOf(Path("/migration/authme/import", RouteType.POST))
 
@@ -290,7 +293,7 @@ class PanelAuthMeMigrationImportAPI(
                     }
 
                     // Invalidate tokens
-                    tokenProvider.invalidateTokensBySubject(userId.toString(), sqlClient)
+                    UserTokens.invalidateAll(tokenProvider, tokenTypeRegistry, userId, sqlClient)
 
                     // Clean up notifications
                     databaseManager.notificationDao.deleteAllByUserId(userId, sqlClient)

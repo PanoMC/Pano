@@ -25,4 +25,15 @@ abstract class WebsiteViewDao : Dao<WebsiteView>(WebsiteView::class.java) {
         dashboardPeriodType: DashboardPeriodType,
         sqlClient: SqlClient
     ): List<WebsiteView>
+
+    /**
+     * Views and distinct visitor addresses per day of [dashboardPeriodType], summed by the
+     * database: the table holds a row per address and day, which anybody can add to.
+     */
+    abstract suspend fun getDailyTotalsByPeriod(
+        dashboardPeriodType: DashboardPeriodType,
+        sqlClient: SqlClient
+    ): List<DailyTotals>
+
+    data class DailyTotals(val date: Long, val views: Long, val visitors: Long)
 }

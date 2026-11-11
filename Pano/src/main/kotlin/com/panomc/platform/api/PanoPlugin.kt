@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.pf4j.Plugin
 import org.pf4j.PluginState
+import org.pf4j.PluginWrapper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.support.DefaultListableBeanFactory
@@ -32,7 +33,21 @@ abstract class PanoPlugin : Plugin() {
         internal set
     lateinit var pluginGlobalBeanContext: AnnotationConfigApplicationContext
         internal set
-    lateinit var pluginState: PluginState
+    internal var pluginWrapper: PluginWrapper? = null
+    private var pluginStateSnapshot: PluginState? = null
+
+    /**
+     * The plugin's current state, read live from its PF4J wrapper. It used to be a copy taken when
+     * the instance was created (always CREATED/RESOLVED), so a plugin checking
+     * `pluginState == PluginState.STARTED` in `onSetupFinished` never initialized after the setup.
+     */
+    var pluginState: PluginState
+        get() = pluginWrapper?.pluginState
+            ?: pluginStateSnapshot
+            ?: throw UninitializedPropertyAccessException("pluginState has not been initialized")
+        set(value) {
+            pluginStateSnapshot = value
+        }
 
     lateinit var applicationContext: AnnotationConfigApplicationContext
         internal set

@@ -48,6 +48,10 @@ Environment (all optional; without `PANO_DB_*` the wizard asks for the database)
 Everything Pano writes (config, plugins, themes, uploads, the jar) lives in the `/data` volume. The
 container runs as uid 10000; a bind mount must be writable by it (`chown -R 10000:10000 <dir>`).
 
+Coolify: `coolify/pano.yaml` is a Coolify template (Pano + MariaDB). New Resource → Docker Compose Empty,
+paste it, set the domain of the `pano` service and deploy; Coolify generates the database credentials and
+Traefik serves Pano on port 8088 behind HTTPS. Change the image tag to pin a release.
+
 ## Upgrade
 
 `docker compose pull && docker compose up -d`. On start, `pano-seed` installs the image's jar into

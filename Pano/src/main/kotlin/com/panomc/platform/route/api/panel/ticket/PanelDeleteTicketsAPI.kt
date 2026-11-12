@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket
 
+import com.panomc.platform.panel.PanelRealtimeHub
 import io.vertx.core.json.JsonArray
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -19,7 +20,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelDeleteTicketsAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -47,6 +49,10 @@ class PanelDeleteTicketsAPI(
         databaseManager.ticketDao.delete(selectedTickets, sqlClient)
 
         databaseManager.ticketMessageDao.deleteByTicketIdList(selectedTickets, sqlClient)
+        databaseManager.ticketFieldSetDao.deleteByTicketIds(selectedTickets.mapNotNull { it?.toString()?.toLongOrNull() }, sqlClient)
+
+        // the owners are gone with the rows: the ticket pages of the managers update
+        selectedTickets.forEach { id -> id?.toString()?.toLongOrNull()?.let { panelRealtimeHub.notifyTicketChanged(it, null) } }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

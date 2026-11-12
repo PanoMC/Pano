@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
 
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.DeletedTicketCategoryLog
@@ -19,7 +20,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelDeleteTicketCategoryAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -43,6 +45,8 @@ class PanelDeleteTicketCategoryAPI(
         databaseManager.ticketDao.removeTicketCategoriesByCategoryId(id, sqlClient)
 
         databaseManager.ticketCategoryDao.deleteById(id, sqlClient)
+        databaseManager.ticketCategoryFieldSetDao.deleteByCategoryId(id, sqlClient)
+        contentTranslations.replace(contentTranslations.categoryPrefix(id), emptyMap(), sqlClient)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

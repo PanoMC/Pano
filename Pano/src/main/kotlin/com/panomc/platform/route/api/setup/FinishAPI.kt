@@ -15,6 +15,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.MariaDBManager
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.model.*
+import com.panomc.platform.setup.DefaultRegisterAgreement
 import com.panomc.platform.util.CSRFTokenGenerator
 import com.panomc.platform.util.RegisterUtil
 import io.vertx.ext.web.Router
@@ -132,6 +133,12 @@ class FinishAPI(
         val token = authProvider.login(username, context, sqlClient)
 
         configManager.config.locale = setupLocale
+
+        // A new Pano starts with a registration agreement in its own language; one already written
+        // (e.g. a restored config) is kept.
+        if (configManager.config.registerAgreement.isBlank()) {
+            configManager.config.registerAgreement = DefaultRegisterAgreement.forLocale(setupLocale)
+        }
 
         val telemetryConfig = configManager.config.telemetry
             ?: PanoConfig.Companion.TelemetryConfig().also { configManager.config.telemetry = it }

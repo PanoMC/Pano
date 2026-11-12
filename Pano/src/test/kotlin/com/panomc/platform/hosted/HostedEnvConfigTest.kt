@@ -130,9 +130,27 @@ class HostedEnvConfigTest {
         val proxies = server.getJsonArray("trusted-proxies").list
         assertEquals("203.0.113.7", proxies.first())
         assertTrue(proxies.containsAll(HostedEnvConfig.PRIVATE_PROXY_RANGES))
+        assertTrue("cloudflare" in proxies, "Cloudflare's edge is in front of every hosted instance")
 
         // Second boot with the same env: nothing to change.
         assertEquals(emptyList<String>(), HostedEnvConfig(hosted).apply(load(file)))
+    }
+
+    @Test
+    fun `hosted proxies resolve the visitor behind Cloudflare and Traefik`() {
+        val resolve = { xff: String ->
+            com.panomc.platform.util.TrustedProxyIpResolver.resolveClientIp("10.0.1.5", xff, null, HostedEnvConfig.HOSTED_PROXIES, trustPrivate = false)
+        }
+
+        // Traefik (10.0.1.5) appends Cloudflare's edge (104.16.0.1) after the visitor's own address.
+        assertEquals("198.51.100.9", resolve("198.51.100.9, 104.16.0.1"))
+        // A forged hop before the visitor is not trusted: the visitor's address still wins.
+        assertEquals("198.51.100.9", resolve("203.0.113.66, 198.51.100.9, 104.16.0.1"))
+        // Without Cloudflare in the list the edge itself would be the client (the bug this fixes).
+        assertEquals(
+            "104.16.0.1",
+            com.panomc.platform.util.TrustedProxyIpResolver.resolveClientIp("10.0.1.5", "198.51.100.9, 104.16.0.1", null, HostedEnvConfig.PRIVATE_PROXY_RANGES, trustPrivate = false)
+        )
     }
 
     @Test

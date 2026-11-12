@@ -1,5 +1,9 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
+import io.vertx.core.json.JsonArray
+import com.panomc.platform.i18n.ContentTranslations
+import com.panomc.platform.ticket.TicketFields
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.CreatedTicketCategoryLog
@@ -24,7 +28,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelAddTicketCategoryAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -39,6 +44,7 @@ class PanelAddTicketCategoryAPI(
                         .requiredProperty("description", stringSchema())
                         .optionalProperty("enabled", booleanSchema())
                         .optionalProperty("autoReplyTemplateId", numberSchema())
+                        .optionalProperty("fields", arraySchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -57,6 +63,20 @@ class PanelAddTicketCategoryAPI(
 
         validateForm(title)
 
+        // the custom fields, checked before anything is written
+        val fieldDefinitions = try {
+            TicketFields.parseDefinitions(data.getValue("fields"))
+        } catch (e: TicketFields.Invalid) {
+            throw InvalidFields(e.errors)
+        }
+
+        // the translations, checked before anything is written (the keys get the id once it exists)
+        try {
+            contentTranslations.parseCategory(-1, data.getValue("i18n"), data.getValue("fields") as? JsonArray, fieldDefinitions)
+        } catch (e: TicketFields.Invalid) {
+            throw InvalidFields(e.errors)
+        }
+
         val sqlClient = getSqlClient()
 
         if (autoReplyTemplateId != -1L && databaseManager.ticketTemplateDao.getById(autoReplyTemplateId, sqlClient) == null) {
@@ -72,12 +92,20 @@ class PanelAddTicketCategoryAPI(
 
         databaseManager.ticketCategoryDao.updateUrlById(categoryId, "$url-$categoryId", sqlClient)
 
+        databaseManager.ticketCategoryFieldSetDao.set(categoryId, TicketFields.definitionsJson(fieldDefinitions).encode(), sqlClient)
+
+        contentTranslations.replace(
+            contentTranslations.categoryPrefix(categoryId),
+            contentTranslations.parseCategory(categoryId, data.getValue("i18n"), data.getValue("fields") as? JsonArray, fieldDefinitions),
+            sqlClient
+        )
+
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
         databaseManager.panelActivityLogDao.add(CreatedTicketCategoryLog(userId, username, title), sqlClient)
 
-        return Successful()
+        return Successful(mapOf("id" to categoryId))
     }
 
     private fun validateForm(

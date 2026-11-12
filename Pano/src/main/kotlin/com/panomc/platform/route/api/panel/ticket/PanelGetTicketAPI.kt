@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.ticket
 
 
+import com.panomc.platform.i18n.ContentTranslations
+import com.panomc.platform.ticket.TicketFields
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -24,7 +26,8 @@ import com.panomc.platform.util.UsageMode
 class PanelGetTicketAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -50,6 +53,11 @@ class PanelGetTicketAPI(
         }
 
         val ticket = databaseManager.ticketDao.getById(id, sqlClient)!!
+        val categoryTranslations = contentTranslations.loadCategories(listOf(ticket.categoryId), sqlClient)[ticket.categoryId]
+        val fields = contentTranslations.withSnapshotI18n(
+            ticket.categoryId, TicketFields.storedSnapshot(databaseManager.ticketFieldSetDao.getByTicketId(id, sqlClient)), categoryTranslations
+        )
+        val categoryI18n = contentTranslations.categoryI18n(ticket.categoryId, categoryTranslations)
 
         val username = databaseManager.userDao.getUsernameFromUserId(ticket.userId, sqlClient)!!
 
@@ -69,12 +77,12 @@ class PanelGetTicketAPI(
         val count = databaseManager.ticketMessageDao.getCountByTicketId(ticket.id, sqlClient)
 
         if (ticket.categoryId == -1L) {
-            return getResult(ticket, usernameList, null, username, messages, count)
+            return getResult(ticket, usernameList, null, username, messages, count, fields, categoryI18n)
         }
 
         val ticketCategory = databaseManager.ticketCategoryDao.getById(ticket.categoryId, sqlClient)
 
-        return getResult(ticket, usernameList, ticketCategory, username, messages, count)
+        return getResult(ticket, usernameList, ticketCategory, username, messages, count, fields, categoryI18n)
     }
 
     private fun getResult(
@@ -83,7 +91,9 @@ class PanelGetTicketAPI(
         ticketCategory: TicketCategory?,
         username: String,
         ticketMessages: List<TicketMessage>,
-        messageCount: Long
+        messageCount: Long,
+        fields: Any,
+        categoryI18n: Any
     ): Result {
         val messages = mutableListOf<Map<String, Any?>>()
 
@@ -111,12 +121,22 @@ class PanelGetTicketAPI(
                 "ticket" to mapOf(
                     "username" to username,
                     "title" to ticket.title,
-                    "category" to
-                            (ticketCategory ?: TicketCategory()),
+                    "category" to (ticketCategory ?: TicketCategory()).let { category ->
+                        mapOf(
+                            "id" to category.id,
+                            "title" to category.title,
+                            "description" to category.description,
+                            "url" to category.url,
+                            "enabled" to category.enabled,
+                            "autoReplyTemplateId" to category.autoReplyTemplateId,
+                            "i18n" to categoryI18n
+                        )
+                    },
                     "messages" to messages,
                     "status" to ticket.status,
                     "date" to ticket.date,
-                    "count" to messageCount
+                    "count" to messageCount,
+                    "fields" to fields
                 )
             )
         )

@@ -1,5 +1,8 @@
 package com.panomc.platform.route.api.panel.settings
 
+import io.vertx.core.json.JsonObject
+import com.panomc.platform.util.HtmlSanitizer
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.PlatformStateManager
 import com.panomc.platform.ReleaseStage
 import com.panomc.platform.UpdateManager
@@ -55,6 +58,7 @@ class PanelUpdateSettingsAPI(
     private val themeUiController: ThemeUiController,
     private val logger: Logger,
     private val panoMailService: PanoMailService,
+    private val contentTranslations: ContentTranslations,
 ) : PanelApi() {
     override val paths = listOf(Path("/settings", RouteType.PUT))
 
@@ -120,6 +124,8 @@ class PanelUpdateSettingsAPI(
                         .optionalProperty("websiteDescription", stringSchema())
                         .optionalProperty("websiteUrl", stringSchema())
                         .optionalProperty("registerAgreement", stringSchema())
+                        // multipart: the translations of the agreement as a JSON text, locale code -> html
+                        .optionalProperty("registerAgreementI18n", stringSchema())
                         .optionalProperty("supportEmail", stringSchema())
                         .optionalProperty("serverIpAddress", stringSchema())
                         .optionalProperty("serverGameVersion", stringSchema())
@@ -419,6 +425,17 @@ class PanelUpdateSettingsAPI(
 
         if (registerAgreement != null) {
             configManager.config.registerAgreement = registerAgreement
+        }
+
+        // the agreement in the other languages (locale code -> html), cleaned like any admin html
+        data.getString("registerAgreementI18n")?.let { text ->
+            val translations = try {
+                JsonObject(text)
+            } catch (e: Exception) {
+                throw InvalidFields(mapOf("registerAgreementI18n" to "INVALID"))
+            }
+
+            contentTranslations.setRegisterAgreement(translations, { html -> HtmlSanitizer.sanitize(html) }, getSqlClient())
         }
 
         if (supportEmail != null) {

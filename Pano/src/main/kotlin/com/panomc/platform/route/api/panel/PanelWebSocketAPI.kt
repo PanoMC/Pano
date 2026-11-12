@@ -7,6 +7,7 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageNodesPermission
 import com.panomc.platform.auth.panel.permission.ManageServersPermission
+import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.model.PanelApi
 import com.panomc.platform.model.Path
@@ -61,6 +62,7 @@ class PanelWebSocketAPI(
             val userId = authProvider.getUserIdFromRoutingContext(context)
             val canManageServers = authProvider.hasPermission(ManageServersPermission(), context)
             val canManageNodes = authProvider.hasPermission(ManageNodesPermission(), context)
+            val canManageTickets = authProvider.hasPermission(ManageTicketsPermission(), context)
 
             if (request.getHeader("Upgrade")?.equals("websocket", ignoreCase = true) != true) {
                 try {
@@ -77,7 +79,7 @@ class PanelWebSocketAPI(
 
             val future = request.toWebSocket()
             future.onSuccess { socket: ServerWebSocket ->
-                onWebSocketOpen(socket, userId, canManageServers, canManageNodes)
+                onWebSocketOpen(socket, userId, canManageServers, canManageNodes, canManageTickets)
             }
             future.onFailure {
                 if (!context.response().ended()) {
@@ -103,9 +105,10 @@ class PanelWebSocketAPI(
         socket: ServerWebSocket,
         userId: Long,
         canManageServers: Boolean,
-        canManageNodes: Boolean
+        canManageNodes: Boolean,
+        canManageTickets: Boolean
     ) {
-        panelRealtimeHub.register(socket, userId, canManageServers, canManageNodes)
+        panelRealtimeHub.register(socket, userId, canManageServers, canManageNodes, canManageTickets)
         try {
             socket.writeTextMessage(
                 JsonObject()

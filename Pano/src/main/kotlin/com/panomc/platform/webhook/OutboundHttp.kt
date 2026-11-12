@@ -1,5 +1,6 @@
 package com.panomc.platform.webhook
 
+import com.panomc.platform.db.model.WebhookFormat
 import com.panomc.platform.webhook.guard.UrlGuard
 
 import com.panomc.platform.webhook.guard.TargetPolicy
@@ -59,8 +60,8 @@ class OutboundHttp(
     }
 
     /** Validates [url] and resolves its host (steps 1 to 9 of 11 section 7.2). Never throws except for cancellation. */
-    suspend fun check(url: String, allowPrivate: Boolean, discord: Boolean = false): Checked {
-        val verdict = UrlGuard.validate(url, allowPrivate, discord)
+    suspend fun check(url: String, allowPrivate: Boolean, format: WebhookFormat = WebhookFormat.JSON): Checked {
+        val verdict = UrlGuard.validate(url, allowPrivate, format)
         val target = verdict.target ?: return Checked(TargetPolicy.Result.Refused(verdict.reason!!))
 
         val resolved: List<InetAddress>? = if (target.literal != null) {
@@ -75,15 +76,15 @@ class OutboundHttp(
             }
         }
 
-        return Checked(TargetPolicy.check(url, resolved, allowPrivate, discord))
+        return Checked(TargetPolicy.check(url, resolved, allowPrivate, format))
     }
 
     /**
      * POST [body] to [url] with [headers] (already complete: the caller adds `Content-Type`, `X-Pano-*`, the signature).
      * Always returns; transport problems come back as `error` (`TIMEOUT`, `IO:<class>`).
      */
-    suspend fun post(url: String, headers: List<Pair<String, String>>, body: ByteArray, allowPrivate: Boolean, discord: Boolean = false): Attempt {
-        val checked = check(url, allowPrivate, discord)
+    suspend fun post(url: String, headers: List<Pair<String, String>>, body: ByteArray, allowPrivate: Boolean, format: WebhookFormat = WebhookFormat.JSON): Attempt {
+        val checked = check(url, allowPrivate, format)
         val allowed = checked.result.allowed
         if (allowed == null) {
             val reason = checked.refusal!!

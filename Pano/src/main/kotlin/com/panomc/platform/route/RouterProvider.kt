@@ -129,6 +129,14 @@ class RouterProvider private constructor(
 
         // Canonical-host redirect runs before everything so cross-host browser traffic
         // is bounced to website-url before any cookie-bearing handler touches it.
+        // Pano Host: the probe the canonical-host redirect uses to check that website-url reaches this instance.
+        if (com.panomc.platform.hosted.HostedEnvConfig.current.isHosted) {
+            val reachability = applicationContext.getBean(com.panomc.platform.hosted.WebsiteUrlReachability::class.java)
+            router.get(com.panomc.platform.hosted.WebsiteUrlReachability.PATH)
+                .order(-2)
+                .handler(reachability.handler())
+        }
+
         val websiteUrlRedirectHandler = applicationContext.getBean(WebsiteUrlRedirectHandler::class.java)
         router.route("/*")
             .order(-1)

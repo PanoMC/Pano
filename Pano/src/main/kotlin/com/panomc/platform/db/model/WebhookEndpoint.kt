@@ -2,8 +2,11 @@ package com.panomc.platform.db.model
 
 import com.panomc.platform.db.DBEntity
 
-/** `webhook_endpoint.format` and `webhook_delivery.format`. */
-enum class WebhookFormat { JSON, DISCORD }
+/**
+ * `webhook_endpoint.format` and `webhook_delivery.format`. `JSON` is the plain envelope; the others take a template
+ * per event (`webhook.template.MessageFormat`).
+ */
+enum class WebhookFormat { JSON, DISCORD, SLACK, TELEGRAM, TEAMS, CUSTOM }
 
 /** `webhook_endpoint.signing` and `webhook_delivery.signing`. */
 enum class WebhookSigning { NONE, HMAC_SHA256 }
@@ -23,7 +26,8 @@ open class WebhookEndpoint(
     val signing: WebhookSigning = WebhookSigning.NONE,
     val secret: String? = null,
     val headers: String? = null,
-    val template: String? = null,
+    /** Discord only: a JSON object from an event pattern (`core.ticket.created`, `core.*`, `*`) to its template. */
+    val templates: String? = null,
     val enabled: Boolean = true,
     val maxAttempts: Int = 8,
     val failureCount: Int = 0,

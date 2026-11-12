@@ -28,5 +28,51 @@
       "skip": "Bakım modunu atla"
     },
     "skip-description": "Giriş yaptınız ve bakım sırasında siteyi görüntüleme izniniz var."
+  },
+  "webhooks": {
+    "message": {
+      "open": "Aç",
+      "fields": {
+        "player": "Oyuncu",
+        "ticket": "Talep",
+        "replied-by": "Yanıtlayan"
+      },
+      "replier": {
+        "staff": "Yetkili",
+        "player": "Oyuncu"
+      },
+      "user": {
+        "registered": {
+          "title": "Yeni oyuncu kaydoldu",
+          "description": "**{data.username}** {site.name} sitesine katıldı."
+        },
+        "deleted": {
+          "title": "Oyuncu silindi",
+          "description": "**{data.username}** adlı oyuncunun hesabı silindi."
+        }
+      },
+      "ticket": {
+        "created": {
+          "title": "Yeni destek talebi: {data.title}",
+          "description": "**{data.username}** yeni bir destek talebi açtı."
+        },
+        "replied": {
+          "title": "#{data.ticketId} numaralı talebe yeni yanıt",
+          "description": "Bir destek talebine yeni yanıt geldi."
+        }
+      },
+      "post": {
+        "published": {
+          "title": "{data.title}",
+          "description": "{site.name} sitesinde yeni bir yazı yayınlandı."
+        }
+      },
+      "test": {
+        "ping": {
+          "title": "Test mesajı",
+          "description": "Bu webhook çalışıyor. {site.name} mesajları böyle görünecek."
+        }
+      }
+    }
   }
 }

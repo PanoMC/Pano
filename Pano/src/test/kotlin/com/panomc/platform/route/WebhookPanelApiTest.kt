@@ -161,7 +161,7 @@ class WebhookPanelApiTest {
             enabled: Boolean = e.enabled, disabledReason: String? = e.disabledReason
         ) = WebhookEndpoint(
             id = id, name = e.name, url = e.url, events = e.events, format = e.format, signing = e.signing, secret = e.secret,
-            headers = e.headers, template = e.template, enabled = enabled, maxAttempts = e.maxAttempts, failureCount = failureCount,
+            headers = e.headers, templates = e.templates, enabled = enabled, maxAttempts = e.maxAttempts, failureCount = failureCount,
             lastStatusCode = lastStatusCode, lastDeliveryAt = lastDeliveryAt, disabledReason = disabledReason,
             createdAt = createdAt, updatedAt = updatedAt
         )
@@ -365,7 +365,7 @@ class WebhookPanelApiTest {
             },
             endpoints = endpointDao, deliveries = deliveryDao, webhooks = webhookService, registry = registry,
             cipher = { cipher },
-            checkUrl = { url, discord -> outbound.check(url, allowPrivate, discord).refusal },
+            checkUrl = { url, format -> outbound.check(url, allowPrivate, format).refusal },
             resetFailures = { _, id -> failureResets += id },
             arm = { armed.incrementAndGet() },
             titleOf = { if (it == WebhookEvents.CORE) "Pano" else it.replaceFirstChar { c -> c.uppercase() } },
@@ -608,7 +608,9 @@ class WebhookPanelApiTest {
 
         assertFalse(ping.getBoolean("subscribable"))
         assertEquals(JsonObject().put("message", "ping"), ping.getJsonObject("sample"))
-        assertEquals(setOf("name", "subscribable", "sample"), ping.fieldNames())
+        assertEquals(setOf("name", "subscribable", "sample", "discord", "templates", "tokens"), ping.fieldNames())
+        assertTrue(ping.getJsonObject("templates").getString("SLACK").contains("blocks"))
+        assertTrue(ping.getJsonObject("discord").getString("defaultTemplate").contains("embeds"))
 
         val market = items.getJsonObject(1)
 
@@ -657,6 +659,26 @@ class WebhookPanelApiTest {
         assertEquals(400, refused.status)
         assertEquals("INVALID_FIELDS", refused.errorCode)
         assertEquals("NOT_ALLOWED", refused.fields["template"])
+    }
+
+    @Test
+    fun `a discord endpoint keeps one checked template per event`() {
+        val ticket = """{"embeds":[{"title":"{data.title}"}]}"""
+        val answer = post(
+            "/webhooks",
+            hook("url" to DISCORD_URL, "format" to "DISCORD", "templates" to JsonObject().put("core.ticket.created", ticket).put("core.user.registered", " "))
+        )
+
+        assertEquals(200, answer.status)
+
+        val stored = endpointDao.rows.getValue(answer.json.getLong("id"))
+
+        assertEquals(mapOf("core.ticket.created" to ticket), com.panomc.platform.webhook.template.WebhookTemplates.parse(stored.templates))
+
+        val broken = post("/webhooks", hook("url" to DISCORD_URL, "format" to "DISCORD", "templates" to JsonObject().put("core.ticket.created", "{")))
+
+        assertEquals(400, broken.status)
+        assertEquals("INVALID_JSON", broken.fields["templates.core.ticket.created"])
     }
 
     @Test
@@ -1153,7 +1175,7 @@ class WebhookPanelApiTest {
         assertEquals(JsonArray().add("market.*").add("market.order.paid").encode(), stored.events)
         assertEquals("whsec_plain_secret_value", cipher.decrypt(stored.secret!!))
         assertEquals("k", JsonObject(cipher.decrypt(stored.headers!!)).getString("X-Api-Key"))
-        assertNull(stored.template)
+        assertNull(stored.templates)
         assertFalse(stored.enabled)
         assertEquals(20, stored.maxAttempts)
 
@@ -1223,12 +1245,14 @@ class WebhookPanelApiTest {
     }
 
     @Test
-    fun `core ticket created carries id, title, categoryId, userId and username`(): Unit = runBlocking {
+    fun `core ticket created carries id, title, categoryId, userId, username and the field values`(): Unit = runBlocking {
         subscribeToEverything()
 
-        coreEvents().ticketCreated(7, "Help with my rank", 1, 12, "Steve", NO_CLIENT)
+        coreEvents().ticketCreated(7, "Help with my rank", 1, 12, "Steve", NO_CLIENT, JsonObject().put("ban-id", "B-1"))
 
-        val data = assertEnvelope(queued().single(), "core.ticket.created", setOf("id", "title", "categoryId", "userId", "username"))
+        val data = assertEnvelope(queued().single(), "core.ticket.created", setOf("id", "title", "categoryId", "userId", "username", "fields"))
+
+        assertEquals("B-1", data.getJsonObject("fields").getString("ban-id"))
 
         assertEquals(7, data.getLong("id"))
         assertEquals("Help with my rank", data.getString("title"))
@@ -1350,7 +1374,7 @@ class WebhookPanelApiTest {
             "auth/AuthProvider.kt" to listOf("WebhookCoreEvents.fire { userRegistered(user, sqlClient) }"),
             "route/api/auth/RegisterAPI.kt" to listOf("WebhookCoreEvents.fire { userRegistered(registeredUser, sqlClient) }", "WebhookCoreEvents.fire { userRegistered(registeredUser, sqlClient) }"),
             "route/api/panel/players/PanelDeletePlayerAPI.kt" to listOf("WebhookCoreEvents.fire { userDeleted(user.id, user.username, sqlClient) }"),
-            "route/api/ticket/CreateTicketAPI.kt" to listOf("WebhookCoreEvents.fire { ticketCreated(id, title, categoryId, userId, username, sqlClient) }"),
+            "route/api/ticket/CreateTicketAPI.kt" to listOf("WebhookCoreEvents.fire { ticketCreated(id, title, categoryId, userId, username, sqlClient, TicketFields.webhookValues(fieldSnapshot)) }"),
             "route/api/ticket/SendTicketMessageAPI.kt" to listOf("WebhookCoreEvents.fire { ticketReplied(ticketId, messageId, userId, false, sqlClient) }"),
             "route/api/panel/ticket/PanelSendTicketMessageAPI.kt" to listOf("WebhookCoreEvents.fire { ticketReplied(ticketId, messageId, userId, true, sqlClient) }"),
             "route/api/panel/post/PanelUpdatePostStatusAPI.kt" to listOf("WebhookCoreEvents.fire { postPublished(published, sqlClient) }"),

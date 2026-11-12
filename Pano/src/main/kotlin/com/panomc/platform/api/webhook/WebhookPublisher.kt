@@ -102,6 +102,18 @@ fun interface WebhookDiscordRenderer {
 }
 
 /**
+ * Optional, for a [WebhookDiscordRenderer] that also implements it: what the panel's template editor shows for one
+ * event of the plugin. [event] is the full name (`market.order.paid`).
+ */
+interface WebhookDiscordTemplateInfo {
+    /** The template the renderer uses when the endpoint has none for [event], or `null` (the editor starts empty). */
+    fun defaultTemplate(event: String): String?
+
+    /** The tokens a template of [event] may use and their value for [envelope] (the panel's token list and preview). */
+    fun tokens(event: String, envelope: JsonObject): Map<String, String>
+}
+
+/**
  * Called on the connection of the transaction that stores the end (`SUCCEEDED` or `DEAD`) of a **direct**
  * delivery of the plugin. If it throws, the row stays `SENDING` and is retried when its claim expires.
  */

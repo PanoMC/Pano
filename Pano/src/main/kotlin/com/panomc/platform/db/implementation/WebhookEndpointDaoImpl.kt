@@ -25,7 +25,7 @@ open class WebhookEndpointDaoImpl : WebhookEndpointDao() {
 
     override suspend fun add(endpoint: WebhookEndpoint, sqlClient: SqlClient): Long {
         val query =
-            "INSERT INTO ${table()} (`name`, `url`, `events`, `format`, `signing`, `secret`, `headers`, `template`, `enabled`, `maxAttempts`, `failureCount`, `lastStatusCode`, `lastDeliveryAt`, `disabledReason`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO ${table()} (`name`, `url`, `events`, `format`, `signing`, `secret`, `headers`, `templates`, `enabled`, `maxAttempts`, `failureCount`, `lastStatusCode`, `lastDeliveryAt`, `disabledReason`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         val values = Tuple.tuple()
             .addValue(endpoint.name)
             .addValue(endpoint.url)
@@ -34,7 +34,7 @@ open class WebhookEndpointDaoImpl : WebhookEndpointDao() {
             .addValue(endpoint.signing.name)
             .addValue(endpoint.secret)
             .addValue(endpoint.headers)
-            .addValue(endpoint.template)
+            .addValue(endpoint.templates)
             .addValue(if (endpoint.enabled) 1 else 0)
             .addValue(endpoint.maxAttempts)
             .addValue(endpoint.failureCount)
@@ -72,7 +72,7 @@ open class WebhookEndpointDaoImpl : WebhookEndpointDao() {
 
     override suspend fun update(endpoint: WebhookEndpoint, now: Long, sqlClient: SqlClient): Boolean =
         sqlClient
-            .preparedQuery("UPDATE ${table()} SET `name` = ?, `url` = ?, `events` = ?, `format` = ?, `signing` = ?, `secret` = ?, `headers` = ?, `template` = ?, `enabled` = ?, `maxAttempts` = ?, `disabledReason` = ?, `updatedAt` = ? WHERE `id` = ?")
+            .preparedQuery("UPDATE ${table()} SET `name` = ?, `url` = ?, `events` = ?, `format` = ?, `signing` = ?, `secret` = ?, `headers` = ?, `templates` = ?, `enabled` = ?, `maxAttempts` = ?, `disabledReason` = ?, `updatedAt` = ? WHERE `id` = ?")
             .execute(
                 Tuple.tuple()
                     .addValue(endpoint.name)
@@ -82,7 +82,7 @@ open class WebhookEndpointDaoImpl : WebhookEndpointDao() {
                     .addValue(endpoint.signing.name)
                     .addValue(endpoint.secret)
                     .addValue(endpoint.headers)
-                    .addValue(endpoint.template)
+                    .addValue(endpoint.templates)
                     .addValue(if (endpoint.enabled) 1 else 0)
                     .addValue(endpoint.maxAttempts)
                     .addValue(endpoint.disabledReason)
@@ -135,7 +135,7 @@ open class WebhookEndpointDaoImpl : WebhookEndpointDao() {
               `signing` varchar(16) NOT NULL DEFAULT 'NONE',
               `secret` text NULL,
               `headers` text NULL,
-              `template` text NULL,
+              `templates` mediumtext NULL,
               `enabled` tinyint(1) NOT NULL DEFAULT 1,
               `maxAttempts` int NOT NULL DEFAULT 8,
               `failureCount` int NOT NULL DEFAULT 0,

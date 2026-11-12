@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.post
 
 
+import com.panomc.platform.i18n.ContentI18n
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -19,7 +21,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelGetPostAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -50,11 +53,15 @@ class PanelGetPostAPI(
         // The unsaved changes the editor kept for the post, restored into the editor when it opens.
         val autosave = databaseManager.postAutosaveDao.getByPostId(id, sqlClient)
 
+        val translations = contentTranslations.loadPosts(listOf(post.id), sqlClient)[post.id]
+
         return Successful(
             mapOf(
                 "post" to mapOf(
                     "id" to post.id,
                     "title" to post.title,
+                    // the title and text in the other languages (the editor's language switcher)
+                    "i18n" to ContentI18n.postI18n(post.id, translations),
                     "category" to post.categoryId,
                     "writerUserId" to post.writerUserId,
                     "text" to HtmlSanitizer.sanitize(post.text),

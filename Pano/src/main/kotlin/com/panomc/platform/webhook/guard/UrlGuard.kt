@@ -1,5 +1,6 @@
 package com.panomc.platform.webhook.guard
 
+import com.panomc.platform.db.model.WebhookFormat
 import java.net.IDN
 import java.net.InetAddress
 import java.net.URI
@@ -16,7 +17,7 @@ object UrlGuard {
 
     /** The verdict names of 11 section 7.2: `reason` of `INVALID_WEBHOOK_URL`, `lastError = URL_GUARD:<reason>` at send time. */
     enum class Reason(val retryable: Boolean = false) {
-        MALFORMED, SCHEME, USERINFO, HOST, PORT, DISCORD_URL, DNS(retryable = true), PRIVATE_ADDRESS
+        MALFORMED, SCHEME, USERINFO, HOST, PORT, DISCORD_URL, TELEGRAM_URL, DNS(retryable = true), PRIVATE_ADDRESS
     }
 
     /** A URL that passed the syntax rules. [literal] is set when [host] is an IP literal (no resolution is needed). */
@@ -39,6 +40,10 @@ object UrlGuard {
     /** Discord's own webhook path (an outbound URL, not a Pano route), compared without its leading slash. */
     private const val DISCORD_WEBHOOK_PATH = "api/webhooks/"
     private val DISCORD_HOSTS = setOf("discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com")
+
+    /** Telegram's `sendMessage` of one bot: `/bot<token>/sendMessage`, the chat in `?chat_id=`. */
+    private const val TELEGRAM_HOST = "api.telegram.org"
+    private val TELEGRAM_PATH = Regex("""^/bot\d+:[A-Za-z0-9_-]+/sendMessage$""")
     private val REFUSED_SUFFIXES = listOf(".localhost", ".local", ".internal", ".lan", ".home.arpa")
     private val DOTTED_QUAD = Regex("""^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$""")
     private val NUMERIC_LOOKING = Regex("^[0-9a-fx.]+$")
@@ -48,9 +53,10 @@ object UrlGuard {
      * Steps 1 to 7. [allowPrivate] is the effective `webhooks.allow-private-targets` (false when hosted): it lets the names
      * `localhost`, `*.localhost`, `*.local`, `*.internal`, `*.lan` and `*.home.arpa` through (they are then classified
      * after resolution like any other name) and the loopback / private / reserved IP literals. Link-local, metadata,
-     * unspecified, broadcast and multicast literals are refused with the flag as well. [discord] is `format == DISCORD`.
+     * unspecified, broadcast and multicast literals are refused with the flag as well. A `DISCORD` endpoint must be a Discord
+     * webhook URL, a `TELEGRAM` one Telegram's `sendMessage` of a bot with a `chat_id`.
      */
-    fun validate(url: String, allowPrivate: Boolean, discord: Boolean = false): UrlVerdict {
+    fun validate(url: String, allowPrivate: Boolean, format: WebhookFormat = WebhookFormat.JSON): UrlVerdict {
         if (url.length > MAX_URL_LENGTH || url.isEmpty()) return UrlVerdict.refused(Reason.MALFORMED)
         val uri = try {
             URI(url)
@@ -110,8 +116,16 @@ object UrlGuard {
             else -> return UrlVerdict.refused(Reason.PORT)
         }
 
-        if (discord) {
+        if (format == WebhookFormat.DISCORD) {
             if (host !in DISCORD_HOSTS || uri.rawPath?.removePrefix("/")?.startsWith(DISCORD_WEBHOOK_PATH) != true) return UrlVerdict.refused(Reason.DISCORD_URL)
+        }
+
+        if (format == WebhookFormat.TELEGRAM) {
+            val chat = uri.rawQuery?.split('&')?.any { it.startsWith("chat_id=") && it.length > "chat_id=".length } == true
+
+            if (host != TELEGRAM_HOST || scheme != "https" || !TELEGRAM_PATH.matches(uri.rawPath.orEmpty()) || !chat) {
+                return UrlVerdict.refused(Reason.TELEGRAM_URL)
+            }
         }
 
         if (literal != null && !AddressClass.of(literal).isAllowed(allowPrivate)) return UrlVerdict.refused(Reason.PRIVATE_ADDRESS)

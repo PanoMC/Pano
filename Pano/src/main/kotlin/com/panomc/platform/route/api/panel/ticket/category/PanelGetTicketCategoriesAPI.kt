@@ -1,6 +1,8 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
 
+import com.panomc.platform.i18n.ContentTranslations
+import com.panomc.platform.ticket.TicketFields
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
@@ -19,7 +21,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelGetTicketCategoriesAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -57,6 +60,9 @@ class PanelGetTicketCategoriesAPI(
             return getResult(categoriesDataList, count, page)
         }
 
+        val fieldSets = databaseManager.ticketCategoryFieldSetDao.getByCategoryIds(categories.map { it.id }, sqlClient)
+        val translations = contentTranslations.loadCategories(categories.map { it.id }, sqlClient)
+
         val addCategoryToList =
             { category: TicketCategory, count: Long, categoryDataList: MutableList<Map<String, Any?>>, tickets: List<Ticket> ->
                 val ticketDataList = mutableListOf<Map<String, Any?>>()
@@ -76,6 +82,10 @@ class PanelGetTicketCategoriesAPI(
                         "title" to category.title,
                         "description" to category.description,
                         "autoReplyTemplateId" to category.autoReplyTemplateId,
+                        "fields" to contentTranslations.withFieldI18n(
+                            category.id, TicketFields.storedDefinitions(fieldSets[category.id]), translations[category.id]
+                        ),
+                        "i18n" to contentTranslations.categoryI18n(category.id, translations[category.id]),
                         "ticketCount" to count,
                         "tickets" to ticketDataList
                     )

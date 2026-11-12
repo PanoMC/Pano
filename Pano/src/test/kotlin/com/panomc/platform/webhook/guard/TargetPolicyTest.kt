@@ -14,7 +14,7 @@ class TargetPolicyTest {
     private fun ip(vararg text: String): List<InetAddress> = text.map { InetAddress.getByName(it) }
 
     private fun refusal(url: String, resolved: List<InetAddress>?, allowPrivate: Boolean = false, discord: Boolean = false): Reason? =
-        (TargetPolicy.check(url, resolved, allowPrivate, discord) as? TargetPolicy.Result.Refused)?.reason
+        (TargetPolicy.check(url, resolved, allowPrivate, if (discord) com.panomc.platform.db.model.WebhookFormat.DISCORD else com.panomc.platform.db.model.WebhookFormat.JSON) as? TargetPolicy.Result.Refused)?.reason
 
     @Test
     fun `a public name resolving to public addresses is allowed and the first address is the pinned one`() {

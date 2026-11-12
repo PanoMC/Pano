@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.panel.post.category
 
 
+import com.panomc.platform.i18n.PostI18n
+import com.panomc.platform.i18n.ContentI18n
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
@@ -19,7 +22,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelGetPostCategoriesAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -58,6 +62,8 @@ class PanelGetPostCategoriesAPI(
             return getResult(categoryDataList, count, page)
         }
 
+        val translations = contentTranslations.loadPostCategories(categories.map { it.id }, sqlClient)
+
         val addCategoryToList =
             { category: PostCategory, count: Long, categoryDataList: MutableList<Map<String, Any?>>, posts: List<Post> ->
                 val postsDataList = mutableListOf<Map<String, Any?>>()
@@ -78,6 +84,7 @@ class PanelGetPostCategoriesAPI(
                         "description" to category.description,
                         "url" to category.url,
                         "color" to category.color,
+                        "i18n" to ContentI18n.postCategoryI18n(category.id, translations[category.id]),
                         "postCount" to count,
                         "posts" to postsDataList
                     )
@@ -110,6 +117,6 @@ class PanelGetPostCategoriesAPI(
             categoryDataList: List<Map<String, Any?>>,
             count: Long,
             page: PageRequest
-        ): Map<String, Any?> = Paging.response(categoryDataList, count, page, mapOf("host" to "http://"))
+        ): Map<String, Any?> = PostI18n.compactMap(Paging.response(categoryDataList, count, page, mapOf("host" to "http://")))
     }
 }

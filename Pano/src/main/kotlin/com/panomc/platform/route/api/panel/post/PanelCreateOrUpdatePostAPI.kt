@@ -1,5 +1,9 @@
 package com.panomc.platform.route.api.panel.post
 
+import com.panomc.platform.error.InvalidFields
+import com.panomc.platform.ticket.TicketFields
+import com.panomc.platform.i18n.ContentI18n
+import com.panomc.platform.i18n.ContentTranslations
 import java.util.UUID
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.webhook.WebhookCoreEvents
@@ -30,7 +34,8 @@ import com.panomc.platform.util.UsageMode
 class PanelCreateOrUpdatePostAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -50,6 +55,8 @@ class PanelCreateOrUpdatePostAPI(
                         .requiredProperty("text", stringSchema())
                         .optionalProperty("publish", booleanSchema())
                         .optionalProperty("removeThumbnail", booleanSchema())
+                        // the title and text in other languages, a JSON text: { "<locale>": { "title", "text" } }
+                        .optionalProperty("i18n", stringSchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -71,6 +78,22 @@ class PanelCreateOrUpdatePostAPI(
         val publish = data.getBoolean("publish") ?: true
         val url = TextUtil.convertStringToUrl(title, 32)
         val placeholderUrl = "new-post-" + UUID.randomUUID()
+
+        // checked before anything is written; absent = the post keeps its translations
+        val rawI18n = data.getString("i18n")
+        val translations = if (rawI18n != null) {
+            try {
+                ContentI18n.parseFlat(
+                    "", ContentI18n.parseJsonField(rawI18n),
+                    mapOf("title" to ContentI18n.POST_TITLE_MAX, "text" to ContentI18n.POST_TEXT_MAX),
+                    mapOf("text" to { html: String -> HtmlSanitizer.sanitize(html) })
+                )
+            } catch (e: TicketFields.Invalid) {
+                throw InvalidFields(e.errors)
+            }
+        } else {
+            null
+        }
 
         var thumbnailUrl = ""
         val body = mutableMapOf<String, Any?>()
@@ -140,10 +163,14 @@ class PanelCreateOrUpdatePostAPI(
 
             body["id"] = postId
 
+            translations?.let { saveTranslations(postId, it, sqlClient) }
+
 
             databaseManager.panelActivityLogDao.add(PublishedPostLog(userId, username, title), sqlClient)
         } else {
             databaseManager.postDao.update(userId, post, sqlClient)
+
+            translations?.let { saveTranslations(id, it, sqlClient) }
 
             databaseManager.panelActivityLogDao.add(UpdatedPostLog(userId, username, title), sqlClient)
         }
@@ -160,5 +187,12 @@ class PanelCreateOrUpdatePostAPI(
         }
 
         return Successful(body)
+    }
+
+    /** [translations] (keys without the post prefix, from `parseFlat("")`) as the post's `CONTENT` rows. */
+    private suspend fun saveTranslations(postId: Long, translations: Map<String, Map<String, String>>, sqlClient: io.vertx.sqlclient.SqlClient) {
+        val prefix = ContentI18n.postPrefix(postId)
+
+        contentTranslations.replace(prefix, translations.mapKeys { prefix + it.key }, sqlClient)
     }
 }

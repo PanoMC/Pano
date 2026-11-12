@@ -1,6 +1,10 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
 
+import io.vertx.core.json.JsonArray
+import com.panomc.platform.i18n.ContentTranslations
+import com.panomc.platform.ticket.TicketFields
+import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.UpdatedTicketCategoryLog
@@ -24,7 +28,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelUpdateTicketCategoryAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -40,6 +45,7 @@ class PanelUpdateTicketCategoryAPI(
                         .requiredProperty("description", stringSchema())
                         .optionalProperty("enabled", booleanSchema())
                         .optionalProperty("autoReplyTemplateId", numberSchema())
+                        .optionalProperty("fields", arraySchema())
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -58,9 +64,33 @@ class PanelUpdateTicketCategoryAPI(
 
         validateForm(title)
 
+        // left out of the request: the category keeps its fields
+        val fieldDefinitions = if (data.containsKey("fields")) {
+            try {
+                TicketFields.parseDefinitions(data.getValue("fields"))
+            } catch (e: TicketFields.Invalid) {
+                throw InvalidFields(e.errors)
+            }
+        } else {
+            null
+        }
+
         val sqlClient = getSqlClient()
 
         val category = databaseManager.ticketCategoryDao.getById(id, sqlClient) ?: throw NotExists()
+
+        // with `i18n` in the body the sent translations replace all of the category's (title, description, fields)
+        val translations = if (data.containsKey("i18n")) {
+            val definitions = fieldDefinitions ?: TicketFields.definitionsOf(databaseManager.ticketCategoryFieldSetDao.getByCategoryId(id, sqlClient))
+
+            try {
+                contentTranslations.parseCategory(id, data.getValue("i18n"), data.getValue("fields") as? JsonArray, definitions)
+            } catch (e: TicketFields.Invalid) {
+                throw InvalidFields(e.errors)
+            }
+        } else {
+            null
+        }
 
         // Left out of the request: the category keeps the auto-reply it has.
         val autoReplyTemplateId = data.getLong("autoReplyTemplateId") ?: category.autoReplyTemplateId
@@ -74,6 +104,11 @@ class PanelUpdateTicketCategoryAPI(
         val url = TextUtil.convertStringToUrl(title, 32)
 
         databaseManager.ticketCategoryDao.updateUrlById(id, "$url-$id", sqlClient)
+
+        // the tickets already opened keep their own copy of the fields they were opened with
+        fieldDefinitions?.let { databaseManager.ticketCategoryFieldSetDao.set(id, TicketFields.definitionsJson(it).encode(), sqlClient) }
+
+        translations?.let { contentTranslations.replace(contentTranslations.categoryPrefix(id), it, sqlClient) }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

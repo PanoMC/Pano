@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.post.category
 
+import com.panomc.platform.i18n.ContentI18n
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.DeletedPostCategoryLog
@@ -18,7 +20,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelDeletePostCategoryAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -43,6 +46,7 @@ class PanelDeletePostCategoryAPI(
         databaseManager.postDao.removePostCategoriesByCategoryId(id, sqlClient)
 
         databaseManager.postCategoryDao.deleteById(id, sqlClient)
+        contentTranslations.replace(ContentI18n.postCategoryPrefix(id), emptyMap(), sqlClient)
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!

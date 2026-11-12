@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.panel.post
 
 
+import com.panomc.platform.i18n.PostI18n
+import com.panomc.platform.i18n.ContentI18n
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
@@ -22,7 +25,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelGetPostsAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -109,8 +113,15 @@ class PanelGetPostsAPI(
         }
 
         val categories = databaseManager.postCategoryDao.getByIdList(categoryIdList, sqlClient)
+        val categoryTranslations = contentTranslations.loadPostCategories(categoryIdList, sqlClient)
+        val postTranslations = contentTranslations.loadPosts(posts.map { it.id }, sqlClient)
 
-        return getResults(null, posts, usernameList, categories, count, page, autosaves)
+        return Successful(
+            payload(
+                null, posts, usernameList, categories, count, page, autosaves,
+                PostI18n({ id -> ContentI18n.postI18n(id, postTranslations[id]) }, { id -> ContentI18n.postCategoryI18n(id, categoryTranslations[id]) })
+            )
+        )
     }
 
     private fun getResults(
@@ -136,7 +147,8 @@ class PanelGetPostsAPI(
              * The unsaved changes the editor kept, by post id: such a row shows the title and cover being worked on
              * (what the editor opens with) and says `hasUnsavedChanges`.
              */
-            autosaves: Map<Long, PostAutosave> = mapOf()
+            autosaves: Map<Long, PostAutosave> = mapOf(),
+            i18n: PostI18n = PostI18n()
         ): Map<String, Any?> {
             val postsDataList = mutableListOf<Map<String, Any?>>()
 
@@ -153,15 +165,14 @@ class PanelGetPostsAPI(
                     mapOf(
                         "id" to post.id,
                         "title" to (autosave?.title ?: post.title),
+                        "i18n" to PostI18n.titleOnly(i18n.post(post.id)),
                         "category" to
                                 (postCategory
                                     ?: if (post.categoryId == -1L)
                                         mapOf("id" to -1, "title" to "-", "url" to "-")
                                     else
-                                        categories.getOrDefault(
-                                            post.categoryId,
-                                            mapOf("id" to -1, "title" to "-", "url" to "-")
-                                        )),
+                                        categories[post.categoryId]?.let { i18n.categoryMap(it) }
+                                            ?: mapOf("id" to -1, "title" to "-", "url" to "-")),
                         "writer" to mapOf(
                             "username" to (usernameList[post.writerUserId] ?: "-")
                         ),
@@ -174,12 +185,12 @@ class PanelGetPostsAPI(
                 )
             }
 
-            return Paging.response(
+            return PostI18n.compactMap(Paging.response(
                 postsDataList,
                 count,
                 page,
                 if (postCategory != null) mapOf("category" to postCategory) else mapOf()
-            )
+            ))
         }
     }
 }

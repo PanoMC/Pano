@@ -1,6 +1,8 @@
 package com.panomc.platform.route
 
 import com.panomc.platform.config.ConfigManager
+import com.panomc.platform.hosted.HostedEnvConfig
+import com.panomc.platform.hosted.WebsiteUrlReachability
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.TrustedProxyIpResolver
 import com.panomc.platform.util.WebsiteUrlUtil
@@ -35,7 +37,8 @@ internal enum class RedirectDecision {
 class WebsiteUrlRedirectHandler(
     private val configManager: ConfigManager,
     private val setupManager: SetupManager,
-    private val logger: Logger
+    private val logger: Logger,
+    private val reachability: WebsiteUrlReachability
 ) {
     @Volatile
     private var lastUntrustedProxyWarnAt = 0L
@@ -65,7 +68,9 @@ class WebsiteUrlRedirectHandler(
             clientIp = resolveClientIp(request),
             socketPeerIp = request.remoteAddress()?.host(),
             forwardedHost = firstHeaderValue(request, "X-Forwarded-Host"),
-            hostHeader = request.getHeader("Host")
+            hostHeader = request.getHeader("Host"),
+            // Pano Host: only redirect to a website-url host that really reaches this instance.
+            targetReachable = if (HostedEnvConfig.current.isHosted) reachability::reachesThisPano else { _ -> true }
         )
     }
 
@@ -121,7 +126,8 @@ class WebsiteUrlRedirectHandler(
             clientIp: String?,
             socketPeerIp: String?,
             forwardedHost: String?,
-            hostHeader: String?
+            hostHeader: String?,
+            targetReachable: (String) -> Boolean = { true }
         ): RedirectDecision {
             if (!redirectEnabled) return RedirectDecision.PASS
             if (websiteUrl.isBlank()) return RedirectDecision.PASS
@@ -129,6 +135,7 @@ class WebsiteUrlRedirectHandler(
 
             if (ApiPaths.isApi(path)) return RedirectDecision.PASS
             if (path.startsWith("/.well-known/acme-challenge/")) return RedirectDecision.PASS
+            if (path == WebsiteUrlReachability.PATH) return RedirectDecision.PASS
 
             // WebSocket upgrades and EventSource streams can't follow 307s usefully.
             if (upgradeHeader?.lowercase() == "websocket") return RedirectDecision.PASS
@@ -152,10 +159,12 @@ class WebsiteUrlRedirectHandler(
             val requestHost = WebsiteUrlUtil.stripPort(requestHostRaw.trim()).takeIf { it.isNotEmpty() }
                 ?: return RedirectDecision.PASS
 
-            return if (configuredHost.equals(requestHost, ignoreCase = true)) {
-                RedirectDecision.PASS
-            } else {
-                RedirectDecision.REDIRECT
+            return when {
+                configuredHost.equals(requestHost, ignoreCase = true) -> RedirectDecision.PASS
+                // A website-url host that does not reach this Pano (e.g. a hosted instance whose domain is not
+                // attached yet) would bounce every visitor to a dead site: serve the host they came in on.
+                !targetReachable(configuredHost) -> RedirectDecision.PASS
+                else -> RedirectDecision.REDIRECT
             }
         }
 

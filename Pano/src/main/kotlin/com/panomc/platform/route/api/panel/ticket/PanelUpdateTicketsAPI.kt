@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket
 
+import com.panomc.platform.panel.PanelRealtimeHub
 import io.vertx.core.json.JsonArray
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -24,7 +25,8 @@ import com.panomc.platform.util.UsageMode
 class PanelUpdateTicketsAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -81,6 +83,8 @@ class PanelUpdateTicketsAPI(
                     AnAdminClosedTicketNotification(it, username),
                     sqlClient
                 )
+
+                panelRealtimeHub.notifyTicketChanged(it, ticket.userId)
             }
 
             databaseManager.panelActivityLogDao.add(

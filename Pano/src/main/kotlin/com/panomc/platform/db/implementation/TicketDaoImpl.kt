@@ -106,9 +106,10 @@ class TicketDaoImpl : TicketDao() {
         sqlClient: SqlClient
     ): List<Ticket> {
         val query =
-            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT $limit OFFSET $offset"
+            "SELECT id, title, categoryId, userId, `date`, `lastUpdate`, status FROM `${getTablePrefix() + tableName}` WHERE (`title` LIKE ? OR `id` IN (SELECT `ticketId` FROM `${getTablePrefix()}ticket_field_set` WHERE `searchText` LIKE ?)) ${if (pageType != TicketPageType.ALL) "AND status = ? " else ""}ORDER BY ${if (pageType == TicketPageType.ALL) "`status` ASC, " else ""}`lastUpdate` DESC, `id` DESC LIMIT $limit OFFSET $offset"
 
         val parameters = Tuple.tuple()
+        parameters.addString("%$search%")
         parameters.addString("%$search%")
 
         if (pageType != TicketPageType.ALL)
@@ -265,9 +266,10 @@ class TicketDaoImpl : TicketDao() {
         sqlClient: SqlClient
     ): Long {
         val query =
-            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE `title` LIKE ? ${if (pageType != TicketPageType.ALL) "AND `status` = ?" else ""}"
+            "SELECT COUNT(`id`) FROM `${getTablePrefix() + tableName}` WHERE (`title` LIKE ? OR `id` IN (SELECT `ticketId` FROM `${getTablePrefix()}ticket_field_set` WHERE `searchText` LIKE ?)) ${if (pageType != TicketPageType.ALL) "AND `status` = ?" else ""}"
 
         val parameters = Tuple.tuple()
+        parameters.addString("%$search%")
         parameters.addString("%$search%")
 
         if (pageType != TicketPageType.ALL)

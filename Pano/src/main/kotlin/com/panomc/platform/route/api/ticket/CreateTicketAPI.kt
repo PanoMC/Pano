@@ -1,5 +1,9 @@
 package com.panomc.platform.route.api.ticket
 
+import com.panomc.platform.error.InvalidFields
+import io.vertx.core.json.JsonObject
+import com.panomc.platform.ticket.TicketFields
+import com.panomc.platform.panel.PanelRealtimeHub
 import io.vertx.sqlclient.SqlClient
 
 import com.panomc.platform.ticket.TicketTemplateRenderer
@@ -38,7 +42,8 @@ class CreateTicketAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
     private val notificationManager: NotificationManager,
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -64,6 +69,7 @@ class CreateTicketAPI(
                         .requiredProperty("title", stringSchema())
                         .requiredProperty("message", stringSchema())
                         .requiredProperty("categoryId", numberSchema())
+                        .optionalProperty("fields", objectSchema().allowAdditionalProperties(true))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -95,6 +101,15 @@ class CreateTicketAPI(
             throw TicketCategoryRequired()
         }
 
+        // The category's custom fields: only the visible ones count, checked before the ticket exists.
+        val fieldDefinitions = category?.let { TicketFields.definitionsOf(databaseManager.ticketCategoryFieldSetDao.getByCategoryId(it.id, sqlClient)) }.orEmpty()
+        val fieldValues = try {
+            TicketFields.validateSubmission(fieldDefinitions, data.getValue("fields") as? JsonObject)
+        } catch (e: TicketFields.Invalid) {
+            throw InvalidFields(e.errors)
+        }
+        val fieldSnapshot = TicketFields.snapshot(fieldDefinitions, fieldValues)
+
         val id = databaseManager.ticketDao.add(
             Ticket(
                 title = title,
@@ -108,6 +123,10 @@ class CreateTicketAPI(
             sqlClient
         )
 
+        if (!fieldSnapshot.isEmpty) {
+            databaseManager.ticketFieldSetDao.set(id, fieldSnapshot.encode(), TicketFields.searchText(fieldSnapshot), sqlClient)
+        }
+
         // The category's own auto-reply (or the one for tickets without a category) comes first; without one, the
         // default of the ticket settings.
         val ownAutoReplyTemplateId = category?.autoReplyTemplateId
@@ -119,7 +138,9 @@ class CreateTicketAPI(
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
 
-        WebhookCoreEvents.fire { ticketCreated(id, title, categoryId, userId, username, sqlClient) }
+        WebhookCoreEvents.fire { ticketCreated(id, title, categoryId, userId, username, sqlClient, TicketFields.webhookValues(fieldSnapshot)) }
+
+        panelRealtimeHub.notifyTicketChanged(id, userId)
 
         notificationManager.sendNotificationToAllWithPermission(
             NewTicketNotification(

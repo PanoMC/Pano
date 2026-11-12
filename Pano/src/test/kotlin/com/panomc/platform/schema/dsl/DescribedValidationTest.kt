@@ -160,6 +160,7 @@ class DescribedValidationTest {
                 .requiredProperty("description", stringSchema())
                 .requiredProperty("url", stringSchema())
                 .requiredProperty("color", stringSchema())
+                .optionalProperty("i18n", objectSchema().allowAdditionalProperties(true))
         )
 
         assertEquals(listOf(ParamSpec(ParamLocation.PATH, "id", true, SchemaJson.of(numberSchema()))), validation.parameters)

@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket
 
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
@@ -28,7 +29,8 @@ import com.panomc.platform.util.UsageMode
 class PanelSendTicketMessageAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -93,6 +95,8 @@ class PanelSendTicketMessageAPI(
         databaseManager.panelActivityLogDao.add(RepliedTicketLog(userId, username, ticketId), sqlClient)
 
         WebhookCoreEvents.fire { ticketReplied(ticketId, messageId, userId, true, sqlClient) }
+
+        panelRealtimeHub.notifyTicketChanged(ticketId, ticket.userId)
 
         return Successful(
             mapOf(

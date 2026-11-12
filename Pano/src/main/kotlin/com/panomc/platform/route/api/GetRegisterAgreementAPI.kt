@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api
 
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.error.NotFound
@@ -12,7 +13,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 @Endpoint
 class GetRegisterAgreementAPI(
-    private val configManager: ConfigManager
+    private val configManager: ConfigManager,
+    private val contentTranslations: ContentTranslations
 ) : Api() {
     override val paths = listOf(Path("/register-agreement", RouteType.GET))
 
@@ -30,6 +32,9 @@ class GetRegisterAgreementAPI(
         if (text.isBlank()) {
             throw NotFound()
         }
-        return Successful(mapOf("registerAgreement" to text))
+        // the agreement in the other languages: the page shows the visitor's, else the default
+        return Successful(
+            mapOf("registerAgreement" to text, "registerAgreementI18n" to contentTranslations.registerAgreement(getSqlClient()))
+        )
     }
 }

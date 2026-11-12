@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.ticket
 
 
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
@@ -26,7 +27,8 @@ import com.panomc.platform.schema.EndpointDoc
 class UpdateTicketAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -87,6 +89,8 @@ class UpdateTicketAPI(
                 ManageTicketsPermission(),
                 sqlClient
             )
+
+            panelRealtimeHub.notifyTicketChanged(id, userId)
         }
 
         return Successful()

@@ -28,5 +28,51 @@
       "skip": "Skip maintenance mode"
     },
     "skip-description": "You are signed in and allowed to browse the site during maintenance."
+  },
+  "webhooks": {
+    "message": {
+      "open": "Open",
+      "fields": {
+        "player": "Player",
+        "ticket": "Ticket",
+        "replied-by": "Replied by"
+      },
+      "replier": {
+        "staff": "Staff",
+        "player": "Player"
+      },
+      "user": {
+        "registered": {
+          "title": "New player registered",
+          "description": "**{data.username}** joined {site.name}."
+        },
+        "deleted": {
+          "title": "Player deleted",
+          "description": "The account of **{data.username}** was deleted."
+        }
+      },
+      "ticket": {
+        "created": {
+          "title": "New ticket: {data.title}",
+          "description": "**{data.username}** opened a new support ticket."
+        },
+        "replied": {
+          "title": "New reply on ticket #{data.ticketId}",
+          "description": "A support ticket got a new reply."
+        }
+      },
+      "post": {
+        "published": {
+          "title": "{data.title}",
+          "description": "A new post was published on {site.name}."
+        }
+      },
+      "test": {
+        "ping": {
+          "title": "Test message",
+          "description": "This webhook works. Messages from {site.name} will look like this."
+        }
+      }
+    }
   }
 }

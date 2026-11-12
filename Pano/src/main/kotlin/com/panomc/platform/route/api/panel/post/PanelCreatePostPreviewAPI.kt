@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.post
 
+import io.vertx.core.json.JsonObject
+import com.panomc.platform.i18n.ContentI18n
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -47,6 +49,8 @@ class PanelCreatePostPreviewAPI(
                         .requiredProperty("text", stringSchema())
                         .optionalProperty("categoryId", numberSchema())
                         .optionalProperty("thumbnailUrl", stringSchema())
+                        // the editor's other languages, so the preview can be looked at in them too
+                        .optionalProperty("i18n", objectSchema().allowAdditionalProperties(true))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -72,12 +76,23 @@ class PanelCreatePostPreviewAPI(
                 text = text,
                 categoryId = data.getLong("categoryId") ?: -1L,
                 thumbnailUrl = thumbnailUrl,
-                createdAt = System.currentTimeMillis()
+                createdAt = System.currentTimeMillis(),
+                i18n = previewI18n(data.getValue("i18n"))
             )
         )
 
         return Successful(mapOf("token" to token))
     }
+
+    /** The editor's translations, cleaned like the default text; a broken one only means no translated preview. */
+    private fun previewI18n(raw: Any?): JsonObject? = runCatching {
+        val entries = ContentI18n.parseFlat(
+            "", raw, mapOf("title" to ContentI18n.POST_TITLE_MAX, "text" to ContentI18n.POST_TEXT_MAX),
+            mapOf("text" to { html: String -> HtmlSanitizer.sanitize(html) })
+        )
+
+        ContentI18n.flatI18n("", listOf("title", "text"), entries)
+    }.getOrNull()
 
     companion object {
         private const val BODY_LIMIT_BYTES = 12L * 1024 * 1024

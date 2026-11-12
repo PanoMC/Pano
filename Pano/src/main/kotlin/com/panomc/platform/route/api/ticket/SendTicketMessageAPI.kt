@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.ticket
 
 
+import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -31,7 +32,8 @@ import com.panomc.platform.schema.CoreSchemas
 class SendTicketMessageAPI(
     private val authProvider: AuthProvider,
     private val databaseManager: DatabaseManager,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val panelRealtimeHub: PanelRealtimeHub
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -105,6 +107,8 @@ class SendTicketMessageAPI(
         )
 
         WebhookCoreEvents.fire { ticketReplied(ticketId, messageId, userId, false, sqlClient) }
+
+        panelRealtimeHub.notifyTicketChanged(ticketId, userId)
 
         notificationManager.sendNotificationToAllWithPermission(
             NewTicketMessageNotification(ticketId, username),

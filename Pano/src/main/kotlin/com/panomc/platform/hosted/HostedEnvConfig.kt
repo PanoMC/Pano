@@ -46,6 +46,12 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
             "fc00::/7"
         )
 
+        /**
+         * Pano Host: Cloudflare's edge sits in front of Traefik (the Portal's routes only accept Cloudflare's ranges),
+         * so its hop is skipped too and the visitor's own address is the client IP, not the edge's.
+         */
+        val HOSTED_PROXIES = PRIVATE_PROXY_RANGES + com.panomc.platform.util.TrustedProxyIpResolver.CLOUDFLARE_KEYWORD
+
         val current by lazy { HostedEnvConfig() }
     }
 
@@ -251,7 +257,7 @@ class HostedEnvConfig(private val env: Map<String, String> = System.getenv()) {
 
         if (isHosted) {
             val proxies = config.server.trustedProxies
-            val merged = proxies + PRIVATE_PROXY_RANGES.filter { it !in proxies }
+            val merged = proxies + HOSTED_PROXIES.filter { it !in proxies }
             set("server.trusted-proxies", proxies, merged) { config.server.trustedProxies = it }
         }
 

@@ -168,6 +168,8 @@ object CoreSchemas {
         .requiredProperty("title", stringSchema())
         .requiredProperty("description", stringSchema())
         .requiredProperty("url", stringSchema())
+        // the custom fields the "new ticket" form asks for (key, label, type, required, options, conditions ...)
+        .optionalProperty("fields", arraySchema().items(objectSchema().allowAdditionalProperties(true)))
 
     /** One message of a ticket; `panel` is 1 for a staff reply. */
     val ticketMessage: ObjectSchemaBuilder = shape("TicketMessage")

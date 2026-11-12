@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.ticket
 
+import com.panomc.platform.i18n.ContentTranslations
+import com.panomc.platform.ticket.TicketFields
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.ticket.TicketSettings
 import com.panomc.platform.db.DatabaseManager
@@ -16,7 +18,8 @@ import com.panomc.platform.schema.CoreSchemas
 
 @Endpoint
 class GetTicketCategoriesAPI(
-    val databaseManager: DatabaseManager
+    val databaseManager: DatabaseManager,
+    private val contentTranslations: ContentTranslations
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -42,14 +45,21 @@ class GetTicketCategoriesAPI(
         Paging.requireInRange(page, count)
 
         // The auto-reply a category sends is the panel's business, not the site's.
-        val categories = databaseManager.ticketCategoryDao.getEnabledList(page.limit, page.offset, sqlClient)
+        val enabled = databaseManager.ticketCategoryDao.getEnabledList(page.limit, page.offset, sqlClient)
+        val fieldSets = databaseManager.ticketCategoryFieldSetDao.getByCategoryIds(enabled.map { it.id }, sqlClient)
+        val translations = contentTranslations.loadCategories(enabled.map { it.id }, sqlClient)
+
+        val categories = enabled
             .map {
                 mapOf(
                     "id" to it.id,
                     "title" to it.title,
                     "description" to it.description,
                     "url" to it.url,
-                    "enabled" to it.enabled
+                    "enabled" to it.enabled,
+                    // what the "new ticket" form asks for in this category
+                    "fields" to contentTranslations.withFieldI18n(it.id, TicketFields.storedDefinitions(fieldSets[it.id]), translations[it.id]),
+                    "i18n" to contentTranslations.categoryI18n(it.id, translations[it.id])
                 )
             }
 

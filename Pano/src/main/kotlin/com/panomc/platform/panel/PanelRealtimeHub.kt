@@ -82,7 +82,13 @@ class PanelRealtimeHub(
         val userId: Long,
         val canManageServers: Boolean,
         val canManageNodes: Boolean,
+        /** MANAGE_TICKETS: gets the `ticket` nudges of every ticket, not only of the user's own. */
+        val canManageTickets: Boolean = false,
         var subscribeNotifications: Boolean = true,
+        /** A ticket list is open: every change of a ticket this session may see is a `ticket` nudge. */
+        var subscribeTickets: Boolean = false,
+        /** A ticket page is open: the changes of this one ticket are `ticket` nudges. */
+        var subscribeTicketId: Long? = null,
         var subscribeNodes: Boolean = false,
         /**
          * How often this session wants the host metrics of the nodes it watches, in ms (SM-65,
@@ -180,11 +186,14 @@ class PanelRealtimeHub(
         }
     }
 
-    fun register(socket: ServerWebSocket, userId: Long, canManageServers: Boolean, canManageNodes: Boolean) {
+    fun register(
+        socket: ServerWebSocket, userId: Long, canManageServers: Boolean, canManageNodes: Boolean, canManageTickets: Boolean = false
+    ) {
         sessions[socket] = ClientSession(
             userId = userId,
             canManageServers = canManageServers,
-            canManageNodes = canManageNodes
+            canManageNodes = canManageNodes,
+            canManageTickets = canManageTickets
         )
     }
 
@@ -215,6 +224,13 @@ class PanelRealtimeHub(
         val s = sessions[socket] ?: return
         if (body.containsKey("subscribeNotifications")) {
             s.subscribeNotifications = body.getBoolean("subscribeNotifications", true)
+        }
+        // Anyone may ask: what a session is sent is decided per ticket in [notifyTicketChanged].
+        if (body.containsKey("subscribeTickets")) {
+            s.subscribeTickets = body.getValue("subscribeTickets") == true
+        }
+        if (body.containsKey("subscribeTicketId")) {
+            s.subscribeTicketId = (body.getValue("subscribeTicketId") as? Number)?.toLong()
         }
         if (s.canManageServers) {
             if (body.containsKey("subscribeServers")) {
@@ -412,6 +428,37 @@ class PanelRealtimeHub(
     /**
      * Tells the user's open panel session(s) to re-fetch notification state over HTTP.
      */
+    /**
+     * A ticket changed (a message, its status, created or deleted): `{ type: "ticket", ticketId }` to every session that
+     * watches the ticket ([ClientSession.subscribeTicketId]) or a ticket list ([ClientSession.subscribeTickets]) and may
+     * see it: its owner [ownerId] (`null` when unknown, e.g. after a delete) or a MANAGE_TICKETS user. The frame carries
+     * no content: the page reads the ticket again through its own, permission-checked API.
+     */
+    fun notifyTicketChanged(ticketId: Long, ownerId: Long?) {
+        val text = JsonObject()
+            .put("type", "ticket")
+            .put("ticketId", ticketId)
+            .encode()
+
+        for ((ws, s) in sessions.toList()) {
+            if (ws.isClosed) {
+                sessions.remove(ws)
+                continue
+            }
+
+            val watches = s.subscribeTickets || s.subscribeTicketId == ticketId
+            val maySee = s.canManageTickets || (ownerId != null && s.userId == ownerId)
+
+            if (!watches || !maySee) continue
+
+            try {
+                ws.writeTextMessage(text)
+            } catch (_: Exception) {
+                sessions.remove(ws)
+            }
+        }
+    }
+
     fun notifyPanelNotificationRefresh(userId: Long) {
         val text = JsonObject()
             .put("type", "notificationRefresh")

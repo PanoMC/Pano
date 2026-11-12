@@ -162,7 +162,7 @@ class WebhookEngineIT {
     ): Long = endpoints.add(
         WebhookEndpoint(
             name = "e", url = url, events = JsonArray(events).encode(), format = format, signing = signing,
-            secret = secret?.let { cipher.encrypt(it) }, enabled = enabled, maxAttempts = maxAttempts, template = template,
+            secret = secret?.let { cipher.encrypt(it) }, enabled = enabled, maxAttempts = maxAttempts, templates = template?.let { com.panomc.platform.webhook.template.WebhookTemplates.encode(mapOf("*" to it)) },
             createdAt = clock.get(), updatedAt = clock.get()
         ),
         pool
@@ -575,7 +575,7 @@ class WebhookEngineIT {
         publisher.publish(market, "order.paid", "1", data())
         endpoints.delete(gone, pool)
         endpoints.update(endpoints.getById(off, pool)!!.let {
-            WebhookEndpoint(it.id, it.name, it.url, it.events, it.format, it.signing, it.secret, it.headers, it.template, false, it.maxAttempts)
+            WebhookEndpoint(it.id, it.name, it.url, it.events, it.format, it.signing, it.secret, it.headers, it.templates, false, it.maxAttempts)
         }, clock.get(), pool)
 
         dispatcher.tick()

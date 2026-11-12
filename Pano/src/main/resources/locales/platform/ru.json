@@ -28,5 +28,51 @@
             "skip": "Пропустить режим обслуживания"
         },
         "skip-description": "Вы вошли в аккаунт, и вам разрешён просмотр сайта во время обслуживания."
+    },
+    "webhooks": {
+        "message": {
+            "open": "Открыть",
+            "fields": {
+                "player": "Игрок",
+                "ticket": "Тикет",
+                "replied-by": "Ответил"
+            },
+            "replier": {
+                "staff": "Администрация",
+                "player": "Игрок"
+            },
+            "user": {
+                "registered": {
+                    "title": "Новый игрок зарегистрировался",
+                    "description": "**{data.username}** присоединился к {site.name}."
+                },
+                "deleted": {
+                    "title": "Игрок удалён",
+                    "description": "Аккаунт **{data.username}** был удалён."
+                }
+            },
+            "ticket": {
+                "created": {
+                    "title": "Новый тикет: {data.title}",
+                    "description": "**{data.username}** открыл новый тикет в поддержку."
+                },
+                "replied": {
+                    "title": "Новый ответ в тикете #{data.ticketId}",
+                    "description": "В тикете поддержки появился новый ответ."
+                }
+            },
+            "post": {
+                "published": {
+                    "title": "{data.title}",
+                    "description": "На {site.name} опубликована новая запись."
+                }
+            },
+            "test": {
+                "ping": {
+                    "title": "Тестовое сообщение",
+                    "description": "Этот вебхук работает. Сообщения {site.name} будут выглядеть так."
+                }
+            }
+        }
     }
 }

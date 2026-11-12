@@ -12,7 +12,7 @@ import java.net.InetAddress
 /** The pure part of the SSRF guard (11 section 7.2 steps 1 to 9). */
 class UrlGuardTest {
     private fun reason(url: String, allowPrivate: Boolean = false, discord: Boolean = false): Reason? =
-        UrlGuard.validate(url, allowPrivate, discord).reason
+        UrlGuard.validate(url, allowPrivate, if (discord) com.panomc.platform.db.model.WebhookFormat.DISCORD else com.panomc.platform.db.model.WebhookFormat.JSON).reason
 
     private fun ip(text: String): InetAddress = InetAddress.getByName(text)
 
@@ -110,6 +110,17 @@ class UrlGuardTest {
         assertEquals(Reason.DISCORD_URL, reason("https://discord.com/other", discord = true))
         assertEquals(Reason.DISCORD_URL, reason("https://evil.discord.com.example.com/api/webhooks/1/a", discord = true))
         assertNull(reason("https://example.com/api/webhooks/123/abc", discord = false))
+    }
+
+    @Test
+    fun `telegram urls are a bot's sendMessage with a chat`() {
+        val telegram = com.panomc.platform.db.model.WebhookFormat.TELEGRAM
+        fun telegram(url: String) = UrlGuard.validate(url, false, telegram).reason
+
+        assertNull(telegram("https://api.telegram.org/bot123456:AA-bc_D/sendMessage?chat_id=-1001234"))
+        assertEquals(Reason.TELEGRAM_URL, telegram("https://api.telegram.org/bot123456:AAbc/sendMessage"))
+        assertEquals(Reason.TELEGRAM_URL, telegram("https://api.telegram.org/bot123456:AAbc/deleteMessage?chat_id=1"))
+        assertEquals(Reason.TELEGRAM_URL, telegram("https://evil.example/bot123456:AAbc/sendMessage?chat_id=1"))
     }
 
     @Test

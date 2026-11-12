@@ -19,6 +19,9 @@ import com.panomc.platform.model.PageRequest
 import com.panomc.platform.model.Paging
 import com.panomc.platform.plugin.PluginNamespace
 import com.panomc.platform.util.SecretCipher
+import com.panomc.platform.webhook.template.MessageFormat
+import com.panomc.platform.webhook.template.TemplateEngine
+import com.panomc.platform.webhook.template.WebhookTemplates
 import com.panomc.platform.webhook.guard.TargetPolicy
 import com.panomc.platform.webhook.guard.UrlGuard
 import io.vertx.core.Vertx
@@ -105,7 +108,7 @@ class WebhookSaved(val id: Long, val secret: String?)
  * and [importEndpoint] for a plugin that brings its own endpoints along (market's import).
  *
  * - **Secrets** are stored encrypted and read back masked ([MASK]); a generated `whsec_...` secret leaves the service
- *   once, in the answer of the call that created it. `DISCORD` never signs: its signing is normalised to `NONE`.
+ *   once, in the answer of the call that created it. The chat formats (Discord, Slack, Telegram, Teams) never sign: signing is normalised to `NONE`.
  * - **Headers** are validated by [WebhookHeaders], stored as one encrypted JSON object and read back with every value
  *   masked. On update a value equal to [MASK] keeps the stored value of that name.
  * - **Events** must be in the catalogue (exact name, `<source>.*` of a known source, or `*`); a name the endpoint already
@@ -123,7 +126,7 @@ class WebhookEndpointService(
     private val registry: WebhookRegistry,
     private val cipher: () -> SecretCipher,
     /** The refusal of the outbound guard for a URL (syntax, scheme, resolution, address class), or `null` when it is fine. */
-    private val checkUrl: suspend (url: String, discord: Boolean) -> UrlGuard.Reason?,
+    private val checkUrl: suspend (url: String, format: WebhookFormat) -> UrlGuard.Reason?,
     /** Sets `failureCount` to 0 for an endpoint that is being enabled again (the DAO's update does not touch counters). */
     private val resetFailures: suspend (client: SqlClient, id: Long) -> Unit,
     /** Makes sure the delivery timer runs (a redelivered or newly created endpoint must not wait for the next publish). */
@@ -148,11 +151,67 @@ class WebhookEndpointService(
                 "source" to source.source,
                 "title" to titleOf(source.source),
                 "events" to source.events.map {
-                    linkedMapOf("name" to it.name, "subscribable" to it.subscribable, "sample" to it.sample?.map)
+                    linkedMapOf(
+                        "name" to it.name, "subscribable" to it.subscribable, "sample" to it.sample?.map,
+                        "discord" to discordInfo(it.name),
+                        "templates" to templatesOf(it.name),
+                        "tokens" to tokenList(webhooks.tokens(WebhookFormat.CUSTOM, it.name))
+                    )
                 }
             )
         }
     )
+
+    /**
+     * What the template editor needs for [event]: `{ defaultTemplate, tokens: [{ name, sample }] }`, or `null` when the
+     * event's renderer tells nothing (a plugin renderer without [com.panomc.platform.api.webhook.WebhookDiscordTemplateInfo]).
+     */
+    private fun discordInfo(event: String): Map<String, Any?>? = runCatching {
+        val template = webhooks.defaultTemplate(WebhookFormat.DISCORD, event) ?: return null
+
+        linkedMapOf("defaultTemplate" to template, "tokens" to tokenList(webhooks.tokens(WebhookFormat.DISCORD, event)))
+    }.getOrNull()
+
+    /** The built-in template of [event] in every templated format but Discord (see `discord`): `{ SLACK: "...", ... }`. */
+    private fun templatesOf(event: String): Map<String, String?> =
+        MessageFormat.templated.filter { it != WebhookFormat.DISCORD }.associate { format ->
+            format.name to runCatching { webhooks.defaultTemplate(format, event) }.getOrNull()
+        }
+
+    private fun tokenList(tokens: Map<String, String>): List<Map<String, String>> =
+        tokens.map { (name, sample) -> linkedMapOf("name" to name, "sample" to sample) }
+
+    /**
+     * `POST /webhooks/preview`: the body of `event` in `format` (default `DISCORD`) with its sample data and `template`
+     * (absent or blank = the built-in one): `{ body, warning }`. `warning` is `TEMPLATE_ERROR` when the template gave no usable body and the
+     * built-in one is shown instead.
+     */
+    suspend fun preview(body: JsonObject): Map<String, Any?> {
+        val event = body.getValue("event") as? String
+        val template = body.getValue("template")
+        val format = (body.getValue("format") ?: WebhookFormat.DISCORD.name).let { raw -> WebhookFormat.entries.firstOrNull { it.name == raw } }
+
+        val errors = LinkedHashMap<String, String>()
+
+        if (format == null || format !in MessageFormat.templated) errors["format"] = "INVALID"
+
+        if (event == null || !WebhookTemplates.isValidKey(event) || event.endsWith("*")) errors["event"] = "INVALID"
+
+        if (template != null && template !is String) errors["template"] = "INVALID"
+        else if (template is String && template.length > MAX_TEMPLATE) errors["template"] = "TOO_LONG"
+
+        if (errors.isNotEmpty()) throw InvalidFields(errors)
+
+        val rendered = try {
+            webhooks.preview(format!!, event!!, (template as? String)?.takeIf { it.isNotBlank() })
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return linkedMapOf("body" to null, "warning" to "RENDER_FAILED")
+        }
+
+        return linkedMapOf("body" to JsonObject(rendered.body).map, "warning" to rendered.warning)
+    }
 
     /** One endpoint as the panel sees it: `secret` is [MASK] or `null`, header values are [MASK]. */
     fun view(e: WebhookEndpoint): Map<String, Any?> = linkedMapOf(
@@ -164,7 +223,9 @@ class WebhookEndpointService(
         "signing" to e.signing.name,
         "secret" to if (e.secret.isNullOrEmpty()) null else MASK,
         "headers" to storedHeaders(e).keys.associateWith { MASK },
-        "template" to e.template,
+        "templates" to WebhookTemplates.parse(e.templates),
+        // the one template of every event from before templates per event; kept for older panels
+        "template" to WebhookTemplates.parse(e.templates)[WebhookEvents.WILDCARD],
         "enabled" to e.enabled,
         "maxAttempts" to e.maxAttempts,
         "failureCount" to e.failureCount,
@@ -204,7 +265,7 @@ class WebhookEndpointService(
                 WebhookEndpoint(
                     name = parsed.name, url = parsed.url, events = parsed.events.encode(), format = parsed.format,
                     signing = parsed.signing, secret = parsed.storedSecret, headers = parsed.storedHeaders,
-                    template = parsed.template, enabled = parsed.enabled, maxAttempts = parsed.maxAttempts,
+                    templates = parsed.templates, enabled = parsed.enabled, maxAttempts = parsed.maxAttempts,
                     createdAt = at, updatedAt = at
                 ),
                 client
@@ -234,7 +295,7 @@ class WebhookEndpointService(
                 WebhookEndpoint(
                     id = id, name = parsed.name, url = parsed.url, events = parsed.events.encode(), format = parsed.format,
                     signing = parsed.signing, secret = parsed.storedSecret, headers = parsed.storedHeaders,
-                    template = parsed.template, enabled = parsed.enabled, maxAttempts = parsed.maxAttempts,
+                    templates = parsed.templates, enabled = parsed.enabled, maxAttempts = parsed.maxAttempts,
                     disabledReason = when {
                         parsed.enabled -> null
                         disabling -> MANUAL_DISABLED_REASON
@@ -278,7 +339,7 @@ class WebhookEndpointService(
     }
 
     private suspend fun checkUrlOf(parsed: Parsed) {
-        checkUrl(parsed.url, parsed.format == WebhookFormat.DISCORD)?.let { throw WebhookUrlRefused(it.name) }
+        checkUrl(parsed.url, parsed.format)?.let { throw WebhookUrlRefused(it.name) }
     }
 
     // ----- import (a plugin brings its endpoints along) ----------------------------------------------------------------
@@ -294,7 +355,7 @@ class WebhookEndpointService(
     ): Long {
         require(url.isNotBlank() && url.length <= MAX_URL) { "an endpoint needs a URL of at most $MAX_URL characters" }
 
-        val effectiveSigning = if (format == WebhookFormat.DISCORD) WebhookSigning.NONE else signing
+        val effectiveSigning = if (format in MessageFormat.unsigned) WebhookSigning.NONE else signing
 
         require(effectiveSigning != WebhookSigning.HMAC_SHA256 || !plainSecret.isNullOrEmpty()) { "HMAC_SHA256 needs a secret" }
 
@@ -306,7 +367,8 @@ class WebhookEndpointService(
                     events = JsonArray(events.distinct()).encode(), format = format, signing = effectiveSigning,
                     secret = plainSecret?.takeIf { effectiveSigning == WebhookSigning.HMAC_SHA256 }?.let { cipher().encrypt(it) },
                     headers = plainHeaders?.takeIf { it.isNotEmpty() }?.let { cipher().encrypt(JsonObject(it.toMutableMap<String, Any?>()).encode()) },
-                    template = template?.takeIf { it.isNotBlank() && format == WebhookFormat.DISCORD },
+                    templates = template?.takeIf { it.isNotBlank() && format in MessageFormat.templated }
+                        ?.let { WebhookTemplates.encode(mapOf(WebhookEvents.WILDCARD to it)) },
                     enabled = enabled, maxAttempts = maxAttempts.coerceIn(1, MAX_ATTEMPTS), createdAt = at, updatedAt = at
                 ),
                 client
@@ -325,7 +387,7 @@ class WebhookEndpointService(
         /** The value of the `secret` column (encrypted), or `null`. */
         val storedSecret: String?, val generatedSecret: String?,
         /** The value of the `headers` column (encrypted JSON), or `null`. */
-        val storedHeaders: String?, val template: String?, val enabled: Boolean, val maxAttempts: Int
+        val storedHeaders: String?, val templates: String?, val enabled: Boolean, val maxAttempts: Int
     )
 
     private fun parse(body: JsonObject, existing: WebhookEndpoint?): Parsed {
@@ -356,19 +418,11 @@ class WebhookEndpointService(
         val format = enumOf(WebhookFormat.entries, if (has("format")) body.getValue("format") else existing?.format?.name ?: "JSON", "format", errors, WebhookFormat.JSON)
         var signing = enumOf(WebhookSigning.entries, if (has("signing")) body.getValue("signing") else existing?.signing?.name ?: "NONE", "signing", errors, WebhookSigning.NONE)
 
-        // DISCORD never signs
-        if (format == WebhookFormat.DISCORD) signing = WebhookSigning.NONE
+        // a chat service never checks a signature
+        if (format in MessageFormat.unsigned) signing = WebhookSigning.NONE
 
-        // template
-        val rawTemplate = if (body.containsKey("template")) body.getValue("template") else existing?.template
-        val template = (rawTemplate as? String)?.takeIf { it.isNotBlank() }
-
-        if (rawTemplate != null && rawTemplate !is String) {
-            errors["template"] = "INVALID"
-        } else if (template != null) {
-            if (format != WebhookFormat.DISCORD) errors["template"] = "NOT_ALLOWED"
-            else if (template.length > MAX_TEMPLATE) errors["template"] = "TOO_LONG"
-        }
+        // templates (one per event; `template` is the older single one, stored under `*`)
+        val templates = parseTemplates(body, existing, format, errors)
 
         // maxAttempts
         val rawAttempts = if (has("maxAttempts")) body.getValue("maxAttempts") else existing?.maxAttempts ?: DEFAULT_ATTEMPTS
@@ -429,7 +483,7 @@ class WebhookEndpointService(
             }
         }
 
-        return Parsed(name, url, events.first, format, signing, storedSecret, generated, headers.first, template, enabled, maxAttempts)
+        return Parsed(name, url, events.first, format, signing, storedSecret, generated, headers.first, templates, enabled, maxAttempts)
     }
 
     private fun <E : Enum<E>> enumOf(values: List<E>, raw: Any?, field: String, errors: MutableMap<String, String>, default: E): E {
@@ -485,6 +539,84 @@ class WebhookEndpointService(
         }
 
         return JsonArray(names.toList()) to unknown
+    }
+
+    /**
+     * The `templates` column to store. `templates` (an object from event pattern to template text) replaces the stored
+     * map; `null` clears it; a blank text drops that event. `template` (a text) alone sets the `*` entry and keeps the
+     * rest. Only a templated format keeps templates (for `JSON` a non-empty map is `NOT_ALLOWED`); a template is checked
+     * against its format, so switching the format without sending templates drops the stored ones.
+     */
+    private fun parseTemplates(body: JsonObject, existing: WebhookEndpoint?, format: WebhookFormat, errors: MutableMap<String, String>): String? {
+        val stored = WebhookTemplates.parse(existing?.templates)
+        val result = LinkedHashMap<String, String>()
+        val sent = body.containsKey("templates") || body.containsKey("template")
+
+        when {
+            body.containsKey("templates") -> {
+                val raw = body.getValue("templates")
+
+                if (raw != null) {
+                    val obj = raw as? JsonObject ?: run {
+                        errors["templates"] = "INVALID"
+
+                        return null
+                    }
+
+                    for (key in obj.fieldNames()) {
+                        val value = obj.getValue(key)
+
+                        when {
+                            !WebhookTemplates.isValidKey(key) -> errors["templates.$key"] = "INVALID_EVENT"
+                            value == null -> Unit
+                            value !is String -> errors["templates.$key"] = "INVALID"
+                            value.isBlank() -> Unit
+                            else -> result[key] = value
+                        }
+                    }
+                }
+            }
+
+            body.containsKey("template") -> {
+                result += stored
+
+                when (val raw = body.getValue("template")) {
+                    null -> result.remove(WebhookEvents.WILDCARD)
+                    !is String -> errors["template"] = "INVALID"
+                    else -> if (raw.isBlank()) result.remove(WebhookEvents.WILDCARD) else result[WebhookEvents.WILDCARD] = raw
+                }
+            }
+
+            format in MessageFormat.templated && format == existing?.format -> result += stored
+        }
+
+        if (result.isEmpty()) return null
+
+        val messageFormat = MessageFormat.of(format)
+
+        if (messageFormat == null) {
+            if (sent) errors[if (body.containsKey("templates")) "templates" else "template"] = "NOT_ALLOWED"
+
+            return null
+        }
+
+        if (result.size > WebhookTemplates.MAX_ENTRIES) {
+            errors["templates"] = "TOO_MANY"
+
+            return null
+        }
+
+        val legacy = !body.containsKey("templates") && body.containsKey("template")
+
+        for ((key, template) in result) {
+            val field = if (legacy && key == WebhookEvents.WILDCARD) "template" else "templates.$key"
+            val problem = if (template.length > MAX_TEMPLATE) "TOO_LONG" else TemplateEngine.validate(template, messageFormat)
+
+            // a stored template from before the save-time check stays as it is
+            if (problem != null && !(stored[key] == template && existing?.format == format)) errors[field] = problem
+        }
+
+        return WebhookTemplates.encode(result)
     }
 
     /** The plain headers to store (encrypted) and the per-field errors. */
@@ -617,7 +749,7 @@ class WebhookEndpointService(
         const val MAX_ATTEMPTS = 20
         const val DEFAULT_ATTEMPTS = 8
         const val MAX_EVENTS = 200
-        const val MAX_TEMPLATE = 20_000
+        const val MAX_TEMPLATE = WebhookTemplates.MAX_TEMPLATE
         const val MANUAL_DISABLED_REASON = "MANUAL"
 
         fun current(): WebhookEndpointService = Main.applicationContext.getBean(WebhookEndpointService::class.java)
@@ -656,7 +788,7 @@ open class WebhookEndpointBeans {
             webhooks = webhookService,
             registry = registry,
             cipher = { webhookSecretCipher },
-            checkUrl = { url, discord -> outbound.check(url, allowPrivate(), discord).refusal },
+            checkUrl = { url, format -> outbound.check(url, allowPrivate(), format).refusal },
             resetFailures = { client, id ->
                 client.preparedQuery("UPDATE `${databaseManager.getTablePrefix()}webhook_endpoint` SET `failureCount` = 0 WHERE `id` = ?")
                     .execute(Tuple.of(id)).coAwait()

@@ -7,7 +7,10 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.dao.WebhookDeliveryDao
 import com.panomc.platform.db.dao.WebhookEndpointDao
+import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.hosted.HostedEnvConfig
+import com.panomc.platform.i18n.I18nManager
+import com.panomc.platform.webhook.template.CoreMessageRenderer
 import com.panomc.platform.plugin.PluginNamespace
 import com.panomc.platform.setup.SetupManager
 import com.panomc.platform.util.SecretCipher
@@ -74,7 +77,14 @@ open class WebhookBeans {
             cipher = { webhookSecretCipher },
             sender = sender,
             site = { SiteInfo(configManager.config.websiteName, configManager.config.websiteUrl) },
-            activeSources = { pluginManager.getActivePanoPlugins().map { PluginNamespace.of(it) }.toSet() }
+            activeSources = { pluginManager.getActivePanoPlugins().map { PluginNamespace.of(it) }.toSet() },
+            // the built-in texts in the site's language; read at render time, so a language change applies at once
+            core = CoreMessageRenderer { key ->
+                runCatching {
+                    Main.applicationContext.getBean(I18nManager::class.java)
+                        .getOriginalTranslation(TranslationType.PLATFORM, configManager.config.locale, key)
+                }.getOrNull()
+            }
         )
     }
 

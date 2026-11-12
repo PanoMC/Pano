@@ -1,5 +1,6 @@
 package com.panomc.platform.webhook.guard
 
+import com.panomc.platform.db.model.WebhookFormat
 import com.panomc.platform.webhook.guard.UrlGuard
 import java.net.InetAddress
 
@@ -29,8 +30,8 @@ object TargetPolicy {
      * [resolved] is the list the resolver returned for the host of [url]; `null` means resolution failed (a
      * [UrlGuard.Reason.DNS] refusal). It is ignored for an IP literal.
      */
-    fun check(url: String, resolved: List<InetAddress>?, allowPrivate: Boolean, discord: Boolean = false): Result {
-        val verdict = UrlGuard.validate(url, allowPrivate, discord)
+    fun check(url: String, resolved: List<InetAddress>?, allowPrivate: Boolean, format: WebhookFormat = WebhookFormat.JSON): Result {
+        val verdict = UrlGuard.validate(url, allowPrivate, format)
         val target = verdict.target ?: return Result.Refused(verdict.reason!!)
 
         val literal = target.literal
@@ -41,7 +42,7 @@ object TargetPolicy {
     }
 
     /** `true` when [url] passes the syntax rules and the IP-literal checks (no resolution): the hook for `ActionParser`. */
-    fun syntaxOk(url: String, allowPrivate: Boolean, discord: Boolean = false): Boolean = UrlGuard.validate(url, allowPrivate, discord).ok
+    fun syntaxOk(url: String, allowPrivate: Boolean, format: WebhookFormat = WebhookFormat.JSON): Boolean = UrlGuard.validate(url, allowPrivate, format).ok
 
     /** The flag is forced off when the instance is hosted (11 section 7.1). */
     fun effectiveAllowPrivate(flag: Boolean, hosted: Boolean): Boolean = flag && !hosted

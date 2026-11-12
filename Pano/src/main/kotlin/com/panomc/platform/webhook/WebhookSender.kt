@@ -53,7 +53,7 @@ class WebhookSender(
         }
 
         return http.post(
-            row.url, headers, row.body.toByteArray(Charsets.UTF_8), allowPrivate(), discord = row.format == WebhookFormat.DISCORD
+            row.url, headers, row.body.toByteArray(Charsets.UTF_8), allowPrivate(), format = row.format
         )
     }
 

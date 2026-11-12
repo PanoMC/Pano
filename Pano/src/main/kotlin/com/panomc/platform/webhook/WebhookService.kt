@@ -3,6 +3,7 @@ package com.panomc.platform.webhook
 import com.panomc.platform.api.webhook.DirectWebhook
 import com.panomc.platform.api.webhook.RenderedBody
 import com.panomc.platform.api.webhook.WebhookDiscordRenderer
+import com.panomc.platform.api.webhook.WebhookDiscordTemplateInfo
 import com.panomc.platform.db.dao.WebhookDeliveryDao
 import com.panomc.platform.db.dao.WebhookEndpointDao
 import com.panomc.platform.db.model.WebhookDelivery
@@ -11,6 +12,9 @@ import com.panomc.platform.db.model.WebhookEndpoint
 import com.panomc.platform.db.model.WebhookFormat
 import com.panomc.platform.db.model.WebhookSigning
 import com.panomc.platform.util.SecretCipher
+import com.panomc.platform.webhook.template.CoreMessageRenderer
+import com.panomc.platform.webhook.template.TelegramFormat
+import com.panomc.platform.webhook.template.WebhookTemplates
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLException
@@ -57,7 +61,9 @@ class WebhookService(
     private val activeSources: () -> Set<String>,
     private val now: () -> Long = System::currentTimeMillis,
     private val random: Random = Random.Default,
-    private val disableAfter: Int = WebhookEndpointDao.DEFAULT_DISABLE_AFTER
+    private val disableAfter: Int = WebhookEndpointDao.DEFAULT_DISABLE_AFTER,
+    /** The messages of the core events, and of plugin events without a renderer of their own, in every format. */
+    private val core: CoreMessageRenderer = CoreMessageRenderer()
 ) {
     // ----- publish ---------------------------------------------------------------------------------------------------
 
@@ -169,7 +175,7 @@ class WebhookService(
         for (endpoint in targets) {
             val eventId = WebhookEvents.eventId(event, subjectKey, endpoint.id)
             val envelope = envelope(eventId, event, source, at, info, data, extra)
-            val rendered = render(endpoint.format, source, name, endpoint.template, envelope)
+            val rendered = render(endpoint.format, source, name, WebhookTemplates.resolve(endpoint.templates, event), envelope, endpoint.url)
 
             val row = WebhookDelivery(
                 endpointId = endpoint.id, source = source, subjectRef = subjectRef, eventId = eventId, event = event,
@@ -190,20 +196,59 @@ class WebhookService(
 
     private class Rendered(val body: String, val error: String?, val warning: String? = null)
 
-    private suspend fun render(format: WebhookFormat, source: String, name: String, template: String?, envelope: JsonObject): Rendered = try {
+    private suspend fun render(
+        format: WebhookFormat, source: String, name: String, template: String?, envelope: JsonObject, url: String? = null
+    ): Rendered = try {
         when (format) {
             WebhookFormat.JSON -> Rendered(envelope.encode(), null)
-            WebhookFormat.DISCORD -> {
-                val renderer = registry.discord(source) ?: GenericDiscordRenderer
-
-                renderer.render(name, envelope, template).let { Rendered(it.body, null, it.warning) }
+            WebhookFormat.DISCORD -> discordRendererOf(source).render(name, envelope, template).let { Rendered(it.body, null, it.warning) }
+            WebhookFormat.TELEGRAM -> core.render(format, envelope, template).let {
+                // the chat is part of the endpoint URL (`?chat_id=`), not of the template
+                Rendered(if (url != null) TelegramFormat.withChat(it.body, url) else it.body, null, it.warning)
             }
+            else -> core.render(format, envelope, template).let { Rendered(it.body, null, it.warning) }
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         // Never break the business transaction over one endpoint's template: the row is in the log as DEAD.
         Rendered(envelope.encode(), "RENDER_FAILED")
+    }
+
+    private fun discordRendererOf(source: String): WebhookDiscordRenderer = registry.discord(source) ?: core.discord
+
+    /** The renderer data of [event] for Discord: a plugin renderer's own, `null` when it tells nothing. */
+    private fun discordTemplateInfo(event: String): WebhookDiscordTemplateInfo? =
+        discordRendererOf(WebhookEvents.sourceOf(event)) as? WebhookDiscordTemplateInfo
+
+    /**
+     * The template the editor starts from for [event] (full name) in [format], `null` when there is none (a plugin's
+     * own Discord renderer that tells nothing).
+     */
+    fun defaultTemplate(format: WebhookFormat, event: String): String? = when (format) {
+        WebhookFormat.JSON -> null
+        WebhookFormat.DISCORD -> discordTemplateInfo(event)?.defaultTemplate(event)
+        else -> core.defaultTemplate(format, event)
+    }
+
+    /** The tokens of [event] in [format] with their sample value; empty for a plugin Discord renderer that tells nothing. */
+    fun tokens(format: WebhookFormat, event: String): Map<String, String> {
+        val envelope = sampleEnvelope(event)
+
+        return if (format == WebhookFormat.DISCORD) discordTemplateInfo(event)?.tokens(event, envelope).orEmpty() else core.vars(envelope)
+    }
+
+    /** The envelope of [event] with its sample `data`, as the panel's preview and token list use it. */
+    fun sampleEnvelope(event: String): JsonObject =
+        envelope("00000000-0000-0000-0000-000000000000", event, WebhookEvents.sourceOf(event), now(), site(), registry.sample(event) ?: JsonObject(), null)
+
+    /** The panel's preview: the [format] body of [event] with its sample data and [template] (`null` = the built-in one). */
+    suspend fun preview(format: WebhookFormat, event: String, template: String?): RenderedBody {
+        val rendered = render(format, WebhookEvents.sourceOf(event), WebhookEvents.nameOf(event), template, sampleEnvelope(event))
+
+        if (rendered.error != null) throw IllegalStateException(rendered.error)
+
+        return RenderedBody(rendered.body, rendered.warning)
     }
 
     // ----- claim -----------------------------------------------------------------------------------------------------
@@ -353,7 +398,8 @@ class WebhookService(
         val eventId = UUID.randomUUID().toString()
         val data = JsonObject().put("message", "ping")
         val envelope = envelope(eventId, WebhookEvents.TEST_PING, WebhookEvents.CORE, at, site(), data, null)
-        val rendered = render(endpoint.format, WebhookEvents.CORE, WebhookEvents.nameOf(WebhookEvents.TEST_PING), endpoint.template, envelope)
+        val template = WebhookTemplates.resolve(endpoint.templates, WebhookEvents.TEST_PING)
+        val rendered = render(endpoint.format, WebhookEvents.CORE, WebhookEvents.nameOf(WebhookEvents.TEST_PING), template, envelope, endpoint.url)
 
         if (rendered.error != null) return WebhookTestResult(null, null, rendered.error)
 
@@ -458,29 +504,5 @@ class WebhookService(
 
             return envelope
         }
-    }
-}
-
-/**
- * The Discord body of an event whose plugin brought no renderer: one embed with the event name, the site and the
- * first 1 000 characters of `data`.
- */
-object GenericDiscordRenderer : WebhookDiscordRenderer {
-    const val DATA_LIMIT = 1000
-
-    override suspend fun render(event: String, envelope: JsonObject, template: String?): RenderedBody {
-        val full = envelope.getString("event") ?: event
-        val site = envelope.getJsonObject("site")
-        val siteName = site?.getString("name")?.takeIf { it.isNotBlank() } ?: site?.getString("url") ?: "Pano"
-        val data = (envelope.getValue("data")?.let { if (it is JsonObject) it.encodePrettily() else it.toString() } ?: "{}")
-            .take(DATA_LIMIT)
-
-        val embed = JsonObject()
-            .put("title", full.take(256))
-            .put("description", "```json\n$data\n```")
-            .put("color", 0x5865F2)
-            .put("footer", JsonObject().put("text", siteName.take(2048)))
-
-        return RenderedBody(JsonObject().put("embeds", io.vertx.core.json.JsonArray().add(embed)).encode())
     }
 }

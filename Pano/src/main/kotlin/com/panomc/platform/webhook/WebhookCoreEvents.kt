@@ -46,14 +46,18 @@ class WebhookCoreEvents(
         )
     }
 
-    /** `core.ticket.created`: `{ id, title, categoryId, userId, username }`, subject = the ticket id. */
+    /**
+     * `core.ticket.created`: `{ id, title, categoryId, userId, username, fields }`, subject = the ticket id. `fields`
+     * is `{ key: readable value }` of the category's custom fields the player filled in.
+     */
     suspend fun ticketCreated(
-        ticketId: Long, title: String, categoryId: Long, userId: Long, username: String, sqlClient: SqlClient?
+        ticketId: Long, title: String, categoryId: Long, userId: Long, username: String, sqlClient: SqlClient?,
+        fields: JsonObject = JsonObject()
     ) {
         emit(
             WebhookEvents.TICKET_CREATED, ticketId.toString(), "ticket:$ticketId", sqlClient,
             JsonObject().put("id", ticketId).put("title", title).put("categoryId", categoryId).put("userId", userId)
-                .put("username", username)
+                .put("username", username).put("fields", fields)
         )
     }
 

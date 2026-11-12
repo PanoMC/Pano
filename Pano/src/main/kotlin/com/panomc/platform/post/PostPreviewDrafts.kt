@@ -29,7 +29,9 @@ class PostPreviewDrafts {
         val categoryId: Long,
         /** An address or a `data:` image, as the editor shows it; empty for none. */
         val thumbnailUrl: String,
-        val createdAt: Long
+        val createdAt: Long,
+        /** The title and text in other languages as the editor holds them: locale code -> { title, text }. */
+        val i18n: io.vertx.core.json.JsonObject? = null
     )
 
     private val drafts = ConcurrentHashMap<String, Draft>()

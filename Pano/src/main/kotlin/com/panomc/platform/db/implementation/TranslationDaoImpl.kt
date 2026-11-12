@@ -22,7 +22,7 @@ class TranslationDaoImpl : TranslationDao() {
                           `localeId` varchar(10) NOT NULL,
                           `type` varchar(255) NOT NULL,
                           `key` text NOT NULL,
-                          `value` text NOT NULL,
+                          `value` mediumtext NOT NULL,
                           `createdAt` BIGINT(20) NOT NULL,
                           `updatedAt` BIGINT(20) NOT NULL,
                           PRIMARY KEY (`id`)

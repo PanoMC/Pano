@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.ticket
 
 
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Ticket
@@ -17,7 +18,11 @@ import io.vertx.sqlclient.SqlClient
 import org.springframework.stereotype.Service
 
 @Service
-class GetTicketsService(private val databaseManager: DatabaseManager, private val authProvider: AuthProvider) {
+class GetTicketsService(
+    private val databaseManager: DatabaseManager,
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
+) {
     suspend fun handle(
         context: RoutingContext,
         sqlClient: SqlClient,
@@ -69,14 +74,18 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         else
             databaseManager.ticketDao.getAllByUserIdAndPageType(userId, pageType, page.limit, page.offset, sqlClient)
 
+        // the filtered category's title in other languages
+        val filteredTranslations = ticketCategory?.let { contentTranslations.loadCategories(listOf(it.id), sqlClient) }.orEmpty()
+        val filteredI18n: (Long) -> Any? = { id -> contentTranslations.categoryI18n(id, filteredTranslations[id]) }
+
         if (tickets.isEmpty()) {
-            return Successful(payload(ticketCategory, tickets, mapOf(), null, count, page))
+            return Successful(payload(ticketCategory, tickets, mapOf(), null, count, page, filteredI18n))
         }
 
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)
 
         if (ticketCategory != null) {
-            return Successful(payload(ticketCategory, tickets, mapOf(), username, count, page))
+            return Successful(payload(ticketCategory, tickets, mapOf(), username, count, page, filteredI18n))
         }
 
         val categoryIdList =
@@ -87,8 +96,11 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
         }
 
         val ticketCategoryList = databaseManager.ticketCategoryDao.getByIdList(categoryIdList, sqlClient)
+        val translations = contentTranslations.loadCategories(categoryIdList, sqlClient)
 
-        return Successful(payload(null, tickets, ticketCategoryList, username, count, page))
+        return Successful(
+            payload(null, tickets, ticketCategoryList, username, count, page) { id -> contentTranslations.categoryI18n(id, translations[id]) }
+        )
     }
 
     companion object {
@@ -102,19 +114,34 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
             ticketCategoryList: Map<Long, TicketCategory>,
             username: String?,
             count: Long,
-            page: PageRequest
+            page: PageRequest,
+            /** The `i18n` of a category (its title in other languages), `null` = none. */
+            categoryI18n: (Long) -> Any? = { null }
         ): Map<String, Any?> {
+            // with its translations when it has some, else the row as before
+            fun categoryOf(category: TicketCategory): Any {
+                val i18n = categoryI18n(category.id)?.takeIf { it !is io.vertx.core.json.JsonObject || !it.isEmpty } ?: return category
+
+                return mapOf(
+                    "id" to category.id,
+                    "title" to category.title,
+                    "description" to category.description,
+                    "url" to category.url,
+                    "enabled" to category.enabled,
+                    "autoReplyTemplateId" to category.autoReplyTemplateId,
+                    "i18n" to i18n
+                )
+            }
+
             val items = tickets.map { ticket ->
                 mapOf(
                     "id" to ticket.id,
                     "title" to ticket.title,
-                    "category" to (ticketCategory ?: if (ticket.categoryId == -1L)
+                    "category" to (ticketCategory?.let { categoryOf(it) } ?: if (ticket.categoryId == -1L)
                         mapOf("id" to -1, "title" to "-", "url" to "-")
                     else
-                        ticketCategoryList.getOrDefault(
-                            ticket.categoryId,
-                            mapOf("id" to -1, "title" to "-", "url" to "-")
-                        )),
+                        ticketCategoryList[ticket.categoryId]?.let { categoryOf(it) }
+                            ?: mapOf("id" to -1, "title" to "-", "url" to "-")),
                     "writer" to mapOf(
                         "username" to username
                     ),
@@ -128,7 +155,7 @@ class GetTicketsService(private val databaseManager: DatabaseManager, private va
                 items,
                 count,
                 page,
-                if (ticketCategory != null) mapOf("category" to ticketCategory) else mapOf()
+                if (ticketCategory != null) mapOf("category" to categoryOf(ticketCategory)) else mapOf()
             )
         }
     }

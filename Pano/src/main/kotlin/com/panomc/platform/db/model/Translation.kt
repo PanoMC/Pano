@@ -17,7 +17,9 @@ data class Translation(
             THEME,
             PLUGIN,
             PLATFORM,
-            MC_PLUGIN
+            MC_PLUGIN,
+            /** Admin-written content (ticket categories and fields, the registration agreement): `i18n.ContentTranslations`. */
+            CONTENT
         }
     }
 }

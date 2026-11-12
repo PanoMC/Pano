@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.locale
 
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.AppConstants
 import com.panomc.platform.PluginManager
 import com.panomc.platform.UIManager
@@ -39,6 +40,7 @@ class PanelGetLocaleTranslationsAPI(
     private val authProvider: AuthProvider,
     private val i18nManager: I18nManager,
     private val configManager: ConfigManager,
+    private val contentTranslations: ContentTranslations,
 ) : PanelApi() {
     companion object {
         const val SOURCE_PLUGIN = "plugin"
@@ -131,6 +133,11 @@ class PanelGetLocaleTranslationsAPI(
         var originalTranslations: MutableMap<String, Any>
 
         when (type) {
+            // admin-written content: the texts typed in the panel are the originals
+            TranslationType.CONTENT -> {
+                originalTranslations = contentTranslations.originals(sqlClient).mapValues { it.value as Any }.toMutableMap()
+            }
+
             TranslationType.PLATFORM, TranslationType.MC_PLUGIN -> {
                 // Get original translations from I18nManager (internal JAR resources)
                 originalTranslations = i18nManager.getOriginalTranslations(type, locale.code)

@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.posts
 
 
+import com.panomc.platform.i18n.PostI18n
+import com.panomc.platform.i18n.ContentI18n
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.util.PostStatus
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
@@ -21,7 +24,8 @@ import com.panomc.platform.schema.CoreSchemas
 
 @Endpoint
 class GetPostDetailAPI(
-    private val databaseManager: DatabaseManager
+    private val databaseManager: DatabaseManager,
+    private val contentTranslations: ContentTranslations
 ) : Api() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -84,18 +88,24 @@ class GetPostDetailAPI(
             nextPost = databaseManager.postDao.getNextPostByDate(post.date, sqlClient)
         }
 
+        val postTranslations = contentTranslations.loadPosts(listOfNotNull(post.id, previousPost?.id, nextPost?.id), sqlClient)
+        val categoryTranslations = contentTranslations.loadPostCategories(listOfNotNull(postCategory?.id), sqlClient)
+        fun postI18n(id: Long) = ContentI18n.postI18n(id, postTranslations[id])
+
         return Successful(
-            mapOf(
+            PostI18n.compactMap(mapOf(
                 "post" to mapOf(
                     "id" to post.id,
                     "title" to post.title,
+                    "i18n" to postI18n(post.id),
                     "category" to
                             if (postCategory == null)
                                 mapOf("id" to -1, "title" to "-")
                             else
                                 mapOf<String, Any?>(
                                     "title" to postCategory.title,
-                                    "url" to postCategory.url
+                                    "url" to postCategory.url,
+                                    "i18n" to ContentI18n.postCategoryI18n(postCategory.id, categoryTranslations[postCategory.id])
                                 ),
                     "writer" to mapOf(
                         "username" to username
@@ -114,7 +124,8 @@ class GetPostDetailAPI(
                             mapOf<String, Any?>(
                                 "id" to previousPost.id,
                                 "title" to previousPost.title,
-                                "url" to previousPost.url
+                                "url" to previousPost.url,
+                                "i18n" to PostI18n.titleOnly(postI18n(previousPost.id))
                             ),
                 "nextPost" to
                         if (nextPost == null)
@@ -123,9 +134,10 @@ class GetPostDetailAPI(
                             mapOf<String, Any?>(
                                 "id" to nextPost.id,
                                 "title" to nextPost.title,
-                                "url" to nextPost.url
+                                "url" to nextPost.url,
+                                "i18n" to PostI18n.titleOnly(postI18n(nextPost.id))
                             )
-            )
+            ))
         )
     }
 }

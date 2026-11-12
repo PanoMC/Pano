@@ -1,5 +1,7 @@
 package com.panomc.platform.route.api.panel.locale
 
+import com.panomc.platform.util.HtmlSanitizer
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.UpdatedTranslationsLog
@@ -44,8 +46,18 @@ class PanelUpdateLocaleTranslationsAPI(
         val requestBody = parameters.body().jsonObject
 
         val translations = requestBody.getJsonObject("translations").map
+        val contentType = parameters.pathParameter("type").string == TranslationType.CONTENT.name
+
+        // admin-written content: the agreement is html (cleaned like the agreement itself), the rest plain text
+        if (contentType) {
+            translations[ContentTranslations.REGISTER_AGREEMENT]?.let {
+                translations[ContentTranslations.REGISTER_AGREEMENT] = HtmlSanitizer.sanitize(it.toString())
+            }
+        }
 
         translations.forEach { (key, value) ->
+            if (contentType && key == ContentTranslations.REGISTER_AGREEMENT) return@forEach
+
             if (!isSafeMarkup(value.toString())) {
                 throw BadRequest(
                     extras = mapOf(

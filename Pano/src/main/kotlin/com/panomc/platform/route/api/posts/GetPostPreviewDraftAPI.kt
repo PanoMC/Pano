@@ -1,5 +1,8 @@
 package com.panomc.platform.route.api.posts
 
+import com.panomc.platform.i18n.ContentTranslations
+import com.panomc.platform.i18n.PostI18n
+import com.panomc.platform.i18n.ContentI18n
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.db.DatabaseManager
@@ -31,7 +34,8 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 class GetPostPreviewDraftAPI(
     private val databaseManager: DatabaseManager,
     private val authProvider: AuthProvider,
-    private val postPreviewDrafts: PostPreviewDrafts
+    private val postPreviewDrafts: PostPreviewDrafts,
+    private val contentTranslations: ContentTranslations
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -87,6 +91,14 @@ class GetPostPreviewDraftAPI(
         }
 
         // No neighbours: an unsaved post has no place in the list yet.
-        return Successful(GetPostPreviewAPI.body(post, category, username, null, null))
+        // the draft's own translations (the editor's other languages) and the category's stored ones
+        val categoryTranslations = category?.let { contentTranslations.loadPostCategories(listOf(it.id), sqlClient) }.orEmpty()
+
+        return Successful(
+            GetPostPreviewAPI.body(
+                post, category, username, null, null,
+                PostI18n({ draft.i18n }, { id -> ContentI18n.postCategoryI18n(id, categoryTranslations[id]) })
+            )
+        )
     }
 }

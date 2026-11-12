@@ -1,5 +1,8 @@
 package com.panomc.platform.route.api.posts
 
+import com.panomc.platform.i18n.ContentTranslations
+import com.panomc.platform.i18n.PostI18n
+import com.panomc.platform.i18n.ContentI18n
 import com.panomc.platform.auth.panel.permission.ManagePostsPermission
 import com.panomc.platform.util.HtmlSanitizer
 import com.panomc.platform.annotation.Endpoint
@@ -31,7 +34,8 @@ import com.panomc.platform.schema.CoreSchemas
 @Endpoint
 class GetPostPreviewAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : LoggedInApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -87,7 +91,15 @@ class GetPostPreviewAPI(
             databaseManager.postDao.getNextPostByDate(post.date, sqlClient)
         } else null
 
-        return Successful(body(post, category, username, previous, next))
+        val postTranslations = contentTranslations.loadPosts(listOfNotNull(post.id, previous?.id, next?.id), sqlClient)
+        val categoryTranslations = contentTranslations.loadPostCategories(listOfNotNull(category?.id), sqlClient)
+
+        return Successful(
+            body(
+                post, category, username, previous, next,
+                PostI18n({ id -> ContentI18n.postI18n(id, postTranslations[id]) }, { id -> ContentI18n.postCategoryI18n(id, categoryTranslations[id]) })
+            )
+        )
     }
 
     companion object {
@@ -105,16 +117,18 @@ class GetPostPreviewAPI(
             category: PostCategory?,
             writerUsername: String?,
             previous: Post?,
-            next: Post?
-        ): Map<String, Any?> = mapOf(
+            next: Post?,
+            i18n: PostI18n = PostI18n()
+        ): Map<String, Any?> = PostI18n.compactMap(mapOf(
             "post" to mapOf(
                 "id" to post.id,
                 "title" to post.title,
+                "i18n" to i18n.post(post.id),
                 "category" to
                         if (category == null)
                             mapOf("id" to -1, "title" to "-")
                         else
-                            mapOf<String, Any?>("title" to category.title, "url" to category.url),
+                            mapOf<String, Any?>("title" to category.title, "url" to category.url, "i18n" to i18n.category(category.id)),
                 "writer" to mapOf("username" to (writerUsername ?: "-")),
                 "text" to HtmlSanitizer.sanitize(post.text),
                 "date" to post.date,
@@ -123,11 +137,12 @@ class GetPostPreviewAPI(
                 "views" to post.views,
                 "url" to post.url
             ),
-            "previousPost" to neighbour(previous),
-            "nextPost" to neighbour(next)
-        )
+            "previousPost" to neighbour(previous, i18n),
+            "nextPost" to neighbour(next, i18n)
+        ))
 
-        private fun neighbour(post: Post?): Any =
-            if (post == null) "-" else mapOf<String, Any?>("id" to post.id, "title" to post.title, "url" to post.url)
+        private fun neighbour(post: Post?, i18n: PostI18n): Any =
+            if (post == null) "-"
+            else mapOf<String, Any?>("id" to post.id, "title" to post.title, "url" to post.url, "i18n" to PostI18n.titleOnly(i18n.post(post.id)))
     }
 }

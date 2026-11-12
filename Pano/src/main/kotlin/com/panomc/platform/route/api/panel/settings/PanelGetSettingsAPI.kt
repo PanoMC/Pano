@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.Main
 import com.panomc.platform.PanoApiManager
 import com.panomc.platform.PlatformStateManager
@@ -31,7 +32,8 @@ class PanelGetSettingsAPI(
     private val databaseManager: DatabaseManager,
     private val updateManager: UpdateManager,
     private val platformStateManager: PlatformStateManager,
-    private val maintenanceModeManager: MaintenanceModeManager
+    private val maintenanceModeManager: MaintenanceModeManager,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val paths = listOf(Path("/settings", RouteType.GET))
 
@@ -104,6 +106,7 @@ class PanelGetSettingsAPI(
             result["websiteDescription"] = configManager.config.websiteDescription
             result["websiteUrl"] = configManager.config.websiteUrl
             result["registerAgreement"] = configManager.config.registerAgreement
+            result["registerAgreementI18n"] = contentTranslations.registerAgreement(databaseManager.getSqlClient())
             result["supportEmail"] = configManager.config.supportEmail
             result["serverIpAddress"] = configManager.config.serverIpAddress
             result["serverGameVersion"] = configManager.config.serverGameVersion

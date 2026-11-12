@@ -1,6 +1,9 @@
 package com.panomc.platform.route.api.panel.post.category
 
 
+import com.panomc.platform.ticket.TicketFields
+import com.panomc.platform.i18n.ContentI18n
+import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.log.UpdatedPostCategoryLog
@@ -23,7 +26,8 @@ import com.panomc.platform.util.UsageMode
 @Endpoint
 class PanelUpdatePostCategoryAPI(
     private val databaseManager: DatabaseManager,
-    private val authProvider: AuthProvider
+    private val authProvider: AuthProvider,
+    private val contentTranslations: ContentTranslations
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_WEBSITE
 
@@ -39,6 +43,8 @@ class PanelUpdatePostCategoryAPI(
                         .requiredProperty("description", stringSchema())
                         .requiredProperty("url", stringSchema())
                         .requiredProperty("color", stringSchema())
+                        // the title and description in other languages: { "<locale>": { "title", "description" } }
+                        .optionalProperty("i18n", objectSchema().allowAdditionalProperties(true))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -58,6 +64,16 @@ class PanelUpdatePostCategoryAPI(
 
         validateForm(title, url, color)
 
+        val translations = if (data.containsKey("i18n")) {
+            try {
+                ContentI18n.parseFlat("", data.getValue("i18n"), mapOf("title" to TITLE_I18N_MAX, "description" to ContentTranslations.DESCRIPTION_MAX))
+            } catch (e: TicketFields.Invalid) {
+                throw InvalidFields(e.errors)
+            }
+        } else {
+            null
+        }
+
         val sqlClient = getSqlClient()
 
         val exists = databaseManager.postCategoryDao.existsByUrlNotById(url, id, sqlClient)
@@ -74,6 +90,8 @@ class PanelUpdatePostCategoryAPI(
             PostCategory(id, title, description, url, color),
             sqlClient
         )
+
+        translations?.let { contentTranslations.replace(ContentI18n.postCategoryPrefix(id), it.mapKeys { entry -> ContentI18n.postCategoryPrefix(id) + entry.key }, sqlClient) }
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val username = databaseManager.userDao.getUsernameFromUserId(userId, sqlClient)!!
@@ -107,5 +125,10 @@ class PanelUpdatePostCategoryAPI(
         if (errors.isNotEmpty()) {
             throw InvalidFields(errors)
         }
+    }
+
+    private companion object {
+        /** The longest translated title: the default title's limit. */
+        const val TITLE_I18N_MAX = 255
     }
 }

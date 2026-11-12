@@ -16,7 +16,8 @@ class WebsiteUrlRedirectHandlerTest {
         clientIp: String? = "203.0.113.10",
         socketPeerIp: String? = "203.0.113.10",
         forwardedHost: String? = null,
-        hostHeader: String? = "tealmc.com"
+        hostHeader: String? = "tealmc.com",
+        targetReachable: (String) -> Boolean = { true }
     ) = decideRedirect(
         redirectEnabled = redirectEnabled,
         websiteUrl = websiteUrl,
@@ -26,8 +27,37 @@ class WebsiteUrlRedirectHandlerTest {
         clientIp = clientIp,
         socketPeerIp = socketPeerIp,
         forwardedHost = forwardedHost,
-        hostHeader = hostHeader
+        hostHeader = hostHeader,
+        targetReachable = targetReachable
     )
+
+    @Test
+    fun `passes when the website url host does not reach this pano`() {
+        var asked: String? = null
+        assertEquals(
+            RedirectDecision.PASS,
+            decide(websiteUrl = "https://support.example.net", hostHeader = "demo.panomc.site", targetReachable = { asked = it; false })
+        )
+        assertEquals("support.example.net", asked)
+    }
+
+    @Test
+    fun `redirects when the website url host reaches this pano`() {
+        assertEquals(
+            RedirectDecision.REDIRECT,
+            decide(websiteUrl = "https://support.example.net", hostHeader = "demo.panomc.site", targetReachable = { true })
+        )
+    }
+
+    @Test
+    fun `does not probe for requests already on the website url host`() {
+        assertEquals(RedirectDecision.PASS, decide(targetReachable = { error("probed") }))
+    }
+
+    @Test
+    fun `passes the reachability probe path`() {
+        assertEquals(RedirectDecision.PASS, decide(path = "/.well-known/pano/instance-check", hostHeader = "other.com"))
+    }
 
     @Test
     fun `passes when redirect is disabled`() {

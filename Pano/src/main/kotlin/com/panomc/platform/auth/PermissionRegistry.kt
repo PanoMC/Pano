@@ -12,7 +12,12 @@ import org.springframework.stereotype.Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class PermissionRegistry() : PluginLifecycleListener {
 
-    private val permissions = mutableMapOf<String, MutableSet<Permission>>()
+    /**
+     * The permissions of each source, keyed by node (`pano.manage.tickets`): a plugin that is loaded again (an update,
+     * a re-enable) replaces its own entries instead of adding a second copy of each, which the panel's node list
+     * cannot show twice.
+     */
+    private val permissions = mutableMapOf<String, LinkedHashMap<String, Permission>>()
 
     companion object {
         // Key used for platform-level permissions
@@ -31,7 +36,7 @@ class PermissionRegistry() : PluginLifecycleListener {
 
     fun register(source: String, permission: Permission) {
         permission.source = source
-        permissions.getOrPut(source) { mutableSetOf() }.add(permission)
+        permissions.getOrPut(source) { LinkedHashMap() }[permission.toString()] = permission
     }
 
     fun unregisterAll(source: String) {
@@ -41,15 +46,18 @@ class PermissionRegistry() : PluginLifecycleListener {
     fun getSource(permission: Permission): String? {
         val packageName = permission.javaClass.`package`.name
         return permissions.entries.find { (_, perms) ->
-            perms.any { it.javaClass.`package`.name == packageName }
+            perms.values.any { it.javaClass.`package`.name == packageName }
         }?.key
     }
 
     fun getAllPermissions(): Map<String, List<Permission>> {
-        return permissions.mapValues { it.value.toList() }
+        return permissions.mapValues { it.value.values.toList() }
     }
 
     override suspend fun onPluginLoad(plugin: PanoPlugin) {
+        // a plugin loaded again starts from a clean list: nodes it no longer declares go away
+        unregisterAll(plugin.pluginId)
+
         val allPermissions = plugin.pluginBeanContext.getBeansOfType(Permission::class.java)
         allPermissions.values.forEach { bean ->
             if (bean::class.java.isAnnotationPresent(PermissionDefinition::class.java)) {

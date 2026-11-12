@@ -137,7 +137,7 @@ class SnapshotFormatTest {
         assertEquals(6, files.size)
 
         files.forEach { entry ->
-            val bytes = File(base, "tree/${entry.p}").readBytes()
+            val bytes = File(base, "tree/${onDisk(entry.p)}").readBytes()
             val ids = ArrayList<String>()
 
             chunker.split(ByteArrayInputStream(bytes)) { buffer, offset, length ->
@@ -285,4 +285,10 @@ class SnapshotFormatTest {
     }
 
     private operator fun <T> List<T>.component6() = this[5]
+
+    /**
+     * The tree's file names as stored in git: `<` / `>` (in `themes/a&b=<c> ş.txt`, on purpose) cannot be checked out on
+     * Windows, so they are percent-encoded on disk; the manifest keeps the real path.
+     */
+    private fun onDisk(path: String): String = path.replace("<", "%3C").replace(">", "%3E")
 }

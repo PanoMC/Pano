@@ -14,7 +14,8 @@ data class User(
     val banMessage: String? = null,
     val bannedUntil: Long? = null,
     val canCreateTicket: Boolean = true,
-    val lastActivityTime: Long = 0L,
+    // A new user starts at its last login, never at 0 (which shows as 1 January 1970).
+    val lastActivityTime: Long = lastLoginDate,
     val lastPanelActivityTime: Long = 0L,
     val localeCode: String? = null,
     val linkCode: String? = null,

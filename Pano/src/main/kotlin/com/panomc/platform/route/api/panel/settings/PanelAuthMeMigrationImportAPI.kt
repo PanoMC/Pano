@@ -189,8 +189,13 @@ class PanelAuthMeMigrationImportAPI(
             val realName = authmeUser["realName"] as? String ?: username
             val email = authmeUser["email"] as? String
             val ip = authmeUser["ip"] as? String ?: "0.0.0.0"
-            val lastLogin = authmeUser["lastLogin"] as? Long ?: System.currentTimeMillis()
-            val registrationDate = authmeUser["registrationDate"] as? Long ?: System.currentTimeMillis()
+            // AuthMe leaves a date empty (NULL, read as 0) for a player who never registered or logged in on the
+            // web: a missing date takes the other one, then the import time, never 0 (1 January 1970).
+            val now = System.currentTimeMillis()
+            val authmeLastLogin = (authmeUser["lastLogin"] as? Number)?.toLong()?.takeIf { it > 0L }
+            val authmeRegistrationDate = (authmeUser["registrationDate"] as? Number)?.toLong()?.takeIf { it > 0L }
+            val registrationDate = authmeRegistrationDate ?: authmeLastLogin ?: now
+            val lastLogin = authmeLastLogin ?: registrationDate
             val password = authmeUser["password"] as? String
 
             try {

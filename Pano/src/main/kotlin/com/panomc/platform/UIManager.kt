@@ -25,6 +25,7 @@ import com.panomc.platform.ui.UpstreamTarget
 import com.panomc.platform.util.annotation.StrictValidation
 import com.panomc.platform.util.ForwardedProtoInterceptor
 import com.panomc.platform.util.UpstreamRetryInterceptor
+import com.panomc.platform.util.DevUiDownInterceptor
 import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.http.HttpClient
@@ -1358,6 +1359,16 @@ class UIManager(
      */
     private fun upstreamRetryInterceptor(uiId: String) = UpstreamRetryInterceptor(logger, uiId)
 
+    /**
+     * See [DevUiDownInterceptor]: in development mode a UI Pano did not start (`init-ui = false`, a theme dev server)
+     * that cannot be reached answers a page with the command that starts it instead of a blank 502. A UI Pano
+     * started itself keeps the plain 502: its process is Pano's, the log says why it is down.
+     */
+    private fun devUiDownInterceptor(uiId: String, info: () -> DevUiDownInterceptor.Info) = DevUiDownInterceptor(
+        active = { configManager.config.developmentMode && startedUIList.none { it.id == uiId } },
+        info = info,
+    )
+
     /** See [ForwardedProtoInterceptor]: the UIs read `X-Forwarded-Proto` to learn their scheme. */
     private val forwardedProtoInterceptor = ForwardedProtoInterceptor { configManager.config.server.trustedProxies }
 
@@ -1410,10 +1421,14 @@ class UIManager(
         val setupUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         setupUI.addInterceptor(uiCacheControlInterceptor)
         setupUI.addInterceptor(forwardedProtoInterceptor)
-        setupUI.addInterceptor(upstreamRetryInterceptor("setup-ui"))
 
         val startedSetupUI = startedUIList.find { it.id == "setup-ui" }
         val port = startedSetupUI?.port ?: 3002
+
+        setupUI.addInterceptor(devUiDownInterceptor("setup-ui") {
+            DevUiDownInterceptor.Info("The setup wizard is not running", "http://127.0.0.1:$port", "setup-ui")
+        })
+        setupUI.addInterceptor(upstreamRetryInterceptor("setup-ui"))
 
         val config = configManager.config
         val serverConfig = config.server
@@ -1439,7 +1454,6 @@ class UIManager(
         val panelUI = HttpProxy.reverseProxy(ProxyOptions().setSupportWebSocket(true), httpClient)
         panelUI.addInterceptor(uiCacheControlInterceptor)
         panelUI.addInterceptor(forwardedProtoInterceptor)
-        panelUI.addInterceptor(upstreamRetryInterceptor("panel-ui"))
 
         val startedPanelUI = startedUIList.find { it.id == "panel-ui" }
 
@@ -1447,6 +1461,11 @@ class UIManager(
         val serverConfig = config.server
 
         val port = startedPanelUI?.port ?: 3001
+
+        panelUI.addInterceptor(devUiDownInterceptor("panel-ui") {
+            DevUiDownInterceptor.Info("The panel is not running", "http://127.0.0.1:$port", "panel-ui")
+        })
+        panelUI.addInterceptor(upstreamRetryInterceptor("panel-ui"))
 
         panelUI.origin(port, "127.0.0.1")
 
@@ -1525,6 +1544,25 @@ class UIManager(
         }
 
         siteUI.addInterceptor(forwardedProtoInterceptor)
+
+        // A theme or its dev server (`frontend.dev-url`); a custom app and an EXTERNAL front-end are not ours to explain.
+        val origin = "${if (ssl) "https" else "http"}://$host:$port"
+        when {
+            id == DEV_SERVER_FRONTEND_ID -> siteUI.addInterceptor(devUiDownInterceptor(id) {
+                DevUiDownInterceptor.Info(
+                    "The theme dev server is not running",
+                    origin,
+                    null,
+                    note = "It is the address in frontend.dev-url of config.conf: start the theme's dev server there " +
+                        "(bun run dev in the theme folder), or clear dev-url to let Pano serve the theme.",
+                )
+            })
+
+            !external && frontendMode == FrontendMode.THEME -> siteUI.addInterceptor(devUiDownInterceptor(id) {
+                DevUiDownInterceptor.Info("The theme \"$id\" is not running", origin, "themes/$id")
+            })
+        }
+
         siteUI.addInterceptor(upstreamRetryInterceptor(id))
 
         if (ssl) {

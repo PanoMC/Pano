@@ -155,6 +155,12 @@ abstract class TicketDao : Dao<Ticket>(Ticket::class.java) {
         sqlClient: SqlClient
     )
 
+    abstract suspend fun updateTitle(
+        id: Long,
+        title: String,
+        sqlClient: SqlClient
+    )
+
     abstract suspend fun add(
         ticket: Ticket,
         sqlClient: SqlClient

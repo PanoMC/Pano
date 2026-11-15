@@ -9,6 +9,7 @@ import com.panomc.platform.error.InvalidFields
 import com.panomc.platform.model.*
 import com.panomc.platform.schema.dsl.Bodies.json
 import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
+import com.panomc.platform.ticket.TicketForm
 import com.panomc.platform.ticket.TicketSettings
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.RequestPredicate
@@ -34,6 +35,8 @@ class PanelUpdateTicketSettingsAPI(
                         .requiredProperty("allowNoCategory", booleanSchema())
                         .optionalProperty("defaultAutoReplyTemplateId", numberSchema())
                         .optionalProperty("noCategoryAutoReplyTemplateId", numberSchema())
+                        .optionalProperty("categoryEnabled", booleanSchema())
+                        .optionalProperty("noCategoryForm", objectSchema().allowAdditionalProperties(true))
                 )
             )
             .predicate(RequestPredicate.BODY_REQUIRED)
@@ -60,7 +63,17 @@ class PanelUpdateTicketSettingsAPI(
             throw InvalidFields(unknown.mapValues { true })
         }
 
+        // Left out of the request: they stay as they are.
+        val categoryEnabled = data.getBoolean("categoryEnabled")
+        val noCategoryForm = if (data.containsKey("noCategoryForm"))
+            TicketForm.parse(data.getValue("noCategoryForm"), TicketSettings.noCategoryForm(databaseManager, sqlClient))
+        else null
+
         TicketSettings.setAllowNoCategory(allowNoCategory, databaseManager, sqlClient)
+
+        categoryEnabled?.let { TicketSettings.setCategoryEnabled(it, databaseManager, sqlClient) }
+
+        noCategoryForm?.let { TicketSettings.setNoCategoryForm(it, databaseManager, sqlClient) }
 
         autoReplies["defaultAutoReplyTemplateId"]?.let {
             TicketSettings.setDefaultAutoReplyTemplateId(it, databaseManager, sqlClient)

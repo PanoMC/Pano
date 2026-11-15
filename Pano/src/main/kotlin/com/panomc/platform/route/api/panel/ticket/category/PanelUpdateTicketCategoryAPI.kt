@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
 
+import com.panomc.platform.ticket.TicketForm
 import io.vertx.core.json.JsonArray
 import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.ticket.TicketFields
@@ -45,6 +46,7 @@ class PanelUpdateTicketCategoryAPI(
                         .requiredProperty("description", stringSchema())
                         .optionalProperty("enabled", booleanSchema())
                         .optionalProperty("autoReplyTemplateId", numberSchema())
+                        .optionalProperty("form", objectSchema().allowAdditionalProperties(true))
                         .optionalProperty("fields", arraySchema())
                 )
             )
@@ -79,6 +81,9 @@ class PanelUpdateTicketCategoryAPI(
 
         val category = databaseManager.ticketCategoryDao.getById(id, sqlClient) ?: throw NotExists()
 
+        // Left out of the request: the category keeps its form.
+        val form = TicketForm.parse(data.getValue("form"), TicketForm.decode(category.form))
+
         // with `i18n` in the body the sent translations replace all of the category's (title, description, fields)
         val translations = if (data.containsKey("i18n")) {
             val definitions = fieldDefinitions ?: TicketFields.definitionsOf(databaseManager.ticketCategoryFieldSetDao.getByCategoryId(id, sqlClient))
@@ -99,7 +104,7 @@ class PanelUpdateTicketCategoryAPI(
             throw InvalidFields(mapOf("autoReplyTemplateId" to true))
         }
 
-        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description, enabled = enabled, autoReplyTemplateId = autoReplyTemplateId), sqlClient)
+        databaseManager.ticketCategoryDao.update(TicketCategory(id, title, description, enabled = enabled, autoReplyTemplateId = autoReplyTemplateId, form = form.encode()), sqlClient)
 
         val url = TextUtil.convertStringToUrl(title, 32)
 

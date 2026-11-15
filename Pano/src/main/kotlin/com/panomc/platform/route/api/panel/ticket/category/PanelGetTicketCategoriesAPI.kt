@@ -1,6 +1,7 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
 
+import com.panomc.platform.ticket.TicketForm
 import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.ticket.TicketFields
 import com.panomc.platform.annotation.Endpoint
@@ -81,7 +82,9 @@ class PanelGetTicketCategoriesAPI(
                         "id" to category.id,
                         "title" to category.title,
                         "description" to category.description,
+                        "enabled" to category.enabled,
                         "autoReplyTemplateId" to category.autoReplyTemplateId,
+                        "form" to TicketForm.decode(category.form).toJson(),
                         "fields" to contentTranslations.withFieldI18n(
                             category.id, TicketFields.storedDefinitions(fieldSets[category.id]), translations[category.id]
                         ),

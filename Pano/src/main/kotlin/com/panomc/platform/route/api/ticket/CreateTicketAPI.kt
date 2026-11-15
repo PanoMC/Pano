@@ -15,6 +15,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.webhook.WebhookCoreEvents
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.ticket.TicketSettings
+import com.panomc.platform.ticket.TicketForm
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.ManageTicketsPermission
 import com.panomc.platform.db.DatabaseManager
@@ -66,8 +67,9 @@ class CreateTicketAPI(
             .body(
                 Bodies.json(
                     objectSchema()
-                        .requiredProperty("title", stringSchema())
-                        .requiredProperty("message", stringSchema())
+                        // left out (or ignored) when the form of the chosen category does not show them
+                        .optionalProperty("title", stringSchema())
+                        .optionalProperty("message", stringSchema())
                         .requiredProperty("categoryId", numberSchema())
                         .optionalProperty("fields", objectSchema().allowAdditionalProperties(true))
                 )
@@ -79,14 +81,11 @@ class CreateTicketAPI(
         val parameters = getParameters(context)
         val data = parameters.body().jsonObject
 
-        val title = data.getString("title")
-        val message = data.getString("message")
-        val categoryId = data.getLong("categoryId")
-
-        validateInput(title, message)
-
         val userId = authProvider.getUserIdFromRoutingContext(context)
         val sqlClient = getSqlClient()
+
+        // Without a category choice on the form every ticket goes without one, whatever the client sent.
+        val categoryId = if (TicketSettings.categoryEnabled(databaseManager, sqlClient)) data.getLong("categoryId") else -1L
 
         var category: TicketCategory? = null
 
@@ -110,6 +109,26 @@ class CreateTicketAPI(
         }
         val fieldSnapshot = TicketFields.snapshot(fieldDefinitions, fieldValues)
 
+        // What the form of this category (or of a ticket without one) shows: a field it does not show is not asked.
+        val form = category?.let { TicketForm.decode(it.form) } ?: TicketSettings.noCategoryForm(databaseManager, sqlClient)
+        val message = if (form.messageEnabled) data.getString("message").orEmpty() else ""
+
+        if (form.titleEnabled && data.getString("title").isNullOrBlank()) {
+            throw TitleCantBeEmpty()
+        }
+
+        if (form.messageEnabled && message.isBlank()) {
+            throw MessageCantBeEmpty()
+        }
+
+        val derivedTitle = if (form.titleEnabled) null else TicketForm.derivedTitle(
+            message,
+            TicketFields.searchText(fieldSnapshot).lineSequence().firstOrNull(),
+            category?.title
+        )
+        // Nothing to name it after: it gets its number once it has one.
+        var title = if (form.titleEnabled) data.getString("title") else derivedTitle ?: "#"
+
         val id = databaseManager.ticketDao.add(
             Ticket(
                 title = title,
@@ -118,10 +137,19 @@ class CreateTicketAPI(
             ), sqlClient
         )
 
-        databaseManager.ticketMessageDao.addMessage(
-            TicketMessage(userId = userId, ticketId = id, message = message),
-            sqlClient
-        )
+        if (!form.titleEnabled && derivedTitle == null) {
+            title = "#$id"
+
+            databaseManager.ticketDao.updateTitle(id, title, sqlClient)
+        }
+
+        // A form without the description opens the ticket with its custom fields only, no first message.
+        if (form.messageEnabled) {
+            databaseManager.ticketMessageDao.addMessage(
+                TicketMessage(userId = userId, ticketId = id, message = message),
+                sqlClient
+            )
+        }
 
         if (!fieldSnapshot.isEmpty) {
             databaseManager.ticketFieldSetDao.set(id, fieldSnapshot.encode(), TicketFields.searchText(fieldSnapshot), sqlClient)
@@ -180,15 +208,5 @@ class CreateTicketAPI(
             ),
             sqlClient
         )
-    }
-
-    private fun validateInput(title: String, message: String) {
-        if (title.isBlank()) {
-            throw TitleCantBeEmpty()
-        }
-
-        if (message.isBlank()) {
-            throw MessageCantBeEmpty()
-        }
     }
 }

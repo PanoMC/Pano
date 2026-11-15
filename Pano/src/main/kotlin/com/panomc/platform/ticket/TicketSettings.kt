@@ -17,11 +17,12 @@ object TicketSettings {
         databaseManager.systemPropertyDao.getByOption(ALLOW_NO_CATEGORY, sqlClient)?.value != "false"
 
     /**
-     * Whether a new ticket may go without a category right now: the admin allows it, or there is no category that
-     * is on, in which case requiring one would close the support desk altogether.
+     * Whether a new ticket may go without a category right now: the form shows no category choice, the admin allows
+     * it, or there is no category that is on, in which case requiring one would close the support desk altogether.
      */
     suspend fun noCategoryPossible(databaseManager: DatabaseManager, sqlClient: SqlClient): Boolean =
-        allowNoCategory(databaseManager, sqlClient) || databaseManager.ticketCategoryDao.countEnabled(sqlClient) == 0L
+        !categoryEnabled(databaseManager, sqlClient) || allowNoCategory(databaseManager, sqlClient) ||
+                databaseManager.ticketCategoryDao.countEnabled(sqlClient) == 0L
 
     suspend fun setAllowNoCategory(allow: Boolean, databaseManager: DatabaseManager, sqlClient: SqlClient) =
         set(ALLOW_NO_CATEGORY, allow.toString(), databaseManager, sqlClient)
@@ -53,6 +54,28 @@ object TicketSettings {
 
     suspend fun setNoCategoryAutoReplyTemplateId(templateId: Long, databaseManager: DatabaseManager, sqlClient: SqlClient) =
         set(NO_CATEGORY_AUTO_REPLY_TEMPLATE, templateId.toString(), databaseManager, sqlClient)
+
+    /**
+     * `"false"` when the "new ticket" form shows no category choice: every new ticket is opened without a category
+     * (and uses [NO_CATEGORY_FORM]). Anything else, or no row, shows it.
+     */
+    const val CATEGORY_ENABLED = "ticket_category_enabled"
+
+    /** The admin's choice: does the "new ticket" form let the player choose a category. On unless turned off. */
+    suspend fun categoryEnabled(databaseManager: DatabaseManager, sqlClient: SqlClient): Boolean =
+        databaseManager.systemPropertyDao.getByOption(CATEGORY_ENABLED, sqlClient)?.value != "false"
+
+    suspend fun setCategoryEnabled(enabled: Boolean, databaseManager: DatabaseManager, sqlClient: SqlClient) =
+        set(CATEGORY_ENABLED, enabled.toString(), databaseManager, sqlClient)
+
+    /** What the "new ticket" form shows for a ticket without a category, a [TicketForm] as JSON. */
+    const val NO_CATEGORY_FORM = "ticket_no_category_form"
+
+    suspend fun noCategoryForm(databaseManager: DatabaseManager, sqlClient: SqlClient): TicketForm =
+        TicketForm.decode(databaseManager.systemPropertyDao.getByOption(NO_CATEGORY_FORM, sqlClient)?.value)
+
+    suspend fun setNoCategoryForm(form: TicketForm, databaseManager: DatabaseManager, sqlClient: SqlClient) =
+        set(NO_CATEGORY_FORM, form.encode(), databaseManager, sqlClient)
 
     private suspend fun set(option: String, value: String, databaseManager: DatabaseManager, sqlClient: SqlClient) {
         val property = SystemProperty(option = option, value = value)

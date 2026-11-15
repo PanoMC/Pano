@@ -517,6 +517,19 @@ class TicketDaoImpl : TicketDao() {
             .coAwait()
     }
 
+    override suspend fun updateTitle(
+        id: Long,
+        title: String,
+        sqlClient: SqlClient
+    ) {
+        val query = "UPDATE `${getTablePrefix() + tableName}` SET title = ? WHERE id = ?"
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(Tuple.of(title, id))
+            .coAwait()
+    }
+
     override suspend fun updateLastUpdateDate(
         id: Long,
         date: Long,

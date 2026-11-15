@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.ticket.category
 
+import com.panomc.platform.ticket.TicketForm
 import io.vertx.core.json.JsonArray
 import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.ticket.TicketFields
@@ -44,6 +45,7 @@ class PanelAddTicketCategoryAPI(
                         .requiredProperty("description", stringSchema())
                         .optionalProperty("enabled", booleanSchema())
                         .optionalProperty("autoReplyTemplateId", numberSchema())
+                        .optionalProperty("form", objectSchema().allowAdditionalProperties(true))
                         .optionalProperty("fields", arraySchema())
                 )
             )
@@ -62,6 +64,8 @@ class PanelAddTicketCategoryAPI(
         val autoReplyTemplateId = data.getLong("autoReplyTemplateId") ?: -1L
 
         validateForm(title)
+
+        val form = TicketForm.parse(data.getValue("form"))
 
         // the custom fields, checked before anything is written
         val fieldDefinitions = try {
@@ -84,7 +88,7 @@ class PanelAddTicketCategoryAPI(
         }
 
         val categoryId = databaseManager.ticketCategoryDao.add(
-            TicketCategory(title = title, description = description, enabled = enabled, autoReplyTemplateId = autoReplyTemplateId),
+            TicketCategory(title = title, description = description, enabled = enabled, autoReplyTemplateId = autoReplyTemplateId, form = form.encode()),
             sqlClient
         )
 

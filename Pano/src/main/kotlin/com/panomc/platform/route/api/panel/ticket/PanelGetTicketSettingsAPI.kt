@@ -31,7 +31,9 @@ class PanelGetTicketSettingsAPI(
             mapOf(
                 "allowNoCategory" to TicketSettings.allowNoCategory(databaseManager, sqlClient),
                 "defaultAutoReplyTemplateId" to TicketSettings.defaultAutoReplyTemplateId(databaseManager, sqlClient),
-                "noCategoryAutoReplyTemplateId" to TicketSettings.noCategoryAutoReplyTemplateId(databaseManager, sqlClient)
+                "noCategoryAutoReplyTemplateId" to TicketSettings.noCategoryAutoReplyTemplateId(databaseManager, sqlClient),
+                "categoryEnabled" to TicketSettings.categoryEnabled(databaseManager, sqlClient),
+                "noCategoryForm" to TicketSettings.noCategoryForm(databaseManager, sqlClient).toJson()
             )
         )
     }

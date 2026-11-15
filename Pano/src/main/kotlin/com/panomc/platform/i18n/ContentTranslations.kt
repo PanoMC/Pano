@@ -4,6 +4,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Translation.Companion.TranslationType
 import com.panomc.platform.ticket.TicketFields
+import com.panomc.platform.ticket.TicketForm
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.SqlClient
@@ -167,6 +168,11 @@ class ContentTranslations(
             out[prefix + "title"] = category.title
             if (category.description.isNotBlank()) out[prefix + "description"] = category.description
 
+            TicketForm.decode(category.form).let { form ->
+                if (form.titlePlaceholder.isNotBlank()) out[prefix + "titlePlaceholder"] = form.titlePlaceholder
+                if (form.messagePlaceholder.isNotBlank()) out[prefix + "messagePlaceholder"] = form.messagePlaceholder
+            }
+
             for (field in TicketFields.definitionsOf(fieldSets[category.id])) {
                 val fp = ContentI18n.fieldPrefix(category.id, field.key)
 
@@ -209,12 +215,15 @@ object ContentI18n {
 
     fun fieldPrefix(categoryId: Long, fieldKey: String) = "${categoryPrefix(categoryId)}field.$fieldKey."
 
-    /** `i18n` of a category: locale code → { title, description }. */
+    /** The translatable texts of a category: its own and the placeholders of its "new ticket" form. */
+    val CATEGORY_PROPS = listOf("title", "description", "titlePlaceholder", "messagePlaceholder")
+
+    /** `i18n` of a category: locale code → { title, description, titlePlaceholder, messagePlaceholder }. */
     fun categoryI18n(categoryId: Long, translations: Map<String, Map<String, String>>?): JsonObject {
         val out = JsonObject()
         val prefix = categoryPrefix(categoryId)
 
-        for (prop in listOf("title", "description")) {
+        for (prop in CATEGORY_PROPS) {
             translations?.get(prefix + prop)?.forEach { (code, text) -> obj(out, code).put(prop, text) }
         }
 
@@ -287,6 +296,10 @@ object ContentI18n {
 
             put(categoryPrefix(categoryId) + "title", code, props.getValue("title"), ContentTranslations.TITLE_MAX, "i18n.$code.title")
             put(categoryPrefix(categoryId) + "description", code, props.getValue("description"), ContentTranslations.DESCRIPTION_MAX, "i18n.$code.description")
+
+            for (prop in listOf("titlePlaceholder", "messagePlaceholder")) {
+                put(categoryPrefix(categoryId) + prop, code, props.getValue(prop), TicketForm.PLACEHOLDER_MAX, "i18n.$code.$prop")
+            }
         }
 
         rawFields?.forEachIndexed { index, item ->

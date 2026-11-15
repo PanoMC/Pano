@@ -4,6 +4,7 @@ import com.panomc.platform.i18n.ContentTranslations
 import com.panomc.platform.ticket.TicketFields
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.ticket.TicketSettings
+import com.panomc.platform.ticket.TicketForm
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
@@ -58,15 +59,22 @@ class GetTicketCategoriesAPI(
                     "url" to it.url,
                     "enabled" to it.enabled,
                     // what the "new ticket" form asks for in this category
+                    // whether the form shows the title and the description in this category, and their placeholders
+                    "form" to TicketForm.decode(it.form).toJson(),
                     "fields" to contentTranslations.withFieldI18n(it.id, TicketFields.storedDefinitions(fieldSets[it.id]), translations[it.id]),
                     "i18n" to contentTranslations.categoryI18n(it.id, translations[it.id])
                 )
             }
 
-        // Next to the list: whether the form may offer "no category" at all.
+        // Next to the list: whether the form may offer "no category" at all, whether it shows the category choice,
+        // and what it shows for a ticket without a category.
         return Successful(
             Paging.response(categories, count, page) +
-                    mapOf("allowNoCategory" to TicketSettings.noCategoryPossible(databaseManager, sqlClient))
+                    mapOf(
+                        "allowNoCategory" to TicketSettings.noCategoryPossible(databaseManager, sqlClient),
+                        "categoryEnabled" to TicketSettings.categoryEnabled(databaseManager, sqlClient),
+                        "noCategoryForm" to TicketSettings.noCategoryForm(databaseManager, sqlClient).toJson()
+                    )
         )
     }
 

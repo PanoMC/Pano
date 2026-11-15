@@ -132,8 +132,14 @@ class PanelCreateOrUpdatePostAPI(
             databaseManager.postAutosaveDao.deleteByPostId(id, sqlClient)
         }
 
+        val now = System.currentTimeMillis()
+        // The post's date is when it was published: an edit keeps it, publishing a draft (or a trashed post) sets it.
+        val date = if (postInDb == null || (publish && postInDb.status != PostStatus.PUBLISHED)) now else postInDb.date
+
         val post = Post(
             id = id ?: -1,
+            date = date,
+            moveDate = now,
             title = title,
             categoryId = categoryId,
             writerUserId = userId,
@@ -185,6 +191,10 @@ class PanelCreateOrUpdatePostAPI(
                 WebhookCoreEvents.fire { postPublished(published, sqlClient) }
             }
         }
+
+        // the editor shows these right after the save
+        body["date"] = post.date
+        body["moveDate"] = post.moveDate
 
         return Successful(body)
     }

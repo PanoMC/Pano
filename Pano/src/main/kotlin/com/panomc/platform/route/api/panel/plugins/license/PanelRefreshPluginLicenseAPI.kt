@@ -14,6 +14,7 @@ import com.panomc.platform.license.LicensePanelView
 import com.panomc.platform.license.LicenseRequiredException
 import com.panomc.platform.model.*
 import io.vertx.ext.web.RoutingContext
+import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.ext.web.validation.ValidationHandler
 import com.panomc.platform.schema.dsl.Parameters.param
 import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
@@ -77,6 +78,11 @@ class PanelRefreshPluginLicenseAPI(
             // panel showed "LICENSED" right after refresh while the very next start attempt threw
             // SIGNATURE_INVALID from PluginLicenseClient.
             plugin.verifyLicense()
+
+            // The license is good now: a plugin that was off because of it (and what waits for it) starts again.
+            if (pluginManager.isLicenseBlocked(pluginId)) {
+                context.vertx().executeBlocking<List<String>> { pluginManager.retryLicenseBlocked(pluginId) }.coAwait()
+            }
         } catch (e: LicenseRequiredException) {
             // Plugin-side verification failures aren't recorded by requireLicense; do it here
             // so the panel reflects the real license state immediately after refresh.

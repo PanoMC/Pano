@@ -238,7 +238,8 @@ class InstallManager(
                             if (state != PluginState.DISABLED) {
                                 throw pluginStartFailure(pluginId, "update")
                             }
-                        } else if (state != PluginState.STARTED) {
+                        } else if (state != PluginState.STARTED && pluginManager.waitingFor(pluginId) == null) {
+                            // A plugin that waits for a required plugin the admin switched off is installed fine.
                             throw pluginStartFailure(pluginId, "update")
                         }
                     } catch (e: Throwable) {
@@ -275,7 +276,8 @@ class InstallManager(
 
                         installedState
                     }.coAwait()
-                    if (state != PluginState.STARTED) {
+                    // A plugin that waits for a required plugin the admin switched off is installed fine.
+                    if (state != PluginState.STARTED && pluginManager.waitingFor(pluginId) == null) {
                         val failure = pluginStartFailure(pluginId, "install")
                         try {
                             vertx.executeBlocking<Unit> {
@@ -753,8 +755,12 @@ class InstallManager(
             pluginManager.loadPlugin(loadPath)
             pluginManager.enablePlugin(pluginId)
             val state = pluginManager.startPlugin(pluginId)
+            // The plugins unloaded with it come back too.
+            pluginManager.liftHolds()
             // The old copy may be one the gate holds disabled: it is restored as it was, not started.
-            if (state != PluginState.STARTED && pluginManager.verdictOf(pluginId) == Verdict.OK) {
+            if (state != PluginState.STARTED && pluginManager.verdictOf(pluginId) == Verdict.OK &&
+                pluginManager.waitingFor(pluginId) == null
+            ) {
                 throw IllegalStateException("Restored plugin did not reach STARTED (state=$state)")
             }
         }.coAwait()

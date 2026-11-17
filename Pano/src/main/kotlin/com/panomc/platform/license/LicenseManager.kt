@@ -11,7 +11,9 @@ import com.panomc.platform.error.PanoNotConnected
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.pf4j.PluginState
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -512,42 +514,19 @@ class LicenseManager(
     }
 
     /**
-     * Recursively stops plugins that declare a non-optional dependency on [pluginId], then stops
-     * and disables [pluginId]. Matches panel semantics so PF4J dependency order stays consistent.
+     * Takes [pluginId] off because its license is gone: the plugins that require it wait for it, it waits for a
+     * license (in memory, not in disabled.txt), and [PluginManager.retryLicenseBlocked] starts them all again once a
+     * license is available.
      */
     private fun stopPluginSubtreeLikePanel(pluginId: String) {
-        val dependents = pluginManager.plugins.filter {
-            it.pluginState != PluginState.DISABLED &&
-                it.descriptor.dependencies.any { dep ->
-                    dep.pluginId == pluginId && !dep.isOptional
-                }
-        }.map { it.pluginId }
-
-        dependents.forEach { dependentId ->
-            stopPluginSubtreeLikePanel(dependentId)
-        }
-
         val wrapper = pluginManager.getPlugin(pluginId) ?: return
-        if (wrapper.pluginState == PluginState.DISABLED) {
+        if (wrapper.pluginState == PluginState.DISABLED && pluginManager.isLicenseBlocked(pluginId)) {
             return
         }
 
-        if (wrapper.pluginState == PluginState.STARTED) {
-            pluginManager.stopPlugin(pluginId)
-        }
-        pluginManager.disablePlugin(pluginId)
+        pluginManager.blockForLicense(pluginId)
 
-        if (drmPluginIds.contains(pluginId)) {
-            logger.warn(
-                "Stopped and disabled DRM plugin '{}' — host license removed (Pano disconnected)",
-                pluginId,
-            )
-        } else {
-            logger.info(
-                "Stopped dependent plugin '{}' — required because a DRM plugin above it was revoked",
-                pluginId,
-            )
-        }
+        logger.warn("Stopped DRM plugin '{}' — its license is gone; it starts again once a license is available", pluginId)
     }
 
     /**
@@ -579,6 +558,16 @@ class LicenseManager(
                     )
                 }
             }
+        }
+
+        // Plugins that are off because of their license start now if a license is available.
+        try {
+            val started = withContext(Dispatchers.IO) { pluginManager.retryLicenseBlocked() }
+            if (started.isNotEmpty()) {
+                logger.info("Started {} plugin(s) after Pano account connected: {}", started.size, started)
+            }
+        } catch (t: Throwable) {
+            logger.debug("Starting license-blocked plugins after Pano connect failed: {}", t.message)
         }
 
         val themeRef = activePremiumTheme.get()

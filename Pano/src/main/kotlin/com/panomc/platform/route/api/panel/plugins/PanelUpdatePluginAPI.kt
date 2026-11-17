@@ -99,18 +99,10 @@ class PanelUpdatePluginAPI(
                         return Successful()
                     }
 
-                    val dependents =
-                        pluginManager.plugins.filter { it.pluginState != PluginState.DISABLED && it.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
-                            .map { it.pluginId }
-
+                    // The plugins that require it are taken off too and wait for it: they start again when it is
+                    // switched on, instead of staying disabled as if the admin had switched each of them off.
                     context.vertx().executeBlocking<Unit> {
-                        dependents.forEach {
-                            pluginManager.stopPlugin(it)
-                            pluginManager.disablePlugin(it)
-                        }
-
-                        pluginManager.stopPlugin(pluginId)
-                        pluginManager.disablePlugin(pluginId)
+                        pluginManager.disableWithDependents(pluginId)
                     }.coAwait()
 
                     val sqlClient = databaseManager.getSqlClient()

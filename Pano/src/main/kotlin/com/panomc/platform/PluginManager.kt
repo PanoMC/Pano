@@ -51,7 +51,7 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     /**
      * PF4J asks this when it wraps a plugin (the plugin is then held `DISABLED` in memory), in [enablePlugin] and,
      * through it, in [startPlugin] (a disabled plugin is enabled first). [startPlugins] skips disabled plugins.
-     * Nothing here touches the status provider, unlike [forceDisableBlockedPlugin].
+     * Nothing here touches the status provider.
      */
     override fun isPluginValid(pluginWrapper: PluginWrapper): Boolean {
         val valid = super.isPluginValid(pluginWrapper)
@@ -226,33 +226,62 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
         val started = mutableListOf<String>()
 
         try {
-            for ((pluginId, path) in pendingReload.entries.toList()) {
-                if (plugins.containsKey(pluginId) || !java.nio.file.Files.exists(path)) {
+            // Repeated until nothing more loads: a dependent can only load after what it requires (a carrier after
+            // the shipping add-on after the market), whatever order the map hands them out in.
+            var progress = true
+
+            while (progress) {
+                progress = false
+
+                for ((pluginId, path) in pendingReload.entries.toList()) {
+                    if (plugins.containsKey(pluginId) || !java.nio.file.Files.exists(path)) {
+                        pendingReload.remove(pluginId)
+                        reloadAsHeld.remove(pluginId)
+
+                        continue
+                    }
+
+                    val descriptor = runCatching { pluginDescriptorFinder.find(path) }.getOrNull()
+
+                    if (descriptor == null) {
+                        pendingReload.remove(pluginId)
+                        reloadAsHeld.remove(pluginId)
+
+                        continue
+                    }
+
+                    // PF4J refuses to load a plugin whose required dependency is not loaded; wait for it.
+                    if (descriptor.dependencies.any { !it.isOptional && !plugins.containsKey(it.pluginId) }) {
+                        continue
+                    }
+
                     pendingReload.remove(pluginId)
+                    progress = true
 
+                    try {
+                        super.loadPlugin(path)
+
+                        if (reloadAsHeld.remove(pluginId)) {
+                            held.putIfAbsent(pluginId, HeldBy(pluginId, Verdict.OK, pluginId))
+                        }
+                    } catch (e: Exception) {
+                        log.warn("Plugin '{}' could not be loaded again after the update of its dependency: {}", pluginId, e.message)
+                    }
+                }
+            }
+
+            for (pluginId in restartAfterReload.toList()) {
+                val wrapper = getPlugin(pluginId) ?: continue
+
+                restartAfterReload.remove(pluginId)
+
+                if (wrapper.pluginState.isStarted || isDisabledByAdmin(pluginId)) {
                     continue
                 }
 
-                val descriptor = runCatching { pluginDescriptorFinder.find(path) }.getOrNull()
-
-                if (descriptor == null) {
-                    pendingReload.remove(pluginId)
-
-                    continue
-                }
-
-                // PF4J refuses to load a plugin whose required dependency is not loaded; wait for it.
-                if (descriptor.dependencies.any { !it.isOptional && !plugins.containsKey(it.pluginId) }) {
-                    continue
-                }
-
-                pendingReload.remove(pluginId)
-
-                try {
-                    super.loadPlugin(path)
-                    held.putIfAbsent(pluginId, HeldBy(pluginId, Verdict.OK, pluginId))
-                } catch (e: Exception) {
-                    log.warn("Plugin '{}' could not be loaded again after the update of its dependency: {}", pluginId, e.message)
+                // startPlugin parks it when something it requires is off; it then starts together with that.
+                if (startPlugin(pluginId) == PluginState.STARTED) {
+                    started += pluginId
                 }
             }
 
@@ -301,6 +330,187 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
         return started
     }
 
+    // ---- plugins that wait: for a required plugin that is off, or for their license -----------------------------
+    //
+    // Both are kept in memory and never written to disabled.txt, which stays the admin's own list. A dependent of a
+    // plugin the admin switched off waits for it and starts when it is started again; a plugin whose license check
+    // failed waits for a license and starts when one arrives (account connected, license refreshed). Before this,
+    // both were written to disabled.txt like an admin's choice, so a market add-on stayed off after the market or its
+    // license came back and the market never saw it.
+
+    /** Plugin id -> the required plugin it waits for. */
+    private val waiting = ConcurrentHashMap<String, String>()
+
+    /** Plugins whose own start failed on their license. */
+    private val licenseBlocked: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Dependents that were running (or waiting) when they were unloaded with a plugin being updated. */
+    private val restartAfterReload: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Dependents that were held back by the gate when they were unloaded with a plugin being updated. */
+    private val reloadAsHeld: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** The required plugin [pluginId] waits for, or null. */
+    fun waitingFor(pluginId: String): String? = waiting[pluginId]
+
+    /** Whether [pluginId] is off because its license check failed (it starts again by [retryLicenseBlocked]). */
+    fun isLicenseBlocked(pluginId: String): Boolean = licenseBlocked.contains(pluginId)
+
+    private fun isOff(pluginId: String): Boolean {
+        val wrapper = getPlugin(pluginId) ?: return true
+        val state = wrapper.pluginState
+
+        return state == PluginState.DISABLED || state == PluginState.FAILED || waiting.containsKey(pluginId) ||
+            licenseBlocked.contains(pluginId) || isDisabledByAdmin(pluginId)
+    }
+
+    /** The first required dependency of [descriptor] that is off, or null. A dependency that is not loaded is PF4J's. */
+    private fun offDependency(descriptor: PluginDescriptor): String? =
+        descriptor.dependencies.firstOrNull { !it.isOptional && getPlugin(it.pluginId) != null && isOff(it.pluginId) }
+            ?.pluginId
+
+    /** Loaded plugins that require [pluginId] (not optionally). */
+    private fun requiredBy(pluginId: String): List<String> =
+        plugins.values.filter { wrapper -> wrapper.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
+            .map { it.pluginId }
+
+    /** Runs the host's disable hooks of a plugin that was enabled (they undo load() / onEnable()); never throws. */
+    private fun runDisableHooks(pluginId: String) {
+        runCatching {
+            val plugin = getPlugin(pluginId)?.plugin as? PanoPlugin ?: return
+
+            runBlocking {
+                lifecycleListeners.forEach { listener -> listener.onPluginDisable(plugin) }
+
+                plugin.onDisable()
+                plugin.unload()
+            }
+        }.onFailure { log.warn("Disable hooks of plugin '{}' failed: {}", pluginId, it.message) }
+    }
+
+    /**
+     * Takes [pluginId] off without writing disabled.txt: its dependents first (they wait for it), then it is stopped,
+     * its disable hooks run (only when it had been enabled) and it is held DISABLED in memory.
+     */
+    private fun takeOff(pluginId: String) {
+        val wrapper = getPlugin(pluginId) ?: return
+
+        for (dependent in requiredBy(pluginId)) {
+            if (!isDisabledByAdmin(dependent) && getPlugin(dependent)?.pluginState != PluginState.DISABLED) {
+                park(dependent, pluginId)
+            } else if (!isDisabledByAdmin(dependent) && waiting.containsKey(dependent)) {
+                waiting[dependent] = pluginId
+            }
+        }
+
+        val before = wrapper.pluginState
+
+        if (before.isStarted) {
+            super.stopPlugin(pluginId)
+        }
+
+        if (before == PluginState.STARTED || before == PluginState.STOPPED || before == PluginState.FAILED) {
+            runDisableHooks(pluginId)
+        }
+
+        wrapper.pluginState = PluginState.DISABLED
+    }
+
+    /** [pluginId] waits for [dependencyId]: taken off (see [takeOff]) and started again with it. */
+    private fun park(pluginId: String, dependencyId: String) {
+        takeOff(pluginId)
+        waiting[pluginId] = dependencyId
+
+        log.info("Plugin '{}' waits for '{}', which is off; it starts again together with it.", pluginId, dependencyId)
+    }
+
+    /** [pluginId] failed its license: taken off (see [takeOff]) until [retryLicenseBlocked] starts it. */
+    fun blockForLicense(pluginId: String) {
+        takeOff(pluginId)
+        licenseBlocked.add(pluginId)
+    }
+
+    /**
+     * The admin switches [pluginId] off: its dependents are taken off and wait for it (they are not written to
+     * disabled.txt, so they come back with it), then it is stopped and disabled as before.
+     */
+    fun disableWithDependents(pluginId: String) {
+        for (dependent in requiredBy(pluginId)) {
+            if (!isDisabledByAdmin(dependent) && getPlugin(dependent)?.pluginState != PluginState.DISABLED) {
+                park(dependent, pluginId)
+            }
+        }
+
+        if (getPlugin(pluginId)?.pluginState?.isStarted == true) {
+            stopPlugin(pluginId)
+        }
+
+        disablePlugin(pluginId)
+        waiting.remove(pluginId)
+        licenseBlocked.remove(pluginId)
+    }
+
+    /** Starts the plugins that wait for [pluginId], once nothing else they require is off. */
+    private fun startWaitingDependents(pluginId: String) {
+        for ((dependent, dependency) in waiting.entries.toList()) {
+            if (dependency != pluginId) {
+                continue
+            }
+
+            if (isDisabledByAdmin(dependent) || getPlugin(dependent) == null) {
+                waiting.remove(dependent)
+
+                continue
+            }
+
+            val stillOff = getPlugin(dependent)?.descriptor?.let { offDependency(it) }
+
+            if (stillOff != null) {
+                waiting[dependent] = stillOff
+
+                continue
+            }
+
+            waiting.remove(dependent)
+
+            log.info("Plugin '{}' starts again: '{}', which it requires, is running.", dependent, pluginId)
+
+            if (!(enablePlugin(dependent) && startPlugin(dependent) == PluginState.STARTED) && !waiting.containsKey(dependent)) {
+                log.warn("Plugin '{}' did not start again after '{}' started", dependent, pluginId)
+            }
+        }
+    }
+
+    /**
+     * Tries again the plugins that are off because of their license ([only] or all of them), e.g. after the account
+     * was connected or a license was refreshed. A plugin whose license still fails stays off. Never throws.
+     */
+    fun retryLicenseBlocked(only: String? = null): List<String> {
+        val started = mutableListOf<String>()
+
+        for (pluginId in licenseBlocked.toList()) {
+            if (only != null && pluginId != only) {
+                continue
+            }
+
+            if (getPlugin(pluginId) == null || isDisabledByAdmin(pluginId)) {
+                licenseBlocked.remove(pluginId)
+
+                continue
+            }
+
+            try {
+                if (enablePlugin(pluginId) && startPlugin(pluginId) == PluginState.STARTED) {
+                    started += pluginId
+                }
+            } catch (e: Exception) {
+                log.warn("Plugin '{}' could not be started again after its license changed: {}", pluginId, e.message)
+            }
+        }
+
+        return started
+    }
+
     override fun resolvePlugins() {
         super.resolvePlugins()
 
@@ -311,7 +521,37 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
         releaseHeldForBulkStart()
         holdDependents()
 
+        // A plugin that requires one the admin switched off waits for it instead of starting without it.
+        for (wrapper in resolvedPlugins.toList()) {
+            if (wrapper.pluginState == PluginState.DISABLED || held.containsKey(wrapper.pluginId)) {
+                continue
+            }
+
+            val dependency = offDependency(wrapper.descriptor) ?: continue
+
+            wrapper.pluginState = PluginState.DISABLED
+            waiting[wrapper.pluginId] = dependency
+        }
+
         super.startPlugins()
+
+        // A plugin whose license failed during the bulk start waits for its license; what requires it waits for it.
+        for (wrapper in resolvedPlugins.toList()) {
+            if (wrapper.pluginState == PluginState.FAILED && wrapper.failedException.findLicenseRequiredInCauseChain() != null) {
+                captureLicenseFailureIfAny(wrapper.pluginId)
+                blockForLicense(wrapper.pluginId)
+            }
+        }
+
+        for (wrapper in resolvedPlugins.toList()) {
+            if (!wrapper.pluginState.isStarted || held.containsKey(wrapper.pluginId)) {
+                continue
+            }
+
+            val dependency = offDependency(wrapper.descriptor) ?: continue
+
+            park(wrapper.pluginId, dependency)
+        }
     }
 
     /** The API level verdict of a loaded plugin, read from its descriptor (a missing declaration is level 0). */
@@ -354,12 +594,19 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
         if (unloaded) {
             incompatible.remove(pluginId)
             held.remove(pluginId)
+
+            for (id in waiting.keys.toList() + licenseBlocked.toList()) {
+                if (!plugins.containsKey(id)) {
+                    waiting.remove(id)
+                    licenseBlocked.remove(id)
+                }
+            }
         }
 
         return unloaded
     }
 
-    /** PF4J unloads the dependents with their dependency: a held one is remembered so an update can load it again. */
+    /** PF4J unloads the dependents with their dependency: each is remembered so an update can load it again. */
     private fun rememberHeldDependents(pluginId: String) {
         val queue = ArrayDeque(dependencyResolver.getDependents(pluginId))
         val seen = mutableSetOf<String>()
@@ -373,8 +620,20 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
             val wrapper = getPlugin(dependent)
 
-            if (wrapper != null && held.containsKey(dependent)) {
+            // Every dependent is loaded again (else it vanished from the panel until the next boot); the ones that
+            // were running or waiting start again once their dependencies run.
+            if (wrapper != null) {
                 pendingReload[dependent] = wrapper.pluginPath
+
+                if (held.containsKey(dependent)) {
+                    reloadAsHeld.add(dependent)
+                }
+
+                if (!held.containsKey(dependent) && !isDisabledByAdmin(dependent) &&
+                    (wrapper.pluginState == PluginState.STARTED || waiting.containsKey(dependent) || licenseBlocked.contains(dependent))
+                ) {
+                    restartAfterReload.add(dependent)
+                }
             }
 
             queue.addAll(dependencyResolver.getDependents(dependent))
@@ -503,6 +762,21 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             }
         }
 
+        // A plugin never starts without a required plugin that is off (PF4J would switch the admin's choice back on
+        // by starting it first): it waits for it and starts together with it.
+        if (pluginId != null) {
+            val wrapper = getPlugin(pluginId)
+            val dependency = wrapper?.takeIf { !it.pluginState.isStarted }?.descriptor?.let { offDependency(it) }
+
+            if (wrapper != null && dependency != null) {
+                if (wrapper.pluginState != PluginState.DISABLED || !waiting.containsKey(pluginId)) {
+                    park(pluginId, dependency)
+                }
+
+                return PluginState.DISABLED
+            }
+        }
+
         // Previous startup failures can leave a stale wrapper.failedException. If we don't
         // clear it before a retry, the old LicenseRequiredException keeps forcing FAILED.
         if (pluginId != null) {
@@ -514,14 +788,14 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             val wrapper = getPlugin(pluginId)
             val licenseException = wrapper?.failedException.findLicenseRequiredInCauseChain()
             if (licenseException != null) {
-                wrapper?.pluginState = PluginState.FAILED
-                forceDisableBlockedPlugin(pluginId)
+                captureLicenseFailureIfAny(pluginId)
+                // Held off in memory, not in disabled.txt: a license that arrives later starts it (retryLicenseBlocked).
+                blockForLicense(pluginId)
                 log.warn(
-                    "Plugin '{}' startup blocked by license and forced to DISABLED: {}",
+                    "Plugin '{}' startup blocked by license; it starts once a license is available: {}",
                     pluginId,
                     licenseException.message,
                 )
-                captureLicenseFailureIfAny(pluginId)
                 return PluginState.FAILED
             }
         }
@@ -531,9 +805,9 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             if (fe != null) {
                 val licenseException = fe.findLicenseRequiredInCauseChain()
                 if (licenseException != null) {
-                    forceDisableBlockedPlugin(pluginId)
+                    blockForLicense(pluginId)
                     log.warn(
-                        "Plugin '{}' startup blocked by license and forced to DISABLED: {}",
+                        "Plugin '{}' startup blocked by license; it starts once a license is available: {}",
                         pluginId,
                         licenseException.message,
                     )
@@ -558,24 +832,11 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             runCatching {
                 Main.applicationContext.getBean(LicenseManager::class.java).clearFailure(pluginId)
             }
+            licenseBlocked.remove(pluginId)
+            waiting.remove(pluginId)
+            startWaitingDependents(pluginId)
         }
         return state
-    }
-
-    /**
-     * Avoids running plugin lifecycle hooks while persisting PF4J DISABLED state.
-     * This prevents unlicensed premium plugins from coming back as enabled next startup.
-     */
-    private fun forceDisableBlockedPlugin(pluginId: String) {
-        runCatching {
-            super.disablePlugin(pluginId)
-        }.onFailure {
-            log.warn(
-                "Could not persist DISABLED state for license-blocked plugin '{}': {}",
-                pluginId,
-                it.message,
-            )
-        }
     }
 
     /**

@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="120" height="120" src="https://i.ibb.co/cSgnwMtq/pano-logo.png" alt="Pano">
+  <img width="140" height="140" src=".github/readme/logo.png" alt="Pano">
 </p>
 
 <h1 align="center">Pano</h1>
@@ -56,7 +56,7 @@ No coding, no hosting puzzles, no five different plugins glued together.
   <tr>
     <td width="33%" valign="top">
       <h3>🧩 Grows with you</h3>
-      Add a store, voting, bans, FAQ and more from the addon market with a single click.
+      Add a store, voting, bans, FAQ and more from the Pano market with a single click.
     </td>
     <td width="33%" valign="top">
       <h3>🌍 Speaks your language</h3>
@@ -64,7 +64,7 @@ No coding, no hosting puzzles, no five different plugins glued together.
     </td>
     <td width="33%" valign="top">
       <h3>💙 Free & open source</h3>
-      Yours to keep, yours to change. No monthly fee, no lock-in.
+      Pano itself is free, yours to keep and change. Premium themes and addons are optional extras.
     </td>
   </tr>
 </table>
@@ -73,26 +73,27 @@ No coding, no hosting puzzles, no five different plugins glued together.
 
 ## 🖼️ Your server, your style
 
-Every Pano site starts with a theme. Switch between them any time, your content stays.
+Every Pano site starts with a theme. **Vanilla** comes free with Pano; premium themes like **Blaze** and **Blocky** are
+available in the Pano market. Switch any time, your content stays.
 
 <table>
   <tr>
     <td align="center" width="33%">
       <img src=".github/readme/theme-vanilla.jpg" alt="Vanilla theme"><br>
-      <b>Vanilla</b><br><sub>Clean and bright</sub>
+      <b>Vanilla</b> · <code>Free</code><br><sub>Included with Pano, clean and bright</sub>
     </td>
     <td align="center" width="33%">
       <img src=".github/readme/theme-blaze.jpg" alt="Blaze theme"><br>
-      <b>Blaze</b><br><sub>Dark and fiery</sub>
+      <b>Blaze</b> · <code>Premium</code><br><sub>Dark and fiery</sub>
     </td>
     <td align="center" width="33%">
       <img src=".github/readme/theme-blocky.jpg" alt="Blocky theme"><br>
-      <b>Blocky</b><br><sub>Playful and colorful</sub>
+      <b>Blocky</b> · <code>Premium</code><br><sub>Playful and colorful</sub>
     </td>
   </tr>
 </table>
 
-<p align="center">More themes are waiting in the <a href="https://panomc.com">Pano market</a>.</p>
+<p align="center">Find more free and premium themes in the <a href="https://panomc.com">Pano market</a>.</p>
 
 ---
 

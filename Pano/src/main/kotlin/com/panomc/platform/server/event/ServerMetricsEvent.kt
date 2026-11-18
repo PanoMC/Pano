@@ -55,7 +55,8 @@ class ServerMetricsEvent(
             // no figure at all never erases the one already there, which is what keepingDiskOf
             // below is for.
             diskUsed = request.diskUsed?.coerceAtLeast(0L),
-            diskTotal = request.diskTotal?.coerceAtLeast(0L)
+            diskTotal = request.diskTotal?.coerceAtLeast(0L),
+            paused = request.paused
         ).keepingDiskOf(existing).keepingNetOf(existing).keepingProcessOf(existing)
 
         serverManager.setLatestMetrics(server.id, sample)
@@ -71,8 +72,11 @@ class ServerMetricsEvent(
         serverDiskUsageStore.persist(server, sample.diskUsed, sample.diskTotal, databaseManager.getSqlClient())
 
         // The one-minute average, which is the reading that reflects how the server feels right
-        // now; the five and fifteen minute ones are still recovering long after it has.
-        alertManager.onServerTps(server, sample.tps?.firstOrNull(), databaseManager.getSqlClient())
+        // now; the five and fifteen minute ones are still recovering long after it has. A server
+        // paused while empty ticks at zero on purpose, so that reading is no lag.
+        val tps = if (sample.paused == true) null else sample.tps?.firstOrNull()
+
+        alertManager.onServerTps(server, tps, databaseManager.getSqlClient())
 
         return null
     }

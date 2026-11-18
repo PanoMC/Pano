@@ -35,5 +35,11 @@ data class ServerMetricsEventRequest(
      * The gauge's denominator, and cheap on either side, so unlike [diskUsed] it needs no cache
      * and is usually present from the first sample.
      */
-    val diskTotal: Long? = null
+    val diskTotal: Long? = null,
+    /**
+     * True while the game skips its ticks because nobody is online (`pause-when-empty-seconds`),
+     * which is why [tps] falls towards zero then. Null from a plugin too old to know the field or
+     * a platform that cannot tell.
+     */
+    val paused: Boolean? = null
 ) : ServerEventRequest()

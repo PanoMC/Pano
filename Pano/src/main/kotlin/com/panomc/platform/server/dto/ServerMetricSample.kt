@@ -92,7 +92,9 @@ data class ServerMetricSample(
      * no figure at all. The panel labels the second "node total" so a server is never credited
      * with every other server's traffic without saying so.
      */
-    val netScope: String? = null
+    val netScope: String? = null,
+    /** The plugin says the game is paused because nobody is online; null when it cannot tell. */
+    val paused: Boolean? = null
 ) {
     /** The 1 minute TPS average, which is what the per-minute rollup stores. */
     val tps1: Double? get() = tps?.firstOrNull()
@@ -244,4 +246,5 @@ data class ServerMetricSample(
         .put("netTx", netTx)
         // Absent rather than null when there is no figure: there is nothing to say whose it is.
         .apply { netScope?.let { put("netScope", it) } }
+        .apply { paused?.let { put("paused", it) } }
 }

@@ -242,6 +242,15 @@ class ServerMetricSampleTest {
         assertNull(json.getLong("diskTotal"))
     }
 
+    @Test
+    fun `a paused server says so to the panel and keeps saying so through a node tick`() {
+        val paused = pluginSample().copy(paused = true).withProcessMetrics(t = 200, processCpu = 1.0, memRss = 2)
+
+        assertEquals(true, paused.toJsonObject().getBoolean("paused"))
+        // A plugin that cannot tell sends nothing, and the panel reads nothing.
+        assertFalse(pluginSample().toJsonObject().containsKey("paused"))
+    }
+
     private fun pluginSample(diskUsed: Long? = null) = ServerMetricSample(
         t = 1,
         tps = listOf(20.0, 20.0, 20.0),

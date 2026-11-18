@@ -4,16 +4,20 @@
 
 <h1 align="center">Pano</h1>
 
-<h3 align="center">The website your Minecraft server deserves.</h3>
+<h3 align="center">Build your Minecraft server panel</h3>
 
 <p align="center">
-  News, store, support, players, staff and your servers, all in one place.<br>
-  Free, open source, and running on your own machine in a few minutes.
+  One place for your website, store, and game server.<br>
+  An open-source CMS and management panel you can extend with themes and addons.
+</p>
+
+<p align="center">
+  <a href="https://demo.panomc.com"><img src="https://img.shields.io/badge/%E2%96%B6%20%20Live%20Demo-3b59f3?style=for-the-badge&logoColor=white" alt="Live Demo" height="48"></a>
+  <a href="https://panomc.com"><img src="https://img.shields.io/badge/Website-ffc947?style=for-the-badge" alt="Website" height="48"></a>
 </p>
 
 <p align="center">
   <a href="https://panomc.com/downloads"><b>Download</b></a> ·
-  <a href="https://demo.panomc.com"><b>Live demo</b></a> ·
   <a href="https://panomc.com/docs"><b>Docs</b></a> ·
   <a href="https://panomc.com/discord"><b>Discord</b></a>
 </p>
@@ -31,8 +35,6 @@
 
 ---
 
-## ✨ Why Pano?
-
 Running a Minecraft server is already a full-time hobby. Building a website for it shouldn't be another one.
 
 Pano gives your community a real home on the web: a beautiful site for your players and a friendly panel for you.
@@ -41,29 +43,29 @@ No coding, no hosting puzzles, no five different plugins glued together.
 <table>
   <tr>
     <td width="33%" valign="top">
-      <h3>🚀 Ready in minutes</h3>
+      <h3>Ready in minutes</h3>
       One command installs everything. A setup wizard walks you through the rest. No database knowledge needed.
     </td>
     <td width="33%" valign="top">
-      <h3>🎨 Looks great out of the box</h3>
+      <h3>Looks great out of the box</h3>
       Pick a theme, add your logo and colors, and your site already feels like <i>your</i> server.
     </td>
     <td width="33%" valign="top">
-      <h3>🎮 Connected to your game</h3>
+      <h3>Connected to your game</h3>
       Players, online status and staff come straight from your Minecraft server, live.
     </td>
   </tr>
   <tr>
     <td width="33%" valign="top">
-      <h3>🧩 Grows with you</h3>
+      <h3>Grows with you</h3>
       Add a store, voting, bans, FAQ and more from the Pano market with a single click.
     </td>
     <td width="33%" valign="top">
-      <h3>🌍 Speaks your language</h3>
+      <h3>Speaks your language</h3>
       Fully translatable. Your players read your site in their own language.
     </td>
     <td width="33%" valign="top">
-      <h3>💙 Free & open source</h3>
+      <h3>Free & open source</h3>
       Pano itself is free, yours to keep and change. Premium themes and addons are optional extras.
     </td>
   </tr>
@@ -71,24 +73,21 @@ No coding, no hosting puzzles, no five different plugins glued together.
 
 ---
 
-## 🖼️ Your server, your style
-
-Every Pano site starts with a theme. **Vanilla** comes free with Pano; premium themes like **Blaze** and **Blocky** are
-available in the Pano market. Switch any time, your content stays.
+<h2 align="center">Themes</h2>
 
 <table>
   <tr>
     <td align="center" width="33%">
       <img src=".github/readme/theme-vanilla.jpg" alt="Vanilla theme"><br>
-      <b>Vanilla</b> · <code>Free</code><br><sub>Included with Pano, clean and bright</sub>
+      <b>Vanilla</b> · <code>Free</code>
     </td>
     <td align="center" width="33%">
       <img src=".github/readme/theme-blaze.jpg" alt="Blaze theme"><br>
-      <b>Blaze</b> · <code>Premium</code><br><sub>Dark and fiery</sub>
+      <b>Blaze</b> · <code>Premium</code>
     </td>
     <td align="center" width="33%">
       <img src=".github/readme/theme-blocky.jpg" alt="Blocky theme"><br>
-      <b>Blocky</b> · <code>Premium</code><br><sub>Playful and colorful</sub>
+      <b>Blocky</b> · <code>Premium</code>
     </td>
   </tr>
 </table>
@@ -97,7 +96,7 @@ available in the Pano market. Switch any time, your content stays.
 
 ---
 
-## 🛠️ A panel you'll actually enjoy
+## A panel you'll actually enjoy
 
 Everything you need to run your community, without digging through config files.
 
@@ -105,12 +104,12 @@ Everything you need to run your community, without digging through config files.
   <img src=".github/readme/panel-dashboard.jpg" alt="Pano panel dashboard" width="100%">
 </p>
 
-- 📰 **News & pages** — write posts with a rich editor, add images, organize them in categories.
-- 🎫 **Support tickets** — players ask, your staff answers, all on your site.
-- 👥 **Players & staff** — see who joined, who's online, and give your team the right permissions.
-- 📊 **Statistics** — watch visits, sign-ups and activity grow.
-- 🧩 **Addons & themes** — install, update and manage them from the panel.
-- 💾 **Backups & migration** — keep your data safe, or bring it over from your old website.
+- **News & pages** — write posts with a rich editor, add images, organize them in categories.
+- **Support tickets** — players ask, your staff answers, all on your site.
+- **Players & staff** — see who joined, who's online, and give your team the right permissions.
+- **Statistics** — watch visits, sign-ups and activity grow.
+- **Addons & themes** — install, update and manage them from the panel.
+- **Backups & migration** — keep your data safe, or bring it over from your old website.
 
 <p align="center">
   <img src=".github/readme/panel-posts.jpg" alt="Managing posts in the Pano panel" width="100%">
@@ -126,28 +125,28 @@ Pano isn't only a website. Start, stop and watch your Minecraft servers from the
   <img src=".github/readme/server-overview.jpg" alt="Server overview in the Pano panel" width="100%">
 </p>
 
-- 🖥️ **Live console** — send commands and read logs from your browser.
-- 📈 **Performance at a glance** — CPU, RAM, disk, TPS and player count, updated live.
-- 📁 **Files, plugins & schedules** — edit files, manage plugins and plan restarts without FTP.
-- 💾 **Server backups** — one click before that risky update.
+- **Live console** — send commands and read logs from your browser.
+- **Performance at a glance** — CPU, RAM, disk, TPS and player count, updated live.
+- **Files, plugins & schedules** — edit files, manage plugins and plan restarts without FTP.
+- **Server backups** — one click before that risky update.
 
 Works with **Paper, Spigot, Folia, BungeeCord, Velocity and Fabric** through the
 [Pano Minecraft plugin](https://github.com/PanoMC/pano-mc-plugin).
 
 ---
 
-## ⚡ Get started
-
-**macOS / Linux**
-
-```bash
-curl -fsSL https://panomc.com/install | bash
-```
+## Install Now
 
 **Windows** (PowerShell)
 
 ```powershell
 irm https://panomc.com/install.ps1 | iex
+```
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://panomc.com/install | bash
 ```
 
 That's it. Open the address it shows you and the setup wizard takes it from there. 🎉
@@ -169,17 +168,9 @@ If Pano helps your server, a ⭐ on this repo means a lot to us.
 ---
 
 <details>
-<summary><b>👩‍💻 For developers</b></summary>
+<summary><b>For developers</b></summary>
 
 <br>
-
-This is the core platform (Kotlin + Vert.x). The interfaces and the in-game plugin live in their own repositories:
-
-- [**panel-ui**](https://github.com/PanoMC/panel-ui) — the management panel
-- [**setup-ui**](https://github.com/PanoMC/setup-ui) — the setup wizard
-- [**vanilla-theme**](https://github.com/PanoMC/vanilla-theme) — the default theme
-- [**pano-mc-plugin**](https://github.com/PanoMC/pano-mc-plugin) — the Minecraft plugin
-- [**docs**](https://github.com/PanoMC/docs) — the documentation
 
 **Release channels:** `alpha` (early, experimental), `beta` (feature-complete, may have minor bugs), release (stable).
 

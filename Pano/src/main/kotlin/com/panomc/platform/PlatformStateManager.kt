@@ -1,6 +1,7 @@
 package com.panomc.platform
 
 import com.panomc.platform.hosted.ContainerMode
+import com.panomc.platform.util.Args
 import kotlinx.coroutines.delay
 import org.springframework.stereotype.Component
 import java.nio.file.Paths
@@ -43,7 +44,7 @@ class PlatformStateManager {
         val args = mutableListOf(javaBin, "-jar", targetJar)
         val baseArgs = Main.STARTUP_ARGS.toMutableList()
 
-        if (background && !baseArgs.contains("-bg")) {
+        if (background && !Args.hasFlag(baseArgs, "-bg")) {
             baseArgs.add("-bg")
         }
 

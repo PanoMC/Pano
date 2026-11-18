@@ -1,5 +1,6 @@
 package com.panomc.platform.update
 
+import com.panomc.platform.util.Args
 import java.util.Base64
 
 /**
@@ -27,7 +28,8 @@ object UpdaterLaunchArgs {
         it.startsWith("-agentlib:jdwp") || it.startsWith("-Xrunjdwp") || it.startsWith("-Xdebug")
     }
 
-    fun programArgs(startupArgs: List<String>): List<String> = startupArgs.filterNot { it in HANDLED_PROGRAM_FLAGS }
+    fun programArgs(startupArgs: List<String>): List<String> =
+        startupArgs.filterNot { arg -> HANDLED_PROGRAM_FLAGS.any { Args.isFlag(arg, it) } }
 
     fun arguments(inputArguments: List<String>, startupArgs: List<String>): List<String> = listOf(
         "$JVM_ARGS=" + encode(jvmArgs(inputArguments)),

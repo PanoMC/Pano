@@ -1,102 +1,205 @@
 <p align="center">
-  <img width="120" height="120" src="https://i.ibb.co/cSgnwMtq/pano-logo.png" alt="Pano Logo">
+  <img width="120" height="120" src="https://i.ibb.co/cSgnwMtq/pano-logo.png" alt="Pano">
 </p>
 
 <h1 align="center">Pano</h1>
 
+<h3 align="center">The website your Minecraft server deserves.</h3>
+
 <p align="center">
-  The <b>main repository</b> for Pano, an advanced web platform powering Minecraft server websites. 🚀
+  News, store, support, players, staff and your servers, all in one place.<br>
+  Free, open source, and running on your own machine in a few minutes.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/maintenance/yes/2026?style=for-the-badge" alt="Maintained">
-  <a href="https://github.com/PanoMC/pano/blob/main/LICENSE"><img src="https://img.shields.io/github/license/PanoMC/pano?style=for-the-badge" alt="License"></a>
-  <a href="https://panomc.com/discord"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=for-the-badge" alt="Chat"></a>
+  <a href="https://panomc.com/downloads"><b>Download</b></a> ·
+  <a href="https://demo.panomc.com"><b>Live demo</b></a> ·
+  <a href="https://panomc.com/docs"><b>Docs</b></a> ·
+  <a href="https://panomc.com/discord"><b>Discord</b></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/PanoMC/pano/releases/latest"><img src="https://img.shields.io/github/v/release/PanoMC/pano?style=for-the-badge&color=4664e5&label=latest" alt="Latest release"></a>
+  <a href="https://github.com/PanoMC/pano/stargazers"><img src="https://img.shields.io/github/stars/PanoMC/pano?style=for-the-badge&color=f5bf42" alt="Stars"></a>
+  <a href="https://panomc.com/discord"><img src="https://img.shields.io/badge/discord-join-5865f2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/PanoMC/pano?style=for-the-badge&color=6fcf7c" alt="License"></a>
+</p>
+
+<p align="center">
+  <img src=".github/readme/banner.webp" alt="Build your Minecraft website with Pano" width="100%">
 </p>
 
 ---
 
-## 🚀 Project Status
-**Current Status:** Stable - Pano v1.0.0 is released and ready for production use.  
-Announcements and updates are shared via our [Discord](https://panomc.com/discord).  
+## ✨ Why Pano?
 
-### 📢 Release Types
-We categorize our updates into three main stages:
-- **Alpha**: Early-stage development. Experimental features, potential breaking changes, and critical bugs. Use with caution.
-- **Beta**: Feature-complete and generally stable. Ready for wider use, but may still have minor bugs. Recommended for testing and early adopters.
-- **Release**: Stable and production-ready. Thoroughly tested for a reliable experience.
+Running a Minecraft server is already a full-time hobby. Building a website for it shouldn't be another one.
+
+Pano gives your community a real home on the web: a beautiful site for your players and a friendly panel for you.
+No coding, no hosting puzzles, no five different plugins glued together.
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>🚀 Ready in minutes</h3>
+      One command installs everything. A setup wizard walks you through the rest. No database knowledge needed.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🎨 Looks great out of the box</h3>
+      Pick a theme, add your logo and colors, and your site already feels like <i>your</i> server.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🎮 Connected to your game</h3>
+      Players, online status and staff come straight from your Minecraft server, live.
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>🧩 Grows with you</h3>
+      Add a store, voting, bans, FAQ and more from the addon market with a single click.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🌍 Speaks your language</h3>
+      Fully translatable. Your players read your site in their own language.
+    </td>
+    <td width="33%" valign="top">
+      <h3>💙 Free & open source</h3>
+      Yours to keep, yours to change. No monthly fee, no lock-in.
+    </td>
+  </tr>
+</table>
 
 ---
 
+## 🖼️ Your server, your style
 
-## 📦 Other Pano Repositories
-- [**panel-ui**](https://github.com/PanoMC/panel-ui) - Pano's official management panel interface  
-- [**setup-ui**](https://github.com/PanoMC/setup-ui) - Pano's setup wizard interface  
-- [**vanilla-theme**](https://github.com/PanoMC/vanilla-theme) - Default official free theme for Pano  
-- [**pano-mc-plugin**](https://github.com/PanoMC/pano-mc-plugin) - Minecraft in-game integration plugin (supports Spigot/Paper/Bungeecord/Velocity/Folia)  
-- [**docs**](https://github.com/PanoMC/docs) - Open-source documentation for Pano  
+Every Pano site starts with a theme. Switch between them any time, your content stays.
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src=".github/readme/theme-vanilla.jpg" alt="Vanilla theme"><br>
+      <b>Vanilla</b><br><sub>Clean and bright</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src=".github/readme/theme-blaze.jpg" alt="Blaze theme"><br>
+      <b>Blaze</b><br><sub>Dark and fiery</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src=".github/readme/theme-blocky.jpg" alt="Blocky theme"><br>
+      <b>Blocky</b><br><sub>Playful and colorful</sub>
+    </td>
+  </tr>
+</table>
+
+<p align="center">More themes are waiting in the <a href="https://panomc.com">Pano market</a>.</p>
 
 ---
 
-## ⚡ Trying Pano
-Install Pano with one command from [panomc.com/downloads](https://panomc.com/downloads), or download the latest stable release from [Releases](https://github.com/PanoMC/pano/releases/latest).  
+## 🛠️ A panel you'll actually enjoy
 
-To run Pano:  
+Everything you need to run your community, without digging through config files.
 
-- **Double-click the JAR** inside a folder, **or**  
-- Run via terminal:
+<p align="center">
+  <img src=".github/readme/panel-dashboard.jpg" alt="Pano panel dashboard" width="100%">
+</p>
+
+- 📰 **News & pages** — write posts with a rich editor, add images, organize them in categories.
+- 🎫 **Support tickets** — players ask, your staff answers, all on your site.
+- 👥 **Players & staff** — see who joined, who's online, and give your team the right permissions.
+- 📊 **Statistics** — watch visits, sign-ups and activity grow.
+- 🧩 **Addons & themes** — install, update and manage them from the panel.
+- 💾 **Backups & migration** — keep your data safe, or bring it over from your old website.
+
+<p align="center">
+  <img src=".github/readme/panel-posts.jpg" alt="Managing posts in the Pano panel" width="100%">
+</p>
+
+---
+
+## 🎮 Your servers, right inside the panel
+
+Pano isn't only a website. Start, stop and watch your Minecraft servers from the same place.
+
+<p align="center">
+  <img src=".github/readme/server-overview.jpg" alt="Server overview in the Pano panel" width="100%">
+</p>
+
+- 🖥️ **Live console** — send commands and read logs from your browser.
+- 📈 **Performance at a glance** — CPU, RAM, disk, TPS and player count, updated live.
+- 📁 **Files, plugins & schedules** — edit files, manage plugins and plan restarts without FTP.
+- 💾 **Server backups** — one click before that risky update.
+
+Works with **Paper, Spigot, Folia, BungeeCord, Velocity and Fabric** through the
+[Pano Minecraft plugin](https://github.com/PanoMC/pano-mc-plugin).
+
+---
+
+## ⚡ Get started
+
+**macOS / Linux**
 
 ```bash
-java -jar Pano-<version>.jar
+curl -fsSL https://panomc.com/install | bash
 ```
 
-- To disable GUI:  
+**Windows** (PowerShell)
 
-```bash
-java -jar Pano-<version>.jar -nogui
+```powershell
+irm https://panomc.com/install.ps1 | iex
 ```
 
-For detailed guidance, visit [panomc.com/docs](https://panomc.com/docs).  
+That's it. Open the address it shows you and the setup wizard takes it from there. 🎉
+
+Prefer Docker or a plain download? Every option is on [panomc.com/downloads](https://panomc.com/downloads).
 
 ---
 
-## 🛠️ Requirements
-**For contributors / development:**  
-- **JDK 11+** or **JRE 11+**  
-- **MySQL 8.0+** / **MariaDB 10.5+**  
+## 💬 Join the community
 
-* **Docker & Docker Compose** are optional and only required for contributors.  
+Questions, ideas, or just want to show off your server? Come say hi.
 
----
+<p align="center">
+  <a href="https://panomc.com/discord"><img src="https://img.shields.io/badge/Join%20us%20on%20Discord-5865f2?style=for-the-badge&logo=discord&logoColor=white" alt="Join us on Discord"></a>
+</p>
 
-## 🤝 Contributing
-Everyone can open issues in the repository.  
-- We create issues in the respective project repositories for our own development tasks.  
-- Irrelevant or abusive issues may be closed or removed.  
+If Pano helps your server, a ⭐ on this repo means a lot to us.
 
 ---
 
-### Development Guide
-Clone the repository for development:
+<details>
+<summary><b>👩‍💻 For developers</b></summary>
+
+<br>
+
+This is the core platform (Kotlin + Vert.x). The interfaces and the in-game plugin live in their own repositories:
+
+- [**panel-ui**](https://github.com/PanoMC/panel-ui) — the management panel
+- [**setup-ui**](https://github.com/PanoMC/setup-ui) — the setup wizard
+- [**vanilla-theme**](https://github.com/PanoMC/vanilla-theme) — the default theme
+- [**pano-mc-plugin**](https://github.com/PanoMC/pano-mc-plugin) — the Minecraft plugin
+- [**docs**](https://github.com/PanoMC/docs) — the documentation
+
+**Release channels:** `alpha` (early, experimental), `beta` (feature-complete, may have minor bugs), release (stable).
+
+**Requirements:** JDK 17+ to run Gradle (the jar itself runs on Java 11+), MariaDB 10.5+ / MySQL 8.0+.
+Docker is optional.
 
 ```bash
 git clone --recursive https://github.com/PanoMC/pano.git
 cd pano
-```
-
-Compile & run for development:
-
-```bash
+./gradlew downloadUIReleases   # once
 ./gradlew run
 ```
 
-Or use Docker:
+Run a release jar with `java -jar Pano-<version>.jar` (add `-nogui` for headless).
 
-```bash
-docker-compose up
-```
+Everyone is welcome to open issues. Irrelevant or abusive issues may be closed.
+
+</details>
 
 ---
 
-## 📄 License
-Pano is licensed under **GNU GPLv3**, meaning it is fully open source. See the [LICENSE](LICENSE) file for details.
+<p align="center">
+  Made with 💙 for Minecraft communities · Licensed under <a href="LICENSE">GPLv3</a>
+</p>

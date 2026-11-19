@@ -104,6 +104,44 @@ class ProcessAdoptionTest {
     }
 
     @Test
+    fun `an executable without its arguments is no command line`() {
+        // What the JDK reports for every process on Windows: the java.exe path, no arguments.
+        assertNull(ProcessAdoption.commandLineFrom(null, WINDOWS_JAVA, null))
+        assertNull(ProcessAdoption.commandLineFrom("", WINDOWS_JAVA, emptyArray()))
+
+        assertEquals("java -jar server.jar nogui", ProcessAdoption.commandLineFrom("java -jar server.jar nogui", "java", null))
+        assertEquals("/usr/bin/java -jar server.jar", ProcessAdoption.commandLineFrom(null, "/usr/bin/java", arrayOf("-jar", "server.jar")))
+    }
+
+    @Test
+    fun `adopts a server on Windows, where only the start time is known`() {
+        val commandLine = ProcessAdoption.commandLineFrom(null, WINDOWS_JAVA, null)
+
+        assertTrue(
+            ProcessAdoption.matches(
+                record = record,
+                alive = true,
+                startedAt = record.startedAt + 300,
+                commandLine = commandLine,
+                workingDirectory = null,
+                serverDirectory = directory.absolutePath
+            )
+        )
+
+        // The start time still guards against a reused pid there.
+        assertFalse(
+            ProcessAdoption.matches(
+                record = record,
+                alive = true,
+                startedAt = record.startedAt + ProcessAdoption.START_TOLERANCE_MILLIS + 1,
+                commandLine = commandLine,
+                workingDirectory = null,
+                serverDirectory = directory.absolutePath
+            )
+        )
+    }
+
+    @Test
     fun `adopts a live process whose start time and command line match`() {
         assertTrue(
             ProcessAdoption.matches(
@@ -238,5 +276,7 @@ class ProcessAdoptionTest {
     companion object {
         /** Above every `pid_max` any of these platforms allows, so nothing can ever hold it. */
         private const val IMPOSSIBLE_PID = 1_000_000_000_000L
+
+        private const val WINDOWS_JAVA = """C:\Program Files\Java\bin\java.exe"""
     }
 }

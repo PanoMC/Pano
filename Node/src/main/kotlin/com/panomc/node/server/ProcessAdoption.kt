@@ -95,20 +95,30 @@ object ProcessAdoption {
      */
     fun commandLineOf(handle: ProcessHandle): String? = try {
         val info = handle.info()
-        val whole = info.commandLine().orElse(null)
 
-        if (!whole.isNullOrBlank()) {
-            whole
-        } else {
-            val command = info.command().orElse(null)
-            val arguments = info.arguments().orElse(emptyArray()).joinToString(" ")
-
-            listOfNotNull(command, arguments.takeIf { it.isNotBlank() })
-                .joinToString(" ")
-                .takeIf { it.isNotBlank() }
-        }
+        commandLineFrom(info.commandLine().orElse(null), info.command().orElse(null), info.arguments().orElse(null))
     } catch (_: Exception) {
         null
+    }
+
+    /**
+     * The command line from what the OS reported, or null when it cannot be known.
+     *
+     * Without the arguments the executable alone says nothing about which jar it runs: on Windows the JDK reports
+     * `java.exe` and never the arguments, so "the command line has no server.jar" was every server there, and a node
+     * that restarted dropped the record of each one still running (and then started it a second time). Null leaves
+     * the decision to the start time, which Windows does report.
+     */
+    fun commandLineFrom(whole: String?, command: String?, arguments: Array<String>?): String? {
+        if (!whole.isNullOrBlank()) {
+            return whole
+        }
+
+        if (arguments.isNullOrEmpty()) {
+            return null
+        }
+
+        return listOfNotNull(command, arguments.joinToString(" ")).joinToString(" ").takeIf { it.isNotBlank() }
     }
 
     /**

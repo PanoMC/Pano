@@ -42,14 +42,22 @@ object HostPlatform {
         }
     }
 
+    /**
+     * Under `Program Files`: Oracle, Temurin, Microsoft, Azul, Corretto, Liberica, Semeru, plain OpenJDK. Microsoft's
+     * folder holds other software too; [JavaRuntimeLocator] only keeps the children that are a Java home.
+     */
+    internal val WINDOWS_JAVA_FOLDERS = listOf(
+        "Java", "Eclipse Adoptium", "Microsoft", "Zulu", "Amazon Corretto", "BellSoft", "Semeru", "OpenJDK"
+    )
+
     /** Directories a system-wide JDK install is conventionally found in. */
     fun systemJavaRoots(): List<File> = when {
         isLinux -> listOf(File("/usr/lib/jvm"), File("/usr/java"), File("/opt/java"))
         isMac -> listOf(File("/Library/Java/JavaVirtualMachines"), File("/opt/homebrew/opt"))
-        isWindows -> listOfNotNull(
-            System.getenv("ProgramFiles")?.let { File(it, "Java") },
-            System.getenv("ProgramFiles")?.let { File(it, "Eclipse Adoptium") }
-        )
+        // The folders each vendor's Windows installer writes to; one level below them is a JDK home.
+        isWindows -> listOfNotNull(System.getenv("ProgramFiles"), System.getenv("ProgramW6432"))
+            .distinct()
+            .flatMap { root -> WINDOWS_JAVA_FOLDERS.map { File(root, it) } }
 
         else -> emptyList()
     }

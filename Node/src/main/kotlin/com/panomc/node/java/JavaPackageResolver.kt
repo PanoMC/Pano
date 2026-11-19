@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
  * side by side with the version a running server is still using.
  */
 data class JavaPackage(
-    /** `temurin` or `zulu`. */
+    /** `temurin`, `zulu` or `microsoft`. */
     val vendor: String,
     val major: Int,
     val version: String,
@@ -31,7 +31,12 @@ data class JavaPackage(
     /** `tar.gz` or `zip`. */
     val archive: String,
     /** The archive's file name upstream, used for the cached download. */
-    val fileName: String
+    val fileName: String,
+    /**
+     * An x64 build for a Windows-on-ARM host that has no native one (Java 8 there): Windows 11 runs it through its x64
+     * emulation, slower than a native runtime but a server that starts instead of one that cannot.
+     */
+    val emulated: Boolean = false
 )
 
 /**
@@ -40,8 +45,12 @@ data class JavaPackage(
  * Eclipse Temurin first, because it is the build most Minecraft hosting guides and Paper's own
  * docs point at; Azul Zulu second, because it fills exactly the holes Temurin leaves (verified
  * 2026-09-23): there is no Temurin 16 for any platform at all, no Temurin 8 for Apple silicon and
- * no Temurin 8/11/17/25 for Windows on ARM. Where neither has a build -- Java 8 on Windows ARM --
- * the answer is null, which the catalog shows as "not available" rather than an error.
+ * no Temurin 8/11/17/25 for Windows on ARM. Microsoft's build is third: on Windows on ARM it is the
+ * one source of Java 11 (verified 2026-11-19), and it ships JDKs only. Three steps, each over all
+ * three sources: the package asked for; a JDK when a JRE was asked for and none exists (Java 17 on
+ * Windows ARM is JDK-only); and on Windows on ARM an x64 build run through the system's emulation
+ * when there is no native one at all (Java 8). Only when every step finds nothing is the answer
+ * null, which the catalog shows as "not available" rather than an error.
  *
  * The distinction between "no build exists" and "could not ask" is kept all the way through:
  * [resolve] returns null for the first and throws for the second, because a catalog that turned
@@ -120,38 +129,38 @@ class JavaPackageResolver(
             return null
         }
 
-        // Temurin's silence is only trusted when it actually answered: a failed request falls
-        // through to Zulu as well, and the error is only raised if Zulu cannot answer either.
-        val temurinFailure: Exception? = try {
-            temurin(major, jdk)?.let { return it }
+        // A source's silence is only trusted when it actually answered: a failed request does not
+        // stop the search, and the error is only raised if nothing else had a build either.
+        val failures = mutableListOf<String>()
+
+        fun ask(source: String, find: () -> JavaPackage?): JavaPackage? = try {
+            find()
+        } catch (exception: Exception) {
+            failures.add("$source: ${exception.message ?: exception.javaClass.simpleName}")
 
             null
-        } catch (exception: Exception) {
-            exception
         }
 
-        val zulu = try {
-            zulu(major, jdk)
-        } catch (exception: Exception) {
-            val reason = temurinFailure?.message?.let { "Temurin: $it; Zulu: ${exception.message}" }
-                ?: exception.message
-                ?: exception.javaClass.simpleName
+        fun search(on: JavaTarget, wantJdk: Boolean): JavaPackage? =
+            ask("Temurin") { temurin(on, major, wantJdk) }
+                ?: ask("Zulu") { zulu(on, major, wantJdk) }
+                ?: if (wantJdk) ask("Microsoft") { microsoft(on, major) } else null
 
-            throw LookupFailedException("Could not look up Java $major downloads ($reason)", exception)
+        fun anyOf(on: JavaTarget): JavaPackage? = search(on, jdk) ?: if (!jdk) search(on, true) else null
+
+        val emulation = target.takeIf { it.os == "windows" && it.arch == "arm64" }?.copy(arch = "x64")
+
+        val found = anyOf(target) ?: emulation?.let { x64 -> anyOf(x64)?.copy(emulated = true) }
+
+        if (found == null && failures.isNotEmpty()) {
+            // Nobody had a build, but somebody never got to say: the honest answer is "unknown".
+            throw LookupFailedException("Could not look up Java $major downloads (${failures.joinToString("; ")})")
         }
 
-        if (zulu == null && temurinFailure != null) {
-            // Zulu has nothing, but Temurin never got to say: the honest answer is "unknown".
-            throw LookupFailedException(
-                "Could not look up Java $major downloads (Temurin: ${temurinFailure.message})",
-                temurinFailure
-            )
-        }
-
-        return zulu
+        return found
     }
 
-    private fun temurin(major: Int, jdk: Boolean): JavaPackage? {
+    private fun temurin(target: JavaTarget, major: Int, jdk: Boolean): JavaPackage? {
         val os = target.temurinOs ?: return null
         val arch = target.temurinArch ?: return null
 
@@ -171,7 +180,7 @@ class JavaPackageResolver(
         return parseTemurin(response.body, major)
     }
 
-    private fun zulu(major: Int, jdk: Boolean): JavaPackage? {
+    private fun zulu(target: JavaTarget, major: Int, jdk: Boolean): JavaPackage? {
         val os = target.zuluOs ?: return null
         val arch = target.zuluArch ?: return null
 
@@ -195,6 +204,30 @@ class JavaPackageResolver(
         requireOk(details, "Zulu")
 
         return parseZuluDetails(details.body, listed)
+    }
+
+    /**
+     * Microsoft Build of OpenJDK: JDKs only, for 11 and the LTS releases after it. Its stable `aka.ms` link always
+     * points at the newest build of a major, and the `.sha256sum.txt` next to it names that build's file, which is
+     * where the version comes from.
+     */
+    private fun microsoft(target: JavaTarget, major: Int): JavaPackage? {
+        val os = target.microsoftOs ?: return null
+        val arch = target.microsoftArch ?: return null
+
+        val url = "$MICROSOFT_DOWNLOADS/microsoft-jdk-$major-$os-$arch.${target.archive}"
+
+        val response = http.get("$url.sha256sum.txt")
+
+        if (response.status == 404) {
+            return null
+        }
+
+        requireOk(response, "Microsoft")
+
+        // A link with no build behind it ends on a web page (aka.ms sends unknown links to a search engine):
+        // the parser finds no checksum line there and the answer is "no build".
+        return parseMicrosoftChecksum(response.body, major, url, target.archive)
     }
 
     private fun requireOk(response: Http.Response, source: String) {
@@ -248,8 +281,15 @@ class JavaPackageResolver(
         const val TEMURIN_API = "https://api.adoptium.net"
         const val ZULU_API = "https://api.azul.com"
 
+        const val MICROSOFT_DOWNLOADS = "https://aka.ms/download-jdk"
+
         const val VENDOR_TEMURIN = "temurin"
         const val VENDOR_ZULU = "zulu"
+        const val VENDOR_MICROSOFT = "microsoft"
+
+        private val MICROSOFT_FILE = Regex("""^microsoft-jdk-(\d+(?:\.\d+)*)-[a-z]+-[a-z0-9]+\.(?:zip|tar\.gz)$""")
+        private val SHA256 = Regex("^[0-9a-fA-F]{64}$")
+        private val WHITESPACE = Regex("\\s+")
 
         /** The majors the catalog offers: every one [com.panomc.node.server.MinecraftJavaVersions] can ask for. */
         val OFFERED_MAJORS = listOf(8, 11, 16, 17, 21, 25)
@@ -335,6 +375,36 @@ class JavaPackageResolver(
                 size = (details.getValue("size") as? Number)?.toLong(),
                 archive = listing.archive,
                 fileName = listing.fileName
+            )
+        }
+
+        /**
+         * Reads Microsoft's `<file>.sha256sum.txt` (`<hex>  microsoft-jdk-17.0.21.1-windows-aarch64.zip`). Null for
+         * anything else -- the HTML page an unknown link ends on included -- or a file of another major.
+         */
+        fun parseMicrosoftChecksum(body: String, major: Int, url: String, archive: String): JavaPackage? {
+            val parts = body.trim().lineSequence().firstOrNull()?.trim()?.split(WHITESPACE) ?: return null
+
+            if (parts.size != 2 || !SHA256.matches(parts[0])) {
+                return null
+            }
+
+            val name = parts[1].removePrefix("*")
+            val version = MICROSOFT_FILE.matchEntire(name)?.groupValues?.get(1) ?: return null
+
+            if (version.substringBefore('.').toIntOrNull() != major) {
+                return null
+            }
+
+            return JavaPackage(
+                vendor = VENDOR_MICROSOFT,
+                major = major,
+                version = version,
+                url = url,
+                sha256 = parts[0].lowercase(),
+                size = null,
+                archive = archive,
+                fileName = name
             )
         }
 

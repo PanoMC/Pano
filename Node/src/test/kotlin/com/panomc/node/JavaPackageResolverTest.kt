@@ -287,4 +287,87 @@ class JavaPackageResolverTest {
         assertTrue(JavaVersionOrder.isNewer("17.0.1", null))
         assertFalse(JavaVersionOrder.isNewer(null, "17.0.1"))
     }
+
+    private val msSha = "a352b538a9967a2361ed15ee3b560b1668e66ab89bdef4551ac2905c01cd9e57"
+
+    @Test
+    fun `Windows on ARM gets Java 17 as a JDK when nobody builds a JRE`() {
+        // 2026-11-19: no Java 17 JRE for windows/aarch64 anywhere, Microsoft's JDK is there.
+        val http = FakeHttp(
+            listOf(
+                { url: String -> url.contains("adoptium") } to ok("[]"),
+                { url: String -> url.contains("azul") } to ok("[]"),
+                { url: String -> url.endsWith("microsoft-jdk-17-windows-aarch64.zip.sha256sum.txt") } to
+                    ok("$msSha  microsoft-jdk-17.0.21.1-windows-aarch64.zip\n")
+            )
+        )
+
+        val pkg = JavaPackageResolver(JavaTarget("windows", "arm64"), http).resolve(17)!!
+
+        assertEquals("microsoft", pkg.vendor)
+        assertEquals("17.0.21.1", pkg.version)
+        assertEquals(msSha, pkg.sha256)
+        assertEquals("https://aka.ms/download-jdk/microsoft-jdk-17-windows-aarch64.zip", pkg.url)
+        assertEquals("microsoft-jdk-17.0.21.1-windows-aarch64.zip", pkg.fileName)
+        assertFalse(pkg.emulated)
+        // The JRE was asked first, Microsoft only for the JDK.
+        assertTrue(http.asked.first().contains("image_type=jre"))
+    }
+
+    @Test
+    fun `Windows on ARM falls back to an emulated x64 build when there is no native one`() {
+        val http = FakeHttp(
+            listOf(
+                { url: String -> url.contains("adoptium") && url.contains("architecture=x64") && url.contains("image_type=jre") } to
+                    ok(fixture("temurin-21-linux-x64.json")),
+                { url: String -> url.contains("adoptium") } to ok("[]"),
+                { url: String -> url.contains("azul") } to ok("[]")
+            )
+        )
+
+        val pkg = JavaPackageResolver(JavaTarget("windows", "arm64"), http).resolve(8)!!
+
+        assertEquals("temurin", pkg.vendor)
+        assertTrue(pkg.emulated)
+        // Every native step was tried before the emulated one.
+        assertTrue(http.asked.any { it.contains("architecture=aarch64") && it.contains("image_type=jdk") })
+    }
+
+    @Test
+    fun `only Windows on ARM falls back to emulation`() {
+        val http = FakeHttp(
+            listOf(
+                { url: String -> url.contains("adoptium") } to ok("[]"),
+                { url: String -> url.contains("azul") } to ok("[]")
+            )
+        )
+
+        assertNull(JavaPackageResolver(JavaTarget("linux", "arm64"), http).resolve(8))
+        assertFalse(http.asked.any { it.contains("architecture=x64") || it.contains("arch=x64") || it.contains("-x64.") })
+    }
+
+    @Test
+    fun `reads Microsoft's checksum file and refuses anything else`() {
+        val url = "https://aka.ms/download-jdk/microsoft-jdk-11-windows-aarch64.zip"
+        val pkg = JavaPackageResolver.parseMicrosoftChecksum(
+            "$msSha  microsoft-jdk-11.0.33.1-windows-aarch64.zip", 11, url, "zip"
+        )!!
+
+        assertEquals("11.0.33.1", pkg.version)
+        assertEquals(url, pkg.url)
+
+        // The search page aka.ms ends an unknown link on, a file of another major, a missing hash.
+        assertNull(JavaPackageResolver.parseMicrosoftChecksum("<!doctype html><html>", 8, url, "zip"))
+        assertNull(JavaPackageResolver.parseMicrosoftChecksum("$msSha  microsoft-jdk-17.0.21.1-windows-aarch64.zip", 11, url, "zip"))
+        assertNull(JavaPackageResolver.parseMicrosoftChecksum("microsoft-jdk-11.0.33.1-windows-aarch64.zip", 11, url, "zip"))
+    }
+
+    @Test
+    fun `maps Microsoft's spellings`() {
+        assertEquals("windows", JavaTarget("windows", "arm64").microsoftOs)
+        assertEquals("aarch64", JavaTarget("windows", "arm64").microsoftArch)
+        assertEquals("x64", JavaTarget("linux", "x64").microsoftArch)
+        assertNull(JavaTarget("linux", "x64", musl = true).microsoftOs)
+        assertNull(JavaTarget("linux", "arm32").microsoftArch)
+    }
 }

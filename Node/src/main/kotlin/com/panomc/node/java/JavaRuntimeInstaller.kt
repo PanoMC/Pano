@@ -433,9 +433,9 @@ class JavaRuntimeInstaller(
 
         private val gson = GsonBuilder().setPrettyPrinting().create()
 
-        /** `Temurin 21.0.12.1+1`: what a task message and a console line call a package. */
+        /** `Temurin 21.0.12.1+1` (`Zulu 8.0.472+8 (x64, emulated)`): what a task message and a console line call a package. */
         fun describe(pkg: JavaPackage): String =
-            "${pkg.vendor.replaceFirstChar { it.uppercase() }} ${pkg.version}"
+            "${pkg.vendor.replaceFirstChar { it.uppercase() }} ${pkg.version}" + if (pkg.emulated) " (x64, emulated)" else ""
 
         /** `<vendor>-<version>`, with anything outside `[A-Za-z0-9._+-]` replaced by `_`. */
         fun directoryName(pkg: JavaPackage): String = sanitise("${pkg.vendor}-${pkg.version}")

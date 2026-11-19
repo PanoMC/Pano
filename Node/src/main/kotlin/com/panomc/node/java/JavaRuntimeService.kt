@@ -419,6 +419,7 @@ class JavaRuntimeService(
             entry.put("vendor", pkg.vendor)
                 .put("version", pkg.version)
                 .put("size", pkg.size)
+                .put("emulated", pkg.emulated)
         }
 
         entry.put("installedVersion", (newestManaged ?: newestInstalled)?.version)

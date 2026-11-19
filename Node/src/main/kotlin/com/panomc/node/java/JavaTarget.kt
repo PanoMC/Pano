@@ -65,7 +65,24 @@ data class JavaTarget(
             else -> null
         }
 
-    /** `zip` on Windows, where that is what both sources ship, `tar.gz` everywhere else. */
+    /** What Microsoft's download links call this operating system; it builds for these three only. */
+    val microsoftOs: String?
+        get() = when (os) {
+            "linux" -> if (musl) null else "linux"
+            "windows" -> "windows"
+            "macos" -> "macos"
+            else -> null
+        }
+
+    /** What Microsoft's download links call this architecture: x64 and arm64 only. */
+    val microsoftArch: String?
+        get() = when (arch) {
+            "x64" -> "x64"
+            "arm64" -> "aarch64"
+            else -> null
+        }
+
+    /** `zip` on Windows, where that is what every source ships, `tar.gz` everywhere else. */
     val archive: String get() = if (os == "windows") ZIP else TAR_GZ
 
     private val isX86: Boolean

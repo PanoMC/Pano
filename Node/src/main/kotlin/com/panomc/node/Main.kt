@@ -156,7 +156,16 @@ object Main {
                 .setMaxWorkerExecuteTimeUnit(TimeUnit.MINUTES)
         )
 
-        if (!config.isPaired()) {
+        val repair = needsRepairing(config, options)
+
+        if (repair) {
+            logger.info(
+                "Pano started this node with a new bootstrap token, so it no longer knows the pairing in " +
+                    "config.conf (a new database, or the node was removed); pairing again."
+            )
+        }
+
+        if (!config.isPaired() || repair) {
             if (!pair(vertx, config, options, dataDir, worker)) {
                 vertx.close()
                 instanceLock.release()
@@ -168,8 +177,8 @@ object Main {
         } else {
             NodeConfigStore.save(dataDir, config)
 
-            if (options.pairingCode != null || options.bootstrapToken != null) {
-                logger.info("Already paired with ${config.platformUrl}; ignoring the pairing credentials.")
+            if (options.pairingCode != null) {
+                logger.info("Already paired with ${config.platformUrl}; ignoring the pairing code.")
             }
         }
 
@@ -277,6 +286,15 @@ object Main {
 
         installer.install(jar, java.absolutePath)
     }
+
+    /**
+     * True when a paired node must pair again: Pano hands a bootstrap token only to a local node it has no row
+     * for (`LocalNodeManager.setup`), so the pairing in config.conf belongs to a database or a node record that
+     * is gone and its token would be refused on every reconnect. A typed `--code` on a paired node is still
+     * ignored: that one is a person, and the pairing they already have may be fine. Internal for tests.
+     */
+    internal fun needsRepairing(config: NodeConfig, options: NodeOptions): Boolean =
+        config.isPaired() && !options.bootstrapToken.isNullOrBlank()
 
     /** What the command line and the environment change in the stored config. Internal for tests. */
     internal fun applyOverrides(config: NodeConfig, options: NodeOptions, agent: AgentLayout?) {

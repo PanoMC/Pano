@@ -48,8 +48,22 @@ class PluginFileNamingTest {
     fun `recognises the pano plugin jar`() {
         assertTrue(PluginFileNaming.isPanoPluginJar("pano-spigot-1.2.3.jar"))
         assertTrue(PluginFileNaming.isPanoPluginJar("Pano.jar"))
+        assertTrue(PluginFileNaming.isPanoPluginJar("Pano-1.2.3.jar"))
+        assertTrue(PluginFileNaming.isPanoPluginJar("pano-spigot-local-build.jar"))
+        assertTrue(PluginFileNaming.isPanoPluginJar("pano-velocity.jar"))
+        assertTrue(PluginFileNaming.isPanoPluginJar("PANO-FABRIC-1.1.0-alpha.1.JAR"))
+        assertTrue(PluginFileNaming.isPanoPluginJar("pano-bungeecord-1.0.0.jar"))
         assertFalse(PluginFileNaming.isPanoPluginJar("panorama.jar"))
         assertFalse(PluginFileNaming.isPanoPluginJar("EssentialsX-2.21.2.jar"))
+    }
+
+    @Test
+    fun `other plugins whose name starts with pano are ordinary plugins`() {
+        // The Pano Market Minecraft plugin: refused as "the Pano plugin" before (2026-11-19).
+        assertFalse(PluginFileNaming.isPanoPluginJar("pano-plugin-market-1.0.0-dev.30.jar"))
+        assertFalse(PluginFileNaming.isPanoPluginJar("pano-limbo-auth-1.0.jar"))
+        assertFalse(PluginFileNaming.isPanoPluginJar("pano-spigotextras.jar"))
+        assertFalse(PluginFileNaming.isPanoPluginJar("pano-spigot-1.2.3.zip"))
     }
 
     @Test

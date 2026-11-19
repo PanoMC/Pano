@@ -362,4 +362,14 @@ class PluginScannerTest {
 
         return file
     }
+
+    @Test
+    fun `only the Pano plugin's own jar names are held back from toggling`() {
+        listOf("pano.jar", "Pano-1.2.3.jar", "pano-spigot-1.1.0-alpha.1.jar", "pano-spigot-local-build.jar.disabled", "PANO-VELOCITY.JAR")
+            .forEach { assertTrue(PluginScanner.isPanoPluginJar(it), it) }
+
+        // The Pano Market Minecraft plugin and other pano-* plugins are switched like any other.
+        listOf("pano-plugin-market-1.0.0-dev.30.jar", "pano-plugin-market-1.0.0-dev.30.jar.disabled", "pano-limbo-auth.jar", "panorama.jar")
+            .forEach { assertFalse(PluginScanner.isPanoPluginJar(it), it) }
+    }
 }

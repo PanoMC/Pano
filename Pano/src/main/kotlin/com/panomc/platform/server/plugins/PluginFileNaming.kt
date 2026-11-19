@@ -123,16 +123,16 @@ object PluginFileNaming {
      *
      * Removing it would disconnect the server from the panel that is being used to remove it, so
      * it is refused rather than left to an admin to discover afterwards.
+     *
+     * Only the names that plugin is shipped under: `pano.jar`, the old `Pano-1.2.3.jar` and the
+     * per-platform `pano-spigot|bungeecord|velocity|fabric[-<version>].jar`. Anything else that merely
+     * starts with `pano-` is another plugin: `pano-plugin-market-<version>.jar` is the Pano Market
+     * Minecraft plugin, which has to be uploaded, updated and removed like any other.
      */
-    fun isPanoPluginJar(filename: String): Boolean {
-        val lower = filename.lowercase()
+    fun isPanoPluginJar(filename: String): Boolean = PANO_PLUGIN_JAR.matches(filename)
 
-        if (!lower.endsWith(JAR_SUFFIX)) {
-            return false
-        }
-
-        return lower == "pano.jar" || lower.startsWith("pano-") || lower.startsWith("pano_")
-    }
+    private val PANO_PLUGIN_JAR =
+        Regex("""^pano([-_]\d[^/\\]*|[-_](spigot|bungeecord|velocity|fabric)([-_.][^/\\]*)?)?\.jar$""", RegexOption.IGNORE_CASE)
 
     /** Whether [value] is a build identifier rather than part of the plugin's name. */
     private fun looksLikeVersion(value: String): Boolean {

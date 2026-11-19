@@ -218,15 +218,19 @@ class PluginScanner {
          * Whether this file is the Pano plugin.
          *
          * By name, because that is all a disabled jar can be judged by without opening it, and the
-         * installer names it after the release asset -- `Pano-1.2.3.jar`, `pano.jar`. Generous on
-         * purpose: refusing to toggle somebody's `panoramas.jar` costs them a rename, and
-         * accidentally disabling the plugin costs them their link to the panel.
+         * installer names it after the release asset -- `pano-spigot-1.2.3.jar`, `Pano-1.2.3.jar`,
+         * `pano.jar`. Only those: disabling the plugin by accident costs the link to the panel, but
+         * refusing every `pano-*` jar locked people out of the Pano Market Minecraft plugin.
          */
-        fun isPanoPluginJar(name: String): Boolean {
-            val base = name.removeSuffix(DISABLED_SUFFIX).removeSuffix(JAR_SUFFIX).lowercase()
+        fun isPanoPluginJar(name: String): Boolean = PANO_PLUGIN_JAR.matches(name.removeSuffix(DISABLED_SUFFIX))
 
-            return base == "pano" || base.startsWith("pano-") || base.startsWith("pano_")
-        }
+        /**
+         * `pano.jar`, the old `Pano-1.2.3.jar`, `pano-spigot|bungeecord|velocity|fabric[-<version>].jar`: the names the
+         * plugin ships under. Not every `pano-*` jar: `pano-plugin-market-<version>.jar` is the Pano Market Minecraft
+         * plugin, which a person switches on and off like any other (Pano's `PluginFileNaming` uses the same rule).
+         */
+        private val PANO_PLUGIN_JAR =
+            Regex("""^pano([-_]\d[^/\\]*|[-_](spigot|bungeecord|velocity|fabric)([-_.][^/\\]*)?)?\.jar$""", RegexOption.IGNORE_CASE)
 
         /** One jar, parsed. Never throws: an unreadable jar is still a file the panel must list. */
         fun read(file: File, fallbackKind: String): ScannedPlugin {

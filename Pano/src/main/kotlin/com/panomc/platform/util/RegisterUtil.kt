@@ -8,6 +8,7 @@ import com.panomc.platform.db.model.PermissionNode.Companion.HolderType
 import com.panomc.platform.db.model.SystemProperty
 import com.panomc.platform.db.model.User
 import com.panomc.platform.error.*
+import io.vertx.mysqlclient.MySQLException
 import io.vertx.sqlclient.SqlClient
 import java.util.*
 
@@ -91,6 +92,51 @@ object RegisterUtil {
         isAdmin: Boolean = false,
         isSetup: Boolean = false,
         mcUuid: String? = null,
+    ): Long = registerUser(databaseManager, sqlClient, username, email, remoteIP, isAdmin, isSetup, mcUuid) {
+        hashPassword(password)
+    }
+
+    /**
+     * Hashes [password] with the configured algorithm, off the event loop. Pair it with
+     * [registerWithHashedPassword] to hash before opening a transaction, so no pooled connection or row lock is
+     * held while the slow hash runs.
+     */
+    suspend fun hashPassword(password: String): String {
+        val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
+        val configManager = applicationContext.getBean(ConfigManager::class.java)
+        val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
+
+        return passwordHasher.hashAsync(password, algorithm)
+    }
+
+    /**
+     * The same as [register], with a password already hashed by [hashPassword]. Runs the same checks (IP ban,
+     * username and email taken) and writes the same rows.
+     */
+    suspend fun registerWithHashedPassword(
+        databaseManager: DatabaseManager,
+        sqlClient: SqlClient,
+        username: String,
+        email: String,
+        hashedPassword: String,
+        remoteIP: String,
+        isAdmin: Boolean = false,
+        isSetup: Boolean = false,
+        mcUuid: String? = null,
+    ): Long = registerUser(databaseManager, sqlClient, username, email, remoteIP, isAdmin, isSetup, mcUuid) {
+        hashedPassword
+    }
+
+    private suspend fun registerUser(
+        databaseManager: DatabaseManager,
+        sqlClient: SqlClient,
+        username: String,
+        email: String,
+        remoteIP: String,
+        isAdmin: Boolean,
+        isSetup: Boolean,
+        mcUuid: String?,
+        hashedPassword: suspend () -> String,
     ): Long {
         if (!isSetup) {
             val activeIpBan = databaseManager.bannedIpDao.getActiveByIp(remoteIP, sqlClient)
@@ -124,14 +170,19 @@ object RegisterUtil {
         val resolvedUuid = mcUuid ?: generateOfflineUuid(username)
 
         val user = User(username = username, email = email, registeredIp = remoteIP, mcUuid = resolvedUuid)
-        val userId: Long
+        val passwordHash = hashedPassword()
 
-        val passwordHasher = applicationContext.getBean(PasswordHasher::class.java)
-        val configManager = applicationContext.getBean(ConfigManager::class.java)
-        val algorithm = PasswordHasher.Algorithm.fromString(configManager.config.auth.passwordHashAlgorithm)
-        val hashedPassword = passwordHasher.hashAsync(password, algorithm)
+        // A concurrent registration of the same name or address that won the race hits the unique key here:
+        // answered like the checks above, not as a 500.
+        val userId = try {
+            databaseManager.userDao.add(user, passwordHash, sqlClient, isSetup)
+        } catch (e: Exception) {
+            val duplicate = e.duplicateKeyMessage() ?: throw e
 
-        userId = databaseManager.userDao.add(user, hashedPassword, sqlClient, isSetup)
+            if (duplicate.contains("email", ignoreCase = true)) throw RegisterEmailNotAvailable()
+
+            throw RegisterUsernameNotAvailable()
+        }
 
         if (!isAdmin) {
             return userId
@@ -186,4 +237,13 @@ object RegisterUtil {
             throw NewPasswordRepeatDoesntMatch()
         }
     }
+
+    /** The first duplicate-key (`1062`) message in the cause chain (it names the key), `null` when there is none. */
+    private fun Throwable.duplicateKeyMessage(): String? =
+        generateSequence(this) { it.cause.takeIf { cause -> cause !== it } }
+            .take(8)
+            .firstOrNull { (it is MySQLException && it.errorCode == ER_DUP_ENTRY) || it.message?.contains("Duplicate entry", ignoreCase = true) == true }
+            ?.let { it.message.orEmpty() }
+
+    private const val ER_DUP_ENTRY = 1062
 }

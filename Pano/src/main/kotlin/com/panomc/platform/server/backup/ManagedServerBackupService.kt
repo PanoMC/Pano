@@ -399,7 +399,7 @@ class ManagedServerBackupService(
             null
         }
 
-        if (target != null && target.nodeId == backup.nodeId) {
+        if (target != null && ownsArchive(target.nodeId, backup.nodeId, server.nodeId)) {
             try {
                 fileClient.request(target, BackupDeleteMessage(target.serverUuid, backup.uuid))
             } catch (exception: Exception) {
@@ -496,6 +496,15 @@ class ManagedServerBackupService(
 
     companion object {
         const val MODE_NEXT_START = "next-start"
+
+        /**
+         * Whether the side [targetNodeId] names can delete a backup kept by [backupNodeId]. Its own
+         * node, or the plugin for a plugin's backup — and also the server's own node for a plugin's
+         * backup (no node id), because the plugin keeps those in the server folder on that node,
+         * which the node reaches too.
+         */
+        fun ownsArchive(targetNodeId: Long?, backupNodeId: Long?, serverNodeId: Long?): Boolean =
+            targetNodeId == backupNodeId || (backupNodeId == null && targetNodeId != null && targetNodeId == serverNodeId)
 
         /** A backup not finished within a day has failed; its pending `keep` is dropped. */
         private const val PENDING_RETENTION_TTL_MS = 24L * 60 * 60 * 1000

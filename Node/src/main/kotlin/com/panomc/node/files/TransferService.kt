@@ -80,7 +80,10 @@ class TransferService(
             return
         }
 
-        if (source.length() > MAX_TRANSFER_BYTES) {
+        // A backup is as big as it is: refusing a 2 GB one left it impossible to get out at all.
+        val virtual = message.path.orEmpty().startsWith(VIRTUAL_PREFIX)
+
+        if (!virtual && source.length() > MAX_TRANSFER_BYTES) {
             reportFailure(ticket, FileService.ERROR_TOO_LARGE)
 
             return
@@ -88,7 +91,7 @@ class TransferService(
 
         try {
             val request = HttpRequest.newBuilder(uri(ticket))
-                .timeout(TRANSFER_TIMEOUT)
+                .timeout(if (virtual) BACKUP_TRANSFER_TIMEOUT else TRANSFER_TIMEOUT)
                 .header("Authorization", "Bearer ${config.token}")
                 .header("Content-Type", "application/octet-stream")
                 .header(FILE_NAME_HEADER, source.name)
@@ -150,8 +153,9 @@ class TransferService(
      * Sends a virtual path that resolves to a streamed archive, and says whether it did.
      *
      * False means the path is not one — an ordinary file, or a FULL backup that is a real file —
-     * and the caller goes on with the single-file pull. A snapshot larger than a transfer may carry
-     * is refused up front, on its known total, instead of being cut off a gigabyte in.
+     * and the caller goes on with the single-file pull. A snapshot of any size is streamed: the zip
+     * is written chunk by chunk into the pipe, so memory stays flat, and a stream that breaks
+     * halfway still reaches Pano as a failed upload, never as a shorter archive.
      */
     private fun pullVirtualArchive(ticket: String, message: TransferPullMessage): Boolean {
         val requested = message.path.orEmpty()
@@ -172,13 +176,7 @@ class TransferService(
             return true
         } ?: return false
 
-        if (archive.sizeBytes > MAX_TRANSFER_BYTES) {
-            reportFailure(ticket, FileService.ERROR_TOO_LARGE)
-
-            return true
-        }
-
-        streamZip(ticket, archive.fileName) { output -> archive.write(output, MAX_TRANSFER_BYTES) }
+        streamZip(ticket, archive.fileName, BACKUP_TRANSFER_TIMEOUT) { output -> archive.write(output, Long.MAX_VALUE) }
 
         return true
     }
@@ -190,7 +188,12 @@ class TransferService(
      * finished archive closes the pipe normally; a writer that throws breaks it instead, so Pano
      * sees an upload that was cut off rather than a shorter archive that looks complete.
      */
-    private fun streamZip(ticket: String, fileName: String, write: (java.io.OutputStream) -> Unit) {
+    private fun streamZip(
+        ticket: String,
+        fileName: String,
+        timeout: Duration = TRANSFER_TIMEOUT,
+        write: (java.io.OutputStream) -> Unit
+    ) {
         val pipedInput = PipedInputStream(BUFFER_SIZE)
         val pipedOutput = PipedOutputStream(pipedInput)
 
@@ -212,7 +215,7 @@ class TransferService(
 
         try {
             val request = HttpRequest.newBuilder(uri(ticket))
-                .timeout(TRANSFER_TIMEOUT)
+                .timeout(timeout)
                 .header("Authorization", "Bearer ${config.token}")
                 .header("Content-Type", "application/zip")
                 .header(FILE_NAME_HEADER, fileName)
@@ -426,7 +429,10 @@ class TransferService(
     }
 
     companion object {
-        /** Ceiling for one download or archive. A file pushed into the server's folder has none. */
+        /**
+         * Ceiling for one file download or file-manager archive. A backup (`@backup/<id>`) has
+         * none, nor does a file pushed into the server's folder.
+         */
         const val MAX_TRANSFER_BYTES = 1024L * 1024 * 1024
 
         const val TRANSFER_PATH = NodePaths.TRANSFER
@@ -482,5 +488,11 @@ class TransferService(
 
         private val CONNECT_TIMEOUT: Duration = Duration.ofSeconds(30)
         private val TRANSFER_TIMEOUT: Duration = Duration.ofMinutes(30)
+
+        /**
+         * How long a backup download may take end to end. The upload's answer only comes once the
+         * whole body is sent, so this must cover a multi-gigabyte backup on a slow line.
+         */
+        val BACKUP_TRANSFER_TIMEOUT: Duration = Duration.ofHours(12)
     }
 }

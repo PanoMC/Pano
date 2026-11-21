@@ -1057,7 +1057,8 @@ class LicenseManager(
             issuedAtMs = decoded.issuedAtAsInstant?.toEpochMilli() ?: 0L,
             expiresAtMs = decoded.expiresAtAsInstant?.toEpochMilli() ?: 0L,
             keyId = decoded.keyId,
-            tokenId = decoded.id
+            tokenId = decoded.id,
+            panoPlus = panoPlusClaimOf(decoded)
         )
     }
 

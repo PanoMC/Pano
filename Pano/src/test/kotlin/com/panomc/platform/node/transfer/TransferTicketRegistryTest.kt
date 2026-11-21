@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class TransferTicketRegistryTest {
     private fun issue(
@@ -100,6 +103,38 @@ class TransferTicketRegistryTest {
         assertEquals(1, discarded)
         assertEquals(0, registry.size())
         assertTrue(ticket.completion.isCompleted)
+    }
+
+    @Test
+    fun `a download that has started is not expired under it`() {
+        val registry = TransferTicketRegistry()
+        val ticket = issue(registry, ttlMs = -1)
+
+        ticket.started = true
+
+        registry.sweep()
+
+        assertEquals(1, registry.size())
+        assertTrue(!ticket.completion.isCompleted)
+        assertNotNull(registry.resolve(ticket.id, 7, TransferDirection.DOWNLOAD))
+    }
+
+    @Test
+    fun `waiting on a download covers the start only`() = runBlocking {
+        val registry = TransferTicketRegistry()
+
+        // Never started: gives up at the ticket's limit.
+        assertNull(issue(registry, ttlMs = 50).awaitDownload())
+
+        // Started: waits past the limit until the stream ends.
+        val running = issue(registry, ttlMs = 50).apply { started = true }
+
+        launch {
+            delay(300)
+            running.completion.complete(42L)
+        }
+
+        assertEquals(42L, running.awaitDownload())
     }
 
     @Test

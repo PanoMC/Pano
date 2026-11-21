@@ -4,6 +4,7 @@ import com.panomc.platform.config.ConfigManager
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpServerResponse
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.Logger
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
@@ -88,7 +89,26 @@ data class TransferTicket(
      */
     val downloadFile: File? = null
 ) {
-    val isExpired get() = System.currentTimeMillis() > expiresAt
+    /**
+     * Set once the node (or plugin) has started sending the bytes. From then on the ticket no
+     * longer expires: [expiresAt] limits how long a transfer may take to *start*, not how long a
+     * multi-gigabyte backup may take to arrive. It still ends when the stream ends or breaks.
+     */
+    @Volatile
+    var started: Boolean = false
+
+    val isExpired get() = !started && System.currentTimeMillis() > expiresAt
+
+    /**
+     * Waits for this download to finish: up to [expiresAt] for it to start, then for as long as
+     * the stream runs. Null when it never started in time; throws whatever broke it.
+     */
+    suspend fun awaitDownload(): Long? {
+        val remaining = (expiresAt - System.currentTimeMillis()).coerceAtLeast(1)
+
+        return withTimeoutOrNull(remaining) { completion.await() }
+            ?: if (started) completion.await() else null
+    }
 }
 
 /**
@@ -251,7 +271,10 @@ class TransferTicketRegistry(
     }
 
     companion object {
-        /** Long enough for a slow 1 GB transfer, short enough that a leaked ticket is worthless. */
+        /**
+         * How long a ticket waits to be used. A transfer that has started runs past it (see
+         * [TransferTicket.started]), so this only has to cover the node opening its request.
+         */
         const val TTL_MS = 10 * 60 * 1000L
 
         /**

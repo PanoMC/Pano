@@ -33,7 +33,6 @@ import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.springframework.beans.factory.config.ConfigurableBeanFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Scope
@@ -112,7 +111,7 @@ class McServerBackupSources(
             try {
                 fileClient.send(target, TransferPullMessage(ticket.id, target.serverUuid, path))
 
-                withTimeoutOrNull(FETCH_TIMEOUT_MS) { ticket.completion.await() }
+                ticket.awaitDownload()
                     ?: throw PanoHostException(FETCH_FAILED, message = "The server did not send the backup in time.")
             } catch (e: PanoHostException) {
                 throw e
@@ -335,8 +334,7 @@ class McServerBackupSources(
 
         const val FETCH_FAILED = "SERVER_BACKUP_FETCH_FAILED"
 
-        /** The ticket outlives a large transfer (the sweep fails an expired ticket even mid-stream). */
+        /** How long the node has to start sending; once it has, the transfer runs as long as it takes. */
         private const val TICKET_TTL_MS = 2L * 60 * 60 * 1000
-        private const val FETCH_TIMEOUT_MS = TICKET_TTL_MS
     }
 }

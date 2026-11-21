@@ -15,6 +15,7 @@ import com.panomc.platform.node.NodeRuntime
 import com.panomc.platform.node.NodeServerStateReconciler
 import com.panomc.platform.node.NodeUpdateProgressService
 import com.panomc.platform.node.ServerPluginStateService
+import com.panomc.platform.node.ServerTaskService
 import com.panomc.platform.node.dto.NodeResources
 import com.panomc.platform.node.event.request.NodeHelloEventRequest
 import com.panomc.platform.node.message.DeleteServerMessage
@@ -48,6 +49,7 @@ class NodeHelloEvent(
     private val nodeDaemonUpdateService: NodeDaemonUpdateService,
     private val agentServerLinkService: AgentServerLinkService,
     private val nodeUpdateProgressService: NodeUpdateProgressService,
+    private val serverTaskService: ServerTaskService,
     private val logger: Logger
 ) : NodeEvent<NodeHelloEventRequest, NodeEventResponse>() {
     override suspend fun handle(request: NodeHelloEventRequest, node: Node): NodeEventResponse? {
@@ -109,6 +111,14 @@ class NodeHelloEvent(
         alertManager.onNodeOnline(node.id, sqlClient)
 
         reconcileServerStates(request, node)
+
+        // Before the automatic update below looks for busy tasks: a task the previous daemon
+        // process took with it is not one this node is busy with.
+        try {
+            serverTaskService.failAbandonedByNode(node.id, request.runningTasks, now)
+        } catch (e: Exception) {
+            logger.warn("Could not settle the tasks node ${node.id} dropped: ${e.message}")
+        }
 
         deletePendingServers(request, node)
 

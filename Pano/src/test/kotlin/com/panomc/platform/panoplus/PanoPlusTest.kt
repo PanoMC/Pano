@@ -9,11 +9,11 @@ import org.junit.jupiter.api.Test
 class PanoPlusTest {
     private val enabledBody = JsonObject(
         """
-        {"result":"ok","data":{"enabled":true,"priceMonthly":"3.99","currency":"USD",
+        {"result":"ok","data":{"enabled":true,"priceMonthly":"3.99","priceYearly":"39.99","currency":"USD",
           "benefits":{"backupGb":50,"freeBackupGb":1,"mailPerMonth":3000,"mailPerDay":400,"freeMailPerMonth":500},
           "includedPackageIds":["standard","network"],
           "me":{"active":true,"status":"GRACE","source":"SUBSCRIPTION","renewsAt":null,"graceUntil":1790000000000,
-                "cancelAtPeriodEnd":false,"hostPackageId":null}}}
+                "cancelAtPeriodEnd":false,"hostPackageId":null,"period":"YEARLY"}}}
         """.trimIndent()
     )
 
@@ -24,6 +24,8 @@ class PanoPlusTest {
         assertTrue(info.enabled)
         assertEquals("3.99", info.priceMonthly)
         assertEquals("USD", info.currency)
+        assertEquals("39.99", info.priceYearly)
+        assertEquals("YEARLY", info.me?.period)
         assertEquals(50, info.benefits["backupGb"])
         assertEquals(3000, info.benefits["mailPerMonth"])
         assertEquals("GRACE", info.me?.status)
@@ -47,6 +49,9 @@ class PanoPlusTest {
         assertEquals("NONE", odd.me?.status)
         assertEquals(false, odd.me?.active)
         assertNull(odd.me?.source)
+        assertNull(odd.priceYearly, "missing yearly price is fine")
+        assertNull(odd.me?.period, "missing period is fine")
+        assertNull(PanoPlusInfo.fromApi(JsonObject("""{"enabled":true,"priceYearly":"soon","me":{"status":"ACTIVE","period":"WEEKLY"}}""")).me?.period)
     }
 
     @Test
@@ -65,7 +70,9 @@ class PanoPlusTest {
         assertEquals("https://panomc.com/plus", on["plusUrl"])
         assertEquals(false, on["hintsDismissed"])
         assertEquals("GRACE", (on["me"] as Map<*, *>)["status"])
-        assertEquals(setOf("enabled", "priceMonthly", "currency", "benefits", "me", "hintsDismissed", "plusUrl"), on.keys)
+        assertEquals("YEARLY", (on["me"] as Map<*, *>)["period"])
+        assertEquals("39.99", on["priceYearly"])
+        assertEquals(setOf("enabled", "priceMonthly", "priceYearly", "currency", "benefits", "me", "hintsDismissed", "plusUrl"), on.keys)
     }
 
     @Test

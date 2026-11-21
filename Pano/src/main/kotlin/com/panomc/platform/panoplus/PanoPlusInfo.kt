@@ -9,6 +9,8 @@ import io.vertx.core.json.JsonObject
 data class PanoPlusInfo(
     val enabled: Boolean,
     val priceMonthly: String? = null,
+    /** Null when panomc.com sends no yearly price. */
+    val priceYearly: String? = null,
     val currency: String? = null,
     val benefits: Map<String, Number> = emptyMap(),
     val me: Me? = null
@@ -22,7 +24,9 @@ data class PanoPlusInfo(
         val renewsAt: Long?,
         val graceUntil: Long?,
         val cancelAtPeriodEnd: Boolean,
-        val hostPackageId: String?
+        val hostPackageId: String?,
+        /** `MONTHLY`, `YEARLY` or null (older panomc.com, or not a paid subscription). */
+        val period: String? = null
     ) {
         fun toMap() = mapOf(
             "active" to active,
@@ -31,7 +35,8 @@ data class PanoPlusInfo(
             "renewsAt" to renewsAt,
             "graceUntil" to graceUntil,
             "cancelAtPeriodEnd" to cancelAtPeriodEnd,
-            "hostPackageId" to hostPackageId
+            "hostPackageId" to hostPackageId,
+            "period" to period
         )
     }
 
@@ -40,6 +45,7 @@ data class PanoPlusInfo(
 
         private val STATUSES = setOf("ACTIVE", "GRACE", "NONE")
         private val SOURCES = setOf("SUBSCRIPTION", "HOST", "ADMIN")
+        private val PERIODS = setOf("MONTHLY", "YEARLY")
         private val PRICE = Regex("^\\d{1,6}(\\.\\d{1,2})?$")
         private val CURRENCY = Regex("^[A-Z]{3}$")
         private val ID = Regex("^[a-z0-9-]{1,40}$")
@@ -61,6 +67,7 @@ data class PanoPlusInfo(
             return PanoPlusInfo(
                 enabled = true,
                 priceMonthly = (data.getValue("priceMonthly") as? String)?.takeIf(PRICE::matches),
+                priceYearly = (data.getValue("priceYearly") as? String)?.takeIf(PRICE::matches),
                 currency = (data.getValue("currency") as? String)?.takeIf(CURRENCY::matches),
                 benefits = benefits,
                 me = (data.getValue("me") as? JsonObject)?.let(::meOf)
@@ -77,7 +84,8 @@ data class PanoPlusInfo(
                 renewsAt = (me.getValue("renewsAt") as? Number)?.toLong(),
                 graceUntil = (me.getValue("graceUntil") as? Number)?.toLong(),
                 cancelAtPeriodEnd = me.getValue("cancelAtPeriodEnd") == true,
-                hostPackageId = (me.getValue("hostPackageId") as? String)?.takeIf(ID::matches)
+                hostPackageId = (me.getValue("hostPackageId") as? String)?.takeIf(ID::matches),
+                period = (me.getValue("period") as? String)?.takeIf { it in PERIODS }
             )
         }
     }

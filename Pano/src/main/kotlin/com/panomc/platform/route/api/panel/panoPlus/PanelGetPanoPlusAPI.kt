@@ -13,7 +13,7 @@ import io.vertx.json.schema.common.dsl.Schemas.stringSchema
 
 /**
  * Pano+ for the panel (`GET /api/v1/panel/pano-plus[?refresh=true]`):
- * `{enabled, priceMonthly, currency, benefits, me, hintsDismissed, plusUrl}`. Any panel user may read
+ * `{enabled, priceMonthly, priceYearly, currency, benefits, me, hintsDismissed, plusUrl}`. Any panel user may read
  * it. `enabled` is false when Pano+ is off on panomc.com, this Pano is not connected or panomc.com
  * cannot be reached; the panel then shows nothing about Pano+.
  */
@@ -40,6 +40,7 @@ class PanelGetPanoPlusAPI(private val panoPlusManager: PanoPlusManager) : PanelA
                 return mapOf(
                     "enabled" to false,
                     "priceMonthly" to null,
+                    "priceYearly" to null,
                     "currency" to null,
                     "benefits" to emptyMap<String, Any>(),
                     "me" to null,
@@ -51,6 +52,7 @@ class PanelGetPanoPlusAPI(private val panoPlusManager: PanoPlusManager) : PanelA
             return mapOf(
                 "enabled" to true,
                 "priceMonthly" to info.priceMonthly,
+                "priceYearly" to info.priceYearly,
                 "currency" to info.currency,
                 "benefits" to info.benefits,
                 "me" to info.me?.toMap(),

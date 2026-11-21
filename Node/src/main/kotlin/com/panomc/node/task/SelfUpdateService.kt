@@ -30,6 +30,15 @@ class SelfUpdateService(
     private val reporter: TaskReporter,
     private val platformUrls: PlatformUrls,
     private val logger: NodeLogger,
+    /**
+     * How many tasks other than this update are running, which the restart waits for
+     * ([awaitOtherTasks]). Zero by default, for a test that has none.
+     */
+    private val otherTasksInFlight: () -> Int = { 0 },
+    private val waitMaxMillis: Long = TASK_WAIT_MAX_MILLIS,
+    private val pollMillis: Long = TASK_WAIT_POLL_MILLIS,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val sleep: (Long) -> Unit = { Thread.sleep(it) },
     private val onUpdateStaged: () -> Unit
 ) {
     private val updatesDir = File(dataDir, "updates")
@@ -109,6 +118,8 @@ class SelfUpdateService(
                     .encode()
             )
 
+            awaitOtherTasks(taskId, version)
+
             logger.notice("Downloaded update $version; restarting to apply it.")
 
             reporter.done(taskId, null, KIND, "Staged $version")
@@ -118,6 +129,54 @@ class SelfUpdateService(
             logger.error("Self update failed: ${exception.message}", exception)
 
             reporter.failed(taskId, null, KIND, exception.message ?: exception.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * Holds the restart until every other task this daemon runs has ended, for at most
+     * [waitMaxMillis].
+     *
+     * The restart takes every running task with it, and Pano not starting an update while a task
+     * runs only covers the moment it decides: a plugin install the panel starts while this jar is
+     * downloading would still be cut off mid-download. Tasks that start while this waits are waited
+     * for too. Past the bound the node restarts anyway -- an update must not wait on a task that
+     * never ends -- and the stop reports whatever is left as interrupted. Until then the update
+     * stays RUNNING in Pano, saying what it waits for.
+     */
+    fun awaitOtherTasks(taskId: String, version: String) {
+        val deadline = clock() + waitMaxMillis
+        var announced = -1
+        var reportedAt = Long.MIN_VALUE
+
+        while (true) {
+            val busy = otherTasksInFlight()
+
+            if (busy <= 0) {
+                return
+            }
+
+            if (clock() >= deadline) {
+                logger.warn("$busy task(s) are still running after ${waitMaxMillis / 60_000} minutes; restarting for update $version anyway.")
+
+                return
+            }
+
+            val now = clock()
+
+            // On every change, and now and then in between so Pano does not take the update for
+            // one that went quiet.
+            if (busy != announced || now - reportedAt >= WAIT_REPORT_MILLIS) {
+                if (busy != announced) {
+                    logger.info("Update $version is staged; waiting for $busy running task(s) to finish before restarting.")
+                }
+
+                reporter.running(taskId, null, KIND, WAIT_PERCENT, "Waiting for $busy running task(s) to finish")
+
+                announced = busy
+                reportedAt = now
+            }
+
+            sleep(pollMillis)
         }
     }
 
@@ -193,6 +252,16 @@ class SelfUpdateService(
     private fun pendingFile() = File(updatesDir, "pending.json")
 
     companion object {
-        private const val KIND = "SELF_UPDATE"
+        const val KIND = "SELF_UPDATE"
+
+        /** Where the update's progress sits while the restart waits for other tasks. */
+        private const val WAIT_PERCENT = 95
+
+        /** The longest the restart waits for other tasks; then it restarts and they fail. */
+        const val TASK_WAIT_MAX_MILLIS = 15 * 60_000L
+
+        private const val TASK_WAIT_POLL_MILLIS = 2_000L
+
+        private const val WAIT_REPORT_MILLIS = 30_000L
     }
 }

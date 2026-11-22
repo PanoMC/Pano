@@ -347,6 +347,12 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     /** Dependents that were running (or waiting) when they were unloaded with a plugin being updated. */
     private val restartAfterReload: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /**
+     * Dependents that were running when PF4J stopped them together with a plugin they require. An update stops the plugin
+     * before it unloads it, so at unload time they look STOPPED; they still have to start again after the update.
+     */
+    private val stoppedWithDependency: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     /** Dependents that were held back by the gate when they were unloaded with a plugin being updated. */
     private val reloadAsHeld: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
@@ -630,7 +636,8 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
                 }
 
                 if (!held.containsKey(dependent) && !isDisabledByAdmin(dependent) &&
-                    (wrapper.pluginState == PluginState.STARTED || waiting.containsKey(dependent) || licenseBlocked.contains(dependent))
+                    (wrapper.pluginState == PluginState.STARTED || stoppedWithDependency.remove(dependent) ||
+                        waiting.containsKey(dependent) || licenseBlocked.contains(dependent))
                 ) {
                     restartAfterReload.add(dependent)
                 }
@@ -744,6 +751,9 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     }
 
     override fun startPlugin(pluginId: String?): PluginState? {
+        // Started again by anyone: no longer a dependent waiting to come back after its dependency's update.
+        pluginId?.let { stoppedWithDependency.remove(it) }
+
         // The last line of the gate: a plugin outside the supported level is never started, whoever asks (a
         // dependent pulling it in, the console, a reload). It stays DISABLED; the panel refuses with an error first.
         if (pluginId != null) {
@@ -866,7 +876,29 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     }
 
     override fun stopPlugin(pluginId: String?): PluginState? {
+        if (pluginId != null) {
+            stoppedWithDependency.addAll(runningDependents(pluginId))
+        }
+
         return super.stopPlugin(pluginId)
+    }
+
+    /** Every plugin that requires [pluginId], directly or through another one, and is running now. */
+    private fun runningDependents(pluginId: String): Set<String> {
+        val found = mutableSetOf<String>()
+        val queue = ArrayDeque(dependencyResolver.getDependents(pluginId))
+
+        while (queue.isNotEmpty()) {
+            val dependent = queue.removeFirst()
+
+            if (!found.add(dependent)) {
+                continue
+            }
+
+            queue.addAll(dependencyResolver.getDependents(dependent))
+        }
+
+        return found.filter { getPlugin(it)?.pluginState == PluginState.STARTED }.toSet()
     }
 
     fun reloadPlugin(pluginId: String): PluginState? {

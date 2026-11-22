@@ -278,6 +278,30 @@ class PluginDependencyLifecycleTest {
     }
 
     @Test
+    fun `the add-ons stopped before an update of the market start again after it, as the panel update does`() {
+        // InstallManager.unloadPluginForInstall: stop, disable, unload. PF4J stops the add-ons with the market, so at unload
+        // time they are STOPPED, not STARTED; they were running and must come back (seen on a hosted Pano, 2026-11-22).
+        marketWithAddons()
+        val manager = boot()
+        assertEquals(PluginState.STARTED, manager.state("stripe"))
+
+        val path = manager.getPlugin("market").pluginPath
+        manager.stopPlugin("market")
+        manager.disablePlugin("market")
+        assertTrue(manager.unloadPlugin("market"))
+
+        writeJar("market", version = "1.1.0")
+        manager.loadPlugin(path)
+        manager.enablePlugin("market")
+        assertEquals(PluginState.STARTED, manager.startPlugin("market"))
+        manager.liftHolds()
+
+        assertEquals("1.1.0", manager.getPlugin("market").descriptor.version)
+        assertEquals(PluginState.STARTED, manager.state("stripe"))
+        assertEquals(PluginState.STARTED, manager.state("shipping"))
+    }
+
+    @Test
     fun `an add-on installed while the market runs starts and is seen at once`() {
         writeJar("market")
         val manager = boot()

@@ -127,10 +127,21 @@ class PluginUiManager(
     internal fun getNamespaceClashes(pluginManager: PluginManager): List<NamespaceClash> =
         clashesAmong(activeRegistered(pluginManager))
 
-    private fun activeRegistered(pluginManager: PluginManager) =
-        pluginUiRegisterList.toList().filter { (plugin, _) ->
-            pluginManager.getPlugin(plugin.pluginId)?.pluginState == PluginState.STARTED
+    // The loaded instance only: an update replaces the plugin object, and a copy of the old one left in the list must not
+    // count as a second running plugin of the same id (it clashed with itself and the new UI was left out, 2026-11-22).
+    private fun activeRegistered(pluginManager: PluginManager): List<Pair<PanoPlugin, String>> {
+        val entries = pluginUiRegisterList.toList()
+        // Compared by class loader, not `wrapper.plugin` (that getter would create the plugin object of a plugin not started).
+        fun current(plugin: PanoPlugin) = pluginManager.getPlugin(plugin.pluginId)?.pluginClassLoader.let { it == null || plugin.javaClass.classLoader === it }
+
+        // A replaced instance (an older load of the same plugin) is dropped for good.
+        entries.filter { (plugin, _) -> pluginManager.getPlugin(plugin.pluginId) != null && !current(plugin) }
+            .forEach { (plugin, _) -> unRegisterPlugin(plugin) }
+
+        return entries.filter { (plugin, _) ->
+            pluginManager.getPlugin(plugin.pluginId)?.pluginState == PluginState.STARTED && current(plugin)
         }
+    }
 
     private fun clashesAmong(active: List<Pair<PanoPlugin, String>>): List<NamespaceClash> {
         if (active.size < 2) return emptyList()

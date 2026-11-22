@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.setup.step
 
+import com.panomc.platform.db.DatabaseConnectOptions
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.error.BadRequest
 import com.panomc.platform.error.InvalidData
@@ -46,7 +47,7 @@ class Step2VerifyDBAPI(private val logger: Logger) : SetupApi() {
 
         val (host, port) = parseDatabaseHost(data.getString("host")) ?: throw BadRequest()
 
-        val connectOptions = MySQLConnectOptions()
+        val connectOptions = DatabaseConnectOptions.create()
             .setPort(port)
             .setHost(host)
             .setDatabase(data.getString("dbName"))

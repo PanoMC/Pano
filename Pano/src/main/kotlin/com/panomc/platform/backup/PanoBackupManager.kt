@@ -1,5 +1,6 @@
 package com.panomc.platform.backup
 
+import com.panomc.platform.db.DatabaseConnectOptions
 import com.panomc.platform.server.backup.BackupMode
 
 import com.panomc.platform.Main
@@ -537,7 +538,7 @@ class PanoBackupManager(
         fun connectOptions(database: JsonObject): MySQLConnectOptions {
             val address = database.getString("host", "")
             val parsed = DatabaseAddress.parse(address) ?: DatabaseAddress(address.substringBefore(':'), DatabaseAddress.DEFAULT_PORT)
-            val options = MySQLConnectOptions()
+            val options = DatabaseConnectOptions.create()
                 .setHost(parsed.host)
                 .setPort(parsed.port)
                 .setDatabase(database.getString("name", ""))

@@ -121,7 +121,7 @@ class DatabaseManager(
                         "Please check your configuration!"
             )
 
-        val connectOptions = MySQLConnectOptions()
+        val connectOptions = DatabaseConnectOptions.create()
             .setPort(address.port)
             .setHost(address.host)
             .setDatabase(databaseConfig.name)

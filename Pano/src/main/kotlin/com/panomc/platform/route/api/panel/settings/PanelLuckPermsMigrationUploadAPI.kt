@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.db.DatabaseConnectOptions
 import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -535,7 +536,7 @@ class PanelLuckPermsMigrationUploadAPI(
         host: String, port: Int, dbName: String,
         username: String, password: String, tablePrefix: String
     ): LuckPermsData {
-        val connectOptions = MySQLConnectOptions()
+        val connectOptions = DatabaseConnectOptions.create()
             .setHost(host)
             .setPort(port)
             .setDatabase(dbName)

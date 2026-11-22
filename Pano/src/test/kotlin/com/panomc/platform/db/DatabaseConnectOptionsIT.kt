@@ -1,6 +1,8 @@
 package com.panomc.platform.db
 
 import io.vertx.core.Vertx
+import io.vertx.core.Future
+import io.vertx.mysqlclient.MySQLBuilder
 import io.vertx.mysqlclient.MySQLConnection
 import io.vertx.mysqlclient.SslMode
 import io.vertx.sqlclient.SqlConnection
@@ -29,12 +31,14 @@ class DatabaseConnectOptionsIT {
         vertx.close().toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS)
     }
 
-    private fun connect(sslMode: SslMode? = null): SqlConnection {
-        val options = DatabaseConnectOptions.create()
+    private fun options() = DatabaseConnectOptions.create()
             .setHost(address.substringBefore(':'))
             .setPort(address.substringAfter(':').toInt())
             .setUser("root")
             .setPassword(password)
+
+    private fun connect(sslMode: SslMode? = null): SqlConnection {
+        val options = options()
 
         if (sslMode != null) options.sslMode = sslMode
 
@@ -61,5 +65,23 @@ class DatabaseConnectOptionsIT {
 
             assert(cipher.isNotEmpty()) { "the connection is not encrypted" }
         }
+    }
+
+    @Test
+    fun `a pool gives back the connections it no longer uses`() {
+        val probe = connect(SslMode.DISABLED)
+        val pool = MySQLBuilder.pool().with(DatabaseConnectOptions.pool(5, idleTimeoutSeconds = 2)).connectingTo(options()).using(vertx).build()
+
+        val queries = (1..5).map { pool.query("select sleep(1) /* idle-it */").execute() }
+        Thread.sleep(500)
+        val ids = probe.query("select id from information_schema.processlist where info = 'select sleep(1) /* idle-it */'").execute()
+            .toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS).map { it.getLong(0) }
+        assertEquals(5, ids.size)
+        Future.join(queries).toCompletionStage().toCompletableFuture().get(10, TimeUnit.SECONDS)
+
+        Thread.sleep(5000)
+
+        val left = probe.value("select count(*) from information_schema.processlist where id in (${ids.joinToString()})")
+        assertEquals(0L, (left as Number).toLong()) { "the pool still holds its idle connections" }
     }
 }

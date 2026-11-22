@@ -15,7 +15,6 @@ import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.mysqlclient.MySQLBuilder
 import io.vertx.mysqlclient.MySQLConnectOptions
 import io.vertx.sqlclient.Pool
-import io.vertx.sqlclient.PoolOptions
 import io.vertx.sqlclient.SqlClient
 import org.slf4j.Logger
 import org.springframework.beans.factory.annotation.Autowired
@@ -130,8 +129,7 @@ class DatabaseManager(
         if (databaseConfig.password != "")
             connectOptions.password = databaseConfig.password
 
-        val poolOptions = PoolOptions()
-            .setMaxSize(HostedEnvConfig.current.dbPoolSize)
+        val poolOptions = DatabaseConnectOptions.pool(HostedEnvConfig.current.dbPoolSize)
 
         val pooledClient = MySQLBuilder.pool()
             .with(poolOptions)

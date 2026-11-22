@@ -1,5 +1,6 @@
 package com.panomc.node
 
+import com.panomc.node.host.HostPlatform
 import com.panomc.node.host.JavaRuntime
 import com.panomc.node.java.JavaPackageResolver
 import com.panomc.node.java.JavaTarget
@@ -55,8 +56,10 @@ class BuildToolsFailureTest {
 
     @Test
     fun `a runtime is a JDK only when it has javac`() {
-        val jre = File(root, "jre").apply { File(this, "bin").mkdirs(); File(this, "bin/java").writeText("") }
-        val jdk = File(root, "jdk").apply { File(this, "bin").mkdirs(); File(this, "bin/java").writeText(""); File(this, "bin/javac").writeText("") }
+        val java = HostPlatform.javaExecutable
+        val javac = HostPlatform.javacExecutable
+        val jre = File(root, "jre").apply { File(this, "bin").mkdirs(); File(this, "bin/$java").writeText("") }
+        val jdk = File(root, "jdk").apply { File(this, "bin").mkdirs(); File(this, "bin/$java").writeText(""); File(this, "bin/$javac").writeText("") }
 
         assertFalse(JavaRuntime(25, jre.path, "temurin").hasCompiler)
         assertTrue(JavaRuntime(25, jdk.path, "temurin").hasCompiler)

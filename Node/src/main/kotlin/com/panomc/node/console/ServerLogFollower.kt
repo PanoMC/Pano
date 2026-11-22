@@ -36,6 +36,13 @@ class ServerLogFollower(
 
     private var fileKey: Any? = null
 
+    /**
+     * The first bytes of the file being followed, kept only where the filesystem has no file keys
+     * (NTFS): a `latest.log` that replaced the old one and is already longer than the old offset is
+     * then told apart by its start, since every Minecraft log line begins with its own time.
+     */
+    private var head = ByteArray(0)
+
     private val carry = StringBuilder()
 
     /** Whether the rest of an over-long line is being thrown away until the next newline. */
@@ -54,6 +61,7 @@ class ServerLogFollower(
 
             position = if (file.isFile) file.length() else 0L
             fileKey = keyOf(file)
+            head = if (fileKey == null) readHead(file, position) else ByteArray(0)
 
             carry.setLength(0)
 
@@ -129,6 +137,7 @@ class ServerLogFollower(
             // The file is gone; whatever replaces it is a new file to be read from its start.
             position = 0L
             fileKey = null
+            head = ByteArray(0)
 
             carry.setLength(0)
 
@@ -140,10 +149,13 @@ class ServerLogFollower(
         val key = keyOf(file)
         val length = file.length()
 
-        val rotated = (key != null && fileKey != null && key != fileKey) || length < position
+        val replaced = key == null && head.isNotEmpty() && length >= head.size && !readHead(file, head.size.toLong()).contentEquals(head)
+
+        val rotated = (key != null && fileKey != null && key != fileKey) || length < position || replaced
 
         if (rotated) {
             position = 0L
+            head = ByteArray(0)
 
             carry.setLength(0)
 
@@ -180,6 +192,10 @@ class ServerLogFollower(
         }
 
         position += read
+
+        if (key == null && head.size < HEAD_BYTES && position > head.size) {
+            head = readHead(file, position)
+        }
 
         val lines = extract(decode(bytes, read))
 
@@ -227,6 +243,29 @@ class ServerLogFollower(
         return lines
     }
 
+    /** Up to [HEAD_BYTES] of [file]'s start, no further than [upTo]; empty when it cannot be read. */
+    private fun readHead(file: File, upTo: Long): ByteArray {
+        val wanted = minOf(upTo, HEAD_BYTES.toLong()).toInt()
+
+        if (wanted <= 0) {
+            return ByteArray(0)
+        }
+
+        return try {
+            FileChannel.open(file.toPath(), StandardOpenOption.READ).use { channel ->
+                val buffer = ByteBuffer.allocate(wanted)
+
+                while (buffer.hasRemaining() && channel.read(buffer) > 0) {
+                    // Until the start is complete or the file ends.
+                }
+
+                buffer.array().copyOf(buffer.position())
+            }
+        } catch (_: Exception) {
+            ByteArray(0)
+        }
+    }
+
     private fun latest(): File = File(File(serverDirectory, "logs"), LATEST_LOG)
 
     /**
@@ -257,6 +296,9 @@ class ServerLogFollower(
 
         /** How much of the file may be read in one poll. A quarter megabyte is ~2000 log lines. */
         const val MAX_READ_BYTES = 256L * 1024
+
+        /** How much of the file's start tells it from the next one where there are no file keys. */
+        const val HEAD_BYTES = 64
 
         /** Longest line kept, matching the protocol's per-line cap so nothing is cut twice. */
         const val MAX_LINE_LENGTH = ConsoleLineParser.MAX_MESSAGE_LENGTH

@@ -1,5 +1,6 @@
 package com.panomc.node
 
+import com.panomc.node.host.HostPlatform
 import com.panomc.node.host.JavaRuntimeLocator
 import com.panomc.node.java.JavaPackageResolver
 import com.panomc.node.java.JavaRuntimeInstaller
@@ -61,7 +62,7 @@ class JavaRuntimeServiceTest {
         val home = File(dataDir, "java/$name")
 
         File(home, "bin").mkdirs()
-        File(home, "bin/java").writeText("")
+        File(home, "bin/${HostPlatform.javaExecutable}").writeText("")
         File(home, "release").writeText("JAVA_VERSION=\"$version\"\n")
 
         if (managed) {

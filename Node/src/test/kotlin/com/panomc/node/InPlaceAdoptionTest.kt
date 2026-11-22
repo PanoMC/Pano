@@ -3,6 +3,7 @@ package com.panomc.node
 import com.panomc.node.config.NodeConfig
 import com.panomc.node.files.BackupOrphanSweep
 import com.panomc.node.files.TransferService
+import com.panomc.node.host.HostPlatform
 import com.panomc.node.host.JavaRuntimeLocator
 import com.panomc.node.net.DeleteServerMessage
 import com.panomc.node.net.ImportServerMessage
@@ -282,8 +283,18 @@ class InPlaceAdoptionTest {
 
     @Test
     fun `system folders are refused`() {
-        assertEquals(InPlaceAdoption.PATH_NOT_ALLOWED, codeOf(refusal("/etc")))
-        assertEquals(InPlaceAdoption.PATH_NOT_ALLOWED, codeOf(refusal("/")))
+        // "/etc" is not even an absolute path on Windows; its system folders are refused the same way.
+        if (HostPlatform.isWindows) {
+            val windows = System.getenv("SystemRoot") ?: "C:\\Windows"
+
+            val onWindows = InPlaceAdoption.Host(dataDir = dataDir, windows = true, home = null, processDirectories = nobodyRunning)
+
+            assertEquals(InPlaceAdoption.PATH_NOT_ALLOWED, codeOf(refusal(windows, onWindows)))
+            assertEquals(InPlaceAdoption.PATH_NOT_ALLOWED, codeOf(refusal(File(windows).toPath().root.toString(), onWindows)))
+        } else {
+            assertEquals(InPlaceAdoption.PATH_NOT_ALLOWED, codeOf(refusal("/etc")))
+            assertEquals(InPlaceAdoption.PATH_NOT_ALLOWED, codeOf(refusal("/")))
+        }
 
         assertTrue(InPlaceAdoption.isSystemPath("/usr/local/games/mc", windows = false))
         assertTrue(InPlaceAdoption.isSystemPath("/var/lib/minecraft", windows = false))

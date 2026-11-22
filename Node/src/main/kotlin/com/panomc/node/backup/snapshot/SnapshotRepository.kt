@@ -520,7 +520,7 @@ class SnapshotRepository(val root: File) {
 
     private fun readManifest(file: File): SnapshotManifest =
         try {
-            SnapshotFormat.readManifest(file.inputStream().buffered(IO_BUFFER))
+            file.inputStream().buffered(IO_BUFFER).use { SnapshotFormat.readManifest(it) }
         } catch (exception: IllegalStateException) {
             throw IllegalStateException("The snapshot manifest ${file.name} is empty.", exception)
         }

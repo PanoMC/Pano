@@ -135,6 +135,17 @@ class RotatingLogFile(
         }
     }
 
+    /** Lets go of the file (Windows cannot delete or move a file that is still open); the next line opens it again. */
+    @Synchronized
+    fun close() {
+        try {
+            stream?.close()
+        } catch (_: Exception) {
+        }
+
+        stream = null
+    }
+
     private fun open(): FileOutputStream {
         file.parentFile?.mkdirs()
 

@@ -106,7 +106,7 @@ class BuildToolsInstallerTest {
         val bin = File(dataDir, "tools/git/linux-x64-2.55.0/bin").absolutePath
 
         // In front of the host's PATH, which is kept: BuildTools' patch script needs sh and sed.
-        assertEquals("$bin:/usr/local/bin:/usr/bin:/bin", runner.environment?.get("PATH"))
+        assertEquals("$bin${File.pathSeparator}/usr/local/bin:/usr/bin:/bin", runner.environment?.get("PATH"))
 
         // The download is reported inside the install task, before the build starts.
         assertTrue(messages().any { it.startsWith("Downloading git (pano-git-linux-x64.tar.gz, v1.2.0)") }, messages().toString())
@@ -229,7 +229,7 @@ class BuildToolsInstallerTest {
         assertEquals(cached.readBytes().toList(), installed.readBytes().toList())
 
         // Run in its own per-revision directory, with the log left there for somebody to read.
-        assertTrue(runner.directory!!.absolutePath.endsWith("cache/spigot/buildtools/work-1.21.8"))
+        assertTrue(runner.directory!!.absoluteFile.invariantSeparatorsPath.endsWith("cache/spigot/buildtools/work-1.21.8"))
         assertTrue(File(runner.directory, "buildtools.log").readText().contains("Applying patches"))
 
         // The command line is the contract's, in its order.

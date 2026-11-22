@@ -2,6 +2,7 @@ package com.panomc.node
 
 import com.panomc.node.config.NodeConfig
 import com.panomc.node.config.NodeConfigStore
+import com.panomc.node.host.HostPlatform
 import com.panomc.node.java.JavaPackageResolver
 import com.panomc.node.java.JavaTarget
 import com.panomc.node.tools.GitPackage
@@ -106,8 +107,15 @@ class GitToolInstallerTest {
 
         // The top-level directory is stripped and the tree is intact, links and all.
         assertTrue(File(home, "bin/git").canExecute())
-        assertTrue(Files.isSymbolicLink(File(home, "libexec/git-core/git-am").toPath()))
-        assertEquals(File(home, "bin/git").canonicalPath, File(home, "libexec/git-core/git-am").canonicalPath)
+        val link = File(home, "libexec/git-core/git-am")
+
+        if (HostPlatform.isWindows && !Files.isSymbolicLink(link.toPath())) {
+            // Windows without the symlink privilege: the extractor copies what the link points at.
+            assertEquals(File(home, "bin/git").readBytes().toList(), link.readBytes().toList())
+        } else {
+            assertTrue(Files.isSymbolicLink(link.toPath()))
+            assertEquals(File(home, "bin/git").canonicalPath, link.canonicalPath)
+        }
         assertTrue(File(home, "share/git-core/templates/description").isFile)
 
         val marker = File(home, ManagedToolMarker.FILE).readText()
@@ -245,21 +253,23 @@ class GitToolInstallerTest {
     @Test
     fun `the build's PATH gets git in front and keeps the rest`() {
         val bin = File("/data/tools/git/linux-x64-2.55.0/bin")
+        // ":" splits a Windows absolute path (C:\...) in two, so the host's own separator is used.
+        val sep = File.pathSeparator
 
         assertEquals(
-            "${bin.absolutePath}:/usr/local/bin:/usr/bin:/bin",
-            GitToolInstaller.pathWith(listOf(bin), "/usr/local/bin:/usr/bin:/bin", ":")
+            "${bin.absolutePath}$sep/usr/local/bin$sep/usr/bin$sep/bin",
+            GitToolInstaller.pathWith(listOf(bin), "/usr/local/bin$sep/usr/bin$sep/bin", sep)
         )
 
         // No PATH at all, or an empty one, is just git -- never a trailing separator, which a
         // shell would read as "the current directory".
-        assertEquals(bin.absolutePath, GitToolInstaller.pathWith(listOf(bin), null, ":"))
-        assertEquals(bin.absolutePath, GitToolInstaller.pathWith(listOf(bin), "", ":"))
+        assertEquals(bin.absolutePath, GitToolInstaller.pathWith(listOf(bin), null, sep))
+        assertEquals(bin.absolutePath, GitToolInstaller.pathWith(listOf(bin), "", sep))
 
         // Empty entries are dropped and an existing copy of the directory is not repeated.
         assertEquals(
-            "${bin.absolutePath}:/usr/bin",
-            GitToolInstaller.pathWith(listOf(bin), "::${bin.absolutePath}:/usr/bin:", ":")
+            "${bin.absolutePath}$sep/usr/bin",
+            GitToolInstaller.pathWith(listOf(bin), "$sep$sep${bin.absolutePath}$sep/usr/bin$sep", sep)
         )
 
         // Windows' separator, for completeness of the helper.

@@ -45,6 +45,8 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
     // Opens the archives the uploader seals, with the passphrase only Pano ever holds.
     testImplementation("de.mkammerer:argon2-jvm:2.12")
+    // Snapshot's pure-Java Argon2 fallback, used where the native one above cannot load (Windows on ARM).
+    testImplementation("org.bouncycastle:bcprov-jdk18on:1.86")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
 }

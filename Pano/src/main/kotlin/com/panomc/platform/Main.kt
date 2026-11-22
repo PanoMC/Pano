@@ -995,7 +995,7 @@ class Main : CoroutineVerticle() {
         val isSslEnabled = serverConfig.sslMode != PanoConfig.Companion.SslMode.DISABLED
 
         logger.info("Creating HTTP server on port $port")
-        vertx.createHttpServer().requestHandler(handler).listen(port, host).onSuccess {
+        vertx.createHttpServer(PlainHttpServerOptions.create()).requestHandler(handler).listen(port, host).onSuccess {
                 if (isSslEnabled) {
                     logger.info("HTTP server is listening on $port. Ready for ACME challenges if needed.")
                     if (serverConfig.sslMode == PanoConfig.Companion.SslMode.LETS_ENCRYPT) {

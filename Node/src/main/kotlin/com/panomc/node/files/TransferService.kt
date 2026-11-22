@@ -47,6 +47,9 @@ class TransferService(
         HttpClient.newBuilder()
             .connectTimeout(CONNECT_TIMEOUT)
             .followRedirects(HttpClient.Redirect.NORMAL)
+            // HTTP/1.1 only: on an http:// Pano the default version asks for an h2c upgrade, and the
+            // server then holds the whole streamed body in memory before it can switch.
+            .version(HttpClient.Version.HTTP_1_1)
             .build()
     }
 

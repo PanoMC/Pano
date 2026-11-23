@@ -412,6 +412,33 @@ class PluginDependencyLifecycleTest {
         assertTrue(stripe.pluginBeanContext !== firstContext)
     }
 
+    @Test
+    fun `a plugin is loaded once per enable, with one bean context everyone uses`() {
+        marketWithAddons()
+        Files.writeString(pluginsDir.resolve("disabled.txt"), "stripe\n")
+        val manager = boot()
+
+        // Created by the enable itself: the factory loads it, the enable must not load it a second time.
+        assertTrue(manager.enablePlugin("stripe"))
+        assertEquals(PluginState.STARTED, manager.startPlugin("stripe"))
+        assertEquals(1, loads["stripe"])
+        assertEquals(1, LicensedPlugin.enables["stripe"])
+
+        val stripe = manager.instance("stripe")
+        assertTrue(stripe.pluginBeanContext.isActive)
+
+        // Disable, enable: loaded again, once.
+        manager.disableWithDependents("stripe")
+        assertTrue(manager.enablePlugin("stripe"))
+        assertEquals(PluginState.STARTED, manager.startPlugin("stripe"))
+        assertEquals(2, loads["stripe"])
+        assertTrue(stripe.pluginBeanContext.isActive)
+        assertEquals(2, LicensedPlugin.registered["stripe"], "onStart could register its listener after the re-enable")
+
+        // Booted plugins (never passed through enablePlugin) were loaded once as well.
+        assertEquals(1, loads["market"])
+    }
+
     class FixtureConfig : PluginConfig()
 
     @Test

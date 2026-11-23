@@ -250,7 +250,19 @@ abstract class PanoPlugin : Plugin() {
         }
     }
 
+    /**
+     * Sets up the host side of the plugin: its own bean context, event listeners, UI and the lifecycle listeners'
+     * registrations. Runs once per enable cycle: a call while it is loaded does nothing (the factory loads the new
+     * object, so the enable that follows must not build a second context; an enable after a disable loads it again).
+     */
     internal fun load() {
+        if (hostLoaded) {
+            return
+        }
+
+        // Nothing should be left of an earlier cycle; an open context of one would be orphaned here.
+        closeBeanContext()
+
         val pluginBeanContext by lazy {
             val pluginBeanContext = AnnotationConfigApplicationContext()
 

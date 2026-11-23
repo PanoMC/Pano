@@ -817,7 +817,8 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
             plugin?.let {
                 try {
                     runBlocking {
-                        it.load()
+                        // Loaded when the object was just created (PluginFactory); loaded again after a disable.
+                        it.ensureLoaded()
 
                         lifecycleListeners.forEach { listener ->
                             listener.onPluginEnable(it)

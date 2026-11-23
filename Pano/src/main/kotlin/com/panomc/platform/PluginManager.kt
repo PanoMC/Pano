@@ -704,6 +704,10 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
         // The shared Jackson mapper keeps the classes it serialized; one of the plugin's would pin its class loader.
         com.panomc.platform.util.JacksonCacheUtil.forgetCachedClasses()
+
+        // So does core's shared Gson, which the plugins' database models go through.
+        runCatching { com.panomc.platform.db.DBEntity.gson }.getOrNull()
+            ?.let { com.panomc.platform.util.GsonCacheUtil.forgetCachedTypes(it) }
     }
 
     /** PF4J unloads the dependents with their dependency: each is remembered so an update can load it again. */

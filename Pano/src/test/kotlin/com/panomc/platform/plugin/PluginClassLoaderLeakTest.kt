@@ -4,8 +4,18 @@ import com.panomc.platform.Main
 import com.panomc.platform.PanoPluginWrapper
 import com.panomc.platform.PluginManager
 import com.panomc.platform.SpringConfig
+import com.panomc.platform.api.PanoPlugin
+import com.panomc.platform.api.event.PluginLifecycleListener
+import com.panomc.platform.db.DBEntity
 import com.panomc.platform.plugin.leakfixture.LeakFixturePlugin
+import com.panomc.platform.route.RouteRemoval
+import com.google.gson.Gson
+import io.vertx.core.Handler
 import io.vertx.core.Vertx
+import io.vertx.core.http.HttpMethod
+import io.vertx.ext.web.Router
+import io.vertx.ext.web.RoutingContext
+import java.util.concurrent.ConcurrentHashMap
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -37,17 +47,49 @@ class PluginClassLoaderLeakTest {
     lateinit var tempDir: Path
 
     private lateinit var vertx: Vertx
+    private lateinit var router: Router
     private var manager: PluginManager? = null
+    private var previousGson: Gson? = null
     private val pluginsDir: Path get() = tempDir.resolve("plugins")
+
+    /**
+     * Mounts and drops the fixture plugins' endpoints as RouterProvider does for @Endpoint APIs (its onPluginLoad /
+     * onPluginUnload): order 1 like every endpoint, in a router that already has core routes of order 1, removed with
+     * [RouteRemoval]. RouterProvider itself needs the whole platform context, so it is mirrored here.
+     */
+    private val routeMounter = object : PluginLifecycleListener {
+        val routes = ConcurrentHashMap<PanoPlugin, List<io.vertx.ext.web.Route>>()
+
+        override suspend fun onPluginLoad(plugin: PanoPlugin) {
+            @Suppress("UNCHECKED_CAST")
+            val handler = plugin.javaClass.getMethod("routeHandler").invoke(plugin) as Handler<RoutingContext>
+
+            routes[plugin] = (1..3).map { index ->
+                router.route(HttpMethod.GET, "/api/plugins/${plugin.pluginId}/endpoint$index").order(1).handler(handler)
+            }
+        }
+
+        override suspend fun onPluginUnload(plugin: PanoPlugin) {
+            routes.remove(plugin)?.let { RouteRemoval.remove(router, it) }
+        }
+    }
 
     @BeforeEach
     fun setUp() {
         Files.createDirectories(pluginsDir)
 
         vertx = Vertx.vertx()
+        router = Router.router(vertx)
+
+        // Core endpoints share order 1 with the plugins' (model/Route.kt).
+        (1..5).forEach { index -> router.route(HttpMethod.GET, "/api/v1/core$index").order(1).handler { it.end() } }
+
+        previousGson = runCatching { DBEntity.gson }.getOrNull()
+        DBEntity.gson = Gson()
 
         SpringConfig.setDefaults(vertx, LoggerFactory.getLogger("plugin-class-loader-leak-test"))
         Main.applicationContext = AnnotationConfigApplicationContext()
+        PluginManager.lifecycleListeners.add(routeMounter)
     }
 
     @AfterEach
@@ -57,6 +99,8 @@ class PluginClassLoaderLeakTest {
             for (id in manager.plugins.map { it.pluginId }) runCatching { manager.unloadPlugin(id) }
         }
         manager = null
+        PluginManager.lifecycleListeners.remove(routeMounter)
+        previousGson?.let { DBEntity.gson = it }
         System.gc()
 
         vertx.close().toCompletionStage().toCompletableFuture().get(15, TimeUnit.SECONDS)
@@ -174,5 +218,10 @@ class PluginClassLoaderLeakTest {
         val alive = refs.filter { it.second.get() != null }.map { it.first }
 
         assertEquals(emptyList<String>(), alive, "still reachable after the updates")
+
+        // The router holds the core routes and the current plugins' routes, nothing of the old ones, in order.
+        val paths: List<String?> = router.routes.map<io.vertx.ext.web.Route, String?> { it.path }
+        assertEquals((1..5).map { "/api/v1/core$it" }, paths.take(5))
+        assertEquals(5 + 2 * 3, paths.size, "$paths")
     }
 }

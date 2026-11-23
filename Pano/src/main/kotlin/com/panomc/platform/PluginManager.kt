@@ -1005,6 +1005,12 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
         val plugin = getPlugin(pluginId).plugin as PanoPlugin
 
+        // Stopped first, so onStop still finds the plugin's context, which unload() closes (PF4J would stop it only
+        // in super.disablePlugin, after the hooks).
+        if (plugin.hostLoaded && getPlugin(pluginId).pluginState.isStarted) {
+            stopPlugin(pluginId)
+        }
+
         // Hooks run once per enable cycle: a plugin already taken off (or disabled before) has nothing left to undo.
         if (plugin.hostLoaded) {
             runBlocking {

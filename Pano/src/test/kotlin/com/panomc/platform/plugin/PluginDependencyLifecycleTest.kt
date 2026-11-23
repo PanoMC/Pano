@@ -388,6 +388,29 @@ class PluginDependencyLifecycleTest {
     }
 
     @Test
+    fun `a disabled plugin's own bean context is closed, the shared one stays, and an enable builds a new one`() {
+        marketWithAddons()
+        val manager = boot()
+        val stripe = manager.instance("stripe")
+        val firstContext = stripe.pluginBeanContext
+
+        manager.disableWithDependents("stripe")
+
+        assertFalse(firstContext.isActive)
+        assertTrue(PluginManager.pluginGlobalBeanContext.isActive)
+        assertTrue(manager.instance("market").pluginBeanContext.isActive)
+
+        // A second unload (the delete of a disabled plugin does one) is harmless.
+        stripe.unload()
+        assertFalse(stripe.hostLoaded)
+
+        assertTrue(manager.enablePlugin("stripe"))
+        assertEquals(PluginState.STARTED, manager.startPlugin("stripe"))
+        assertTrue(stripe.pluginBeanContext.isActive)
+        assertTrue(stripe.pluginBeanContext !== firstContext)
+    }
+
+    @Test
     fun `an add-on installed while the market runs starts and is seen at once`() {
         writeJar("market")
         val manager = boot()

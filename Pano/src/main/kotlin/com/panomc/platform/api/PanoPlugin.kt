@@ -221,9 +221,7 @@ abstract class PanoPlugin : Plugin() {
     override fun start() {
         // onStart relies on what load() sets up (its context, its event listener entry for register()); a plugin whose
         // host side was undone gets it again instead of failing in onStart.
-        if (!hostLoaded) {
-            load()
-        }
+        ensureLoaded()
 
         try {
             runBlocking {
@@ -312,6 +310,43 @@ abstract class PanoPlugin : Plugin() {
         pluginUiManager.unRegisterPlugin(this)
         runBlocking {
             PluginManager.lifecycleListeners.forEach { it.onPluginUnload(this@PanoPlugin) }
+        }
+
+        closeBeanContext()
+    }
+
+    /**
+     * Closes the plugin's own Spring context (never its parent, the shared plugin context): its beans' destroy
+     * callbacks run and the context lets go of the plugin's classes. A new [load] builds a new one.
+     */
+    private fun closeBeanContext() {
+        if (!this::pluginBeanContext.isInitialized) {
+            return
+        }
+
+        val context = pluginBeanContext
+
+        if (context === pluginGlobalBeanContextOrNull() || !context.isActive) {
+            return
+        }
+
+        try {
+            context.close()
+        } catch (e: Exception) {
+            logger.warn("Could not close the bean context of plugin '{}': {}", pluginId, e.message)
+        }
+    }
+
+    private fun pluginGlobalBeanContextOrNull() =
+        if (this::pluginGlobalBeanContext.isInitialized) pluginGlobalBeanContext else null
+
+    /**
+     * Makes sure [load] ran, e.g. before [onUninstall] of a plugin that is disabled (its unload already closed its
+     * context and dropped its tables from the database manager, which the uninstall needs).
+     */
+    internal fun ensureLoaded() {
+        if (!hostLoaded) {
+            load()
         }
     }
 

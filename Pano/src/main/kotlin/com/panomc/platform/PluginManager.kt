@@ -701,6 +701,9 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
                 }
             }.onFailure { log.warn("Could not drop the registrations of plugin '{}': {}", pluginId, it.message) }
         }
+
+        // The shared Jackson mapper keeps the classes it serialized; one of the plugin's would pin its class loader.
+        com.panomc.platform.util.JacksonCacheUtil.forgetCachedClasses()
     }
 
     /** PF4J unloads the dependents with their dependency: each is remembered so an update can load it again. */

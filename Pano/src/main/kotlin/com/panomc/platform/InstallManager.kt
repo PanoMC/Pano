@@ -210,8 +210,9 @@ class InstallManager(
                     vertx.executeBlocking<Unit> {
                         when {
                             incoming == originalPath && Files.exists(originalPath) -> Unit
-                            incoming != originalPath ->
-                                Files.copy(incoming, originalPath, StandardCopyOption.REPLACE_EXISTING)
+                            // Moved, not copied: the download sits in the plugins folder under its own name, and a
+                            // Pano that stops before the cleanup below would load both jars of the same plugin.
+                            incoming != originalPath -> movePathReplacing(incoming, originalPath)
                             else -> throw FailedToInstallResource(
                                 extras = mapOf("message" to "Plugin update artifact missing after backup.")
                             )
@@ -262,9 +263,6 @@ class InstallManager(
 
                     vertx.executeBlocking<Unit> {
                         Files.deleteIfExists(backupPath)
-                        if (incoming != originalPath && Files.exists(incoming)) {
-                            Files.delete(incoming)
-                        }
                     }.coAwait()
                 } else {
                     val state = vertx.executeBlocking<PluginState?> {

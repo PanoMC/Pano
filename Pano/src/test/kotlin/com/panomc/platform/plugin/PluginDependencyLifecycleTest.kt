@@ -6,6 +6,8 @@ import com.panomc.platform.PluginEventManager
 import com.panomc.platform.PluginManager
 import com.panomc.platform.SpringConfig
 import com.panomc.platform.api.PanoPlugin
+import com.panomc.platform.api.config.PluginConfig
+import com.panomc.platform.api.config.PluginConfigManager
 import com.panomc.platform.api.event.PluginEventListener
 import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.license.LicenseDeniedReason
@@ -408,6 +410,38 @@ class PluginDependencyLifecycleTest {
         assertEquals(PluginState.STARTED, manager.startPlugin("stripe"))
         assertTrue(stripe.pluginBeanContext.isActive)
         assertTrue(stripe.pluginBeanContext !== firstContext)
+    }
+
+    class FixtureConfig : PluginConfig()
+
+    @Test
+    fun `the config managers a plugin made are closed when it is disabled`() {
+        marketWithAddons()
+        System.setProperty("pano.pluginDataDir", tempDir.resolve("data").toString())
+
+        try {
+            val manager = boot()
+            Main.applicationContext.beanFactory.registerSingleton(PluginManager::class.java.name, manager)
+            Main.applicationContext.refresh()
+
+            val stripe = manager.instance("stripe")
+            // Some plugins make one per start: every one of them is closed, not only the last.
+            val first = PluginConfigManager(stripe, FixtureConfig::class.java)
+            val second = PluginConfigManager(stripe, FixtureConfig::class.java)
+            val closedByThePlugin = PluginConfigManager(stripe, FixtureConfig::class.java)
+
+            closedByThePlugin.close()
+            closedByThePlugin.close()
+
+            manager.disableWithDependents("stripe")
+
+            assertTrue(first.isClosed)
+            assertTrue(second.isClosed)
+            assertTrue(closedByThePlugin.isClosed)
+            first.close()
+        } finally {
+            System.clearProperty("pano.pluginDataDir")
+        }
     }
 
     @Test

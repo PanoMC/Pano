@@ -312,7 +312,33 @@ abstract class PanoPlugin : Plugin() {
             PluginManager.lifecycleListeners.forEach { it.onPluginUnload(this@PanoPlugin) }
         }
 
+        closeConfigManagers()
         closeBeanContext()
+    }
+
+    /** Every [com.panomc.platform.api.config.PluginConfigManager] this plugin made and did not close yet. */
+    private val configManagers: MutableSet<com.panomc.platform.api.config.PluginConfigManager<*>> =
+        java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    internal fun trackConfigManager(manager: com.panomc.platform.api.config.PluginConfigManager<*>) {
+        configManagers.add(manager)
+    }
+
+    internal fun untrackConfigManager(manager: com.panomc.platform.api.config.PluginConfigManager<*>) {
+        configManagers.remove(manager)
+    }
+
+    /** Stops the config retrievers of the plugin (each one scans its file every 5 s until it is closed). */
+    private fun closeConfigManagers() {
+        for (manager in configManagers.toList()) {
+            try {
+                manager.close()
+            } catch (e: Exception) {
+                logger.warn("Could not close a config manager of plugin '{}': {}", pluginId, e.message)
+            }
+        }
+
+        configManagers.clear()
     }
 
     /**

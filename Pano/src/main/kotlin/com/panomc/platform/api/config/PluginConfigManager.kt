@@ -13,6 +13,7 @@ import io.vertx.core.json.JsonObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class PluginConfigManager<T : PluginConfig>(
     private val plugin: PanoPlugin,
@@ -42,6 +43,15 @@ class PluginConfigManager<T : PluginConfig>(
     private val options = ConfigRetrieverOptions().addStore(fileStore)
 
     private val configRetriever = ConfigRetriever.create(plugin.vertx, options)
+
+    private val closed = AtomicBoolean(false)
+
+    internal val isClosed: Boolean get() = closed.get()
+
+    init {
+        // The retriever scans its store every 5 s from now on, listened to or not: the plugin's unload closes it.
+        plugin.trackConfigManager(this)
+    }
 
     private val migrations by lazy {
         val beans = plugin.pluginBeanContext.getBeansWithAnnotation(Migration::class.java)
@@ -122,7 +132,13 @@ class PluginConfigManager<T : PluginConfig>(
         }
     }
 
+    /** Stops the retriever. The plugin's unload calls it for every manager the plugin made; a second call does nothing. */
     fun close() {
+        if (!closed.compareAndSet(false, true)) {
+            return
+        }
+
+        plugin.untrackConfigManager(this)
         configRetriever.close()
     }
 

@@ -380,10 +380,17 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
         plugins.values.filter { wrapper -> wrapper.descriptor.dependencies.any { it.pluginId == pluginId && !it.isOptional } }
             .map { it.pluginId }
 
-    /** Runs the host's disable hooks of a plugin that was enabled (they undo load() / onEnable()); never throws. */
+    /**
+     * Runs the host's disable hooks of a plugin that was enabled (they undo load() / onEnable()); never throws. Does
+     * nothing for a plugin whose object was never created or whose hooks already ran in this enable cycle.
+     */
     private fun runDisableHooks(pluginId: String) {
         runCatching {
-            val plugin = getPlugin(pluginId)?.plugin as? PanoPlugin ?: return
+            val plugin = (getPlugin(pluginId) as? PanoPluginWrapper)?.instance ?: return
+
+            if (!plugin.hostLoaded) {
+                return
+            }
 
             runBlocking {
                 lifecycleListeners.forEach { listener -> listener.onPluginDisable(plugin) }
@@ -593,8 +600,18 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
     override fun unloadPlugin(pluginId: String, unloadDependents: Boolean, resolveDependencies: Boolean): Boolean {
         if (unloadDependents) {
             rememberHeldDependents(pluginId)
+
+            // PF4J unloads the dependents with the plugin but only stops them: their host hooks (onDisable, unload()
+            // and the lifecycle listeners) never ran, so the old objects stayed in the event, database, route and UI
+            // registries and pinned their class loaders (a hosted Pano froze after a market update, 2026-11-22).
+            for (dependent in dependentsDeepestFirst(pluginId)) {
+                takeDownForUnload(dependent)
+            }
         }
 
+        takeDownForUnload(pluginId)
+
+        val instance = (getPlugin(pluginId) as? PanoPluginWrapper)?.instance
         val unloaded = super.unloadPlugin(pluginId, unloadDependents, resolveDependencies)
 
         if (unloaded) {
@@ -607,9 +624,83 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
                     licenseBlocked.remove(id)
                 }
             }
+
+            forgetUnloaded(pluginId, instance)
         }
 
         return unloaded
+    }
+
+    /** Every loaded plugin that requires [pluginId], directly or not, each one after all the plugins that require it. */
+    private fun dependentsDeepestFirst(pluginId: String): List<String> {
+        val ordered = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+
+        fun visit(id: String) {
+            for (dependent in dependencyResolver.getDependents(id)) {
+                if (seen.add(dependent)) {
+                    visit(dependent)
+                    ordered += dependent
+                }
+            }
+        }
+
+        visit(pluginId)
+
+        return ordered
+    }
+
+    /** Before PF4J unloads [pluginId]: stops it if it runs and runs its host disable hooks if they did not run yet. */
+    private fun takeDownForUnload(pluginId: String) {
+        val wrapper = getPlugin(pluginId) as? PanoPluginWrapper ?: return
+        val plugin = wrapper.instance ?: return
+
+        if (!plugin.hostLoaded) {
+            return
+        }
+
+        // onStop runs before the disable hooks, as everywhere else.
+        if (wrapper.pluginState.isStarted) {
+            runCatching { super.stopPlugin(pluginId) }
+                .onFailure { log.warn("Plugin '{}' could not be stopped before it is unloaded: {}", pluginId, it.message) }
+        }
+
+        runDisableHooks(pluginId)
+    }
+
+    /**
+     * After PF4J unloaded [pluginId]: drops whatever the host still holds of it (an object whose hooks failed, or an
+     * older object of the same id), so nothing keeps its class loader alive. Never throws.
+     */
+    private fun forgetUnloaded(pluginId: String, instance: PanoPlugin?) {
+        if (instance != null && instance.hostLoaded) {
+            runCatching { instance.unload() }
+                .onFailure { log.warn("Unload of plugin '{}' failed: {}", pluginId, it.message) }
+        }
+
+        val leftovers = (PluginEventManager.getEventListeners().keys + pluginUiManager.getRegisteredPlugins().map { it.first })
+            .filter { runCatching { it.pluginId == pluginId }.getOrDefault(false) }
+            .toSet()
+
+        for (plugin in leftovers) {
+            log.warn("Plugin '{}' left registrations behind after its unload; they are dropped", pluginId)
+
+            runCatching { pluginEventManager.unregisterPlugin(plugin) }
+            runCatching { pluginUiManager.unRegisterPlugin(plugin) }
+
+            for (listener in lifecycleListeners.toList()) {
+                runCatching { runBlocking { listener.onPluginUnload(plugin) } }
+            }
+        }
+
+        for (listener in lifecycleListeners.toList()) {
+            runCatching {
+                when (listener) {
+                    is com.panomc.platform.api.PluginDatabaseManager -> listener.forgetPluginId(pluginId)
+                    is com.panomc.platform.route.RouterProvider -> runBlocking { listener.forgetPluginId(pluginId) }
+                }
+            }.onFailure { log.warn("Could not drop the registrations of plugin '{}': {}", pluginId, it.message) }
+        }
     }
 
     /** PF4J unloads the dependents with their dependency: each is remembered so an update can load it again. */
@@ -914,13 +1005,16 @@ class PluginManager(importPaths: List<Path> = listOf(Paths.get(System.getPropert
 
         val plugin = getPlugin(pluginId).plugin as PanoPlugin
 
-        runBlocking {
-            lifecycleListeners.forEach { listener ->
-                listener.onPluginDisable(plugin)
-            }
+        // Hooks run once per enable cycle: a plugin already taken off (or disabled before) has nothing left to undo.
+        if (plugin.hostLoaded) {
+            runBlocking {
+                lifecycleListeners.forEach { listener ->
+                    listener.onPluginDisable(plugin)
+                }
 
-            plugin.onDisable()
-            plugin.unload()
+                plugin.onDisable()
+                plugin.unload()
+            }
         }
 
         return super.disablePlugin(pluginId)

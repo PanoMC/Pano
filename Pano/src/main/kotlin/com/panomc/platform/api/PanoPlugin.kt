@@ -219,6 +219,12 @@ abstract class PanoPlugin : Plugin() {
 
     @Deprecated("Use onStart method.")
     override fun start() {
+        // onStart relies on what load() sets up (its context, its event listener entry for register()); a plugin whose
+        // host side was undone gets it again instead of failing in onStart.
+        if (!hostLoaded) {
+            load()
+        }
+
         try {
             runBlocking {
                 withContext(Dispatchers.IO) {
@@ -266,6 +272,7 @@ abstract class PanoPlugin : Plugin() {
         }
 
         this.pluginBeanContext = pluginBeanContext
+        hostLoaded = true
 
         pluginEventManager.initializePlugin(this, pluginBeanContext)
         pluginUiManager.initializePlugin(this)
@@ -274,7 +281,23 @@ abstract class PanoPlugin : Plugin() {
         }
     }
 
+    /**
+     * Whether the host side of the plugin is set up: [load] ran (its context, event listeners, UI and the lifecycle
+     * listeners' registrations exist) and [unload] did not run since. Keeps the disable / unload hooks to one run per
+     * enable cycle, whichever path (disable, take-off, update, delete) gets there first.
+     */
+    @Volatile
+    internal var hostLoaded = false
+        private set
+
+    /** Undoes [load]; a second call (nothing loaded) does nothing. */
     internal fun unload() {
+        if (!hostLoaded) {
+            return
+        }
+
+        hostLoaded = false
+
         val copyOfRegisteredBeans = registeredBeans.toList()
 
         copyOfRegisteredBeans.forEach {

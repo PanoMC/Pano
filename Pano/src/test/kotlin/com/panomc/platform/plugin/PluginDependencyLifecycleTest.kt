@@ -1,9 +1,13 @@
 package com.panomc.platform.plugin
 
 import com.panomc.platform.Main
+import com.panomc.platform.PanoPluginWrapper
+import com.panomc.platform.PluginEventManager
 import com.panomc.platform.PluginManager
 import com.panomc.platform.SpringConfig
 import com.panomc.platform.api.PanoPlugin
+import com.panomc.platform.api.event.PluginEventListener
+import com.panomc.platform.api.event.PluginLifecycleListener
 import com.panomc.platform.license.LicenseDeniedReason
 import com.panomc.platform.license.LicenseRequiredException
 import io.vertx.core.Vertx
@@ -42,10 +46,33 @@ class PluginDependencyLifecycleTest {
     class LicensedPlugin : PanoPlugin() {
         override suspend fun onStart() {
             if (pluginId in unlicensed) throw LicenseRequiredException(pluginId, LicenseDeniedReason.NOT_CONNECTED)
+
+            // What the payment add-ons do in onStart: needs the event listener entry load() creates.
+            register(object : PluginEventListener {})
+            registered.merge(pluginId, 1, Int::plus)
+        }
+
+        override suspend fun onEnable() {
+            enables.merge(pluginId, 1, Int::plus)
+        }
+
+        override suspend fun onDisable() {
+            disables.merge(pluginId, 1, Int::plus)
         }
 
         companion object {
             val unlicensed: MutableSet<String> = ConcurrentHashMap.newKeySet()
+            val registered = ConcurrentHashMap<String, Int>()
+            val enables = ConcurrentHashMap<String, Int>()
+            val disables = ConcurrentHashMap<String, Int>()
+        }
+    }
+
+    /** Counts load() runs per plugin id (onPluginLoad fires once per load()). */
+    private val loads = ConcurrentHashMap<String, Int>()
+    private val loadCounter = object : PluginLifecycleListener {
+        override suspend fun onPluginLoad(plugin: PanoPlugin) {
+            loads.merge(plugin.pluginId, 1, Int::plus)
         }
     }
 
@@ -57,6 +84,10 @@ class PluginDependencyLifecycleTest {
     fun setUp() {
         Files.createDirectories(pluginsDir)
         LicensedPlugin.unlicensed.clear()
+        LicensedPlugin.registered.clear()
+        LicensedPlugin.enables.clear()
+        LicensedPlugin.disables.clear()
+        PluginManager.lifecycleListeners.add(loadCounter)
 
         vertx = Vertx.vertx()
 
@@ -73,6 +104,7 @@ class PluginDependencyLifecycleTest {
             for (id in manager.plugins.map { it.pluginId }) runCatching { manager.unloadPlugin(id) }
         }
         managers.clear()
+        PluginManager.lifecycleListeners.remove(loadCounter)
         System.gc()
 
         vertx.close().toCompletionStage().toCompletableFuture().get(15, TimeUnit.SECONDS)
@@ -299,6 +331,60 @@ class PluginDependencyLifecycleTest {
         assertEquals("1.1.0", manager.getPlugin("market").descriptor.version)
         assertEquals(PluginState.STARTED, manager.state("stripe"))
         assertEquals(PluginState.STARTED, manager.state("shipping"))
+    }
+
+    private fun PluginManager.instance(id: String) = (getPlugin(id) as PanoPluginWrapper).instance!!
+
+    private fun registeredIds() = PluginEventManager.getEventListeners().keys.map { it.pluginId }
+
+    @Test
+    fun `an update of the market runs the disable hooks of its add-ons once and leaves nothing of the old ones behind`() {
+        marketWithAddons()
+        val manager = boot()
+        val addons = listOf("stripe", "shipping", "carrier")
+        val oldObjects = addons.associateWith { manager.instance(it) }
+
+        // As InstallManager.unloadPluginForInstall does.
+        val path = manager.getPlugin("market").pluginPath
+        manager.stopPlugin("market")
+        manager.disablePlugin("market")
+        assertTrue(manager.unloadPlugin("market"))
+
+        (addons + "market").forEach { assertEquals(1, LicensedPlugin.disables[it], it) }
+        oldObjects.values.forEach { assertFalse(it.hostLoaded, it.pluginId) }
+        assertTrue(registeredIds().none { it in addons + "market" }, "old objects are dropped: ${registeredIds()}")
+
+        writeJar("market", version = "1.1.0")
+        manager.loadPlugin(path)
+        manager.enablePlugin("market")
+        assertEquals(PluginState.STARTED, manager.startPlugin("market"))
+        manager.liftHolds()
+
+        for (id in addons) {
+            assertEquals(PluginState.STARTED, manager.state(id), id)
+            assertTrue(manager.instance(id) !== oldObjects[id], id)
+            assertTrue(manager.instance(id).hostLoaded, id)
+            // onStart called register() on the new object: its event listener entry was there.
+            assertEquals(2, LicensedPlugin.registered[id], id)
+        }
+
+        assertEquals(1, registeredIds().count { it == "stripe" }, "one object of the add-on is registered")
+        (addons + "market").forEach { assertEquals(1, LicensedPlugin.disables[it], "hooks ran once: $it") }
+    }
+
+    @Test
+    fun `disabling a plugin that was already taken off does not run its hooks again`() {
+        marketWithAddons()
+        val manager = boot()
+
+        manager.disableWithDependents("market")
+        assertEquals(1, LicensedPlugin.disables["stripe"])
+
+        manager.disablePlugin("stripe")
+        assertEquals(1, LicensedPlugin.disables["stripe"])
+        assertTrue(manager.unloadPlugin("market"))
+        assertEquals(1, LicensedPlugin.disables["stripe"])
+        assertEquals(1, LicensedPlugin.disables["market"])
     }
 
     @Test

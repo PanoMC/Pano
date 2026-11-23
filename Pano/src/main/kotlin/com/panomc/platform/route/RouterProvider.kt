@@ -339,7 +339,8 @@ class RouterProvider private constructor(
             return
         }
 
-        pluginRoutes[plugin]?.forEach { it.disable(); it.remove() }
+        // Route.remove() leaves routes of the same order in the router (see RouteRemoval).
+        pluginRoutes[plugin]?.let { RouteRemoval.remove(router, it) }
         pluginRoutes.remove(plugin)
         originPolicy.removeAnyOriginPaths(plugin.pluginId)
         routeTable.removePlugin(plugin.pluginId)

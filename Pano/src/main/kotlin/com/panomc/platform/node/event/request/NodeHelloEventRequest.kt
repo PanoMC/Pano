@@ -63,5 +63,11 @@ data class NodeHelloEventRequest(
      * How a Pano Agent's admin said the server runs (SM-76): its memory and Java arguments, from
      * the agent's first run. Sent only while the agent has no server yet; null from anything else.
      */
-    val agentLaunch: AgentLaunchData? = null
+    val agentLaunch: AgentLaunchData? = null,
+    /**
+     * The task uuids the node is working on right now; empty from a daemon that just started.
+     * Pano fails the node's RUNNING tasks missing from it ([com.panomc.platform.node.ServerTaskAbandonment]).
+     * Null from a node too old to send it.
+     */
+    val runningTasks: List<String?>? = null
 ) : NodeEventRequest()

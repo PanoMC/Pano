@@ -325,7 +325,8 @@ object InPlaceAdoption {
             return rest == "\\windows" || rest.startsWith("\\windows\\") || rest.startsWith("\\program files")
         }
 
-        val normal = Paths.get(path).normalize().toString().trimEnd('/').ifEmpty { "/" }
+        // Back to `/` where the host's separator is not (a POSIX path asked about on Windows).
+        val normal = Paths.get(path).normalize().toString().replace(File.separatorChar, '/').trimEnd('/').ifEmpty { "/" }
 
         if (normal == "/") {
             return true

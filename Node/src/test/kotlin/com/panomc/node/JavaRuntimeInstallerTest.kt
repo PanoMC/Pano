@@ -1,5 +1,6 @@
 package com.panomc.node
 
+import com.panomc.node.host.HostPlatform
 import com.panomc.node.host.JavaRuntimeLocator
 import com.panomc.node.java.JavaPackage
 import com.panomc.node.java.JavaPackageResolver
@@ -50,7 +51,7 @@ class JavaRuntimeInstallerTest {
     private fun jreTarGz(version: String = "42.0.1", name: String = "runtime-$version.tar.gz"): File =
         TarBuilder()
             .directory("jdk-$version-jre/")
-            .file("jdk-$version-jre/bin/java", "#!/bin/sh\necho fake\n", mode = 0b111_101_101)
+            .file("jdk-$version-jre/bin/${HostPlatform.javaExecutable}", "#!/bin/sh\necho fake\n", mode = 0b111_101_101)
             .file("jdk-$version-jre/lib/jspawnhelper", "helper", mode = 0b110_100_100)
             .file("jdk-$version-jre/release", "IMPLEMENTOR=\"Eclipse Adoptium\"\nJAVA_VERSION=\"$version\"\n")
             .symlink("jdk-$version-jre/lib/java", "../bin/java")
@@ -106,8 +107,8 @@ class JavaRuntimeInstallerTest {
         val home = File(dataDir, "java/temurin-42.0.1+3")
 
         assertEquals(home.canonicalPath, result.runtime.path)
-        assertTrue(File(home, "bin/java").isFile)
-        assertTrue(File(home, "bin/java").canExecute())
+        assertTrue(File(home, "bin/${HostPlatform.javaExecutable}").isFile)
+        assertTrue(File(home, "bin/${HostPlatform.javaExecutable}").canExecute())
         assertTrue(File(home, "lib/jspawnhelper").canExecute(), "jspawnhelper must be made executable")
 
         val marker = File(home, ManagedRuntimeMarker.FILE).readText()
@@ -257,7 +258,7 @@ class JavaRuntimeInstallerTest {
         ZipOutputStream(zip.outputStream()).use { out ->
             out.putNextEntry(ZipEntry("zulu42-jre/"))
             out.closeEntry()
-            out.putNextEntry(ZipEntry("zulu42-jre/bin/java"))
+            out.putNextEntry(ZipEntry("zulu42-jre/bin/${HostPlatform.javaExecutable}"))
             out.write("#!/bin/sh\n".toByteArray())
             out.closeEntry()
             out.putNextEntry(ZipEntry("zulu42-jre/release"))
@@ -283,7 +284,7 @@ class JavaRuntimeInstallerTest {
 
         assertEquals("42.0.1+9", result.runtime.version)
         assertEquals(File(dataDir, "java/zulu-42.0.1+9").canonicalPath, result.runtime.path)
-        assertTrue(File(result.runtime.path, "bin/java").canExecute())
+        assertTrue(File(result.runtime.path, "bin/${HostPlatform.javaExecutable}").canExecute())
     }
 
     @Test
@@ -338,7 +339,7 @@ class JavaRuntimeInstallerTest {
         val home = File(dataDir, "java/.tmp-inprogress")
 
         File(home, "bin").mkdirs()
-        File(home, "bin/java").writeText("")
+        File(home, "bin/${HostPlatform.javaExecutable}").writeText("")
         File(home, "release").writeText("JAVA_VERSION=\"42.0.1\"\n")
 
         assertNull(JavaRuntimeLocator(dataDir).discover().firstOrNull { it.major == 42 })
@@ -349,7 +350,7 @@ class JavaRuntimeInstallerTest {
         val home = File(dataDir, "java/my-own-jdk")
 
         File(home, "bin").mkdirs()
-        File(home, "bin/java").writeText("")
+        File(home, "bin/${HostPlatform.javaExecutable}").writeText("")
         File(home, "release").writeText("JAVA_VERSION=\"42.0.7\"\n")
 
         val found = JavaRuntimeLocator(dataDir).discover().single { it.major == 42 }

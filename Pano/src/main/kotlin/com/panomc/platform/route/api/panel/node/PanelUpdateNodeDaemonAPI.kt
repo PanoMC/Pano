@@ -33,6 +33,13 @@ import com.panomc.platform.util.UsageMode
  * node is being told to download and then execute code, and it verifies the bytes before swapping
  * anything. After the swap it exits 75, which the installer's systemd unit treats as a restart.
  *
+ * Unlike the automatic update, this one is not refused while the node has tasks running: an admin
+ * pressed the button and may well want the update now. It does not cut those tasks short either.
+ * A node with this version holds its restart until its running tasks end (at most fifteen minutes)
+ * and reports whatever is still cut short as FAILED. For an older node, whose own code does the
+ * update, Pano fails those tasks at the hello after the restart
+ * ([com.panomc.platform.node.ServerTaskService.failAbandonedByNode]).
+ *
  * The sending itself lives in [NodeDaemonUpdateService], which the automatic update after a hello
  * (`managed-servers.node-auto-update`) and a Pano Agent's server-scoped update use as well, so a
  * node is only ever told to replace itself one way.

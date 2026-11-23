@@ -11,6 +11,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.NotFound
 import com.panomc.platform.license.LicenseManager
 import com.panomc.platform.license.deriveThemeLicenseStatusLabel
+import com.panomc.platform.license.themeLicenseViaPanoPlus
 import com.panomc.platform.model.*
 import com.panomc.platform.util.FileUtil.getSize
 import com.panomc.platform.util.ResourceHashStatus
@@ -86,6 +87,7 @@ class PanelGetThemeAPI(
                     "updateState" to updateInfo?.getString("state"),
                     "premium" to theme.premium,
                     "licenseStatus" to deriveThemeLicenseStatusLabel(theme, licenseManager),
+                    "licensePanoPlus" to themeLicenseViaPanoPlus(theme, licenseManager),
                     // The API level gate, as on the list: the detail page shows the level and a refusal.
                     "apiLevel" to theme.apiLevel,
                     "verdict" to uiManager.themeVerdict(theme.id).name,

@@ -20,6 +20,13 @@ class PanoPluginWrapper(
 ) : PluginWrapper(pluginManager, descriptor, pluginPath, pluginClassLoader) {
     private val logger = LoggerFactory.getLogger(PanoPluginWrapper::class.java)
 
+    /**
+     * The plugin object once [PluginFactory] created it, else null. Read this instead of [getPlugin] when the caller
+     * must not create the object (that getter builds it and runs its load() / onCreate()).
+     */
+    @Volatile
+    internal var instance: com.panomc.platform.api.PanoPlugin? = null
+
     internal val config by lazy {
         val configResource = pluginClassLoader.getOwnResourceStream("config.conf") ?: return@lazy null
 

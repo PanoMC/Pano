@@ -48,7 +48,8 @@ class ServerTaskService(
     private val logger: Logger,
     // Looked up when used, not at construction: both services sit above this one in the graph.
     private val managedServerPluginService: ObjectProvider<ManagedServerPluginService>,
-    private val panoPluginUpdateService: ObjectProvider<PanoPluginUpdateService>
+    private val panoPluginUpdateService: ObjectProvider<PanoPluginUpdateService>,
+    private val nodeDaemonUpdateService: ObjectProvider<NodeDaemonUpdateService>
 ) {
     /**
      * One mutex per task uuid.
@@ -228,8 +229,56 @@ class ServerTaskService(
                 "${(now - task.updatedAt) / 1000}s, failing it."
         )
 
+        failUnfinished(task, ServerTaskTimeout.TIMEOUT_ERROR, now, sqlClient)
+
+        return true
+    }
+
+    /**
+     * Fails the RUNNING tasks of [nodeId] that the node, in its hello, no longer lists as running
+     * ([ServerTaskAbandonment]).
+     *
+     * A daemon that restarted -- an update, a crash, a service restart -- runs none of the tasks
+     * its previous process had going, and one too old or too abruptly killed to report them failed
+     * leaves rows RUNNING that only the ten-minute sweep would ever close. Each candidate is
+     * re-read and re-judged under its lock, like the sweep, so a frame that finished it meanwhile
+     * wins. Null [runningTasks] (a node too old to list them) changes nothing.
+     */
+    suspend fun failAbandonedByNode(nodeId: Long, runningTasks: Collection<String?>?, helloAt: Long) {
+        val running = runningTasks?.filterNotNull()?.toSet() ?: return
+
+        val sqlClient = databaseManager.getSqlClient()
+
+        databaseManager.serverTaskDao.getAllUnfinished(sqlClient)
+            .filter { ServerTaskAbandonment.isAbandoned(it, nodeId, running, helloAt) }
+            .forEach { candidate ->
+                withTaskLock(candidate.uuid) {
+                    val task = databaseManager.serverTaskDao.getByUuid(candidate.uuid, sqlClient) ?: return@withTaskLock true
+
+                    if (!ServerTaskAbandonment.isAbandoned(task, nodeId, running, helloAt)) {
+                        return@withTaskLock task.status.isTerminal
+                    }
+
+                    logger.warn(
+                        "Task ${task.uuid} (${task.kind}) was RUNNING on node $nodeId, which no longer runs it " +
+                            "after reconnecting; failing it."
+                    )
+
+                    failUnfinished(task, ServerTaskAbandonment.NODE_RESTARTED_ERROR, System.currentTimeMillis(), sqlClient)
+
+                    true
+                }
+            }
+    }
+
+    /**
+     * Ends [task] as FAILED with [error] the way a FAILED frame from the node would have: the row,
+     * the panel, a waiting request, the server it was about and a plugin install's provenance.
+     * Shared by every path where Pano gives a task up on the node's behalf. Under the task's lock.
+     */
+    private suspend fun failUnfinished(task: ServerTask, error: String, now: Long, sqlClient: SqlClient) {
         task.status = ServerTaskStatus.FAILED
-        task.error = ServerTaskTimeout.TIMEOUT_ERROR
+        task.error = error
         task.updatedAt = now
 
         databaseManager.serverTaskDao.updateProgressByUuid(
@@ -251,7 +300,7 @@ class ServerTaskService(
 
         onTaskFailed(task.kind, task.serverId, task.error, sqlClient, task.uuid)
 
-        // A plugin download that went silent settles its provenance row like a failed one, as the
+        // A plugin download given up on settles its provenance row like a failed one, as the
         // progress handler does for a FAILED frame: otherwise the row keeps the task id for good
         // and the plugin is never checked for updates again.
         if (task.kind == ServerTaskKind.PLUGIN_INSTALL) {
@@ -259,7 +308,15 @@ class ServerTaskService(
             panoPluginUpdateService.ifAvailable?.onNodeTaskFinished(task.uuid, task.serverId, task.status, sqlClient)
         }
 
-        return true
+        task.nodeId?.let(::onNodeTaskEnded)
+    }
+
+    /**
+     * A task of [nodeId] ended, by a frame or by Pano giving it up: the node's automatic update
+     * may have been waiting for exactly that ([NodeDaemonUpdateService.onNodeTaskFinished]).
+     */
+    fun onNodeTaskEnded(nodeId: Long) {
+        nodeDaemonUpdateService.ifAvailable?.onNodeTaskFinished(nodeId)
     }
 
     /**

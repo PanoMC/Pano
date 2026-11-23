@@ -273,19 +273,26 @@ object UninstallSteps {
         }
 
         if (userInstallRoot != null) {
-            return listOf("rm -rf ${shellQuote(userInstallRoot.path)}")
+            return listOf("rm -rf ${shellQuote(posixPath(userInstallRoot))}")
         }
 
-        val steps = mutableListOf("rm -rf ${shellQuote(dataDir.path)}")
+        val steps = mutableListOf("rm -rf ${shellQuote(posixPath(dataDir))}")
 
         // A jar run by hand is the operator's own file and may be the one other nodes (or a dev
         // checkout's local node) run from, so it is pointed at rather than deleted.
         if (jar != null && !jar.absoluteFile.toPath().startsWith(dataDir.absoluteFile.toPath())) {
-            steps.add("# ${jar.path} can be deleted too if no other node runs from it")
+            steps.add("# ${posixPath(jar)} can be deleted too if no other node runs from it")
         }
 
         return steps
     }
+
+    /**
+     * [removeFiles] only describes Linux and macOS hosts, whose paths use `/`. [File] renders them
+     * with the separator of the OS this runs on, so a POSIX host described from Windows (the tests)
+     * would get backslashes; a no-op where the separator already is `/`.
+     */
+    private fun posixPath(file: File): String = file.path.replace(File.separatorChar, '/')
 
     /**
      * A Pano Agent (SM-74): its own `.pano-agent` folder goes, and the service `--service install`

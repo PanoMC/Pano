@@ -408,7 +408,8 @@ class AgentModeTest {
     }
 
     private class FirstRun(val setup: AgentSetup, private val buffer: ByteArrayOutputStream, val checked: List<String>) {
-        val output: String get() = buffer.toString(Charsets.UTF_8)
+        /** With `\n` line ends, as println writes them on Linux and macOS (Windows writes `\r\n`). */
+        val output: String get() = buffer.toString(Charsets.UTF_8).replace("\r\n", "\n")
     }
 
     /** The questions for [folder], answered with [answers] one line at a time; the end of them is Ctrl+D. */

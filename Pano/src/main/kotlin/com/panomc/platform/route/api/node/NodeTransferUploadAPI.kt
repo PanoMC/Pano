@@ -70,6 +70,9 @@ class NodeTransferUploadAPI(
             return Successful()
         }
 
+        // From here the bytes flow, and the ticket stops expiring under them.
+        ticket.started = true
+
         ticket.downloadFile?.let { return receiveIntoFile(context, ticket, it) }
 
         val browserResponse = ticket.browserResponse ?: return NotExists()

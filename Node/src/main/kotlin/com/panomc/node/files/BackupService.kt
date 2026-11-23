@@ -90,6 +90,11 @@ class VirtualArchive(
  * the same `<id>.json` meta, which is what BACKUP_LIST reads; both take the same scopes (everything,
  * only the worlds, or a chosen list) through [BackupScope]; and both restore with the same rule —
  * a world in the backup replaces the world on disk as a whole.
+ *
+ * The Pano plugin inside a server can take backups too (when it runs the schedules or the node
+ * was offline) and keeps those in `<server>/backups/`, same layout. This node never writes there,
+ * but it serves, restores and deletes a backup found there by its exact id, and leaves that folder
+ * out of its own backups so one never swallows the other.
  */
 class BackupService(
     private val dataDir: File,
@@ -330,8 +335,9 @@ class BackupService(
             return
         }
 
-        val archive = archiveFile(uuid, backupId)
-        val repository = repository(uuid)
+        val store = storeOf(uuid, backupId) ?: nodeStore(uuid)
+        val archive = store.archive(backupId)
+        val repository = store.repository()
 
         val isArchive = archive.isFile && ZipTool.isZip(archive)
 
@@ -394,11 +400,12 @@ class BackupService(
             return FileService.failure(FileService.ERROR_PATH_DENIED)
         }
 
-        val repository = repository(uuid)
+        val store = storeOf(uuid, backupId) ?: nodeStore(uuid)
+        val repository = store.repository()
 
         if (repository.has(backupId)) {
             try {
-                val gc = repository.delete(backupId) { metaFile(uuid, backupId).delete() }
+                val gc = repository.delete(backupId) { store.meta(backupId).delete() }
 
                 logger.info(
                     "Deleted snapshot $backupId of $uuid" +
@@ -415,10 +422,8 @@ class BackupService(
             return FileService.success()
         }
 
-        val archive = archiveFile(uuid, backupId)
-
-        archive.delete()
-        metaFile(uuid, backupId).delete()
+        store.archive(backupId).delete()
+        store.meta(backupId).delete()
 
         logger.info("Deleted backup $backupId of $uuid.")
 
@@ -507,12 +512,14 @@ class BackupService(
      * The archive behind a `@backup/<id>` transfer path.
      *
      * Backups live outside the server directory, so they cannot be reached by the ordinary path
-     * rules; this is the one door to them, and it only opens for exactly that prefix.
+     * rules; this is the one door to them, and it only opens for exactly that prefix. A FULL
+     * backup the Pano plugin took is found in the server's own `backups/` folder too (see
+     * [storeOf]).
      */
     fun resolveVirtual(serverUuid: String, path: String): File? {
         val backupId = virtualBackupId(serverUuid, path) ?: return null
 
-        return archiveFile(serverUuid, backupId).takeIf { it.isFile }
+        return storeOf(serverUuid, backupId)?.archive(backupId)?.takeIf { it.isFile }
     }
 
     /**
@@ -523,9 +530,10 @@ class BackupService(
      */
     fun resolveVirtualArchive(serverUuid: String, path: String): VirtualArchive? {
         val backupId = virtualBackupId(serverUuid, path) ?: return null
-        val repository = repository(serverUuid)
+        val store = storeOf(serverUuid, backupId) ?: return null
+        val repository = store.repository()
 
-        if (archiveFile(serverUuid, backupId).isFile || !repository.has(backupId)) {
+        if (store.archive(backupId).isFile || !repository.has(backupId)) {
             return null
         }
 
@@ -545,9 +553,11 @@ class BackupService(
             return null
         }
 
-        archiveFile(serverUuid, backupId).takeIf { it.isFile }?.let { return it }
+        val store = storeOf(serverUuid, backupId) ?: return null
 
-        val repository = repository(serverUuid)
+        store.archive(backupId).takeIf { it.isFile }?.let { return it }
+
+        val repository = store.repository()
 
         if (!repository.has(backupId)) {
             return null
@@ -670,14 +680,54 @@ class BackupService(
     private fun serverBackupsDir(uuid: String): File = PathSafety.resolveUnder(backupsRoot, uuid)
 
     /** `<data>/backups/<uuid>/repo`, the server's snapshot repository. */
-    private fun repository(uuid: String): SnapshotRepository =
-        SnapshotRepository(File(serverBackupsDir(uuid), REPOSITORY_DIRECTORY))
+    private fun repository(uuid: String): SnapshotRepository = nodeStore(uuid).repository()
 
-    private fun archiveFile(uuid: String, backupId: String): File =
-        PathSafety.resolveUnder(serverBackupsDir(uuid), "$backupId$ARCHIVE_SUFFIX")
+    private fun archiveFile(uuid: String, backupId: String): File = nodeStore(uuid).archive(backupId)
 
-    private fun metaFile(uuid: String, backupId: String): File =
-        PathSafety.resolveUnder(serverBackupsDir(uuid), "$backupId$META_SUFFIX")
+    private fun metaFile(uuid: String, backupId: String): File = nodeStore(uuid).meta(backupId)
+
+    /** One directory backups are kept in: `<id>.zip`, `<id>.json` and the snapshot `repo/`. */
+    private class Store(val directory: File) {
+        fun archive(backupId: String): File = PathSafety.resolveUnder(directory, "$backupId$ARCHIVE_SUFFIX")
+
+        fun meta(backupId: String): File = PathSafety.resolveUnder(directory, "$backupId$META_SUFFIX")
+
+        fun repository(): SnapshotRepository = SnapshotRepository(File(directory, REPOSITORY_DIRECTORY))
+
+        fun holds(backupId: String): Boolean = archive(backupId).isFile || repository().has(backupId)
+    }
+
+    /** `<data>/backups/<uuid>/`, where this node writes every backup it takes. */
+    private fun nodeStore(uuid: String): Store = Store(serverBackupsDir(uuid))
+
+    /**
+     * `<server>/backups/`, where the Pano plugin inside the server keeps the backups it takes
+     * itself, in the same layout. Pano lists those next to the node's, so this node has to be
+     * able to serve, restore and delete them too; it never writes a new backup there.
+     */
+    private fun pluginStore(uuid: String): Store? {
+        val directory = registry.get(uuid)?.directory ?: return null
+
+        return Store(File(directory, BACKUPS_DIRECTORY)).takeIf { it.directory.isDirectory }
+    }
+
+    /**
+     * The store that holds [backupId] of [uuid]: the node's own first, then the plugin's, and only
+     * for an exact `<id>.zip` or snapshot manifest. Null when neither has it.
+     */
+    private fun storeOf(uuid: String, backupId: String): Store? {
+        if (!PathSafety.isSafeSegment(uuid) || !PathSafety.isSafeSegment(backupId)) {
+            return null
+        }
+
+        val node = nodeStore(uuid)
+
+        if (node.holds(backupId)) {
+            return node
+        }
+
+        return pluginStore(uuid)?.takeIf { it.holds(backupId) }
+    }
 
     private fun toJson(meta: BackupMeta): JsonObject = JsonObject()
         .put("id", meta.id)
@@ -790,6 +840,12 @@ class BackupExcludeMatcher(
             return true
         }
 
+        // Nor the backups the Pano plugin keeps in the server folder: a backup holding every
+        // earlier backup grows with each one and restores old backups over the current ones.
+        if (pluginBackupStore && (normalised == PLUGIN_BACKUPS_DIRECTORY || normalised.startsWith("$PLUGIN_BACKUPS_DIRECTORY/"))) {
+            return true
+        }
+
         return patterns.any { pattern ->
             when {
                 pattern.endsWith("/") -> {
@@ -805,6 +861,9 @@ class BackupExcludeMatcher(
         }
     }
 
+    /** Whether `<server>/backups/` is the Pano plugin's backup store, decided once per backup. */
+    private val pluginBackupStore: Boolean = serverDirectory?.let { isPluginBackupStore(File(it, PLUGIN_BACKUPS_DIRECTORY)) } ?: false
+
     /** The agent's data folder or its jar (see [AgentFiles]); always out of a backup. */
     private fun isAgentFile(normalised: String): Boolean =
         isAgentData(normalised) ||
@@ -813,6 +872,27 @@ class BackupExcludeMatcher(
     companion object {
         /** What a backup leaves out when Pano does not say otherwise. */
         val DEFAULT_EXCLUDES = listOf("logs/", "cache/", "*.jar.tmp")
+
+        /** The folder in the server directory the Pano plugin keeps its backups in. */
+        const val PLUGIN_BACKUPS_DIRECTORY = "backups"
+
+        private val BACKUP_META_NAME = Regex("""^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.json$""")
+
+        /**
+         * Whether [directory] holds Pano backups: a snapshot repository (`repo/config.json`) or a
+         * `<uuid>.json` backup meta. A `backups/` folder of some other tool stays in the backup.
+         */
+        fun isPluginBackupStore(directory: File): Boolean {
+            if (!directory.isDirectory) {
+                return false
+            }
+
+            if (File(directory, "${BackupService.REPOSITORY_DIRECTORY}/config.json").isFile) {
+                return true
+            }
+
+            return directory.listFiles()?.any { it.isFile && BACKUP_META_NAME.matches(it.name) } == true
+        }
 
         /**
          * The node's runtime files in `.pano-node/` — always excluded, patterns or not: the coloured

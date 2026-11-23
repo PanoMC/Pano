@@ -1,5 +1,7 @@
 package com.panomc.platform.license
 
+import com.auth0.jwt.interfaces.DecodedJWT
+
 /**
  * Decoded claims from a panomc.com-issued plugin license token. See [LicenseTokenIssuer]
  * on the website backend for the producer side.
@@ -24,7 +26,12 @@ data class LicenseClaims(
     /** Signing key id from the JOSE header (used to detect rotation). */
     val keyId: String?,
     /** Token id (jti). */
-    val tokenId: String?
+    val tokenId: String?,
+    /** True when panomc.com issued this license through the owner's Pano+ subscription (claim `panoPlus`). */
+    val panoPlus: Boolean = false
 ) {
     fun isExpired(nowMs: Long = System.currentTimeMillis()): Boolean = nowMs >= expiresAtMs
 }
+
+/** The optional `panoPlus` claim: true only when panomc.com set it to `true`. */
+internal fun panoPlusClaimOf(decoded: DecodedJWT): Boolean = decoded.getClaim("panoPlus").asBoolean() == true

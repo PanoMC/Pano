@@ -207,11 +207,14 @@ class InstallManager(
                     }.coAwait()
 
                     val incoming = resourceFile.toPath().toAbsolutePath().normalize()
+                    // The new version is saved as `<pluginId>-<version>.jar`, so the file name tells which version is
+                    // installed (the old file name was kept before, an updated jar went on saying 1.0.0).
+                    val updatedPath = originalPath.resolveSibling(pluginJarName(pluginId, version))
                     vertx.executeBlocking<Unit> {
                         when {
-                            incoming == originalPath && Files.exists(originalPath) -> Unit
-                            incoming != originalPath ->
-                                Files.copy(incoming, originalPath, StandardCopyOption.REPLACE_EXISTING)
+                            // Moved, not copied: the download sits in the plugins folder under its own name, and a
+                            // Pano that stops before the cleanup below would load both jars of the same plugin.
+                            incoming != originalPath && Files.exists(incoming) -> movePathReplacing(incoming, updatedPath)
                             else -> throw FailedToInstallResource(
                                 extras = mapOf("message" to "Plugin update artifact missing after backup.")
                             )
@@ -220,7 +223,7 @@ class InstallManager(
 
                     try {
                         val state = vertx.executeBlocking<PluginState?> {
-                            pluginManager.loadPlugin(originalPath)
+                            pluginManager.loadPlugin(updatedPath)
 
                             val updatedState = if (keepDisabled) {
                                 pluginManager.getPlugin(pluginId)?.pluginState
@@ -244,7 +247,7 @@ class InstallManager(
                         }
                     } catch (e: Throwable) {
                         try {
-                            rollbackPluginJar(pluginId, originalPath, backupPath)
+                            rollbackPluginJar(pluginId, updatedPath, originalPath, backupPath)
                         } catch (rollbackEx: Throwable) {
                             throw FailedToInstallResource(
                                 extras = mapOf(
@@ -262,9 +265,6 @@ class InstallManager(
 
                     vertx.executeBlocking<Unit> {
                         Files.deleteIfExists(backupPath)
-                        if (incoming != originalPath && Files.exists(incoming)) {
-                            Files.delete(incoming)
-                        }
                     }.coAwait()
                 } else {
                     val state = vertx.executeBlocking<PluginState?> {
@@ -736,23 +736,30 @@ class InstallManager(
         }
     }
 
-    private suspend fun rollbackPluginJar(pluginId: String, loadPath: Path, backupPath: Path) {
+    /** `<pluginId>-<version>.jar`, with anything but letters, digits, `.`, `_`, `+` and `-` replaced by `_`. */
+    private fun pluginJarName(pluginId: String, version: String): String {
+        val safe = Regex("[^A-Za-z0-9._+-]")
+        return "${pluginId.replace(safe, "_")}-${stripLeadingV(version).replace(safe, "_")}.jar"
+    }
+
+    /** Removes the failed new jar at [failedPath] and puts the backup back at the old jar's own path [restorePath]. */
+    private suspend fun rollbackPluginJar(pluginId: String, failedPath: Path, restorePath: Path, backupPath: Path) {
         vertx.executeBlocking<Unit> {
             try {
                 pluginManager.unloadPlugin(pluginId)
             } catch (_: Throwable) {
             }
             try {
-                if (Files.exists(loadPath)) {
-                    Files.delete(loadPath)
+                if (Files.exists(failedPath)) {
+                    Files.delete(failedPath)
                 }
             } catch (_: Throwable) {
             }
             if (!Files.exists(backupPath)) {
                 throw IllegalStateException("Backup not found at $backupPath")
             }
-            movePathReplacing(backupPath, loadPath)
-            pluginManager.loadPlugin(loadPath)
+            movePathReplacing(backupPath, restorePath)
+            pluginManager.loadPlugin(restorePath)
             pluginManager.enablePlugin(pluginId)
             val state = pluginManager.startPlugin(pluginId)
             // The plugins unloaded with it come back too.

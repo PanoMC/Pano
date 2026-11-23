@@ -4,6 +4,7 @@ import com.panomc.node.files.BackupOrphanSweep
 import com.panomc.node.host.JavaRuntimeLocator
 import com.panomc.node.host.ServiceInstaller
 import com.panomc.node.host.UninstallEnvironment
+import com.panomc.node.host.UninstallSteps
 import com.panomc.node.net.DeleteServerMessage
 import com.panomc.node.net.NodeUninstallMessage
 import com.panomc.node.server.PortReservations
@@ -368,7 +369,7 @@ class NodeRemovalTest {
             val steps = sink.last().extra!!.getJsonArray("manualSteps").map { it as String }
 
             assertTrue(steps.none { it.contains("systemctl") }, steps.toString())
-            assertEquals(listOf("rm -rf ${dataDir.absolutePath}"), steps)
+            assertEquals(listOf("rm -rf ${UninstallSteps.shellQuote(dataDir.absolutePath)}"), steps)
         } finally {
             unit.delete()
             installDir.parentFile.deleteRecursively()

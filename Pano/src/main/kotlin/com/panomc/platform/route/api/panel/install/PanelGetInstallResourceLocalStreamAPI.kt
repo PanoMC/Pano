@@ -97,22 +97,16 @@ class PanelGetInstallResourceLocalStreamAPI(
 
         context.put("file", newFile)
 
-        var successAmount = 0
-
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
         installManager.installResource(userId, null, null, newFile, type) {
             sendServerSentEventMessage(context, it)
+        }
 
-            if (it is Successful && it !is Progress) {
-                successAmount++
-
-                if (successAmount == 3) {
-                    val response = context.response()
-
-                    response.end()
-                }
-            }
+        // The install is done once installResource returns (it sends two success events for a file, not the three
+        // this used to wait for, so the stream never closed). An error event has ended it already.
+        if (!response.ended()) {
+            response.end()
         }
 
         return null

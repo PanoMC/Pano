@@ -53,6 +53,9 @@ class PanelDeletePluginAPI(
         // would build it against an API it was not made for): it is removed without its hooks.
         val plugin = if (pluginManager.verdictOf(pluginId) == Verdict.OK) (pluginWrapper.plugin as PanoPlugin) else null
 
+        // A disabled plugin's unload already closed its context and dropped its tables from the database manager:
+        // set it up again so its onUninstall can still reach its beans and drop its tables.
+        plugin?.ensureLoaded()
         plugin?.onUninstall()
         plugin?.let { held -> PluginManager.lifecycleListeners.forEach { it.onPluginUnload(held) } }
 

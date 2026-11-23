@@ -1729,10 +1729,8 @@ class UIManager(
             type != null && (type as Route.Type) == UI
         }
 
-        foundUI?.let {
-            it.disable()
-            it.remove()
-        }
+        // Route.remove() can leave a route of the same order in the router (see RouteRemoval).
+        foundUI?.let { com.panomc.platform.route.RouteRemoval.remove(router, listOf(it)) }
 
         if (UI == Route.Type.THEME_UI) {
             siteBinding = null

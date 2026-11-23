@@ -121,9 +121,12 @@ class PluginInstallService(
 
             reporter.done(taskId, uuid, KIND, "Installed the Pano plugin")
         } catch (exception: Exception) {
-            logger.error("Pano plugin install on $uuid failed: ${exception.message}", exception)
+            // An interrupt has no message: this used to log and report `failed: null`.
+            val error = InFlightTasks.errorOf(exception)
 
-            reporter.failed(taskId, uuid, KIND, exception.message ?: exception.javaClass.simpleName)
+            logger.error("Pano plugin install on $uuid failed: $error", exception)
+
+            reporter.failed(taskId, uuid, KIND, error)
         }
     }
 
@@ -140,9 +143,12 @@ class PluginInstallService(
         try {
             run(uuid, taskId, message)
         } catch (exception: Exception) {
-            logger.error("Plugin install on $uuid failed: ${exception.message}", exception)
+            // An interrupt has no message: this used to log and report `failed: null`.
+            val error = InFlightTasks.errorOf(exception)
 
-            reporter.failed(taskId, uuid, KIND, exception.message ?: exception.javaClass.simpleName)
+            logger.error("Plugin install on $uuid failed: $error", exception)
+
+            reporter.failed(taskId, uuid, KIND, error)
         }
     }
 

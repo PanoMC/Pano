@@ -51,7 +51,7 @@ class ConsoleLogWriterTest {
             "1000\t\u001b[31mred\u001b[0m plain\n2000\t[Pano:admin] > say hi\n",
             ConsoleLogWriter.file(server).readText()
         )
-        assertEquals(".pano-node/console.log", ConsoleLogWriter.file(server).relativeTo(server).path)
+        assertEquals(".pano-node/console.log", ConsoleLogWriter.file(server).relativeTo(server).invariantSeparatorsPath)
     }
 
     @Test

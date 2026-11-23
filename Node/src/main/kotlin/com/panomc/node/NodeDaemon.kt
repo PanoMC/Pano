@@ -260,7 +260,13 @@ class NodeDaemon(
     private val loaderInstaller = LoaderInstaller(javaLocator, logger, javaService)
 
     private val selfUpdateService =
-        SelfUpdateService(dataDir, reporter, platformUrls, logger) { requestSelfUpdateRestart() }
+        SelfUpdateService(
+            dataDir,
+            reporter,
+            platformUrls,
+            logger,
+            otherTasksInFlight = { reporter.inFlight.count(excludingKind = SelfUpdateService.KIND) }
+        ) { requestSelfUpdateRestart() }
 
     private val fileService = FileService(registry, logger)
 
@@ -526,6 +532,17 @@ class NodeDaemon(
 
         if (scheduleTimer >= 0) {
             vertx.cancelTimer(scheduleTimer)
+        }
+
+        // Before the socket closes: a task this stop cuts short (an update's restart while a plugin
+        // downloads) is reported FAILED now, not left RUNNING in Pano until its ten-minute sweep.
+        // Bounded, so a socket that is already gone never holds the shutdown up.
+        val interrupted = reporter.failInFlight()
+
+        if (interrupted > 0) {
+            logger.warn("Reported $interrupted unfinished task(s) to Pano as interrupted.")
+
+            connection.drain(STOP_DRAIN_MILLIS)
         }
 
         connection.stop()
@@ -1044,6 +1061,9 @@ class NodeDaemon(
                 // instead of walking up from 25565, which a container may not even publish.
                 .put("portRange", NodePortRange.toHello(config.portRange()))
                 .put("capabilities", JsonArray(NodeProtocol.Capabilities.ALL))
+                // The tasks this daemon is working on. A daemon that just started lists none, and
+                // Pano fails whatever it still had RUNNING here: the process that ran it is gone.
+                .put("runningTasks", JsonArray(reporter.inFlight.all().map { it.taskId }))
                 // A Pano Agent (protocol 5) says so and names its one server: Pano adopts that
                 // directory in place on the first hello that finds no server here yet.
                 .put("agent", config.agent)
@@ -1660,6 +1680,9 @@ class NodeDaemon(
         private val STARTUP_FAILURE_MARKERS = listOf("Caused by", "Exception", "Error:", "error:")
 
         private const val SELF_UPDATE_GRACE_MILLIS = 1_000L
+
+        /** How long a stop waits for the FAILED frames of the tasks it cuts short to be written. */
+        private const val STOP_DRAIN_MILLIS = 2_000L
 
         /** The longest an agent's first start waits for Pano's plugin (see `onAdoptedInPlace`). */
         const val FIRST_START_PLUGIN_WAIT_MILLIS = 20_000L

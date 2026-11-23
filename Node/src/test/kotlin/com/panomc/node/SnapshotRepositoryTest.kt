@@ -104,7 +104,7 @@ class SnapshotRepositoryTest {
             assertTrue(header == SnapshotRepository.HEADER_RAW || header == SnapshotRepository.HEADER_DEFLATE)
         }
 
-        val json = GZIPInputStream(File(repoDir, "snapshots/first.json.gz").inputStream()).readBytes().decodeToString()
+        val json = GZIPInputStream(File(repoDir, "snapshots/first.json.gz").inputStream()).use { it.readBytes() }.decodeToString()
 
         assertTrue(json.contains("\"p\":\"world/region/r.0.0.mca\",\"t\":\"f\",\"s\":200000"), json.take(400))
         assertTrue(json.contains("{\"p\":\"world/empty\",\"t\":\"d\",\"m\":"), json.take(400))

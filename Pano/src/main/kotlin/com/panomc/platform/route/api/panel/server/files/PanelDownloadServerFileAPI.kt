@@ -25,7 +25,6 @@ import io.vertx.json.schema.common.dsl.Schemas.arraySchema
 import io.vertx.json.schema.common.dsl.Schemas.booleanSchema
 import io.vertx.json.schema.common.dsl.Schemas.numberSchema
 import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import kotlinx.coroutines.withTimeoutOrNull
 import com.panomc.platform.util.UsageMode
 
 /**
@@ -147,14 +146,13 @@ class PanelDownloadServerFileAPI(
             fileClient.log(context, id, ServerFileChangedLog.ACTION_DOWNLOAD, downloaded, sqlClient = sqlClient)
         }
 
-        val written = withTimeoutOrNull(TransferTicketStore.TTL_MS) {
-            try {
-                ticket.completion.await()
-            } catch (exception: Exception) {
-                transferTicketStore.discard(ticket)
+        // The ticket's time limit covers the start only; a big backup may stream for hours.
+        val written = try {
+            ticket.awaitDownload()
+        } catch (exception: Exception) {
+            transferTicketStore.discard(ticket)
 
-                throw FileOperationFailed(extras = mapOf("message" to (exception.message ?: "The transfer failed.")))
-            }
+            throw FileOperationFailed(extras = mapOf("message" to (exception.message ?: "The transfer failed.")))
         }
 
         transferTicketStore.discard(ticket)

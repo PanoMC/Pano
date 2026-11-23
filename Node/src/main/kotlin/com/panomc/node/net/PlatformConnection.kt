@@ -249,6 +249,38 @@ class PlatformConnection(
         connect()
     }
 
+    /**
+     * Waits up to [timeoutMillis] for every frame [send] has queued so far to be written.
+     *
+     * [send] hands its frame to the socket's context and returns; a [stop] right after it would
+     * close the socket before that frame was written. The frames are written in the order they were
+     * queued, so a marker queued behind them runs once they are out. False on a timeout, or when
+     * called on the socket's own context, which could never run the marker while it waits.
+     */
+    fun drain(timeoutMillis: Long): Boolean {
+        val context = socketContext ?: return true
+
+        if (webSocket == null) {
+            return true
+        }
+
+        if (io.vertx.core.Vertx.currentContext() === context) {
+            return false
+        }
+
+        val latch = java.util.concurrent.CountDownLatch(1)
+
+        context.runOnContext { latch.countDown() }
+
+        return try {
+            latch.await(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+
+            false
+        }
+    }
+
     /** Closes the socket and stops reconnecting. */
     fun stop() {
         running = false

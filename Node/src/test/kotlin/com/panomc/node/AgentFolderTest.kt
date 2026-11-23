@@ -18,6 +18,7 @@ import com.panomc.node.files.ServerFileDenylist
 import com.panomc.node.files.TransferService
 import com.panomc.node.files.ZipTool
 import com.panomc.node.host.HostPlatform
+import com.panomc.node.host.UninstallSteps
 import com.panomc.node.host.JavaRuntimeLocator
 import com.panomc.node.host.ServiceInstaller
 import com.panomc.node.host.UninstallEnvironment
@@ -56,6 +57,8 @@ import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.DisabledOnOs
+import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -185,7 +188,7 @@ class AgentFolderTest {
         assertEquals(
             listOf(
                 "/usr/bin/java", "-XX:+UseSerialGC", "-Xmx256m", "-jar", "/srv/smp/pano-agent.jar",
-                "--agent-worker", "--data", "/srv/smp/.pano-agent", "--server", "/srv/smp", "--code", "1"
+                "--agent-worker", "--data", File("/srv/smp/.pano-agent").path, "--server", File("/srv/smp").path, "--code", "1"
             ),
             AgentLauncher.workerCommand("/usr/bin/java", "/srv/smp/pano-agent.jar", "cp", layout, listOf("--code", "1"), null)
         )
@@ -315,12 +318,14 @@ class AgentFolderTest {
         val err = ByteArrayOutputStream()
         val file = File(hostDir, "agent.log")
 
-        val logger = NodeLogger("pano-agent", file = RotatingLogFile(file), terminal = PrintStream(out), terminalErrors = PrintStream(err))
+        val rotating = RotatingLogFile(file)
+        val logger = NodeLogger("pano-agent", file = rotating, terminal = PrintStream(out), terminalErrors = PrintStream(err))
 
         logger.info("announced 1 server")
         logger.warn("could not reach Pano")
         logger.error("pairing failed")
         logger.notice("Connected to Pano at https://pano.example.com.")
+        rotating.close()
 
         val log = file.readText()
 
@@ -341,6 +346,7 @@ class AgentFolderTest {
         val log = RotatingLogFile(file, maxBytes = 100, keep = 2)
 
         repeat(40) { log.append("line number ${it.toString().padStart(4, '0')}") }
+        log.close()
 
         assertTrue(file.length() <= 100)
         assertTrue(File(hostDir, "agent.log.1").isFile)
@@ -650,8 +656,8 @@ class AgentFolderTest {
 
         val steps = frames.last().second!!.getJsonArray("manualSteps").map { it as String }
 
-        assertEquals("rm -rf ${data.path}", steps.first())
-        assertTrue(steps.none { it == "rm -rf ${folder.path}" }, steps.toString())
+        assertEquals("rm -rf ${UninstallSteps.shellQuote(data.path)}", steps.first())
+        assertTrue(steps.none { it == "rm -rf ${UninstallSteps.shellQuote(folder.path)}" }, steps.toString())
     }
 
     @Test
@@ -676,6 +682,7 @@ class AgentFolderTest {
     // ------------------------------------------------------------------------------- the service
 
     @Test
+    @DisabledOnOs(OS.WINDOWS, disabledReason = "a systemd unit is written only on Linux, and its POSIX paths cannot be File paths on Windows")
     fun `the agent's service runs the launcher from the folder and restarts it only on a failure`() {
         val layout = AgentLayout(File("/home/mc/survival"), File("/home/mc/survival/.pano-agent"))
 
@@ -775,7 +782,8 @@ class AgentFolderTest {
                         return
                     }
 
-                    val text = line.toString(Charsets.UTF_8)
+                    // println ends a line with \r\n on Windows.
+                    val text = line.toString(Charsets.UTF_8).removeSuffix("\r")
 
                     line.reset()
 

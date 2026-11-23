@@ -31,6 +31,8 @@ class PluginFactory(private val pluginEventManager: PluginEventManager, private 
             plugin.pluginGlobalBeanContext = PluginManager.pluginGlobalBeanContext
             plugin.applicationContext = Main.applicationContext
 
+            (pluginWrapper as? PanoPluginWrapper)?.instance = plugin
+
             runBlocking {
                 plugin.load()
                 plugin.onCreate()

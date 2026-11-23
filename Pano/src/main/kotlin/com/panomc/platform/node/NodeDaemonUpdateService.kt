@@ -6,6 +6,7 @@ import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.config.PanoConfig
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Node
+import com.panomc.platform.db.model.ServerTask
 import com.panomc.platform.node.message.SelfUpdateMessage
 import com.panomc.platform.route.ApiPaths
 import io.vertx.core.Vertx
@@ -34,9 +35,17 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * - never twice for the same jar within thirty minutes ([NodeAutoUpdateThrottle]), so an update that
  *   fails cannot turn into a node restarting in a loop;
- * - never while the node has a task running -- an install, an import, a backup -- because the
- *   daemon restarts to finish the update and would take that task with it. It looks again every
- *   [BUSY_RETRY_MILLIS] for as long as the node stays connected;
+ * - never while the node has a task PENDING or RUNNING -- an install, an import, a backup, a plugin
+ *   download -- because the daemon restarts to finish the update and would take that task with it
+ *   ([busyTasks]). It looks again a few seconds after one of the node's tasks ends
+ *   ([onNodeTaskFinished]) and otherwise every [BUSY_RETRY_MILLIS], for as long as the node stays
+ *   connected. PENDING_RESTART does not count: it is a restore armed for the server's next start,
+ *   which may be days away, and a daemon restart leaves servers running and the restore armed;
+ * - the opposite order, a task started after `SELF_UPDATE` went out (koyluler.tr: a plugin update
+ *   three seconds after the update), is the node's to handle, since only it knows what it runs
+ *   when the jar is staged: it holds the restart until its running tasks end (bounded), reports
+ *   whatever a restart still cuts short as FAILED, and a hello that no longer lists a task fails
+ *   it here ([ServerTaskService.failAbandonedByNode]) for a daemon too old to do the rest;
  * - recorded as `AUTO_UPDATED_NODE` in the activity log with no user behind it: nobody pressed
  *   anything, Pano did it, and "why did my node restart at 4 a.m." deserves an answer.
  */
@@ -177,9 +186,13 @@ class NodeDaemonUpdateService(
 
         val sqlClient = databaseManager.getSqlClient()
 
-        val busy = databaseManager.serverTaskDao.getAllUnfinished(sqlClient).any { it.nodeId == nodeId }
+        val busy = busyTasks(nodeId, databaseManager.serverTaskDao.getAllUnfinished(sqlClient))
 
-        if (busy) {
+        if (busy.isNotEmpty()) {
+            if (!pendingRetries.containsKey(nodeId)) {
+                logger.info("Holding the automatic update of node ${node.id} until its ${busy.size} unfinished task(s) end.")
+            }
+
             scheduleRetry(nodeId)
 
             return
@@ -208,8 +221,21 @@ class NodeDaemonUpdateService(
         }
     }
 
-    private fun scheduleRetry(nodeId: Long) {
-        val timer = vertx.setTimer(BUSY_RETRY_MILLIS) {
+    /**
+     * A task of [nodeId] ended. When that node's automatic update is being held for its tasks, it
+     * is looked at again shortly instead of at the next [BUSY_RETRY_MILLIS]; it re-checks for
+     * tasks itself, so another task still running holds it again.
+     */
+    fun onNodeTaskFinished(nodeId: Long) {
+        if (!pendingRetries.containsKey(nodeId)) {
+            return
+        }
+
+        scheduleRetry(nodeId, TASK_END_RETRY_MILLIS)
+    }
+
+    private fun scheduleRetry(nodeId: Long, delayMillis: Long = BUSY_RETRY_MILLIS) {
+        val timer = vertx.setTimer(delayMillis) {
             pendingRetries.remove(nodeId)
 
             if (!nodeManager.isConnected(nodeId)) {
@@ -231,5 +257,18 @@ class NodeDaemonUpdateService(
     companion object {
         /** How long a busy node is left alone before the automatic update looks again. */
         const val BUSY_RETRY_MILLIS = 5 * 60 * 1000L
+
+        /** How soon after one of a held node's tasks ends the automatic update looks again. */
+        const val TASK_END_RETRY_MILLIS = 5_000L
+
+        /**
+         * The tasks of [nodeId] among [unfinished] that hold its automatic update: PENDING and
+         * RUNNING, not PENDING_RESTART (see the class comment).
+         */
+        fun busyTasks(nodeId: Long, unfinished: List<ServerTask>): List<ServerTask> =
+            unfinished.filter {
+                it.nodeId == nodeId &&
+                    (it.status == ServerTaskStatus.PENDING || it.status == ServerTaskStatus.RUNNING)
+            }
     }
 }

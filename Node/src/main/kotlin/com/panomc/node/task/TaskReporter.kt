@@ -75,6 +75,9 @@ class TaskReporter(
 ) : TaskSink {
     private val finished = ConcurrentHashMap.newKeySet<String>()
 
+    /** The tasks a RUNNING frame went out for and no terminal one yet ([InFlightTasks]). */
+    val inFlight = InFlightTasks()
+
     /** The step each running task last reported, for the downloads [watchingDownloads] sees. */
     private val steps = ConcurrentHashMap<String, Pair<Int, String?>>()
 
@@ -82,6 +85,8 @@ class TaskReporter(
         if (taskId in finished) {
             return
         }
+
+        markStarted(taskId, serverUuid, kind)
 
         steps[taskId] = percent to message
 
@@ -94,6 +99,8 @@ class TaskReporter(
         if (taskId in finished) {
             return
         }
+
+        markStarted(taskId, serverUuid, kind)
 
         // The percentage moves on, the step a download would be reported at stays the step.
         steps[taskId] = percent to steps[taskId]?.second
@@ -114,6 +121,8 @@ class TaskReporter(
         if (taskId in finished) {
             return
         }
+
+        markStarted(taskId, serverUuid, kind)
 
         val frame = throttle.offer(taskId, percent.coerceIn(0, 99), message, progress) ?: return
 
@@ -175,6 +184,7 @@ class TaskReporter(
         flushRunning(taskId, serverUuid, kind)
 
         steps.remove(taskId)
+        inFlight.ended(taskId)
 
         send(taskId, serverUuid, kind, "DONE", 100, message, null, extra)
 
@@ -193,12 +203,39 @@ class TaskReporter(
         flushRunning(taskId, serverUuid, kind)
 
         steps.remove(taskId)
+        inFlight.ended(taskId)
 
         send(taskId, serverUuid, kind, "FAILED", 100, null, error, extra)
 
         // A failure gets the hook too: a restore that died halfway still left different files
         // behind than the ones that were measured.
         serverUuid?.let(onServerTaskFinished)
+    }
+
+    /**
+     * Fails every task still in flight with [error] and returns how many there were.
+     *
+     * The daemon's way out: whatever a stop or restart cuts short is reported now, while the
+     * socket is still open, instead of leaving Pano to find out ten minutes later. The handler
+     * that is interrupted afterwards reports its own failure as well, which the finished-once
+     * guard turns into nothing.
+     */
+    fun failInFlight(error: String = InFlightTasks.INTERRUPTED_ERROR): Int {
+        val entries = inFlight.all()
+
+        entries.forEach { failed(it.taskId, it.serverUuid, it.kind, error) }
+
+        return entries.size
+    }
+
+    private fun markStarted(taskId: String, serverUuid: String?, kind: String) {
+        inFlight.started(taskId, serverUuid, kind)
+
+        // A terminal frame that landed between the check above and this line has already removed
+        // the task; putting it back would leave it in flight for good.
+        if (taskId in finished) {
+            inFlight.ended(taskId)
+        }
     }
 
     /**

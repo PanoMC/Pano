@@ -65,6 +65,7 @@ object LicensePanelView {
         return mapOf(
             "premium" to premium,
             "licensed" to licensed,
+            "licensePanoPlus" to (licensed && cached?.claims?.panoPlus == true),
             "licenseStatus" to status.publicId,
             "licenseExpiresAt" to licenseExpiresAtSec,
             "licenseLastChecked" to licenseLastCheckedSec,
@@ -124,6 +125,16 @@ internal fun deriveThemeLicenseStatusLabel(
 }
 
 /** Same mapping plugins use; promoted from private so the theme view can reuse it. */
+/** True when the theme's current license came through the owner's Pano+ subscription. */
+internal fun themeLicenseViaPanoPlus(
+    theme: com.panomc.platform.UIManager.Companion.InstalledTheme,
+    licenseManager: LicenseManager,
+): Boolean {
+    if (!theme.premium) return false
+    val cached = licenseManager.getCachedThemeLicense(theme.id) ?: return false
+    return !cached.claims.isExpired() && cached.claims.panoPlus
+}
+
 internal fun LicenseDeniedReason.toLicenseStatusPublicId(): String =
     this.toLicenseStatus().publicId
 

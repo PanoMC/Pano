@@ -1,5 +1,6 @@
 package com.panomc.platform.route.api.panel.settings
 
+import com.panomc.platform.db.DatabaseConnectOptions
 import com.panomc.platform.AppConstants
 import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
@@ -314,7 +315,7 @@ class PanelAuthMeMigrationUploadAPI(
         registrationDateColumn: String,
         emailColumn: String
     ): List<Map<String, Any?>> {
-        val connectOptions = MySQLConnectOptions()
+        val connectOptions = DatabaseConnectOptions.create()
             .setHost(host)
             .setPort(port)
             .setDatabase(dbName)

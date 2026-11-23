@@ -173,6 +173,8 @@ class TaskProgressEvent(
                         ?.take(MAX_MANUAL_STEPS)
                 )
             )
+
+            task.nodeId?.let(serverTaskService::onNodeTaskEnded)
         }
 
         if (task.status == ServerTaskStatus.DONE) {

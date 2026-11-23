@@ -236,6 +236,13 @@ class ServerScheduleService(
     suspend fun syncServer(server: Server, sqlClient: SqlClient) {
         val runner = serverFeatureResolver.resolve(server).schedules.runner
 
+        // Only one side may run the schedules. A plugin that was handed them while the node was
+        // offline kept running them after the node came back, so every schedule ran twice and
+        // the plugin's copies of the backups piled up in the server folder.
+        if (clearsPlugin(runner, serverManager.isConnected(server.id), server.hasCapability(ServerCapability.SCHEDULES))) {
+            clearPluginSchedules(server)
+        }
+
         if (runner == null || runner == ServerFeatureSource.PANO) {
             return
         }
@@ -287,6 +294,17 @@ class ServerScheduleService(
         }
     }
 
+    /** Empties the schedule set of [server]'s plugin. */
+    private fun clearPluginSchedules(server: Server) {
+        serverManager.sendMessage(
+            server.id,
+            RelayServerMessage(
+                SyncSchedulesMessage("", emptyList()).getResponseName(),
+                JsonObject.mapFrom(SyncSchedulesMessage("", emptyList())).apply { remove("serverUuid") }
+            )
+        )
+    }
+
     private suspend fun writeTasks(scheduleId: Long, definition: ScheduleDefinition, sqlClient: SqlClient) {
         definition.tasks.forEachIndexed { index, task ->
             databaseManager.serverScheduleTaskDao.add(
@@ -309,5 +327,12 @@ class ServerScheduleService(
 
     companion object {
         private const val MAX_ERROR_LENGTH = 1000
+
+        /**
+         * Whether a sync must empty the plugin's schedule set: whenever the plugin is connected,
+         * can hold schedules, and is not the one [runner] picked.
+         */
+        fun clearsPlugin(runner: ServerFeatureSource?, pluginConnected: Boolean, pluginRunsSchedules: Boolean): Boolean =
+            runner != ServerFeatureSource.PLUGIN && pluginConnected && pluginRunsSchedules
     }
 }

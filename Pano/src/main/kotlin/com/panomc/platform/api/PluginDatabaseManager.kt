@@ -58,6 +58,12 @@ class PluginDatabaseManager(
         migrations.remove(plugin)
     }
 
+    /** Drops every entry of [pluginId], whichever object of it holds it (the host calls this after the plugin is unloaded). */
+    internal fun forgetPluginId(pluginId: String) {
+        tables.keys.filter { it.pluginId == pluginId }.forEach { tables.remove(it) }
+        migrations.keys.filter { it.pluginId == pluginId }.forEach { migrations.remove(it) }
+    }
+
     internal fun getLatestMigration(plugin: PanoPlugin) = migrations[plugin]?.maxByOrNull { it.to }
 
     private suspend fun initSchemeVersion(plugin: PanoPlugin, sqlClient: SqlClient) {

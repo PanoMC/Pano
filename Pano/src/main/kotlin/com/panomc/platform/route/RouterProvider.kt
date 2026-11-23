@@ -321,13 +321,26 @@ class RouterProvider private constructor(
         frontendUrlMap.registerPlugin(plugin.pluginId, PluginNamespace.of(plugin), text)
     }
 
+    /**
+     * Drops the routes of every object of [pluginId] still held here (the host calls this after the plugin is unloaded,
+     * in case an older object of it was never unloaded), as [onPluginUnload] does for one object.
+     */
+    internal suspend fun forgetPluginId(pluginId: String) {
+        val stale = (pendingPlugins.toList() + pluginRoutes.keys.toList()).filter { it.pluginId == pluginId }.toSet()
+
+        for (plugin in stale) {
+            onPluginUnload(plugin)
+        }
+    }
+
     override suspend fun onPluginUnload(plugin: PanoPlugin) {
         if (!isInitialized) {
             pendingPlugins.remove(plugin)
             return
         }
 
-        pluginRoutes[plugin]?.forEach { it.disable(); it.remove() }
+        // Route.remove() leaves routes of the same order in the router (see RouteRemoval).
+        pluginRoutes[plugin]?.let { RouteRemoval.remove(router, it) }
         pluginRoutes.remove(plugin)
         originPolicy.removeAnyOriginPaths(plugin.pluginId)
         routeTable.removePlugin(plugin.pluginId)

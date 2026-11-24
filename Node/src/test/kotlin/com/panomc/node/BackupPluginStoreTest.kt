@@ -200,7 +200,7 @@ class BackupPluginStoreTest {
             val config = NodeConfig(platformUrl = "http://127.0.0.1:${http.address.port}", token = "t")
 
             // Announces more than the old 1 GiB ceiling; writes a little, which is all the test needs.
-            val huge = VirtualArchive("big.zip", TransferService.MAX_TRANSFER_BYTES * 6) { output, max ->
+            val huge = VirtualArchive("big.zip", (6L shl 30)) { output, max ->
                 assertEquals(Long.MAX_VALUE, max)
                 output.write("PK-data".toByteArray())
             }

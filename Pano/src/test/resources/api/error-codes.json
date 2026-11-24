@@ -347,6 +347,10 @@
     "code": "NOT_BANNED",
     "status": 422
   },
+  "com.panomc.platform.error.NotEnoughSpace": {
+    "code": "NOT_ENOUGH_SPACE",
+    "status": 409
+  },
   "com.panomc.platform.error.NotExists": {
     "code": "NOT_EXISTS",
     "status": 404
@@ -569,6 +573,10 @@
   },
   "com.panomc.platform.error.TransferExpired": {
     "code": "TRANSFER_EXPIRED",
+    "status": 409
+  },
+  "com.panomc.platform.error.TransferFailed": {
+    "code": "TRANSFER_FAILED",
     "status": 409
   },
   "com.panomc.platform.error.Unauthorized": {

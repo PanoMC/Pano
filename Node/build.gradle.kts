@@ -42,6 +42,13 @@ dependencies {
     // into the node log on every start. The daemon has its own logger, so a no-op one is right.
     implementation("org.slf4j:slf4j-nop:2.0.7")
 
+    // Admin uploads and the file manager's "extract" take any common archive, read while it
+    // streams in (zip, tar, tar.gz/bz2/xz, gz) or from a temp file (7z). RAR is deliberately not
+    // read in the JVM (UnRAR's licence is GPL-incompatible); an external tool does that.
+    implementation("org.apache.commons:commons-compress:1.28.0")
+    // LZMA/LZMA2 for 7z and the xz compressor stream; optional in commons-compress, so named here.
+    implementation("org.tukaani:xz:1.12")
+
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
     // Opens the archives the uploader seals, with the passphrase only Pano ever holds.
     testImplementation("de.mkammerer:argon2-jvm:2.12")

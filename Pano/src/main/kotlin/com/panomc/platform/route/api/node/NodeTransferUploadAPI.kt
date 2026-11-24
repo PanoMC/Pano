@@ -12,6 +12,7 @@ import com.panomc.platform.model.Successful
 import com.panomc.platform.node.transfer.TransferDirection
 import com.panomc.platform.node.transfer.TransferRedeemer
 import com.panomc.platform.node.transfer.TransferTicket
+import com.panomc.platform.node.transfer.StreamRelay
 import com.panomc.platform.node.transfer.TransferTicketStore
 import io.vertx.core.Handler
 import io.vertx.core.file.OpenOptions
@@ -117,10 +118,16 @@ class NodeTransferUploadAPI(
             browserResponse.isChunked = true
         }
 
-        request.resume()
+        // No total time limit: a download takes as long as it takes. What ends it is five minutes
+        // without a byte in either direction, a stalled node or a browser that went away.
+        val relay = StreamRelay.start(context.vertx(), request, browserResponse)
+
+        browserResponse.closeHandler { relay.fail(IllegalStateException("The download was cancelled.")) }
 
         try {
-            request.pipeTo(browserResponse).coAwait()
+            relay.future.coAwait()
+
+            browserResponse.end().coAwait()
 
             ticket.completion.complete(0L)
         } catch (exception: Exception) {
@@ -131,6 +138,9 @@ class NodeTransferUploadAPI(
             // The response head is long gone by now, so the only honest way to tell the browser
             // this file is incomplete is to drop the connection under it.
             runCatching { browserResponse.reset() }
+
+            // And the node is stopped too, rather than left sending the rest into nothing.
+            runCatching { request.connection()?.close() }
         }
 
         return Successful()
@@ -140,16 +150,21 @@ class NodeTransferUploadAPI(
     private suspend fun receiveIntoFile(context: RoutingContext, ticket: TransferTicket, file: File): Result {
         val request = context.request()
 
+        var output: io.vertx.core.file.AsyncFile? = null
+
         try {
-            val output = context.vertx().fileSystem()
+            output = context.vertx().fileSystem()
                 .open(file.absolutePath, OpenOptions().setWrite(true).setCreate(true).setTruncateExisting(true))
                 .coAwait()
 
-            request.resume()
-            request.pipeTo(output).coAwait()
+            StreamRelay.start(context.vertx(), request, output).future.coAwait()
+
+            output.close().coAwait()
 
             ticket.completion.complete(file.length())
         } catch (exception: Exception) {
+            runCatching { output?.close() }
+
             logger.warn("A transfer of ${ticket.fileName} into Pano broke: ${exception.message}")
 
             ticket.completion.completeExceptionally(exception)

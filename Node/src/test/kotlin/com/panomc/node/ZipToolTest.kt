@@ -96,7 +96,7 @@ class ZipToolTest {
     }
 
     @Test
-    fun `stops a single oversized entry while it is being written`() {
+    fun `stops an entry when the disk would run below the reserve`() {
         val archive = File(root, "bomb.zip")
 
         ZipOutputStream(archive.outputStream()).use { out ->
@@ -109,7 +109,7 @@ class ZipToolTest {
         val target = File(root, "out")
 
         assertThrows(IllegalStateException::class.java) {
-            ZipTool.extract(root, archive, target, maxTotalBytes = 1024L * 1024)
+            ZipTool.extract(root, archive, target, com.panomc.node.archive.DiskGuard(target, usableSpace = { 10L }))
         }
 
         assertFalse(File(target, "zeros.bin").exists(), "the partial file is removed")

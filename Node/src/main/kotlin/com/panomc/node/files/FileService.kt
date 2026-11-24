@@ -1,5 +1,11 @@
 package com.panomc.node.files
 
+import com.panomc.node.archive.ArchiveException
+import com.panomc.node.archive.ArchiveExtractor
+import com.panomc.node.archive.ArchiveFormat
+import com.panomc.node.archive.ArchiveFormats
+import com.panomc.node.archive.DiskGuard
+import com.panomc.node.archive.NotEnoughSpaceException
 import com.panomc.node.net.FileRequestMessage
 import com.panomc.node.net.NodeProtocol
 import com.panomc.node.server.ServerRegistry
@@ -291,15 +297,28 @@ class FileService(
             return failure(ERROR_NOT_FOUND)
         }
 
-        if (!ZipTool.isZip(archiveFile)) {
+        // Judged by content, not by name: zip, tar (plain or gz/bz2/xz), gz, 7z and rar.
+        val format = ArchiveFormats.detect(archiveFile)
+
+        if (format == ArchiveFormat.UNKNOWN) {
             return failure(ERROR_NOT_AN_ARCHIVE)
         }
 
         val directory = resolveMutable(root, target)
 
-        ZipTool.extract(root, archiveFile, directory)
+        try {
+            ArchiveExtractor.extractFile(archiveFile, directory, root, DiskGuard(directory))
+        } catch (exception: NotEnoughSpaceException) {
+            return failure(exception.code).put("free", exception.free).also { result ->
+                exception.required?.let { result.put("required", it) }
+            }
+        } catch (exception: ArchiveException) {
+            logger.warn("Extracting ${archiveFile.name} on ${root.name} failed: ${exception.message}")
 
-        return success()
+            return failure(exception.code).put("message", exception.message)
+        }
+
+        return success().put("format", format.id)
     }
 
     private fun chmod(root: File, path: String?, mode: String?): JsonObject {

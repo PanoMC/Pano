@@ -281,6 +281,7 @@ class NodeDaemon(
         registry,
         config,
         logger,
+        dataDir = dataDir,
         virtualSource = { uuid, path -> backupService.resolveVirtual(uuid, path) },
         // A snapshot has no archive on disk; its download is a zip written while it is sent.
         virtualArchive = { uuid, path -> backupService.resolveVirtualArchive(uuid, path) }
@@ -469,6 +470,13 @@ class NodeDaemon(
         }
 
         registry.load()
+
+        // An upload or an import a previous run died in the middle of leaves files nothing would
+        // ever finish: they go before anything else can be started on top of them.
+        runCatching { transferService.cleanupPartials() }
+            .onFailure { logger.warn("Could not clean up unfinished uploads: ${it.message}") }
+        runCatching { importService.cleanupIncomplete() }
+            .onFailure { logger.warn("Could not clean up unfinished imports: ${it.message}") }
 
         // After the load, so a re-attached server's catch-up -- what it printed while no worker was
         // reading -- is not replayed into the terminal: the console there starts now.
@@ -905,6 +913,12 @@ class NodeDaemon(
             val message = gson.fromJson(text, TransferPushMessage::class.java)
 
             connection.reply(message.eventId, transferService.push(message))
+        }
+
+        connection.on(NodeProtocol.Inbound.DISK_SPACE) { text ->
+            val message = gson.fromJson(text, com.panomc.node.net.DiskSpaceMessage::class.java)
+
+            connection.reply(message.eventId, transferService.diskSpace(message))
         }
 
         connection.on(NodeProtocol.Inbound.BACKUP_CREATE) { text ->

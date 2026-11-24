@@ -17,8 +17,21 @@ object PanoBackupRoutes {
     /** The multipart field an archive is uploaded under. */
     const val FILE_PART = "file"
 
-    /** Upper bound for one uploaded archive. */
-    const val MAX_UPLOAD_BYTES = 64L * 1024 * 1024 * 1024
+    /**
+     * Refuses an archive that would not fit on Pano's disk, before a byte of it is stored.
+     *
+     * A Pano backup is Pano's own data and has to land on its disk, so this is the one upload that
+     * is still spooled; the only limit is the space left there (with the usual reserve), judged from
+     * the length the browser announced.
+     */
+    fun requireRoomFor(context: io.vertx.ext.web.RoutingContext, uploadsDirectory: java.io.File) {
+        val declared = context.request().getHeader("Content-Length")?.toLongOrNull() ?: return
+
+        com.panomc.platform.node.transfer.TransferSpaceService.requireFits(
+            com.panomc.platform.node.transfer.TransferSpaceService.freeOnPano(uploadsDirectory),
+            declared
+        )
+    }
 
     const val MAX_PASSPHRASE_LENGTH = 1024
 

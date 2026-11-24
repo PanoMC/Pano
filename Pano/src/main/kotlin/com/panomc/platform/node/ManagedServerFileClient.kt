@@ -8,7 +8,9 @@ import com.panomc.platform.error.FileOperationFailed
 import com.panomc.platform.error.PathDenied
 import com.panomc.platform.error.FileTooLarge
 import com.panomc.platform.error.NodeOffline
+import com.panomc.platform.error.NotEnoughSpace
 import com.panomc.platform.error.NotExists
+import com.panomc.platform.error.TransferFailed
 import com.panomc.platform.error.ServerCapabilityMissing
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.channel.NodeSideChannel
@@ -121,7 +123,7 @@ class ManagedServerFileClient(
             return payload
         }
 
-        throw toError(payload.getString("error"))
+        throw toError(payload)
     }
 
     /**
@@ -159,15 +161,30 @@ class ManagedServerFileClient(
         )
     }
 
-    private fun toError(error: String?): Throwable = when (error) {
+    private fun toError(payload: JsonObject): Throwable = when (val error = payload.getString("error")) {
         ERROR_PATH_DENIED, ERROR_IN_USE -> PathDenied()
         ERROR_TOO_LARGE -> FileTooLarge()
         ERROR_NOT_FOUND, ERROR_UNKNOWN_SERVER, ERROR_NO_SERVER_DIRECTORY -> NotExists()
-        else -> FileOperationFailed(extras = mapOf("message" to (error ?: "The node could not do that.")))
+        ERROR_NOT_ENOUGH_SPACE -> NotEnoughSpace(
+            extras = mapOf("required" to payload.getLong("required"), "free" to payload.getLong("free"))
+        )
+        ERROR_TRANSFER_FAILED -> TransferFailed()
+        else -> FileOperationFailed(
+            extras = mapOf(
+                "message" to (payload.getString("message") ?: error ?: "The node could not do that."),
+                "code" to payload.getString("code")
+            )
+        )
     }
 
     companion object {
         const val ERROR_PATH_DENIED = "PATH_DENIED"
+
+        /** The node's disk would drop below its reserve; the reply carries `required` and `free`. */
+        const val ERROR_NOT_ENOUGH_SPACE = "NOT_ENOUGH_SPACE"
+
+        /** The upload's bytes stopped arriving at the node before the file was complete. */
+        const val ERROR_TRANSFER_FAILED = "TRANSFER_FAILED"
         const val ERROR_NOT_FOUND = "NOT_FOUND"
         const val ERROR_TOO_LARGE = "TOO_LARGE"
         const val ERROR_UNKNOWN_SERVER = "UNKNOWN_SERVER"

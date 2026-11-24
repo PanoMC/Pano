@@ -4,7 +4,6 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.archive.instance.InstanceLayout
 import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.config.ConfigManager
-import com.panomc.platform.error.FileTooLarge
 import com.panomc.platform.model.*
 import com.panomc.platform.route.api.panel.panoBackup.PanoBackupRoutes
 import io.vertx.core.Handler
@@ -35,16 +34,17 @@ class SetupRestoreAPI(
         BodyHandler.create()
             .setDeleteUploadedFilesOnEnd(true)
             .setUploadsDirectory(configManager.config.fileUploadsFolder + File.separator + "temp")
-            .setBodyLimit(PanoBackupRoutes.MAX_UPLOAD_BYTES)
+            .setBodyLimit(-1)
     )
+
+    // No ceiling, only the disk: an archive that would not fit is refused before it is stored.
+    override suspend fun checkBeforeBody(context: RoutingContext) {
+        PanoBackupRoutes.requireRoomFor(context, File(configManager.config.fileUploadsFolder, "temp"))
+    }
 
     override suspend fun handle(context: RoutingContext): Result {
         val request = context.request()
         val upload = PanoBackupRoutes.upload(context)
-
-        if (upload.size() > PanoBackupRoutes.MAX_UPLOAD_BYTES) {
-            throw FileTooLarge()
-        }
 
         val host = request.getFormAttribute("host")?.trim()
 

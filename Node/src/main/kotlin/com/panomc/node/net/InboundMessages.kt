@@ -319,6 +319,12 @@ data class TransferPullMessage(
     val paths: List<String>? = null
 )
 
+/** How much space is left where [serverUuid]'s files live, or on the data disk when it is null. */
+data class DiskSpaceMessage(
+    val eventId: String? = null,
+    val serverUuid: String? = null
+)
+
 /** Pano has an uploaded file waiting under [ticket]; fetch it and write it to [path]. */
 data class TransferPushMessage(
     val eventId: String? = null,

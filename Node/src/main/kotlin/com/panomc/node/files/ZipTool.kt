@@ -1,11 +1,11 @@
 package com.panomc.node.files
 
-import com.panomc.node.agent.AgentFiles
+import com.panomc.node.archive.ArchiveExtractor
+import com.panomc.node.archive.DiskGuard
 import com.panomc.node.util.PathSafety
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipEntry
-import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import com.panomc.node.util.SafeDelete
 
@@ -17,16 +17,10 @@ import com.panomc.node.util.SafeDelete
  * Every entry goes through [PathSafety.resolveRelative] against the extraction root, which rejects
  * it before anything is opened.
  *
- * **Zip bombs**: a few hundred kilobytes can declare terabytes of output, so extraction stops at a
- * total size and an entry count rather than at whatever the disk can take.
+ * **The disk**: there is no size or entry ceiling (the uploader is the server's admin); extraction
+ * stops when the disk would drop below [DiskGuard]'s reserve and removes what it wrote.
  */
 object ZipTool {
-    /** Most bytes a single extract may write, across all entries. */
-    const val MAX_TOTAL_BYTES = 2L * 1024 * 1024 * 1024
-
-    /** Most entries a single archive may hold, in either direction. */
-    const val MAX_ENTRIES = 100_000
-
     private const val BUFFER_SIZE = 64 * 1024
 
     /**
@@ -51,7 +45,6 @@ object ZipTool {
     ): Long {
         target.parentFile?.mkdirs()
 
-        var entries = 0
         var written = 0L
 
         val realRoot = try {
@@ -60,7 +53,32 @@ object ZipTool {
             null
         }
 
-        ZipOutputStream(target.outputStream().buffered()).use { out ->
+        // The archive is the one thing here that can fill the disk; past the reserve it is stopped
+        // and the half-written archive removed.
+        val guard = DiskGuard(target)
+
+        try {
+            archiveInto(root, realRoot, paths, target, guard, stripPrefix, exclude) { written += it }
+        } catch (exception: Throwable) {
+            target.delete()
+
+            throw exception
+        }
+
+        return written
+    }
+
+    private fun archiveInto(
+        root: File,
+        realRoot: java.nio.file.Path?,
+        paths: List<String>,
+        target: File,
+        guard: DiskGuard,
+        stripPrefix: String,
+        exclude: (String) -> Boolean,
+        onWritten: (Long) -> Unit
+    ) {
+        ZipOutputStream(guard.wrap(target.outputStream()).buffered()).use { out ->
             // The archive being written may sit inside the folder being archived; reading it into
             // itself would grow it until the disk is full. Resolved now that the stream created it.
             val targetReal = try {
@@ -109,10 +127,6 @@ object ZipTool {
                         return@inner
                     }
 
-                    if (++entries > MAX_ENTRIES) {
-                        throw IllegalStateException("This selection holds more than $MAX_ENTRIES files.")
-                    }
-
                     val entryName = relative.removePrefix(stripPrefix)
 
                     if (entryName.isEmpty()) {
@@ -128,78 +142,29 @@ object ZipTool {
 
                     out.putNextEntry(ZipEntry(entryName))
 
-                    written += copy(file.inputStream().buffered(), out)
+                    onWritten(copy(file.inputStream().buffered(), out))
 
                     out.closeEntry()
                 }
             }
         }
-
-        return written
     }
 
     /**
      * Extracts [archive] into [targetDirectory], which must be inside [root].
      *
-     * Symlink entries are not recreated: a zip can declare one pointing anywhere, and following it
-     * on the next write would put a file outside the sandbox that every path check had already
-     * approved.
+     * Any format [ArchiveExtractor] reads, not only zip, with its rules: zip slip refused, links
+     * and devices never created, denied paths and the agent's own jar skipped. There is no size or
+     * entry ceiling; [guard] (the free space on the target's disk, minus a reserve) is the only
+     * limit, and a failed extraction removes what it wrote before the exception leaves.
      */
-    fun extract(root: File, archive: File, targetDirectory: File, maxTotalBytes: Long = MAX_TOTAL_BYTES) {
-        require(archive.isFile) { "The archive does not exist." }
-
-        targetDirectory.mkdirs()
-
-        var entries = 0
-        var written = 0L
-
-        ZipFile(archive).use { zip ->
-            val iterator = zip.entries()
-
-            while (iterator.hasMoreElements()) {
-                val entry = iterator.nextElement()
-
-                if (++entries > MAX_ENTRIES) {
-                    throw IllegalStateException("This archive holds more than $MAX_ENTRIES entries.")
-                }
-
-                // Resolved against the extraction directory, which is itself already inside the
-                // server: an entry that climbs out of either is refused here, before the stream is
-                // opened.
-                val destination = PathSafety.resolveRelative(targetDirectory, entry.name)
-
-                if (entry.isDirectory) {
-                    destination.mkdirs()
-
-                    continue
-                }
-
-                val relative = relativeName(root, destination)
-
-                // Nor over a Pano Agent's own jar (SM-74): the agent runs from it, and an archive
-                // that happens to carry an older one must not replace it.
-                if (ServerFileDenylist.isDenied(relative) || AgentFiles.isOwnJar(root, relative)) {
-                    continue
-                }
-
-                destination.parentFile?.mkdirs()
-
-                // The ceiling is the budget left for this entry, checked while it is written: one
-                // well-compressed entry can be far larger than the disk, and checking only after it
-                // was copied would fill the disk before the check ever ran.
-                try {
-                    zip.getInputStream(entry).use { input ->
-                        destination.outputStream().buffered().use { output ->
-                            written += copy(input, output, maxTotalBytes - written)
-                        }
-                    }
-                } catch (exception: SizeLimitExceeded) {
-                    destination.delete()
-
-                    throw IllegalStateException("This archive unpacks to more than $maxTotalBytes bytes.")
-                }
-            }
-        }
+    fun extract(
+        root: File,
+        archive: File,
+        targetDirectory: File,
+        guard: DiskGuard = DiskGuard(targetDirectory)
+    ) {
+        ArchiveExtractor.extractFile(archive, targetDirectory, root, guard)
     }
 
     /**
@@ -291,10 +256,7 @@ object ZipTool {
         return rootPath.relativize(filePath).toString().replace(File.separatorChar, '/')
     }
 
-    /** Thrown by [copy] the moment more than its limit has been read. */
-    private class SizeLimitExceeded : RuntimeException()
-
-    private fun copy(input: InputStream, output: java.io.OutputStream, limit: Long = Long.MAX_VALUE): Long {
+    private fun copy(input: InputStream, output: java.io.OutputStream): Long {
         val buffer = ByteArray(BUFFER_SIZE)
         var total = 0L
 
@@ -304,10 +266,6 @@ object ZipTool {
 
                 if (read <= 0) {
                     break
-                }
-
-                if (total + read > limit) {
-                    throw SizeLimitExceeded()
                 }
 
                 output.write(buffer, 0, read)

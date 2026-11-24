@@ -79,6 +79,18 @@ object NodeProtocol {
      */
     const val IN_PLACE_VERSION = 5
 
+    /**
+     * First version that answers `DISK_SPACE`, extracts an uploaded archive while it streams in
+     * (zip, tar, tar.gz/bz2/xz, gz, 7z, rar) and has no size ceiling on transfers, only its disk
+     * reserve. An older node still takes a streamed upload (the `GET` it makes looks the same) but
+     * imports zips only, up to its old limits, and cannot say how much space it has.
+     */
+    const val DISK_SPACE_VERSION = 10
+
+    /** Whether a node that announced [protocolVersion] reports its free disk space. */
+    fun supportsDiskSpace(protocolVersion: Int?): Boolean =
+        (protocolVersion ?: LEGACY_PROTOCOL_VERSION) >= DISK_SPACE_VERSION
+
     /** Whether a node that announced [protocolVersion] can adopt a server in place. */
     fun supportsInPlace(protocolVersion: Int?): Boolean =
         (protocolVersion ?: LEGACY_PROTOCOL_VERSION) >= IN_PLACE_VERSION

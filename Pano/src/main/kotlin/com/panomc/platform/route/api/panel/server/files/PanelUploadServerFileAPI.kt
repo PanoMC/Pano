@@ -9,58 +9,55 @@ import com.panomc.platform.error.PathDenied
 import com.panomc.platform.error.RateLimited
 import com.panomc.platform.model.*
 import com.panomc.platform.node.ManagedServerFileClient
-import com.panomc.platform.node.NodeManager
 import com.panomc.platform.node.message.TransferPushMessage
+import com.panomc.platform.node.transfer.BrowserUpload
+import com.panomc.platform.node.transfer.BrowserUploadRelay
+import com.panomc.platform.node.transfer.StreamRelay
 import com.panomc.platform.node.transfer.TransferDirection
+import com.panomc.platform.node.transfer.TransferSpaceService
 import com.panomc.platform.node.transfer.TransferTicketStore
+import com.panomc.platform.node.transfer.UploadRendezvous
 import com.panomc.platform.panel.PanelRealtimeHub
 import com.panomc.platform.server.console.ServerActionRateLimiter
-import io.vertx.core.Handler
-import io.vertx.core.Vertx
-import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.handler.BodyHandler
-import io.vertx.ext.web.validation.ValidationHandler
-import com.panomc.platform.schema.dsl.Parameters.optionalParam
-import com.panomc.platform.schema.dsl.Parameters.param
-import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
-import io.vertx.json.schema.SchemaRepository
-import io.vertx.json.schema.common.dsl.Schemas.numberSchema
-import io.vertx.json.schema.common.dsl.Schemas.stringSchema
-import io.vertx.kotlin.coroutines.coAwait
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import com.panomc.platform.util.UsageMode
+import io.vertx.core.Handler
+import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.validation.ValidationHandler
+import io.vertx.json.schema.SchemaRepository
+import io.vertx.kotlin.coroutines.dispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 
 /**
- * Takes a file from the browser and hands it to the node that owns the server.
+ * Takes a file from the browser and hands it to the node that owns the server, as it arrives.
  *
- * Three hops rather than two, on purpose. Vert.x spools the multipart body to disk as it arrives,
- * this moves that spool under the ticket, and the node then fetches it with an ordinary GET — so a
- * gigabyte crosses Pano as a file on disk and never as a buffer in its heap. The upload is
- * reported as finished only once the node says it wrote the file, because "uploaded" and "arrived
- * in the server directory" are not the same thing and only the second one is useful.
+ * Pano keeps none of it: the request has no body handler, its file part is paused at the first byte,
+ * the node is told to fetch the file under a ticket, and the node's `GET` is joined to this request
+ * ([BrowserUploadRelay]). So a file of any size crosses Pano as a stream, the node's disk is the only
+ * limit, and the node's pace is the browser's. The upload is reported as finished only once the node
+ * says it wrote the file, because "uploaded" and "arrived in the server directory" are not the same
+ * thing and only the second one is useful.
+ *
+ * `uploadId` (optional) names the upload for `GET transfers/failures/:uploadId`, which tells the panel
+ * why an upload that was cut off mid-way failed.
  */
 @Endpoint
 class PanelUploadServerFileAPI(
-    private val vertx: Vertx,
     private val authProvider: AuthProvider,
     private val fileClient: ManagedServerFileClient,
     private val transferTicketStore: TransferTicketStore,
     private val panelRealtimeHub: PanelRealtimeHub,
-    private val serverActionRateLimiter: ServerActionRateLimiter
+    private val serverActionRateLimiter: ServerActionRateLimiter,
+    private val browserUploadRelay: BrowserUploadRelay,
+    private val transferSpaceService: TransferSpaceService
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
     override val paths = listOf(Path("/servers/:id/files/upload", RouteType.POST))
 
-    // No size limit: a world or a backup is as big as it is. That is only safe because nothing is spooled
-    // before the caller is known to be allowed to send it ([checkBeforeBody]).
-    override fun bodyHandler(): Handler<RoutingContext> = authorizedBodyHandler(
-        BodyHandler.create()
-            .setDeleteUploadedFilesOnEnd(true)
-            .setBodyLimit(-1)
-    )
+    // No body handler at all: the body is relayed to the node, never stored. The wrapper still runs
+    // the login, panel and permission checks before a byte is read ([checkBeforeBody]).
+    override fun bodyHandler(): Handler<RoutingContext> = authorizedBodyHandler(Handler { it.next() })
 
     /**
      * Asked before a byte of the upload is taken: may this person write to this server's files, and is the
@@ -87,76 +84,66 @@ class PanelUploadServerFileAPI(
         }
     }
 
-    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler =
-        ValidationHandlerBuilder.create(schemaRepository)
-            .pathParameter(param("id", numberSchema()))
-            .queryParameter(optionalParam("path", stringSchema()))
-            .build()
+    // Read by hand: a validation handler would want the body the route never collects.
+    override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
     override suspend fun handle(context: RoutingContext): Result {
-        val parameters = getParameters(context)
-        val id = parameters.pathParameter("id").long
+        val id = context.pathParam("id")?.toLongOrNull() ?: throw BadRequest()
 
         authProvider.requirePermission(ManageServerFilesPermission(), context, id)
 
-        val directory = ManagedServerFileClient.normalisePath(parameters.queryParameter("path")?.string)
-
-        val uploads = context.fileUploads()
-
-        // The panel sends one part named "file" per request. A single unnamed part is accepted
-        // too, because refusing one over a form field's name would be pedantry, but several parts
-        // are not: which of them the person meant is not something to guess at.
-        val upload = uploads.firstOrNull { it.name() == PART_NAME }
-            ?: uploads.singleOrNull()
-            ?: throw BadRequest()
-
-        // The browser names the file, so it is a path segment until proven otherwise: a name with
-        // a slash in it is how an upload turns into a write somewhere else entirely.
-        val name = ManagedServerFileClient.normalisePath(upload.fileName())
-
-        if (name.isEmpty() || name.contains('/')) {
-            throw PathDenied()
-        }
-
-        val path = if (directory.isEmpty()) name else "$directory/$name"
-
-        val sqlClient = getSqlClient()
-        val target = fileClient.resolve(id, sqlClient)
+        val directory = ManagedServerFileClient.normalisePath(context.queryParam("path").firstOrNull())
+        val uploadId = context.queryParam("uploadId").firstOrNull()
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
+        val sqlClient = getSqlClient()
 
-        val ticket = transferTicketStore.issue(
-            userId = userId,
-            serverId = id,
-            nodeId = target.nodeId,
-            serverUuid = target.serverUuid,
-            path = path,
-            direction = TransferDirection.UPLOAD,
-            fileName = name
-        )
+        var path = ""
 
-        val spool = transferTicketStore.spoolFileFor(ticket.id)
+        val outcome = browserUploadRelay.relay(context, uploadId, userId) { part, declaredSize ->
+            // The browser names the file, so it is a path segment until proven otherwise: a name with
+            // a slash in it is how an upload turns into a write somewhere else entirely.
+            val name = ManagedServerFileClient.normalisePath(part.filename())
 
-        ticket.spoolFile = spool
+            if (name.isEmpty() || name.contains('/')) {
+                throw PathDenied()
+            }
 
-        val size: Long
+            path = if (directory.isEmpty()) name else "$directory/$name"
 
-        try {
-            moveSpool(File(upload.uploadedFileName()), spool)
+            val target = fileClient.resolve(id, sqlClient)
 
-            size = spool.length()
+            // The early answer, before anything is sent: the node checks again while writing.
+            if (declaredSize != null) {
+                TransferSpaceService.requireFits(
+                    target.nodeId?.let { transferSpaceService.freeOnNode(it, target.serverUuid) },
+                    declaredSize
+                )
+            }
 
-            fileClient.request(
-                target,
-                TransferPushMessage(ticket.id, target.serverUuid, path, size),
-                transferTimeoutMs(size)
+            val ticket = transferTicketStore.issue(
+                userId = userId,
+                serverId = id,
+                nodeId = target.nodeId,
+                serverUuid = target.serverUuid,
+                path = path,
+                direction = TransferDirection.UPLOAD,
+                fileName = name,
+                upload = UploadRendezvous(declaredSize)
             )
-        } finally {
-            // Whatever happened, the copy on Pano's disk has done its job: the node either fetched
-            // it or never will, and leaving it behind would slowly fill file-uploads with other
-            // people's server files.
-            transferTicketStore.discard(ticket)
+
+            val reply = CoroutineScope(context.vertx().dispatcher()).async {
+                fileClient.request(
+                    target,
+                    TransferPushMessage(ticket.id, target.serverUuid, path, declaredSize ?: 0L),
+                    PUSH_REPLY_TIMEOUT_MS
+                )
+            }
+
+            BrowserUploadRelay.Prepared(ticket, reply)
         }
+
+        val size = outcome.reply?.getLong("size") ?: outcome.bytes ?: 0L
 
         fileClient.log(context, id, ServerFileChangedLog.ACTION_UPLOAD, path, sqlClient = sqlClient)
 
@@ -165,32 +152,15 @@ class PanelUploadServerFileAPI(
         return Successful(mapOf("path" to path, "size" to size))
     }
 
-    /** Moves the multipart spool under the ticket, falling back to a copy across filesystems. */
-    private suspend fun moveSpool(uploaded: File, spool: File) {
-        vertx.executeBlocking<Unit> {
-            spool.parentFile?.mkdirs()
-
-            try {
-                Files.move(uploaded.toPath(), spool.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            } catch (_: Exception) {
-                uploaded.copyTo(spool, overwrite = true)
-            }
-        }.coAwait()
-    }
-
     companion object {
         /** The multipart field the panel uploads under. */
-        const val PART_NAME = "file"
-
-        /** The slowest link a transfer to the node is still waited for: 256 KB a second. */
-        private const val SLOWEST_BYTES_PER_SECOND = 256L * 1024
+        const val PART_NAME = BrowserUpload.PART_NAME
 
         /**
-         * How long the node gets to fetch a file of [size] bytes: the usual wait, and for a big file as long
-         * as the slowest link worth waiting for would take. Without it a file of a few GB ran into the fixed
-         * ten minutes on any ordinary connection.
+         * How long the node's answer to a push is waited for. Not a limit on the upload: a transfer that
+         * stops moving ends after five minutes ([StreamRelay.IDLE_TIMEOUT_MS]) and the node then answers
+         * with the failure. This only bounds a node that never answers at all.
          */
-        internal fun transferTimeoutMs(size: Long): Long =
-            maxOf(NodeManager.TRANSFER_REQUEST_TIMEOUT_MS, size / SLOWEST_BYTES_PER_SECOND * 1000L)
+        const val PUSH_REPLY_TIMEOUT_MS = 48 * 60 * 60 * 1000L
     }
 }

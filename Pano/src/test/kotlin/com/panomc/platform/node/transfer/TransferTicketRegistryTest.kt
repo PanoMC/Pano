@@ -26,17 +26,49 @@ class TransferTicketRegistryTest {
         ttlMs = ttlMs
     )
 
-    @Test
-    fun `lists only live spooled uploads, oldest first`() {
-        val registry = TransferTicketRegistry()
-        val first = issue(registry, direction = TransferDirection.UPLOAD_SPOOL, nodeId = 0, ttlMs = 1_000_000)
-        val second = issue(registry, direction = TransferDirection.UPLOAD_SPOOL, nodeId = 0, ttlMs = 2_000_000)
-        issue(registry, direction = TransferDirection.UPLOAD_SPOOL, nodeId = 0, ttlMs = -1)
-        issue(registry, direction = TransferDirection.DOWNLOAD)
+    private fun issueUpload(registry: TransferTicketRegistry, ttlMs: Long = TransferTicketRegistry.TTL_MS) = registry.issue(
+        userId = 3,
+        serverId = 33,
+        nodeId = 7,
+        serverUuid = "server-uuid",
+        path = "",
+        direction = TransferDirection.UPLOAD,
+        fileName = "world.zip",
+        ttlMs = ttlMs,
+        upload = UploadRendezvous(1024)
+    )
 
-        assertEquals(listOf(first.id, second.id), registry.liveSpools().map { it.id })
-        assertEquals(listOf(first.id, second.id), registry.liveSpools(3).map { it.id })
-        assertTrue(registry.liveSpools(4).isEmpty())
+    @Test
+    fun `hands an upload ticket only to the person who created it, and only before its bytes started`() {
+        val registry = TransferTicketRegistry()
+        val ticket = issueUpload(registry)
+
+        assertNull(registry.resolveUpload(ticket.id, 4))
+        assertNotNull(registry.resolveUpload(ticket.id, 3))
+
+        ticket.upload!!.source.completeExceptionally(IllegalStateException("taken"))
+
+        assertNull(registry.resolveUpload(ticket.id, 3))
+    }
+
+    @Test
+    fun `an upload ticket without a rendezvous is not a browser upload`() {
+        val registry = TransferTicketRegistry()
+        val ticket = issue(registry, direction = TransferDirection.UPLOAD)
+
+        assertNull(registry.resolveUpload(ticket.id, 3))
+    }
+
+    @Test
+    fun `an expired upload ticket releases whoever waited at its rendezvous`() {
+        val registry = TransferTicketRegistry()
+        val ticket = issueUpload(registry, ttlMs = -1)
+
+        registry.sweep()
+
+        assertTrue(ticket.upload!!.source.isCompleted)
+        assertTrue(ticket.upload!!.delivered.isCompleted)
+        assertEquals(0, registry.size())
     }
 
     @Test

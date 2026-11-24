@@ -10,7 +10,6 @@ import com.panomc.platform.backup.PanoBackupManager
 import com.panomc.platform.config.ConfigManager
 import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.error.CurrentPasswordNotCorrect
-import com.panomc.platform.error.FileTooLarge
 import com.panomc.platform.model.*
 import io.vertx.core.Handler
 import io.vertx.ext.web.RoutingContext
@@ -42,12 +41,14 @@ class PanelRestoreUploadedPanoBackupAPI(
         BodyHandler.create()
             .setDeleteUploadedFilesOnEnd(true)
             .setUploadsDirectory(configManager.config.fileUploadsFolder + File.separator + "temp")
-            .setBodyLimit(PanoBackupRoutes.MAX_UPLOAD_BYTES)
+            .setBodyLimit(-1)
     )
 
-    // Asked before the (up to 64 GiB) upload is spooled, not after.
+    // Asked before the upload is spooled, not after: the right to restore, and room on the disk.
     override suspend fun checkBeforeBody(context: RoutingContext) {
         authProvider.requirePermission(ManagePanoBackupsPermission(), context)
+
+        PanoBackupRoutes.requireRoomFor(context, File(configManager.config.fileUploadsFolder, "temp"))
     }
 
     override suspend fun handle(context: RoutingContext): Result {
@@ -61,10 +62,6 @@ class PanelRestoreUploadedPanoBackupAPI(
         }
 
         val upload = PanoBackupRoutes.upload(context)
-
-        if (upload.size() > PanoBackupRoutes.MAX_UPLOAD_BYTES) {
-            throw FileTooLarge()
-        }
 
         val passphrase = PanoBackupRoutes.passphrase(request.getFormAttribute("passphrase"))
         val tempDir = InstanceLayout.current(configManager.config).tempDir

@@ -49,8 +49,23 @@ class ServerTaskService(
     // Looked up when used, not at construction: both services sit above this one in the graph.
     private val managedServerPluginService: ObjectProvider<ManagedServerPluginService>,
     private val panoPluginUpdateService: ObjectProvider<PanoPluginUpdateService>,
-    private val nodeDaemonUpdateService: ObjectProvider<NodeDaemonUpdateService>
+    private val nodeDaemonUpdateService: ObjectProvider<NodeDaemonUpdateService>,
+    private val serverRemovalService: ObjectProvider<com.panomc.platform.server.ServerRemovalService>
 ) {
+    /**
+     * Tasks whose server goes away again if they fail: an import from an archive the browser sends
+     * after the row was created. If the archive never arrives, breaks off or does not fit, the row is
+     * a server without files that nobody asked to keep (owner decision, 2026-11-25), so it is removed
+     * instead of being left STOPPED with an error. In memory: a Pano restart in the middle of such an
+     * upload already loses the upload, and the row then stays with its error to be deleted by hand.
+     */
+    private val removeOnFailure = ConcurrentHashMap.newKeySet<String>()
+
+    /** Marks [uuid] as an import whose server is removed when it fails. */
+    fun removeServerOnFailure(uuid: String) {
+        removeOnFailure.add(uuid)
+    }
+
     /**
      * One mutex per task uuid.
      *
@@ -133,6 +148,11 @@ class ServerTaskService(
 
     /** Hands a task's end to whoever is waiting on it, if anybody is. */
     fun completeTerminal(uuid: String, outcome: TaskOutcome) {
+        // A finished import keeps its server; only a failed one is removed (onTaskFailed).
+        if (outcome.status == ServerTaskStatus.DONE) {
+            removeOnFailure.remove(uuid)
+        }
+
         terminalWaiters.remove(uuid)?.complete(outcome)
     }
 
@@ -397,6 +417,14 @@ class ServerTaskService(
         // An install that failed leaves a row that can never start. It is marked STOPPED rather
         // than left INSTALLING forever, and keeps the reason, so the panel can show it and offer a
         // reinstall instead of a spinner or a Start button that does nothing.
+        if (kind == ServerTaskKind.IMPORT && taskUuid != null && removeOnFailure.remove(taskUuid)) {
+            logger.info("Import task $taskUuid failed (${error.orEmpty()}); removing server $id it was creating.")
+
+            serverRemovalService.getObject().remove(id, sqlClient)
+
+            return
+        }
+
         if (kind == ServerTaskKind.INSTALL || kind == ServerTaskKind.REINSTALL || kind == ServerTaskKind.IMPORT) {
             // An install a newer one replaced failing late (the sweep, a dead node) says nothing
             // about the server: the newer one's outcome is on the row, and STOPPED written over it

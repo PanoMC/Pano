@@ -20,18 +20,7 @@ enum class TransferDirection {
     DOWNLOAD,
 
     /** Into the server, from a browser. */
-    UPLOAD,
-
-    /**
-     * Into Pano's spool, from a browser, for something that has no server yet.
-     *
-     * An import uploads its archive before the server row exists, so the ticket cannot be bound to
-     * a server or a node at the moment it is issued. It is bound later, by the endpoint that
-     * creates the server, and until then it belongs to nobody but the person who uploaded it —
-     * which is why it is a direction of its own rather than an [UPLOAD] with blank fields that
-     * every node would be allowed to redeem.
-     */
-    UPLOAD_SPOOL
+    UPLOAD
 }
 
 /**
@@ -66,7 +55,10 @@ data class TransferTicket(
     val browserResponse: HttpServerResponse? = null,
     /** Completed when the download has been written, or failed with the reason it was not. */
     val completion: CompletableDeferred<Long> = CompletableDeferred(),
-    /** Where an upload was spooled while it waits for the node to fetch it. */
+    /**
+     * A small file Pano wrote itself (a server icon) for the node to fetch. Browser uploads never
+     * use it: they are relayed through [upload] without touching Pano's disk.
+     */
     var spoolFile: File? = null,
     /**
      * The `Content-Type` a download is served with; null is `application/octet-stream`.
@@ -87,7 +79,13 @@ data class TransferTicket(
      * A download Pano keeps for itself instead of pumping it into a browser (e.g. an MC backup
      * going on to Pano Backup): the node's bytes are written into this file.
      */
-    val downloadFile: File? = null
+    val downloadFile: File? = null,
+    /**
+     * Where the two halves of a browser upload meet: the browser's request and the node's `GET`
+     * arrive separately and in either order, and whichever comes first waits for the other.
+     * Null for every ticket that is not a browser upload.
+     */
+    val upload: UploadRendezvous? = null
 ) {
     /**
      * Set once the node (or plugin) has started sending the bytes. From then on the ticket no
@@ -140,7 +138,8 @@ class TransferTicketRegistry(
         ttlMs: Long = TTL_MS,
         contentType: String? = null,
         inline: Boolean = false,
-        downloadFile: File? = null
+        downloadFile: File? = null,
+        upload: UploadRendezvous? = null
     ): TransferTicket {
         val ticket = TransferTicket(
             id = UUID.randomUUID().toString(),
@@ -155,7 +154,8 @@ class TransferTicketRegistry(
             browserResponse = browserResponse,
             contentType = contentType,
             inline = inline,
-            downloadFile = downloadFile
+            downloadFile = downloadFile,
+            upload = upload
         )
 
         tickets[ticket.id] = ticket
@@ -204,12 +204,13 @@ class TransferTicketRegistry(
     }
 
     /**
-     * The spooled upload [id] names, if it is still live and belongs to [userId].
+     * The browser upload [id] names, if it is live, belongs to [userId] and its bytes have not
+     * started arriving yet.
      *
-     * The counterpart of [resolve] for a ticket no node owns yet: a spool is authorised by the
-     * person who uploaded it, and by nothing else, until it is bound to a server.
+     * The browser half of an import: `servers/create` issues the ticket, and only the person who
+     * pressed Create may then send the archive under it, once.
      */
-    fun resolveSpool(id: String?, userId: Long): TransferTicket? {
+    fun resolveUpload(id: String?, userId: Long): TransferTicket? {
         val ticket = tickets[id ?: return null] ?: return null
 
         if (ticket.isExpired) {
@@ -218,24 +219,13 @@ class TransferTicketRegistry(
             return null
         }
 
-        if (ticket.direction != TransferDirection.UPLOAD_SPOOL || ticket.userId != userId) {
+        val upload = ticket.upload ?: return null
+
+        if (ticket.direction != TransferDirection.UPLOAD || ticket.userId != userId || upload.source.isCompleted) {
             return null
         }
 
         return ticket
-    }
-
-    /**
-     * Hands a spooled upload to the node that is about to fetch it.
-     *
-     * The moment an import picks a node is the moment the ticket stops being anonymous, so this is
-     * also where it becomes an ordinary [TransferDirection.UPLOAD] that only that node may redeem.
-     */
-    fun bind(ticket: TransferTicket, serverId: Long, nodeId: Long?, serverUuid: String) {
-        ticket.serverId = serverId
-        ticket.nodeId = nodeId
-        ticket.serverUuid = serverUuid
-        ticket.direction = TransferDirection.UPLOAD
     }
 
     /** Takes a ticket out of circulation, so the same one cannot be redeemed twice. */
@@ -251,12 +241,6 @@ class TransferTicketRegistry(
     /** How many tickets are live. */
     fun size() = tickets.size
 
-    /** Live spooled uploads, oldest first; only those of [userId] when it is given. */
-    fun liveSpools(userId: Long? = null): List<TransferTicket> = tickets.values
-        .filter { it.direction == TransferDirection.UPLOAD_SPOOL && !it.isExpired }
-        .filter { userId == null || it.userId == userId }
-        .sortedBy { it.expiresAt }
-
     /** Drops every expired ticket and tells whoever was waiting on it. */
     fun sweep() {
         tickets.values
@@ -267,6 +251,7 @@ class TransferTicketRegistry(
                 // Whoever was waiting on this download is told rather than left holding an open
                 // response until their browser gives up on it.
                 ticket.completion.completeExceptionally(IllegalStateException("The transfer expired."))
+                ticket.upload?.abandon(IllegalStateException("The upload never started."))
             }
     }
 
@@ -276,15 +261,6 @@ class TransferTicketRegistry(
          * [TransferTicket.started]), so this only has to cover the node opening its request.
          */
         const val TTL_MS = 10 * 60 * 1000L
-
-        /**
-         * How long an uploaded import archive waits for its wizard.
-         *
-         * Longer than an ordinary transfer because the person is still working: they upload the
-         * zip on one step of the create wizard and press Create on another, with a node and a name
-         * to choose in between.
-         */
-        const val SPOOL_TTL_MS = 30 * 60 * 1000L
 
         const val SWEEP_INTERVAL_MS = 60 * 1000L
 
@@ -311,13 +287,48 @@ class TransferTicketStore(
 
     private var sweepTimer: Long = -1
 
+    /**
+     * Why recent uploads failed, by the id the panel gave each one.
+     *
+     * An upload can fail while the browser is still sending (the node's disk filled up), and the
+     * connection is then closed under it, so the browser often sees a network error instead of the
+     * answer. The panel asks here afterwards to tell the person what actually happened.
+     */
+    private val failures = ConcurrentHashMap<String, UploadFailure>()
+
     /** Arms the expiry sweep. Safe to call more than once. */
     fun init() {
         if (sweepTimer >= 0) {
             return
         }
 
-        sweepTimer = vertx.setPeriodic(TransferTicketRegistry.SWEEP_INTERVAL_MS) { registry.sweep() }
+        sweepTimer = vertx.setPeriodic(TransferTicketRegistry.SWEEP_INTERVAL_MS) {
+            registry.sweep()
+
+            val cutoff = System.currentTimeMillis() - FAILURE_TTL_MS
+
+            failures.entries.removeIf { it.value.at < cutoff }
+        }
+    }
+
+    /** Remembers why the upload [uploadId] of [userId] failed, for [failure]. */
+    fun recordFailure(uploadId: String?, userId: Long, code: String, extras: Map<String, Any?> = mapOf()) {
+        val id = uploadId?.takeIf { UPLOAD_ID.matches(it) } ?: return
+
+        init()
+
+        if (failures.size >= MAX_FAILURES) {
+            return
+        }
+
+        failures[id] = UploadFailure(userId, code, extras, System.currentTimeMillis())
+    }
+
+    /** Why the upload [uploadId] of [userId] failed, if Pano knows. */
+    fun failure(uploadId: String?, userId: Long): UploadFailure? {
+        val failure = failures[uploadId ?: return null] ?: return null
+
+        return failure.takeIf { it.userId == userId }
     }
 
     fun issue(
@@ -332,7 +343,8 @@ class TransferTicketStore(
         ttlMs: Long = TransferTicketRegistry.TTL_MS,
         contentType: String? = null,
         inline: Boolean = false,
-        downloadFile: File? = null
+        downloadFile: File? = null,
+        upload: UploadRendezvous? = null
     ): TransferTicket {
         init()
 
@@ -348,7 +360,8 @@ class TransferTicketStore(
             ttlMs,
             contentType,
             inline,
-            downloadFile
+            downloadFile,
+            upload
         )
     }
 
@@ -358,10 +371,7 @@ class TransferTicketStore(
     fun resolveForServer(id: String?, serverId: Long, direction: TransferDirection) =
         registry.resolveForServer(id, serverId, direction)
 
-    fun resolveSpool(id: String?, userId: Long) = registry.resolveSpool(id, userId)
-
-    fun bind(ticket: TransferTicket, serverId: Long, nodeId: Long?, serverUuid: String) =
-        registry.bind(ticket, serverId, nodeId, serverUuid)
+    fun resolveUpload(id: String?, userId: Long) = registry.resolveUpload(id, userId)
 
     fun consume(id: String) = registry.consume(id)
 
@@ -369,12 +379,10 @@ class TransferTicketStore(
 
     fun size() = registry.size()
 
-    fun liveSpools(userId: Long? = null) = registry.liveSpools(userId)
-
-    /** Where an upload is spooled while the node comes to fetch it. */
+    /** Where a file Pano wrote itself (a server icon) waits for the node to fetch it. */
     fun spoolFileFor(ticketId: String): File = File(spoolDirectory(), ticketId)
 
-    /** The directory holding every spooled upload, created on demand. */
+    /** The directory holding those files, created on demand. */
     fun spoolDirectory(): File {
         val directory = File(configManager.config.fileUploadsFolder, TransferTicketRegistry.SPOOL_DIRECTORY)
 
@@ -391,11 +399,19 @@ class TransferTicketStore(
         }
     }
 
+    /** One failed upload, as [failure] reports it. */
+    data class UploadFailure(val userId: Long, val code: String, val extras: Map<String, Any?>, val at: Long)
+
     companion object {
         /** Re-exported so callers do not have to know the registry holds it. */
         const val TTL_MS = TransferTicketRegistry.TTL_MS
 
-        /** Re-exported, for the wizard's uploaded import archive. */
-        const val SPOOL_TTL_MS = TransferTicketRegistry.SPOOL_TTL_MS
+        private const val FAILURE_TTL_MS = 10 * 60 * 1000L
+
+        /** A bound on memory, not a quota anybody should reach: failures are rare and kept ten minutes. */
+        private const val MAX_FAILURES = 10_000
+
+        /** What the panel sends as an upload id: a UUID or something just as tame. */
+        private val UPLOAD_ID = Regex("^[A-Za-z0-9-]{8,64}$")
     }
 }

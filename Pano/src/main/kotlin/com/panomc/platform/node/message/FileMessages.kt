@@ -110,3 +110,14 @@ class TransferPushMessage(
     val path: String,
     val size: Long
 ) : NodeRequestMessage()
+
+/**
+ * Asks a node how much space is left on the disk that holds [serverUuid]'s directory, or its data
+ * directory for a server that does not exist yet (`DISK_SPACE`).
+ *
+ * Asked before an upload starts, so a file that cannot fit is refused before the person waits for
+ * it to cross the network. The node checks again as the bytes arrive; this is only the early answer.
+ */
+class DiskSpaceMessage(
+    val serverUuid: String? = null
+) : NodeRequestMessage()

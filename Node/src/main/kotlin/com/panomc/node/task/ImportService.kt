@@ -3,6 +3,12 @@ package com.panomc.node.task
 import com.panomc.node.agent.AgentFiles
 import com.panomc.node.agent.AgentLaunchReader
 import com.panomc.node.agent.AgentLayout
+import com.panomc.node.archive.ArchiveException
+import com.panomc.node.archive.ArchiveExtractor
+import com.panomc.node.archive.ArchiveFormat
+import com.panomc.node.archive.ArchiveFormats
+import com.panomc.node.archive.DiskGuard
+import com.panomc.node.archive.NotEnoughSpaceException
 import com.panomc.node.console.ConsoleLevel
 import com.panomc.node.files.TransferService
 import com.panomc.node.files.ZipTool
@@ -21,6 +27,9 @@ import com.panomc.node.util.NodeLogger
 import com.panomc.node.util.PathSafety
 import io.vertx.core.json.JsonObject
 import java.io.File
+import java.io.FilterInputStream
+import java.io.IOException
+import java.io.InputStream
 import com.panomc.node.util.SafeDelete
 
 /**
@@ -130,6 +139,8 @@ class ImportService(
         // takes long enough for another task to be handed the same port in the meantime.
         reservations.reserve(uuid, spec.port)
 
+        val marker = markIncomplete(uuid)
+
         try {
             runImport(uuid, taskId, message, spec, directory)
         } catch (exception: Exception) {
@@ -139,8 +150,20 @@ class ImportService(
             // server somebody can retry from, it is one the next boot would try to load.
             SafeDelete.tree(directory)
 
-            reporter.failed(taskId, uuid, KIND, exception.message ?: exception.javaClass.simpleName)
+            if (exception is ArchiveException) {
+                val extra = JsonObject().put("errorCode", exception.code)
+
+                if (exception is NotEnoughSpaceException) {
+                    extra.put("required", exception.required).put("free", exception.free)
+                }
+
+                reporter.failed(taskId, uuid, KIND, "${exception.code}: ${exception.message}", extra)
+            } else {
+                reporter.failed(taskId, uuid, KIND, exception.message ?: exception.javaClass.simpleName)
+            }
         } finally {
+            marker?.delete()
+
             reservations.release(uuid)
         }
     }
@@ -528,32 +551,169 @@ class ImportService(
             }
     }
 
-    /** Pulls the archive the browser uploaded and unpacks it into the new server directory. */
+    /**
+     * Unpacks the archive the browser is uploading into the new server directory, as it arrives.
+     *
+     * The archive is never stored when its format allows that (zip, tar, tar.gz/bz2/xz, gz): the
+     * bytes Pano relays from the browser go straight through the extractor. 7z and rar need the whole
+     * file, so they are saved next to the servers first and deleted after. No size ceiling: the disk
+     * is the limit, with [DiskGuard]'s reserve, and the import stops with `NOT_ENOUGH_SPACE` the moment
+     * it would run out.
+     */
     private fun importUpload(uuid: String, taskId: String, ticket: String?, directory: File) {
         val id = ticket?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("No upload ticket came with this import.")
 
-        reporter.running(taskId, uuid, KIND, DOWNLOAD_PERCENT, "Downloading the archive")
+        reporter.running(taskId, uuid, KIND, DOWNLOAD_PERCENT, "Waiting for the archive")
 
-        val archive = File(directory, TEMP_ARCHIVE)
+        val guard = DiskGuard(directory)
 
-        try {
-            transferService.fetch(id, archive)
+        val upload = try {
+            transferService.openUpload(id)
+        } catch (exception: Exception) {
+            throw ArchiveException(UPLOAD_ABORTED, exception.message ?: "The upload never arrived.", exception)
+        }
 
-            if (!ZipTool.isZip(archive)) {
-                throw IllegalStateException("The uploaded file is not a zip archive.")
+        upload.input.use { raw ->
+            // The announced size, before a byte is written: an archive that does not fit as it is
+            // will not fit unpacked either.
+            upload.size?.let { guard.require(it) }
+
+            val input = ProgressInput(raw, upload.size) { done, total, rate ->
+                val percent = if (total != null && total > 0) {
+                    DOWNLOAD_PERCENT + ((UPLOAD_END_PERCENT - DOWNLOAD_PERCENT) * done.coerceAtMost(total) / total).toInt()
+                } else {
+                    DOWNLOAD_PERCENT
+                }
+
+                reporter.transfer(
+                    taskId,
+                    uuid,
+                    KIND,
+                    percent,
+                    "Receiving and extracting the archive",
+                    Downloader.Progress(done, total ?: -1, rate)
+                )
             }
 
-            reporter.running(taskId, uuid, KIND, EXTRACT_PERCENT, "Extracting the archive")
+            val temporary = File(File(dataDir, TransferService.TMP_DIRECTORY), TEMP_ARCHIVE_DIR).also { it.mkdirs() }
 
-            ZipTool.extract(directory, archive, directory)
-        } finally {
-            archive.delete()
+            try {
+                ArchiveExtractor.extractStream(
+                    input,
+                    directory,
+                    directory,
+                    guard,
+                    temporary,
+                    fileNameHint = upload.fileName,
+                    onFormat = { format ->
+                        logger.info("Importing $uuid from a ${format.id} archive${upload.fileName?.let { " ($it)" } ?: ""}.")
+
+                        if (!format.streamable) {
+                            reporter.running(taskId, uuid, KIND, DOWNLOAD_PERCENT, "Receiving the archive")
+                        }
+                    }
+                )
+            } catch (exception: ArchiveException) {
+                throw exception
+            } catch (exception: IOException) {
+                // The browser went away, the connection broke, or Pano cut a transfer that stopped
+                // moving: whatever was unpacked so far is not a server.
+                throw ArchiveException(UPLOAD_ABORTED, "The upload was interrupted.", exception)
+            }
         }
+
+        reporter.running(taskId, uuid, KIND, EXTRACT_PERCENT.coerceAtLeast(UPLOAD_END_PERCENT), "Archive extracted")
 
         // Zipping a server folder puts the folder in the zip, so almost every upload is one
         // directory deep. Lifting it is what makes the obvious thing to upload work.
         ZipTool.flattenSingleRoot(directory)
+    }
+
+    /**
+     * Deletes the directories of imports a previous run of this node died in the middle of. Each
+     * import marks its server id under [TransferService.TMP_DIRECTORY] while it runs; a mark still
+     * there at start names a directory that no finished import owns. Run once, after the registry
+     * loaded, so a server that did finish (and is registered) is never touched.
+     */
+    fun cleanupIncomplete() {
+        val markers = File(File(dataDir, TransferService.TMP_DIRECTORY), IMPORTING_DIR)
+
+        markers.listFiles()?.forEach { marker ->
+            val uuid = marker.name
+
+            if (PathSafety.isSafeSegment(uuid) && registry.get(uuid) == null && !registry.isInPlace(uuid)) {
+                runCatching {
+                    val directory = registry.directoryFor(uuid)
+
+                    if (directory.exists()) {
+                        SafeDelete.tree(directory)
+
+                        logger.info("Deleted the unfinished import of $uuid.")
+                    }
+                }
+            }
+
+            marker.delete()
+        }
+
+        // Whatever a 7z or rar import had saved before the node stopped.
+        File(File(dataDir, TransferService.TMP_DIRECTORY), TEMP_ARCHIVE_DIR).listFiles()?.forEach { it.delete() }
+    }
+
+    private fun markIncomplete(uuid: String): File? = runCatching {
+        val directory = File(File(dataDir, TransferService.TMP_DIRECTORY), IMPORTING_DIR)
+
+        directory.mkdirs()
+
+        File(directory, uuid).also { it.writeText(System.currentTimeMillis().toString()) }
+    }.getOrNull()
+
+    /** Counts what is read and reports it about once a second, with the rate over that second. */
+    private class ProgressInput(
+        input: InputStream,
+        private val total: Long?,
+        private val report: (done: Long, total: Long?, bytesPerSecond: Long?) -> Unit
+    ) : FilterInputStream(input) {
+        private var done = 0L
+        private var lastReport = System.currentTimeMillis()
+        private var lastDone = 0L
+
+        override fun read(): Int {
+            val value = super.read()
+
+            if (value >= 0) {
+                advance(1)
+            }
+
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val read = super.read(buffer, offset, length)
+
+            if (read > 0) {
+                advance(read.toLong())
+            }
+
+            return read
+        }
+
+        private fun advance(bytes: Long) {
+            done += bytes
+
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastReport
+
+            if (elapsed >= REPORT_INTERVAL_MS) {
+                val rate = (done - lastDone) * 1000 / elapsed
+
+                lastReport = now
+                lastDone = done
+
+                runCatching { report(done, total, rate) }
+            }
+        }
     }
 
     /** Downloads an `.mrpack`, assembles it, and installs the loader it names. */
@@ -690,6 +850,19 @@ class ImportService(
         const val SERVER_OVERRIDES_DIR = "server-overrides"
 
         private const val TEMP_ARCHIVE = ".pano-import.zip"
+
+        /** A 7z or rar being saved before it is unpacked, under the node's tmp directory. */
+        private const val TEMP_ARCHIVE_DIR = "import-archives"
+
+        /** One empty file per import that is running, named after its server id. */
+        private const val IMPORTING_DIR = "importing"
+
+        /** The browser stopped sending, or never started. */
+        const val UPLOAD_ABORTED = "UPLOAD_ABORTED"
+
+        private const val UPLOAD_END_PERCENT = 80
+
+        private const val REPORT_INTERVAL_MS = 1000L
         private const val TEMP_PACK_DIR = ".pano-modpack"
 
         private const val START_PERCENT = 1

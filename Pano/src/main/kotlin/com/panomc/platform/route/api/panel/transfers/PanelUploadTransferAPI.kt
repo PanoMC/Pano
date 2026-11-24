@@ -4,187 +4,63 @@ import com.panomc.platform.annotation.Endpoint
 import com.panomc.platform.auth.AuthProvider
 import com.panomc.platform.auth.panel.permission.CreateServersPermission
 import com.panomc.platform.error.BadRequest
-import com.panomc.platform.error.FileTooLarge
-import com.panomc.platform.error.RateLimited
+import com.panomc.platform.error.TransferExpired
 import com.panomc.platform.model.*
-import com.panomc.platform.node.transfer.TransferDirection
+import com.panomc.platform.node.transfer.BrowserUploadRelay
 import com.panomc.platform.node.transfer.TransferTicketStore
+import com.panomc.platform.util.UsageMode
 import io.vertx.core.Handler
-import io.vertx.core.Vertx
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.validation.ValidationHandler
 import io.vertx.json.schema.SchemaRepository
-import io.vertx.kotlin.coroutines.coAwait
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
-import com.panomc.platform.util.UsageMode
 
 /**
- * Parks an uploaded archive until the wizard knows what to do with it.
+ * `POST /api/v1/panel/transfers/upload?ticket=<id>` — the archive of a server being created.
  *
- * Importing a server by uploading a zip has a chicken-and-egg problem: the upload is a gigabyte
- * that has to cross Pano while the person is still choosing a node and a name, and there is no
- * server to attach it to until they press Create. So the upload is its own step — it returns a
- * ticket, and `servers/create` redeems that ticket once it knows which node will fetch the file.
+ * The last step of the create wizard, by design: `servers/create` makes the row, issues `ticket` and
+ * starts the import, whose node is already waiting at `GET /api/v1/node/transfer/<ticket>`. This
+ * request is joined to that one and the archive streams through Pano onto the node, which unpacks it
+ * as it arrives (7z and rar: it saves it first). Nothing is kept here, so there is no size ceiling;
+ * the node's disk is the limit, and it stops the import when it would run out.
  *
- * The ticket is bound to the person and nothing else while it waits, which is why the spool
- * direction exists at all: a ticket with a blank node id in the ordinary upload direction would be
- * redeemable by every node that asked. Thirty minutes is the whole lifetime, and the sweep deletes
- * the spooled file with the ticket, so an abandoned wizard costs a temporary file and not a disk.
- *
- * Gated on [CreateServersPermission] rather than a file permission: this is the first step of
- * creating a server, and it is the only thing the ticket can ever be used for.
+ * Answered once every byte reached the node. Whether the import then succeeded is the import task's
+ * to say, and a failed upload (cancelled, cut off, no space) fails that task, which removes the server
+ * again: an import that never got its files is not a server.
  */
 @Endpoint
 class PanelUploadTransferAPI(
-    private val vertx: Vertx,
     private val authProvider: AuthProvider,
-    private val transferTicketStore: TransferTicketStore
+    private val transferTicketStore: TransferTicketStore,
+    private val browserUploadRelay: BrowserUploadRelay
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
     override val paths = listOf(Path("/transfers/upload", RouteType.POST))
 
-    // Nothing to validate: the body is a multipart file and every other decision is made from the
-    // session, so a schema would only be able to say "yes, that is a request".
     override fun getValidationHandler(schemaRepository: SchemaRepository): ValidationHandler? = null
 
-    override fun bodyHandler(): Handler<RoutingContext> = authorizedBodyHandler(
-        BodyHandler.create()
-            .setDeleteUploadedFilesOnEnd(true)
-            .setBodyLimit(MAX_UPLOAD_BYTES)
-    )
+    // Relayed, never stored. Login, panel access and the permission are checked before the body.
+    override fun bodyHandler(): Handler<RoutingContext> = authorizedBodyHandler(Handler { it.next() })
 
-    /** Uploads whose body is still arriving, per user and in total. */
-    private val inFlightByUser = ConcurrentHashMap<Long, AtomicInteger>()
-    private val inFlightTotal = AtomicInteger()
-
-    // Login, panel access and the permission are checked before the (up to 1 GiB) upload is spooled.
-    // So are the limits: each spool can be a gigabyte on Pano's disk for half an hour, so one user
-    // gets one upload at a time and Pano holds only a few spools at once.
     override suspend fun checkBeforeBody(context: RoutingContext) {
         authProvider.requirePermission(CreateServersPermission(), context)
-
-        val userId = authProvider.getUserIdFromRoutingContext(context)
-        val userCounter = inFlightByUser.computeIfAbsent(userId) { AtomicInteger() }
-
-        if (userCounter.incrementAndGet() > MAX_IN_FLIGHT_PER_USER) {
-            userCounter.decrementAndGet()
-            throw RateLimited()
-        }
-
-        if (inFlightTotal.incrementAndGet() + transferTicketStore.liveSpools().size > MAX_SPOOLS_TOTAL + MAX_IN_FLIGHT_TOTAL) {
-            inFlightTotal.decrementAndGet()
-            userCounter.decrementAndGet()
-            throw RateLimited()
-        }
-
-        context.addEndHandler {
-            inFlightTotal.decrementAndGet()
-            userCounter.decrementAndGet()
-        }
     }
 
     override suspend fun handle(context: RoutingContext): Result {
         authProvider.requirePermission(CreateServersPermission(), context)
 
-        val uploads = context.fileUploads()
-
-        val upload = uploads.firstOrNull { it.name() == PART_NAME }
-            ?: uploads.singleOrNull()
-            ?: throw BadRequest()
-
-        if (upload.size() > MAX_UPLOAD_BYTES) {
-            throw FileTooLarge()
-        }
-
-        // The browser names the file and the name is only ever shown back, never used as a path:
-        // the spool is named after the ticket, which Pano generated.
-        val fileName = File(upload.fileName().orEmpty()).name.take(MAX_NAME_LENGTH).ifEmpty { DEFAULT_NAME }
+        val ticketId = context.queryParam("ticket").firstOrNull()?.takeIf { it.isNotBlank() } ?: throw BadRequest()
+        val uploadId = context.queryParam("uploadId").firstOrNull()
 
         val userId = authProvider.getUserIdFromRoutingContext(context)
 
-        val ticket = transferTicketStore.issue(
-            userId = userId,
-            serverId = 0,
-            nodeId = 0,
-            serverUuid = "",
-            path = "",
-            direction = TransferDirection.UPLOAD_SPOOL,
-            fileName = fileName,
-            ttlMs = TransferTicketStore.SPOOL_TTL_MS
-        )
+        val outcome = browserUploadRelay.relay(context, uploadId, userId) { _, _ ->
+            // Only the person who pressed Create, only once, and only while the import still waits.
+            val ticket = transferTicketStore.resolveUpload(ticketId, userId) ?: throw TransferExpired()
 
-        // A user keeps only their newest few spools; older unredeemed ones are dropped with their file.
-        transferTicketStore.liveSpools(userId)
-            .filter { it.id != ticket.id }
-            .dropLast(MAX_SPOOLS_PER_USER - 1)
-            .forEach { transferTicketStore.discard(it) }
-
-        val spool = transferTicketStore.spoolFileFor(ticket.id)
-
-        ticket.spoolFile = spool
-
-        val size: Long
-
-        try {
-            moveSpool(File(upload.uploadedFileName()), spool)
-
-            size = spool.length()
-        } catch (exception: Exception) {
-            // Nothing else will ever look at this ticket, and the sweep is an hour of disk away.
-            transferTicketStore.discard(ticket)
-
-            throw exception
+            BrowserUploadRelay.Prepared(ticket)
         }
 
-        return Successful(
-            mapOf(
-                "ticket" to ticket.id,
-                "size" to size,
-                "filename" to fileName,
-                "expiresAt" to ticket.expiresAt
-            )
-        )
-    }
-
-    /** Moves the multipart spool under the ticket, falling back to a copy across filesystems. */
-    private suspend fun moveSpool(uploaded: File, spool: File) {
-        vertx.executeBlocking<Unit> {
-            spool.parentFile?.mkdirs()
-
-            try {
-                Files.move(uploaded.toPath(), spool.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            } catch (_: Exception) {
-                uploaded.copyTo(spool, overwrite = true)
-            }
-        }.coAwait()
-    }
-
-    companion object {
-        /** The multipart field the panel uploads under, the same one the file manager uses. */
-        const val PART_NAME = "file"
-
-        /** The contract's ceiling for one transfer. */
-        const val MAX_UPLOAD_BYTES = 1024L * 1024 * 1024
-
-        private const val MAX_NAME_LENGTH = 255
-
-        /** Uploads one user may have arriving at once. */
-        const val MAX_IN_FLIGHT_PER_USER = 1
-
-        /** Uploads arriving at once across every user. */
-        const val MAX_IN_FLIGHT_TOTAL = 2
-
-        /** Spooled uploads one user may keep waiting for a wizard (the newest ones win). */
-        const val MAX_SPOOLS_PER_USER = 2
-
-        /** Spooled uploads Pano keeps waiting at once, across every user. */
-        const val MAX_SPOOLS_TOTAL = 4
-        private const val DEFAULT_NAME = "upload.zip"
+        return Successful(mapOf("size" to (outcome.bytes ?: 0L)))
     }
 }

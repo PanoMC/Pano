@@ -1,5 +1,8 @@
 package com.panomc.node.files
 
+import com.panomc.node.archive.ArchiveException
+import com.panomc.node.archive.DiskGuard
+import com.panomc.node.archive.NotEnoughSpaceException
 import com.panomc.node.config.NodeConfig
 import com.panomc.node.net.NodePaths
 import com.panomc.node.net.TransferPullMessage
@@ -9,12 +12,16 @@ import com.panomc.node.util.NodeLogger
 import com.panomc.node.util.PathSafety
 import io.vertx.core.json.JsonObject
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.net.URI
+import java.net.URLDecoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.security.MessageDigest
 import java.time.Duration
 
 /**
@@ -34,6 +41,12 @@ class TransferService(
     private val registry: ServerRegistry,
     private val config: NodeConfig,
     private val logger: NodeLogger,
+    /**
+     * The node's data directory: where half-written uploads are recorded ([PARTIALS_DIRECTORY]) so a
+     * node that died in the middle of one deletes it on its next start, and whose disk a server that
+     * does not exist yet will be created on.
+     */
+    private val dataDir: File? = null,
     /** Lets a virtual path such as `@backup/<id>` resolve to a file outside the server directory. */
     private val virtualSource: (serverUuid: String, path: String) -> File? = { _, _ -> null },
     /**
@@ -83,18 +96,14 @@ class TransferService(
             return
         }
 
-        // A backup is as big as it is: refusing a 2 GB one left it impossible to get out at all.
+        // No ceiling and no total time limit on a download (owner decision, 2026-11-25): a file is as
+        // big as it is, and a slow line takes as long as it takes. Pano ends a transfer that stops
+        // moving for five minutes. A backup keeps an end-to-end bound of 48 hours.
         val virtual = message.path.orEmpty().startsWith(VIRTUAL_PREFIX)
-
-        if (!virtual && source.length() > MAX_TRANSFER_BYTES) {
-            reportFailure(ticket, FileService.ERROR_TOO_LARGE)
-
-            return
-        }
 
         try {
             val request = HttpRequest.newBuilder(uri(ticket))
-                .timeout(if (virtual) BACKUP_TRANSFER_TIMEOUT else TRANSFER_TIMEOUT)
+                .apply { if (virtual) timeout(BACKUP_TRANSFER_TIMEOUT) }
                 .header("Authorization", "Bearer ${config.token}")
                 .header("Content-Type", "application/octet-stream")
                 .header(FILE_NAME_HEADER, source.name)
@@ -194,7 +203,8 @@ class TransferService(
     private fun streamZip(
         ticket: String,
         fileName: String,
-        timeout: Duration = TRANSFER_TIMEOUT,
+        /** End-to-end bound of the PUT; null (a file-manager zip) has none, see the single-file pull. */
+        timeout: Duration? = null,
         write: (java.io.OutputStream) -> Unit
     ) {
         val pipedInput = PipedInputStream(BUFFER_SIZE)
@@ -218,7 +228,7 @@ class TransferService(
 
         try {
             val request = HttpRequest.newBuilder(uri(ticket))
-                .timeout(timeout)
+                .apply { if (timeout != null) timeout(timeout) }
                 .header("Authorization", "Bearer ${config.token}")
                 .header("Content-Type", "application/zip")
                 .header(FILE_NAME_HEADER, fileName)
@@ -243,6 +253,11 @@ class TransferService(
 
     /**
      * Downloads what the browser uploaded and writes it into the server, reporting the outcome.
+     *
+     * The browser's bytes arrive as Pano relays them; nothing waits on Pano's disk. The disk here is
+     * the only limit: the file has to fit with [DiskGuard]'s reserve to start at all (judged from the
+     * size the browser announced), and the copy stops, deletes what it wrote and says
+     * `NOT_ENOUGH_SPACE` the moment the disk would drop below it.
      *
      * The reply is what the panel's upload request is waiting on, so every path out of here
      * produces one.
@@ -273,31 +288,29 @@ class TransferService(
             return FileService.failure(FileService.ERROR_NOT_A_FILE)
         }
 
+        val guard = DiskGuard(target.parentFile ?: server.directory)
+
+        try {
+            guard.require(declared)
+        } catch (exception: NotEnoughSpaceException) {
+            return spaceFailure(exception)
+        }
+
         // Written next to the destination and moved into place, so a transfer that dies halfway
-        // does not leave a half-written jar where a server will try to load one.
+        // does not leave a half-written jar where a server will try to load one. Recorded so a node
+        // that dies with it half-written removes it on its next start.
         val temporary = File(target.parentFile, "${target.name}$PARTIAL_SUFFIX")
+        val record = recordPartial(temporary)
 
         return try {
             target.parentFile?.mkdirs()
 
-            val request = HttpRequest.newBuilder(uri(ticket))
-                .timeout(TRANSFER_TIMEOUT)
-                .header("Authorization", "Bearer ${config.token}")
-                .GET()
-                .build()
-
-            val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
-
-            if (response.statusCode() !in 200..299) {
-                response.body().close()
-
-                return FileService.failure("Pano answered HTTP ${response.statusCode()}.")
-            }
+            val response = openGet(ticket)
 
             var copied = 0L
 
             response.body().use { input ->
-                temporary.outputStream().buffered().use { output ->
+                guard.wrap(temporary.outputStream()).buffered().use { output ->
                     val buffer = ByteArray(BUFFER_SIZE)
 
                     while (true) {
@@ -326,14 +339,129 @@ class TransferService(
             }
 
             FileService.success().put("size", copied)
+        } catch (exception: NotEnoughSpaceException) {
+            temporary.delete()
+
+            logger.warn("Stopped an upload into ${server.uuid}: the disk would drop below its reserve.")
+
+            spaceFailure(exception)
+        } catch (exception: IOException) {
+            temporary.delete()
+
+            logger.warn("An upload into ${server.uuid} broke off: ${exception.message}")
+
+            FileService.failure(ERROR_TRANSFER_FAILED)
         } catch (exception: Exception) {
             temporary.delete()
 
             logger.warn("Could not store an upload into ${server.uuid}: ${exception.message}")
 
             FileService.failure(exception.message ?: exception.javaClass.simpleName)
+        } finally {
+            record?.delete()
         }
     }
+
+    /**
+     * Opens the browser's upload under [ticket] as a stream, for an import that unpacks it as it
+     * arrives. Pano parks this request until the browser starts sending (the import's create step
+     * answers first, then the browser uploads), so this waits up to [UPLOAD_START_TIMEOUT] for the
+     * first byte and then for as long as the bytes keep coming.
+     */
+    fun openUpload(ticket: String): Upload {
+        val response = openGet(ticket)
+
+        val headers = response.headers()
+
+        return Upload(
+            input = response.body(),
+            size = headers.firstValue(UPLOAD_SIZE_HEADER).orElse(null)?.toLongOrNull()
+                ?: headers.firstValueAsLong("Content-Length").let { if (it.isPresent) it.asLong else null },
+            fileName = headers.firstValue(FILE_NAME_HEADER).orElse(null)?.let {
+                runCatching { URLDecoder.decode(it, Charsets.UTF_8) }.getOrNull()
+            }
+        )
+    }
+
+    /** A browser upload as the node reads it: the stream, an upper bound on its size, its name. */
+    class Upload(val input: InputStream, val size: Long?, val fileName: String?)
+
+    private fun openGet(ticket: String): HttpResponse<InputStream> {
+        val request = HttpRequest.newBuilder(uri(ticket))
+            // Until the response starts: Pano holds it until the browser's bytes arrive.
+            .timeout(UPLOAD_START_TIMEOUT)
+            .header("Authorization", "Bearer ${config.token}")
+            .GET()
+            .build()
+
+        val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+
+        if (response.statusCode() !in 200..299) {
+            response.body().close()
+
+            throw IllegalStateException(
+                if (response.statusCode() == 404) "The upload never arrived." else "Pano answered HTTP ${response.statusCode()} for this upload."
+            )
+        }
+
+        return response
+    }
+
+    /** How much space is left where [message]'s server lives, or where a new one would (`DISK_SPACE`). */
+    fun diskSpace(message: com.panomc.node.net.DiskSpaceMessage): JsonObject {
+        val directory = registry.get(message.serverUuid)?.directory ?: dataDir ?: File(".")
+
+        var existing: File? = directory.absoluteFile
+
+        while (existing != null && !existing.exists()) {
+            existing = existing.parentFile
+        }
+
+        val disk = existing ?: File(".").absoluteFile
+
+        return FileService.success()
+            .put("usable", disk.usableSpace)
+            .put("total", disk.totalSpace)
+            .put("reserve", DiskGuard.DEFAULT_RESERVE)
+    }
+
+    /**
+     * Deletes every upload a previous run of this node left half-written (it died, or the host lost
+     * power, in the middle of one). Run once at start, before any transfer.
+     */
+    fun cleanupPartials() {
+        val directory = partialsDirectory() ?: return
+
+        directory.listFiles()?.forEach { record ->
+            runCatching {
+                val partial = File(record.readText().trim())
+
+                if (partial.name.endsWith(PARTIAL_SUFFIX) && partial.isFile && partial.delete()) {
+                    logger.info("Deleted the unfinished upload ${partial.absolutePath}.")
+                }
+            }
+
+            record.delete()
+        }
+    }
+
+    private fun partialsDirectory(): File? = dataDir?.let { File(File(it, TMP_DIRECTORY), PARTIALS_DIRECTORY) }
+
+    private fun recordPartial(partial: File): File? = runCatching {
+        val directory = partialsDirectory() ?: return null
+
+        directory.mkdirs()
+
+        val digest = MessageDigest.getInstance("SHA-256").digest(partial.absolutePath.toByteArray())
+        val name = digest.take(12).joinToString("") { "%02x".format(it) }
+
+        File(directory, name).also { it.writeText(partial.absolutePath) }
+    }.getOrNull()
+
+    private fun spaceFailure(exception: NotEnoughSpaceException): JsonObject =
+        FileService.failure(ERROR_NOT_ENOUGH_SPACE)
+            .put("required", exception.required)
+            .put("free", exception.free)
 
     /**
      * Downloads whatever is spooled under [ticket] straight into [target].
@@ -342,7 +470,7 @@ class TransferService(
      * nowhere to land yet, because the directory it will become is what the archive is for.
      * Returns how many bytes arrived.
      */
-    fun fetch(ticket: String, target: File, onProgress: (Long) -> Unit = {}, maxBytes: Long = MAX_TRANSFER_BYTES): Long {
+    fun fetch(ticket: String, target: File, onProgress: (Long) -> Unit = {}, maxBytes: Long = Long.MAX_VALUE): Long {
         val request = HttpRequest.newBuilder(uri(ticket))
             .timeout(TRANSFER_TIMEOUT)
             .header("Authorization", "Bearer ${config.token}")
@@ -432,11 +560,17 @@ class TransferService(
     }
 
     companion object {
-        /**
-         * Ceiling for one file download or file-manager archive. A backup (`@backup/<id>`) has
-         * none, nor does a file pushed into the server's folder.
-         */
-        const val MAX_TRANSFER_BYTES = 1024L * 1024 * 1024
+        /** The disk would drop below the reserve; the failure carries `required` and `free`. */
+        const val ERROR_NOT_ENOUGH_SPACE = "NOT_ENOUGH_SPACE"
+
+        /** The upload's bytes stopped arriving before the file was complete. */
+        const val ERROR_TRANSFER_FAILED = "TRANSFER_FAILED"
+
+        /** What the browser announced, an upper bound on an upload's size (set by Pano). */
+        const val UPLOAD_SIZE_HEADER = "X-Pano-Upload-Size"
+
+        const val TMP_DIRECTORY = "tmp"
+        const val PARTIALS_DIRECTORY = "partial-uploads"
 
         const val TRANSFER_PATH = NodePaths.TRANSFER
 
@@ -492,10 +626,14 @@ class TransferService(
         private val CONNECT_TIMEOUT: Duration = Duration.ofSeconds(30)
         private val TRANSFER_TIMEOUT: Duration = Duration.ofMinutes(30)
 
+        /** How long an upload may take to start: an import's node waits here for the browser. */
+        private val UPLOAD_START_TIMEOUT: Duration = Duration.ofMinutes(15)
+
         /**
          * How long a backup download may take end to end. The upload's answer only comes once the
-         * whole body is sent, so this must cover a multi-gigabyte backup on a slow line.
+         * whole body is sent, so this must cover a multi-gigabyte backup on a slow line (48 hours,
+         * owner decision 2026-11-25).
          */
-        val BACKUP_TRANSFER_TIMEOUT: Duration = Duration.ofHours(12)
+        val BACKUP_TRANSFER_TIMEOUT: Duration = Duration.ofHours(48)
     }
 }

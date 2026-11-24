@@ -40,8 +40,12 @@ object NodeProtocol {
      * every later frame is bound to that connection, its direction and its place in the stream, so a
      * recorded frame cannot be played again. A Pano that does not answer gets the old frames; once a
      * node announced 9, Pano refuses it a connection without the nonce.
+     *
+     * 10: `DISK_SPACE` (free bytes where a server's files live), uploads streamed straight from the
+     * browser through Pano with no size ceiling (the disk and its 256 MiB reserve are the limit), and
+     * an `IMPORT_SERVER` upload unpacked while it arrives: zip, tar, tar.gz/bz2/xz, gz, 7z and rar.
      */
-    const val VERSION = 9
+    const val VERSION = 10
 
     /**
      * Feature flags announced in `NODE_HELLO.capabilities`, for what a protocol number alone
@@ -155,6 +159,9 @@ object NodeProtocol {
 
         const val TRANSFER_PULL = "TRANSFER_PULL"
         const val TRANSFER_PUSH = "TRANSFER_PUSH"
+
+        /** How much space is left for a server's files (protocol 10). Answered on `FILE_RESULT`. */
+        const val DISK_SPACE = "DISK_SPACE"
 
         const val BACKUP_CREATE = "BACKUP_CREATE"
         const val BACKUP_LIST = "BACKUP_LIST"

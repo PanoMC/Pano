@@ -33,9 +33,11 @@ object ZipStream {
      * Directories go in recursively; one that ends up with nothing in it still gets its own
      * `name/` entry, so an empty folder survives the round trip.
      *
-     * Throws once more than [maxBytes] of file content or more than [ZipTool.MAX_ENTRIES] entries
-     * would have been written. The zip is never finished in that case, which is the point — the
-     * reader must see a broken stream, not a smaller archive that looks complete.
+     * No ceiling by default (owner decision, 2026-11-25): a download is as big as the selection, and
+     * the zip goes Zip64 by itself past 4 GiB or 65,535 entries. A caller that passes [maxBytes] gets
+     * a throw once more file content than that would have been written; the zip is never finished in
+     * that case, which is the point — the reader must see a broken stream, not a smaller archive that
+     * looks complete.
      *
      * [output] is finished as a zip but not closed; closing it is the caller's call.
      */
@@ -44,7 +46,7 @@ object ZipStream {
         base: String,
         paths: List<String>,
         output: OutputStream,
-        maxBytes: Long = TransferService.MAX_TRANSFER_BYTES
+        maxBytes: Long = Long.MAX_VALUE
     ): Long {
         val normalisedBase = ServerFileDenylist.normalise(base)
         val state = State(maxBytes)
@@ -143,9 +145,7 @@ object ZipStream {
     }
 
     private fun putEntry(zip: ZipOutputStream, file: File, name: String, state: State) {
-        if (++state.entries > ZipTool.MAX_ENTRIES) {
-            throw IllegalStateException("This selection holds more than ${ZipTool.MAX_ENTRIES} files.")
-        }
+        state.entries++
 
         val entry = ZipEntry(name)
 

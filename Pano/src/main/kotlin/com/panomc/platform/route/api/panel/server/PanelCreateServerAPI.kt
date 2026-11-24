@@ -8,7 +8,6 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Node
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.error.BadRequest
-import com.panomc.platform.error.TransferExpired
 import com.panomc.platform.error.NodeOffline
 import com.panomc.platform.error.NodeOutdated
 import com.panomc.platform.error.NotExists
@@ -21,7 +20,11 @@ import com.panomc.platform.node.ServerPortAllocator
 import com.panomc.platform.node.ServerStartupLimits
 import com.panomc.platform.node.ServerTaskKind
 import com.panomc.platform.node.message.ImportMode
+import com.panomc.platform.node.ServerTaskService
+import com.panomc.platform.node.transfer.TransferDirection
+import com.panomc.platform.node.transfer.TransferSpaceService
 import com.panomc.platform.node.transfer.TransferTicketStore
+import com.panomc.platform.node.transfer.UploadRendezvous
 import com.panomc.platform.server.plugins.PluginSourceCatalog
 import com.panomc.platform.server.ServerCreateSource
 import com.panomc.platform.server.ServerPropertyKeys
@@ -42,6 +45,7 @@ import com.panomc.platform.schema.dsl.ValidationHandlerBuilder
 import io.vertx.json.schema.SchemaRepository
 import io.vertx.json.schema.common.dsl.Schemas.*
 import io.vertx.sqlclient.SqlClient
+import java.io.File
 import java.util.UUID
 import com.panomc.platform.util.UsageMode
 
@@ -90,7 +94,9 @@ class PanelCreateServerAPI(
     private val managedServerImportService: ManagedServerImportService,
     private val transferTicketStore: TransferTicketStore,
     private val pluginSourceCatalog: PluginSourceCatalog,
-    private val serverSelectionService: ServerSelectionService
+    private val serverSelectionService: ServerSelectionService,
+    private val transferSpaceService: TransferSpaceService,
+    private val serverTaskService: ServerTaskService
 ) : PanelApi() {
     override val usageModes = UsageMode.WITH_SERVERS
 
@@ -123,6 +129,16 @@ class PanelCreateServerAPI(
                         .optionalProperty("whitelist", booleanSchema())
                         .optionalProperty("source", stringSchema())
                         .optionalProperty("folderPath", stringSchema().nullable())
+                        // UPLOAD: the archive the browser will send once the row exists (the
+                        // wizard's last step). `uploadTicket` is the old flow and is refused.
+                        .optionalProperty(
+                            "upload",
+                            objectSchema()
+                                .requiredProperty("filename", stringSchema().withKeyword("maxLength", 255))
+                                .requiredProperty("size", numberSchema())
+                                .optionalProperty("format", stringSchema().nullable())
+                                .nullable()
+                        )
                         .optionalProperty("uploadTicket", stringSchema().nullable())
                         .optionalProperty(
                             "modpack",
@@ -220,6 +236,22 @@ class PanelCreateServerAPI(
             throw NodeOutdated(extras = mapOf("requiredProtocolVersion" to NodeProtocol.IN_PLACE_VERSION))
         }
 
+        // UPLOAD: the archive has not been sent yet and will be, right after this answers. Whether it
+        // fits is asked now, before the row exists, so a file that cannot fit leaves nothing behind.
+        val upload = if (source == ServerCreateSource.UPLOAD) {
+            val upload = data.getJsonObject("upload")
+                ?: throw BadRequest(extras = mapOf("message" to "This panel is older than Pano; reload it and try again."))
+
+            val size = upload.getLong("size")?.takeIf { it >= 0 } ?: throw BadRequest()
+            val filename = upload.getString("filename")?.trim()?.takeIf { it.isNotEmpty() } ?: throw BadRequest()
+
+            TransferSpaceService.requireFits(transferSpaceService.freeOnNode(nodeId), size)
+
+            Pair(filename, size)
+        } else {
+            null
+        }
+
         val folderPath = if (inPlace || source == ServerCreateSource.EXISTING_FOLDER) {
             data.getString("folderPath")?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_PATH_LENGTH)
                 ?: throw BadRequest(extras = mapOf("message" to "No folder was given to import from."))
@@ -314,7 +346,7 @@ class PanelCreateServerAPI(
                 sqlClient = sqlClient
             )
         } else {
-            startImport(source, data, stored, node, userId, folderPath, port, sqlClient)
+            startImport(source, data, stored, node, userId, folderPath, port, upload, sqlClient)
         }
 
         // Somebody with nothing selected lands on the server they just created, and a first server
@@ -343,10 +375,15 @@ class PanelCreateServerAPI(
             mapOf(
                 "serverId" to serverId,
                 "taskId" to task.id,
-                "taskUuid" to task.uuid
+                "taskUuid" to task.uuid,
+                // UPLOAD: the ticket the browser sends the archive under (`POST transfers/upload`).
+                "uploadTicket" to uploadTickets.remove(task.uuid)
             )
         )
     }
+
+    /** The upload ticket of each import just started, handed back with the answer. */
+    private val uploadTickets = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /**
      * Hands one of the three import sources to the node, after checking the caller may use it.
@@ -364,6 +401,7 @@ class PanelCreateServerAPI(
         userId: Long,
         folderPath: String?,
         requestedPort: Int?,
+        upload: Pair<String, Long>?,
         sqlClient: SqlClient
     ) = when (source) {
         ServerCreateSource.EXISTING_FOLDER -> managedServerImportService.start(
@@ -391,14 +429,22 @@ class PanelCreateServerAPI(
         )
 
         ServerCreateSource.UPLOAD -> {
-            // Resolved against this session's user: the ticket is the only thing standing between
-            // one person's upload and another person's import.
-            val ticket = transferTicketStore.resolveSpool(data.getString("uploadTicket"), userId)
-                ?: throw TransferExpired()
+            val (filename, size) = upload ?: throw BadRequest()
 
-            transferTicketStore.bind(ticket, server.id, node.id, server.uuid.orEmpty())
+            // Bound to this person, this server and this node from the start: the node fetches it
+            // right away and waits, and only the person who pressed Create may send the archive.
+            val ticket = transferTicketStore.issue(
+                userId = userId,
+                serverId = server.id,
+                nodeId = node.id,
+                serverUuid = server.uuid.orEmpty(),
+                path = "",
+                direction = TransferDirection.UPLOAD,
+                fileName = File(filename).name.take(MAX_ARCHIVE_NAME_LENGTH),
+                upload = UploadRendezvous(size)
+            )
 
-            managedServerImportService.start(
+            val task = managedServerImportService.start(
                 server = server,
                 node = node,
                 mode = ImportMode.UPLOAD,
@@ -408,6 +454,14 @@ class PanelCreateServerAPI(
                 filename = ticket.fileName,
                 sqlClient = sqlClient
             )
+
+            // An upload that never arrives, or breaks off, fails this task; the row then goes too
+            // (owner decision, 2026-11-25): an import without its files is not a server.
+            serverTaskService.removeServerOnFailure(task.uuid)
+
+            uploadTickets[task.uuid] = ticket.id
+
+            task
         }
 
         ServerCreateSource.MODPACK -> {
@@ -462,6 +516,9 @@ class PanelCreateServerAPI(
     }
 
     companion object {
+        /** Longest archive name kept on the ticket; the name is only ever shown and logged. */
+        private const val MAX_ARCHIVE_NAME_LENGTH = 255
+
         /**
          * The `server.properties` entries a new server starts with: the whitelist switch, for a
          * server Pano builds (from scratch or from a modpack) and never for one it imports, whose

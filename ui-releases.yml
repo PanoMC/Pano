@@ -1,6 +1,6 @@
-panel-ui: v1.5.0-dev.2
+panel-ui: v1.5.0
 vanilla-theme: v1.3.2
-setup-ui: v1.4.0-dev.1
+setup-ui: v1.4.0
 pano-email: v1.0.0
 
 # widget-runtime (doc 06 section 3.3): the web-component runtime from theme-core/packages/widget-host.

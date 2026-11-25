@@ -27,6 +27,9 @@ import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRou
 import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.remoteId
 import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.requireReady
 import com.panomc.platform.route.api.panel.panoBackup.remote.PanoBackupRemoteRoutes.workloadId
+import com.panomc.platform.node.transfer.StreamPipe
+import com.panomc.platform.node.transfer.StreamRelay
+import com.panomc.platform.node.transfer.UploadAborted
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.validation.ValidationHandler
@@ -324,7 +327,9 @@ class PanelPanoBackupRemoteListAPI(authProvider: AuthProvider, private val panoB
 /**
  * Downloads a snapshot as a plain `.panoarc` (the format of a full backup): `POST …/remote/snapshots/:id/download` →
  * `{job}` (type `DOWNLOAD`: any finished snapshot of the account is rebuilt into an archive, nothing is restored);
- * when the job is DONE, `GET …/remote/downloads/:jobId` streams the archive (kept 30 minutes, removed once sent).
+ * when the job is DONE (the snapshot opens, the passphrase fits), `GET …/remote/downloads/:jobId` streams the file
+ * straight out of Pano Backup, built while the browser takes it (start it within 30 minutes; once started there is
+ * no time limit, only the 5-minute idle watchdog). Nothing is stored on Pano's disk.
  */
 @Endpoint
 class PanelPanoBackupRemoteSnapshotDownloadAPI(
@@ -356,16 +361,43 @@ class PanelPanoBackupRemoteSnapshotDownloadAPI(
 
         val jobId = remoteId(context, "jobId")
         val download = remote.takeDownload(jobId) ?: throw NotExists()
+        val response = context.response()
+        val vertx = context.vertx()
 
-        context.response()
+        response
             .putHeader("Content-Type", "application/octet-stream")
             .putHeader("Content-Disposition", "attachment; filename=\"${download.fileName}\"")
             .putHeader("X-Content-Type-Options", "nosniff")
             .putHeader("Cache-Control", "no-store")
-            .sendFile(download.file.absolutePath)
-            .coAwait()
+            .setChunked(true)
 
-        remote.discardDownload(jobId)
+        // Read out of Pano Backup, decrypted and written to the browser as it takes it: nothing waits on Pano's disk.
+        val pipe = StreamPipe(vertx)
+        val relay = StreamRelay.start(vertx, pipe.stream, response)
+
+        response.closeHandler { relay.fail(UploadAborted("The browser stopped the download.")) }
+
+        val producer = Thread({
+            try {
+                download.write(pipe.output)
+                pipe.output.close()
+            } catch (e: Throwable) {
+                pipe.fail(e)
+            } finally {
+                download.wipe()
+            }
+        }, "pano-backup-download").apply { isDaemon = true; start() }
+
+        try {
+            relay.future.coAwait()
+            response.end().coAwait()
+        } catch (e: Throwable) {
+            org.slf4j.LoggerFactory.getLogger(PanelPanoBackupRemoteSnapshotDownloadAPI::class.java).warn("A Pano Backup download broke off: ${e.message}")
+
+            // A reset, not an end: the browser has to see the file as failed, not as complete.
+            runCatching { response.reset() }
+            producer.interrupt()
+        }
 
         return null
     }

@@ -79,21 +79,38 @@ object PanoArcCrypto {
         MessageDigest.isEqual(checkValue(masterKey), expected)
 
     /** Argon2id(passphrase, salt) as a 32-byte master key. The passphrase is UTF-8 encoded. */
-    fun argon2id(passphrase: CharArray, salt: ByteArray, t: Int, mKiB: Int, p: Int): ByteArray =
-        nativeArgon2?.rawHash(t, mKiB, p, passphrase, StandardCharsets.UTF_8, salt)
-            ?: javaArgon2id(passphrase, salt, t, mKiB, p)
+    fun argon2id(passphrase: CharArray, salt: ByteArray, t: Int, mKiB: Int, p: Int): ByteArray {
+        if (!nativeMissing) {
+            try {
+                NativeArgon2.rawHash(passphrase, salt, t, mKiB, p)?.let { return it }
+            } catch (_: LinkageError) {
+                // argon2-jvm is not on this classpath at all (pano-node does not ship it).
+                nativeMissing = true
+            }
+        }
+
+        return javaArgon2id(passphrase, salt, t, mKiB, p)
+    }
+
+    @Volatile
+    private var nativeMissing = false
 
     /**
-     * The native argon2, or null where its library cannot load (Windows on ARM has no bundled build, Termux no
-     * glibc). Probed once with a tiny hash, because the library is only loaded on the first use.
+     * The native argon2, kept in its own class so nothing here touches argon2-jvm's types until it is asked for: a
+     * classpath without the library (pano-node) then only fails this class, and [argon2id] falls back to Java,
+     * instead of failing every use of [PanoArcCrypto]. [engine] is null where the library is there but its native
+     * build cannot load (Windows on ARM, Termux); probed once with a tiny hash.
      */
-    private val nativeArgon2: Argon2Advanced? by lazy {
-        try {
+    private object NativeArgon2 {
+        private val engine: Argon2Advanced? = try {
             Argon2Factory.createAdvanced(Argon2Factory.Argon2Types.ARGON2id, SALT_BYTES, KEY_BYTES)
                 .also { it.rawHash(1, 8, 1, "probe".toCharArray(), StandardCharsets.UTF_8, ByteArray(SALT_BYTES)) }
         } catch (_: Throwable) {
             null
         }
+
+        fun rawHash(passphrase: CharArray, salt: ByteArray, t: Int, mKiB: Int, p: Int): ByteArray? =
+            engine?.rawHash(t, mKiB, p, passphrase, StandardCharsets.UTF_8, salt)
     }
 
     /** The same raw Argon2id (version 0x13) in pure Java: the same key for the same inputs. */

@@ -952,7 +952,12 @@ class NodeDaemon(
 
             connection.reply(
                 message.eventId,
-                backupService.importBackup(message) { ticket, target, maxBytes -> transferService.fetch(ticket, target, maxBytes = maxBytes) }
+                backupService.importBackup(
+                    message,
+                    fetch = { ticket, target, maxBytes -> transferService.fetch(ticket, target, maxBytes = maxBytes) },
+                    receive = { ticket, destination -> transferService.receive(ticket, destination) },
+                    releasePartial = { part -> transferService.releasePartial(part) }
+                )
             )
         }
     }

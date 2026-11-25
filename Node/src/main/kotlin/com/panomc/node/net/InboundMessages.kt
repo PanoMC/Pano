@@ -386,7 +386,9 @@ data class BackupImportMessage(
     val sha256: String? = null,
     val createdAt: Long? = null,
     val scope: String? = null,
-    val fileCount: Long? = null
+    val fileCount: Long? = null,
+    /** Null: one step. `RECEIVE` / `COMMIT` / `ABORT`: a streamed import (protocol 11), see `BackupService.importBackup`. */
+    val stage: String? = null
 )
 
 /**

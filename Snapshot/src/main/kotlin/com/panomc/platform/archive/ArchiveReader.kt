@@ -39,7 +39,15 @@ class ArchiveReader(private val limits: ArchiveLimits = ArchiveLimits()) {
     /** Verifies everything without writing anything. */
     fun verify(input: InputStream): ArchiveManifest = read(input, null)
 
-    private fun read(input: InputStream, target: File?): ArchiveManifest {
+    /**
+     * Reads the archive as it streams, handing each entry to the stream [sink] returns for its name (null = read and
+     * checked, kept nowhere). Every entry is checked exactly as [extract] checks it, and the manifest is verified once
+     * the archive ended: what [sink] received is only trustworthy when this returns. [sink]'s streams are closed after
+     * their entry.
+     */
+    fun stream(input: InputStream, sink: (name: String) -> OutputStream?): ArchiveManifest = read(input, null, sink)
+
+    private fun read(input: InputStream, target: File?, sinkFor: ((String) -> OutputStream?)? = null): ArchiveManifest {
         val actual = LinkedHashMap<String, ArchiveEntry>()
         val buffer = ByteArray(BUFFER_SIZE)
         var manifestBytes: ByteArray? = null
@@ -76,7 +84,7 @@ class ArchiveReader(private val limits: ArchiveLimits = ArchiveLimits()) {
                     throw PanoArcException(Code.INVALID_ARCHIVE, "Duplicate entry $name.")
                 }
 
-                val sink = target?.let { open(it, name) }
+                val sink = if (sinkFor != null) sinkFor(name) else target?.let { open(it, name) }
                 val digest = MessageDigest.getInstance("SHA-256")
                 var size = 0L
 

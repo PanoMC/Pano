@@ -220,6 +220,38 @@ class PanoSnapshotTest {
     }
 
     @Test
+    fun `a server snapshot streams into a node as the zip it was`(): Unit = runBlocking {
+        val region = Random(17).nextBytes(96 * 1024)
+        val zip = serverZip(region)
+        val sent = ArrayList<String>()
+        val source = McServerBackupSource(
+            4, "server-uuid-4", "b-1", JsonObject().put("id", "b-1").put("name", "Hourly").put("mode", "SNAPSHOT").put("scope", "ALL"),
+            direct = fakeNode(zip, sent)
+        ) { error("A direct upload never pulls the backup to Pano.") }
+
+        val job = awaitJob(service.startMcUpload(source))
+        val out = java.io.ByteArrayOutputStream()
+        var meta: JsonObject? = null
+
+        val imported = awaitJob(service.startMcImport(job.remoteId!!, null, 9, object : McServerBackupImporter {
+            override suspend fun import(serverId: Long, zip: File, meta: JsonObject, onProgress: (Long) -> Unit): String = error("streamed only")
+
+            override suspend fun canStream(serverId: Long) = true
+
+            override suspend fun importStream(serverId: Long, declaredSize: Long?, produce: (java.io.OutputStream) -> JsonObject, onProgress: (Long) -> Unit): String {
+                meta = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { produce(out) }
+
+                return "streamed"
+            }
+        }, snapshot = true))
+
+        assertEquals(PanoBackupJob.Status.DONE, imported.status, imported.error + " " + imported.message)
+        assertArrayEquals(region, entries(out.toByteArray()).getValue("world/region/r.0.0.mca"))
+        assertEquals("Hourly", meta!!.getString("name"))
+        assertTrue(leftovers().isEmpty(), "the packs are gone: ${leftovers()}")
+    }
+
+    @Test
     fun `the node gets the server's own repository key, never the Pano's`(): Unit = runBlocking {
         val zip = serverZip(Random(3).nextBytes(64 * 1024))
         val sent = ArrayList<String>()
@@ -385,17 +417,17 @@ class PanoSnapshotTest {
         assertEquals(PanoBackupJob.Type.DOWNLOAD, job.type)
         assertTrue(runner.restored.isEmpty(), "nothing is restored by a download")
 
-        val download = service.takeDownload(job.id)!!
-
-        assertTrue(download.fileName.endsWith(".panoarc"), download.fileName)
-        assertTrue(download.file.isFile && download.file.length() > 0)
-        assertEquals(listOf(download.file.name), leftovers(), "only the archive is left, no work folder")
+        assertTrue(leftovers().isEmpty(), "nothing is built ahead: ${leftovers()}")
         assertNull(service.takeDownload("00000000-0000-4000-8000-000000000000"), "another job id gets nothing")
 
-        service.discardDownload(job.id)
+        val download = service.takeDownload(job.id)!!
+        val archive = java.io.ByteArrayOutputStream().also { download.write(it) }.toByteArray()
 
-        assertNull(service.takeDownload(job.id))
-        assertTrue(leftovers().isEmpty(), "removed once sent: ${leftovers()}")
+        assertTrue(download.fileName.endsWith(".panoarc"), download.fileName)
+        assertTrue(archive.isNotEmpty())
+        com.panomc.platform.archive.PanoArchive.verify(archive.inputStream(), com.panomc.platform.archive.PanoArcKeys.NONE)
+        assertNull(service.takeDownload(job.id), "taken once")
+        assertTrue(leftovers().isEmpty(), "the scratch goes once sent: ${leftovers()}")
     }
 
     @Test

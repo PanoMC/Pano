@@ -528,6 +528,70 @@ class PanoRemoteBackupServiceTest {
         assertNull(received)
     }
 
+    /** An importer whose node takes the backup as a stream, like a protocol 11 node. */
+    private class StreamingImporter : McServerBackupImporter {
+        var received: ByteArray? = null
+        var meta: JsonObject? = null
+        var declared: Long? = null
+
+        override suspend fun import(serverId: Long, zip: File, meta: JsonObject, onProgress: (Long) -> Unit): String =
+            error("A streaming node never gets a file built on Pano.")
+
+        override suspend fun canStream(serverId: Long) = true
+
+        override suspend fun importStream(
+            serverId: Long,
+            declaredSize: Long?,
+            produce: (java.io.OutputStream) -> JsonObject,
+            onProgress: (Long) -> Unit
+        ): String {
+            val out = java.io.ByteArrayOutputStream()
+
+            declared = declaredSize
+            meta = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { produce(out) }
+            received = out.toByteArray()
+
+            return "streamed-1"
+        }
+    }
+
+    @Test
+    fun `an encrypted mc-server backup streams into a node without touching Pano's disk`(): Unit = runBlocking {
+        service.setPassphrase(passphrase.toCharArray())
+
+        val zip = Random(21).nextBytes(300_000)
+        val meta = JsonObject().put("id", "b-1").put("name", "Before").put("scope", "WORLDS").put("sha256", "abc")
+        val uploaded = awaitJob(service.startMcUpload(McServerBackupSource(4, "server-uuid-4", "b-1", meta) { it.writeBytes(zip) }))
+        val importer = StreamingImporter()
+
+        val job = awaitJob(service.startMcImport(uploaded.remoteId!!, null, 9, importer))
+
+        assertEquals(PanoBackupJob.Status.DONE, job.status, job.error + " " + job.message)
+        assertEquals("streamed-1", job.backupId)
+        assertArrayEquals(zip, importer.received, "the node got the zip, decrypted on the way")
+        assertEquals("WORLDS", importer.meta!!.getString("scope"), "and the meta read at the archive's end")
+        assertTrue((importer.declared ?: 0L) > 0, "the node's disk check gets the archive's size")
+        assertTrue(job.bytesDone > 0 && job.bytesDone == job.bytesTotal, "the job followed the download: ${job.bytesDone}/${job.bytesTotal}")
+        assertTrue(tempLeftovers().isEmpty(), "nothing on Pano's disk: ${tempLeftovers()}")
+
+        // A wrong passphrase is refused from the header, before a byte goes to the node.
+        val wrongImporter = StreamingImporter()
+        val wrong = awaitJob(service.startMcImport(uploaded.remoteId!!, "not the passphrase".toCharArray(), 9, wrongImporter))
+
+        assertEquals(PanoBackupJob.Status.FAILED, wrong.status)
+        assertEquals("WRONG_PASSPHRASE", wrong.error)
+        assertNull(wrongImporter.received)
+    }
+
+    @Test
+    fun `a full Pano disk stops a download with NOT_ENOUGH_SPACE`() {
+        val guard = com.panomc.platform.backup.PanoDiskGuard(temp) { 100L * 1024 * 1024 }
+        val error = org.junit.jupiter.api.assertThrows<com.panomc.platform.backup.PanoDiskFullException> { guard.require(1) }
+
+        assertEquals("NOT_ENOUGH_SPACE", com.panomc.platform.backup.PanoBackupService.describe(PanoHostException("DOWNLOAD_FAILED", cause = error)).first)
+        assertEquals(100L * 1024 * 1024, error.details().getLong("free"))
+    }
+
     @Test
     fun `uploads an earlier run left half done are removed once, before anything is uploaded`(): Unit = runBlocking {
         val client = PanoHostClient({ host.baseUrl }, { token }, { PanoIdentity(INSTANCE_ID, "My Server") }, RetryPolicy(3, 5))
@@ -620,13 +684,16 @@ class PanoRemoteBackupServiceTest {
         assertEquals(PanoBackupJob.Type.DOWNLOAD, job.type)
         assertEquals(PanoBackupJob.Status.DONE, job.status, job.error)
 
+        assertTrue(tempLeftovers().isEmpty(), "nothing is built ahead on Pano's disk: ${tempLeftovers()}")
+
         val download = service.takeDownload(job.id)!!
+        val received = java.io.ByteArrayOutputStream().also { download.write(it) }
 
-        assertArrayEquals(zip, download.file.readBytes())
+        download.wipe()
+
+        assertArrayEquals(zip, received.toByteArray(), "the zip is decrypted on its way to the browser")
         assertEquals("Before-the update.zip", download.fileName)
-
-        service.discardDownload(job.id)
-
+        assertNull(service.takeDownload(job.id), "a download is taken once")
         assertTrue(tempLeftovers().isEmpty(), "temp files removed: ${tempLeftovers()}")
     }
 

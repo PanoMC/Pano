@@ -62,6 +62,26 @@ class SnapshotRestoreArchive(
 
     /** Builds the archive into [target] and returns its manifest. */
     fun build(target: File): ArchiveManifest {
+        target.absoluteFile.parentFile?.mkdirs()
+
+        return com.panomc.platform.backup.PanoDiskGuard.of(target).wrap(target.outputStream()).use { build(it) }
+    }
+
+    /** Reads and checks the snapshot's manifest only: whether [build] could start. */
+    fun checkReadable() {
+        dir.mkdirs()
+
+        val manifest = readManifest()
+        val metaPath = if (scope == McServerSnapshot.SCOPE) McServerSnapshot.META_PATH else SnapshotArc.META_PATH
+
+        if (manifest.entries.none { it.p == metaPath }) throw broken("the snapshot has no $metaPath")
+    }
+
+    /**
+     * Builds the archive into [output] as it is read (a download going straight to the browser) and returns its
+     * manifest. Only the packs being read and the compressed database dump touch the disk. [output] is not closed.
+     */
+    fun build(output: java.io.OutputStream): ArchiveManifest {
         dir.mkdirs()
 
         val manifest = readManifest()
@@ -84,7 +104,7 @@ class SnapshotRestoreArchive(
         if (!SanitisedSqlImporter.PREFIX.matches(meta.dbPrefix)) throw broken("the snapshot has no valid meta/pano.json")
 
         val gz = File(dir, "dump.sql.gz")
-        val writer = ArchiveWriter(target.outputStream().buffered(256 * 1024))
+        val writer = ArchiveWriter(ArchiveWriter.nonClosing(output).buffered(256 * 1024))
 
         try {
             appFiles.forEach { entry ->
@@ -92,7 +112,7 @@ class SnapshotRestoreArchive(
                 onProgress(minOf(readBytes, total), total)
             }
 
-            GZIPOutputStream(gz.outputStream().buffered(64 * 1024), 64 * 1024).use { gzip -> entryStream(dumpEntry).copyTo(gzip, 64 * 1024) }
+            GZIPOutputStream(com.panomc.platform.backup.PanoDiskGuard.of(gz).wrap(gz.outputStream()).buffered(64 * 1024), 64 * 1024).use { gzip -> entryStream(dumpEntry).copyTo(gzip, 64 * 1024) }
 
             writer.addFile(ArchiveManifest.DB_DUMP_ENTRY, gz)
             gz.delete()
@@ -122,6 +142,17 @@ class SnapshotRestoreArchive(
      * at its path inside the server, directories included. Returns the backup's meta (`meta/backup.json`).
      */
     fun buildServerZip(target: File): JsonObject {
+        target.absoluteFile.parentFile?.mkdirs()
+
+        return com.panomc.platform.backup.PanoDiskGuard.of(target).wrap(target.outputStream()).use { buildServerZip(it) }
+    }
+
+    /**
+     * [buildServerZip] into [output] as it is read (straight to a node or a browser): only the packs being read touch
+     * the disk. The meta is read first and handed to [onMeta] before a byte of the zip is written. [output] is not
+     * closed.
+     */
+    fun buildServerZip(output: java.io.OutputStream, onMeta: (JsonObject) -> Unit = {}): JsonObject {
         check(scope == McServerSnapshot.SCOPE) { "Not a server snapshot reader." }
 
         dir.mkdirs()
@@ -142,8 +173,10 @@ class SnapshotRestoreArchive(
         val total = maxOf(manifest.logicalBytes, 1L)
         val meta = JsonObject(String(entryStream(metaEntry).readBytes(), Charsets.UTF_8))
 
+        onMeta(meta)
+
         try {
-            java.util.zip.ZipOutputStream(target.outputStream().buffered(256 * 1024)).use { zip ->
+            java.util.zip.ZipOutputStream(ArchiveWriter.nonClosing(output).buffered(256 * 1024)).use { zip ->
                 serverEntries.forEach { entry ->
                     val name = entry.p.removePrefix(prefix) + if (entry.isDirectory) "/" else ""
                     val zipEntry = java.util.zip.ZipEntry(name)

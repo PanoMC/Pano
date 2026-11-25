@@ -85,10 +85,11 @@ class PanoBackupUploader(
                 MODE_SNAPSHOT -> uploadSnapshot(message, zip, meta, scratch, pano)
                 else -> FileService.failure(ERROR_UNKNOWN_MODE)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable: an Error (a class missing from this jar) must still be answered, or Pano's job waits forever.
             logger.warn("Could not send backup $backupId of $uuid to Pano Backup: ${e.message}")
 
-            FileService.failure(e.message?.takeIf { it.isNotBlank() } ?: ERROR_UPLOAD_FAILED)
+            FileService.failure(e.message?.takeIf { it.isNotBlank() && e is Exception } ?: ERROR_UPLOAD_FAILED)
         } finally {
             SafeDelete.tree(scratch)
         }

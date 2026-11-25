@@ -22,6 +22,11 @@ import com.panomc.platform.node.ManagedServerFileClient
 import com.panomc.platform.node.message.TransferPullMessage
 import com.panomc.platform.node.transfer.TransferDirection
 import com.panomc.platform.node.transfer.TransferTicketStore
+import com.panomc.platform.node.transfer.StreamPipe
+import com.panomc.platform.node.transfer.UploadRendezvous
+import com.panomc.platform.node.transfer.UploadSource
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import com.panomc.platform.route.api.panel.server.backups.PanelDownloadServerBackupAPI
 import com.panomc.platform.server.backup.BackupMode
 import com.panomc.platform.server.backup.ServerBackupStatus
@@ -48,6 +53,7 @@ import org.springframework.stereotype.Component
 @Component
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 class McServerBackupSources(
+    private val vertx: io.vertx.core.Vertx,
     private val databaseManager: DatabaseManager,
     private val fileClient: ManagedServerFileClient,
     private val transferTicketStore: TransferTicketStore,
@@ -136,8 +142,32 @@ class McServerBackupSources(
      * The row remembers [panoBackupId], the copy it came from. With [restore] the server is then restored from it, the
      * way its Backups page restores one (a safety copy first; the server must be stopped: `SERVER_NOT_STOPPED`).
      */
-    fun importer(userId: Long, panoBackupId: String? = null, restore: Boolean = false) = McServerBackupImporter { serverId, zip, meta, onProgress ->
-        val sqlClient = databaseManager.getSqlClient()
+    fun importer(userId: Long, panoBackupId: String? = null, restore: Boolean = false) = object : McServerBackupImporter {
+        override suspend fun import(serverId: Long, zip: java.io.File, meta: JsonObject, onProgress: (Long) -> Unit): String =
+            importFile(userId, panoBackupId, restore, serverId, zip, meta, onProgress)
+
+        override suspend fun canStream(serverId: Long): Boolean {
+            val sqlClient = databaseManager.getSqlClient()
+            val target = runCatching { fileClient.resolve(serverId, sqlClient, ServerFeature.BACKUPS_CREATE) }.getOrNull() ?: return false
+            val nodeId = target.nodeId ?: return false
+
+            if (target.source != ServerFeatureSource.NODE) return false
+
+            val node = databaseManager.nodeDao.getById(nodeId, sqlClient) ?: return false
+
+            return node.protocolVersion >= NodeProtocol.STREAMED_IMPORT_VERSION
+        }
+
+        override suspend fun importStream(
+            serverId: Long,
+            declaredSize: Long?,
+            produce: (java.io.OutputStream) -> JsonObject,
+            onProgress: (Long) -> Unit
+        ): String = importStreamed(userId, panoBackupId, restore, serverId, declaredSize, produce, onProgress)
+    }
+
+    /** The node that keeps server [serverId]'s backups, refused when there is none or it is too old to import. */
+    private suspend fun importTarget(serverId: Long, sqlClient: SqlClient): ManagedServerFileClient.Target {
         val target = fileClient.resolve(serverId, sqlClient, ServerFeature.BACKUPS_CREATE)
         val nodeId = target.nodeId
 
@@ -150,6 +180,22 @@ class McServerBackupSources(
         if (node == null || node.protocolVersion < MIN_IMPORT_PROTOCOL) {
             throw PanoHostException(NODE_TOO_OLD, message = "Update this server's node to bring backups into it.")
         }
+
+        return target
+    }
+
+    private suspend fun importFile(
+        userId: Long,
+        panoBackupId: String?,
+        restore: Boolean,
+        serverId: Long,
+        zip: java.io.File,
+        meta: JsonObject,
+        onProgress: (Long) -> Unit
+    ): String {
+        val sqlClient = databaseManager.getSqlClient()
+        val target = importTarget(serverId, sqlClient)
+        val nodeId = target.nodeId!!
 
         val size = zip.length()
         val sha256 = withContext(Dispatchers.IO) { PanoHostClient.sha256(zip) }
@@ -221,7 +267,171 @@ class McServerBackupSources(
 
         if (restore) restoreImported(serverId, backupId, userId)
 
-        backupId
+        return backupId
+    }
+
+    /**
+     * The streamed import (protocol [NodeProtocol.STREAMED_IMPORT_VERSION]): the node takes the bytes [produce] writes
+     * as they come (stage RECEIVE, through an upload ticket joined to a [StreamPipe]), Pano keeps none of them. Once
+     * [produce] returned the verified meta, the node's checksum is compared with it and the file committed with that
+     * meta; anything that fails on the way deletes what the node received.
+     */
+    private suspend fun importStreamed(
+        userId: Long,
+        panoBackupId: String?,
+        restore: Boolean,
+        serverId: Long,
+        declaredSize: Long?,
+        produce: (java.io.OutputStream) -> JsonObject,
+        onProgress: (Long) -> Unit
+    ): String {
+        val sqlClient = databaseManager.getSqlClient()
+        val target = importTarget(serverId, sqlClient)
+        val nodeId = target.nodeId!!
+        val backupId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        val upload = UploadRendezvous(declaredSize)
+        val pipe = StreamPipe(vertx)
+
+        val ticket = transferTicketStore.issue(
+            userId = userId,
+            serverId = serverId,
+            nodeId = nodeId,
+            serverUuid = target.serverUuid,
+            path = PanelDownloadServerBackupAPI.VIRTUAL_PREFIX + backupId,
+            direction = TransferDirection.UPLOAD,
+            fileName = "$backupId.zip",
+            ttlMs = TICKET_TTL_MS,
+            upload = upload
+        )
+
+        upload.source.complete(UploadSource(pipe.stream, "$backupId.zip"))
+
+        fun stage(stage: String, meta: JsonObject? = null, size: Long? = null, sha256: String? = null) = BackupImportMessage(
+            serverUuid = target.serverUuid,
+            backupId = backupId,
+            ticket = ticket.id,
+            name = (meta?.getString("name")?.trim()?.takeIf { it.isNotEmpty() } ?: "Pano Backup").take(NAME_LENGTH),
+            size = size,
+            sha256 = sha256,
+            createdAt = now,
+            scope = (BackupScope.fromId(meta?.getString("scope")) ?: BackupScope.ALL).name,
+            fileCount = (meta?.getValue("fileCount") as? Number)?.toLong(),
+            stage = stage
+        )
+
+        val (meta, received) = try {
+            coroutineScope {
+                val producer = async(Dispatchers.IO) {
+                    try {
+                        CountingOutputStream(pipe.output, onProgress).use { produce(it) }
+                    } catch (e: Throwable) {
+                        pipe.fail(e)
+
+                        throw e
+                    }
+                }
+
+                val reply = try {
+                    fileClient.request(target, stage(BackupImportMessage.STAGE_RECEIVE), STREAMED_IMPORT_TIMEOUT_MS)
+                } catch (e: Throwable) {
+                    // The node stopped taking the bytes (its disk, a crash): the reading side ends, the producer's
+                    // next write fails. Its own error, when it had one first, is the better reason.
+                    pipe.cancel(e)
+
+                    val produced = runCatching { producer.await() }.exceptionOrNull()
+
+                    throw produced?.takeIf { it !is java.io.IOException || it is com.panomc.platform.archive.PanoArcException } ?: e
+                }
+
+                producer.await() to reply
+            }
+        } catch (e: Throwable) {
+            abortStreamed(target, stage(BackupImportMessage.STAGE_ABORT))
+
+            throw importError(e)
+        } finally {
+            transferTicketStore.discard(ticket)
+        }
+
+        val size = received.getLong("sizeBytes") ?: 0L
+        val sha256 = received.getString("sha256") ?: ""
+        val expected = meta.getString("sha256")
+
+        // An archive's meta names the zip it was made of; a zip rebuilt from a snapshot has none to compare with.
+        if (expected != null && meta.getString("mode") != BackupMode.SNAPSHOT.name && !expected.equals(sha256, ignoreCase = true)) {
+            abortStreamed(target, stage(BackupImportMessage.STAGE_ABORT))
+
+            throw PanoHostException(PanoHostException.INTEGRITY_FAILED, message = "The backup that reached the node does not match its checksum.")
+        }
+
+        try {
+            fileClient.request(target, stage(BackupImportMessage.STAGE_COMMIT, meta, size, sha256))
+        } catch (e: Throwable) {
+            abortStreamed(target, stage(BackupImportMessage.STAGE_ABORT))
+
+            throw importError(e)
+        }
+
+        val scope = BackupScope.fromId(meta.getString("scope")) ?: BackupScope.ALL
+
+        databaseManager.serverBackupDao.add(
+            ServerBackup(
+                uuid = backupId,
+                serverId = serverId,
+                nodeId = nodeId,
+                name = (meta.getString("name")?.trim()?.takeIf { it.isNotEmpty() } ?: "Pano Backup").take(NAME_LENGTH),
+                sizeBytes = size,
+                sha256 = sha256,
+                status = ServerBackupStatus.READY,
+                createdBy = userId,
+                createdAt = now,
+                mode = BackupMode.FULL,
+                scope = scope,
+                fileCount = (meta.getValue("fileCount") as? Number)?.toLong(),
+                panoBackupId = panoBackupId
+            ),
+            databaseManager.getSqlClient()
+        )
+
+        panelRealtimeHub.pushServerBackupsChanged(serverId)
+
+        if (restore) restoreImported(serverId, backupId, userId)
+
+        return backupId
+    }
+
+    private suspend fun abortStreamed(target: ManagedServerFileClient.Target, message: BackupImportMessage) {
+        runCatching { fileClient.request(target, message) }
+    }
+
+    /** What a failed streamed import reports: the node's full disk as `NOT_ENOUGH_SPACE` with its numbers. */
+    private fun importError(e: Throwable): Throwable = when (e) {
+        is PanoHostException, is com.panomc.platform.archive.PanoArcException, is PanoDiskFullException -> e
+        is com.panomc.platform.error.NotEnoughSpace -> PanoHostException(
+            PanoDiskFullException.CODE,
+            extras = (runCatching { JsonObject(e.encode()).getJsonObject("error")?.getJsonObject("details") }.getOrNull() ?: JsonObject())
+                .put("where", "node"),
+            message = "The server's disk does not have room for this backup.",
+            cause = e
+        )
+        else -> PanoHostException(IMPORT_FAILED, message = e.message, cause = e)
+    }
+
+    /** Counts what passes, for the job's progress. */
+    private class CountingOutputStream(out: java.io.OutputStream, private val onProgress: (Long) -> Unit) : java.io.FilterOutputStream(out) {
+        private var count = 0L
+
+        override fun write(b: Int) {
+            out.write(b)
+            onProgress(++count)
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            out.write(b, off, len)
+            count += len
+            onProgress(count)
+        }
     }
 
     /**
@@ -330,6 +540,9 @@ class McServerBackupSources(
         private fun uploadTimeoutMs(size: Long): Long = maxOf(30 * 60 * 1000L, size / (128L * 1024) * 1000L)
 
         /** The slowest link an import is still waited for: 256 KB a second, never less than ten minutes. */
+        /** A streamed import ends when its bytes stop coming (the relay's idle watchdog), not after a total time. */
+        private const val STREAMED_IMPORT_TIMEOUT_MS = 48L * 60 * 60 * 1000
+
         private fun importTimeoutMs(size: Long): Long = maxOf(10 * 60 * 1000L, size / (256L * 1024) * 1000L)
 
         const val FETCH_FAILED = "SERVER_BACKUP_FETCH_FAILED"

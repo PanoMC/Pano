@@ -487,7 +487,14 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
         val key = context.request().path().removePrefix("/s3/")
         val bytes = if (key.startsWith("snap/")) snapshotRepo.get(key) else objects[key]
 
-        if (bytes == null) context.response().setStatusCode(404).end() else context.response().end(Buffer.buffer(bytes))
+        val range = context.request().getHeader("Range")?.removePrefix("bytes=")?.substringBefore('-')?.toIntOrNull()
+
+        when {
+            bytes == null -> context.response().setStatusCode(404).end()
+            // A resumed download asks for the rest (a `Range` request), as S3 answers it.
+            range != null && range in 0..bytes.size -> context.response().setStatusCode(206).end(Buffer.buffer(bytes.copyOfRange(range, bytes.size)))
+            else -> context.response().end(Buffer.buffer(bytes))
+        }
     }
 
     class MemoryStore(private val host: FakePanoHost) : ArchiveStore {
@@ -508,7 +515,7 @@ class FakePanoHost(private val vertx: Vertx, val port: Int, storeFactory: ((Fake
 
             if ((1..count).any { !received.containsKey(it) }) return null
 
-            val bytes = (1..count).fold(ByteArray(0)) { all, n -> all + received.getValue(n) }
+            val bytes = java.io.ByteArrayOutputStream().also { out -> (1..count).forEach { out.write(received.getValue(it)) } }.toByteArray()
 
             host.objects[key] = bytes
 

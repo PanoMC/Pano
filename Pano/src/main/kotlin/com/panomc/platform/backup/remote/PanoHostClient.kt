@@ -410,6 +410,12 @@ class PanoHostClient(
     suspend fun download(url: String, target: File, expectedSize: Long?, expectedSha256: String?, onProgress: (Long) -> Unit = {}) {
         val part = File(target.parentFile, target.name + ".part")
 
+        // Refused before a byte comes when the file cannot fit with Pano's reserve; while it comes, the guard on the
+        // file stops it once the disk runs low anyway.
+        if (expectedSize != null) {
+            withContext(Dispatchers.IO) { com.panomc.platform.backup.PanoDiskGuard.of(target).require(expectedSize) }
+        }
+
         try {
             withRetry(PanoHostException.DOWNLOAD_FAILED) { get(url, part, onProgress) }
 
@@ -427,6 +433,202 @@ class PanoHostClient(
         }
     }
 
+    /**
+     * [url] as a stream, read on the caller's (IO) thread and kept on no disk: a Pano Backup archive going straight on to
+     * a node or a browser. A connection that breaks or stalls ([RetryPolicy.stallMs]) is opened again from the byte it
+     * stopped at (a `Range` request), with a fresh link from [refreshUrl] when there is one, up to [RetryPolicy.attempts]
+     * times in a row. The size and sha256, when given, are checked at the end: the read that would return the end
+     * throws [PanoHostException.INTEGRITY_FAILED] instead, so whoever passes the bytes on can still fail its side.
+     */
+    fun openStream(
+        url: String,
+        expectedSize: Long?,
+        expectedSha256: String?,
+        refreshUrl: (suspend () -> String)? = null,
+        onProgress: (Long) -> Unit = {}
+    ): InputStream = ResumingDownload(url, expectedSize, expectedSha256, refreshUrl, onProgress)
+
+    /** The first [bytes] of [url] (a `Range` request): an archive's header, to check a passphrase before the download. */
+    suspend fun readPrefix(url: String, bytes: Int): ByteArray = withContext(Dispatchers.IO) {
+        val request = HttpRequest.newBuilder(URI(url))
+            .timeout(Duration.ofSeconds(60))
+            .header("Range", "bytes=0-${bytes - 1}")
+            .GET()
+            .build()
+        val response = http.send(request, HttpResponse.BodyHandlers.ofInputStream())
+
+        response.body().use { input ->
+            if (response.statusCode() !in 200..299) {
+                checkStorageStatus(response.statusCode(), "download")
+            }
+
+            input.readNBytes(bytes)
+        }
+    }
+
+    private inner class ResumingDownload(
+        private var url: String,
+        private val expectedSize: Long?,
+        private val expectedSha256: String?,
+        private val refreshUrl: (suspend () -> String)?,
+        private val onProgress: (Long) -> Unit
+    ) : InputStream() {
+        private val digest = MessageDigest.getInstance("SHA-256")
+        private var current: InputStream? = null
+        private var position = 0L
+        private var failures = 0
+        private var finished = false
+        private var closed = false
+
+        @Volatile
+        private var lastRead = System.nanoTime()
+
+        @Volatile
+        private var stalled = false
+
+        // A read that brings nothing for stallMs is broken off by closing its connection, which ends the blocked read.
+        private val watchdog = STALL_WATCH.scheduleAtFixedRate({
+            val open = current
+
+            if (open != null && System.nanoTime() - lastRead > TimeUnit.MILLISECONDS.toNanos(retry.stallMs)) {
+                stalled = true
+                runCatching { open.close() }
+            }
+        }, STREAM_WATCH_MS, STREAM_WATCH_MS, TimeUnit.MILLISECONDS)
+
+        override fun read(): Int {
+            val one = ByteArray(1)
+
+            return if (read(one, 0, 1) < 0) -1 else one[0].toInt() and 0xFF
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (len == 0) return 0
+            if (closed) throw IOException("The download was closed.")
+            if (finished) return -1
+
+            while (true) {
+                val input = current ?: connect()
+                val read = try {
+                    lastRead = System.nanoTime()
+
+                    input.read(b, off, len)
+                } catch (e: IOException) {
+                    if (closed) throw e
+
+                    retryAfter(if (stalled) RetryableException("The download stopped coming for ${retry.stallMs / 1000} s.", e) else e)
+
+                    continue
+                }
+
+                if (read < 0) {
+                    if (expectedSize != null && position < expectedSize) {
+                        retryAfter(IOException("The connection ended at $position of $expectedSize bytes."))
+
+                        continue
+                    }
+
+                    finish()
+
+                    return -1
+                }
+
+                position += read
+                failures = 0
+                lastRead = System.nanoTime()
+                digest.update(b, off, read)
+
+                if (expectedSize != null && position > expectedSize) {
+                    throw PanoHostException(PanoHostException.INTEGRITY_FAILED, message = "The download is larger than it should be.")
+                }
+
+                onProgress(position)
+
+                return read
+            }
+        }
+
+        private fun connect(): InputStream {
+            while (true) {
+                val builder = HttpRequest.newBuilder(URI(url)).timeout(Duration.ofMinutes(5)).GET()
+
+                if (position > 0) {
+                    builder.header("Range", "bytes=$position-")
+                }
+
+                val response = try {
+                    http.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream())
+                } catch (e: IOException) {
+                    retryAfter(e)
+
+                    continue
+                }
+
+                val status = response.statusCode()
+
+                if (status !in 200..299 || (position > 0 && status != 206)) {
+                    runCatching { response.body().close() }
+
+                    val failure = if (status in 200..299) {
+                        IOException("The storage did not resume the download (HTTP $status).")
+                    } else {
+                        runCatching { checkStorageStatus(status, "download") }.exceptionOrNull() ?: IOException("HTTP $status")
+                    }
+
+                    retryAfter(failure)
+
+                    continue
+                }
+
+                stalled = false
+                lastRead = System.nanoTime()
+                current = response.body()
+
+                return response.body()
+            }
+        }
+
+        /** Gives up after [RetryPolicy.attempts] failures in a row; otherwise waits, takes a fresh link and goes on. */
+        private fun retryAfter(cause: Throwable) {
+            runCatching { current?.close() }
+            current = null
+            stalled = false
+
+            if (++failures >= retry.attempts) {
+                close()
+
+                throw cause as? PanoHostException ?: PanoHostException(PanoHostException.DOWNLOAD_FAILED, message = cause.message, cause = cause)
+            }
+
+            Thread.sleep(retry.baseDelayMs shl (failures - 1).coerceAtMost(10))
+
+            refreshUrl?.let { refresh -> runCatching { runBlocking { refresh() } }.getOrNull()?.let { url = it } }
+        }
+
+        private fun finish() {
+            close()
+
+            if (expectedSize != null && position != expectedSize) {
+                throw PanoHostException(PanoHostException.INTEGRITY_FAILED, message = "The download has the wrong size.")
+            }
+
+            if (expectedSha256 != null && !digest.digest().joinToString("") { "%02x".format(it) }.equals(expectedSha256, ignoreCase = true)) {
+                throw PanoHostException(PanoHostException.INTEGRITY_FAILED, message = "The download has the wrong checksum.")
+            }
+
+            finished = true
+        }
+
+        override fun close() {
+            if (closed) return
+
+            closed = true
+            watchdog.cancel(false)
+            runCatching { current?.close() }
+            current = null
+        }
+    }
+
     private class RetryableException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
     private suspend fun withRetry(code: String, block: suspend () -> Unit) {
@@ -439,6 +641,9 @@ class PanoHostClient(
                 block()
 
                 return
+            } catch (e: com.panomc.platform.backup.PanoDiskFullException) {
+                // A full disk stays full: retrying only fills it again.
+                throw e
             } catch (e: RetryableException) {
                 if (attempt >= retry.attempts) {
                     throw PanoHostException(code, message = e.message, cause = e)
@@ -489,7 +694,7 @@ class PanoHostClient(
                     checkStorageStatus(response.statusCode(), "download")
                 }
 
-                target.outputStream().buffered(256 * 1024).use { output ->
+                com.panomc.platform.backup.PanoDiskGuard.of(target).wrap(target.outputStream()).buffered(256 * 1024).use { output ->
                     val buffer = ByteArray(256 * 1024)
                     var total = 0L
                     var lastReport = 0L
@@ -618,6 +823,9 @@ class PanoHostClient(
     companion object {
         private const val PROGRESS_STEP = 8L * 1024 * 1024
         private const val SLICE_PROGRESS_STEP = 1L * 1024 * 1024
+
+        /** How often a streamed download is checked for a stall. */
+        private const val STREAM_WATCH_MS = 5_000L
 
         private val STALL_WATCH: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { runnable ->
             Thread(runnable, "pano-backup-download-watch").apply { isDaemon = true }

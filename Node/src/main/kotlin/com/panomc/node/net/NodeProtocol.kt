@@ -44,8 +44,11 @@ object NodeProtocol {
      * 10: `DISK_SPACE` (free bytes where a server's files live), uploads streamed straight from the
      * browser through Pano with no size ceiling (the disk and its 256 MiB reserve are the limit), and
      * an `IMPORT_SERVER` upload unpacked while it arrives: zip, tar, tar.gz/bz2/xz, gz, 7z and rar.
+     *
+     * 11: `BACKUP_IMPORT` in stages (`RECEIVE` / `COMMIT` / `ABORT`): a backup out of Pano Backup is streamed
+     * through Pano without size or checksum known up front, and committed with its meta once Pano verified it.
      */
-    const val VERSION = 10
+    const val VERSION = 11
 
     /**
      * Feature flags announced in `NODE_HELLO.capabilities`, for what a protocol number alone

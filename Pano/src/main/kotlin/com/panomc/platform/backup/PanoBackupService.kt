@@ -294,7 +294,7 @@ class PanoBackupService(
         job.error = code
         job.message = error.message?.take(500)
         job.rolledBack = rolledBack
-        job.details = (error as? PanoHostException)?.extras?.takeIf { !it.isEmpty }
+        job.details = PanoDiskFullException.find(error)?.details() ?: (error as? PanoHostException)?.extras?.takeIf { !it.isEmpty }
         job.status = PanoBackupJob.Status.FAILED
 
         if (code == INTERNAL) {
@@ -342,7 +342,7 @@ class PanoBackupService(
 
         try {
             return withConnection { connection ->
-                val output = withContext(Dispatchers.IO) { file.outputStream().buffered(256 * 1024) }
+                val output = withContext(Dispatchers.IO) { PanoDiskGuard.of(file).wrap(file.outputStream()).buffered(256 * 1024) }
 
                 InstanceArchiver(host.layout, host.dbPrefix(), host.panoVersion, ArchiveSource(hosted = false))
                     .archive(output, encryption, connection, limits)
@@ -357,7 +357,7 @@ class PanoBackupService(
 
         withContext(Dispatchers.IO) { dumpFile.parentFile?.mkdirs() }
 
-        val output = withContext(Dispatchers.IO) { dumpFile.outputStream().buffered(64 * 1024) }
+        val output = withContext(Dispatchers.IO) { PanoDiskGuard.of(dumpFile).wrap(dumpFile.outputStream()).buffered(64 * 1024) }
 
         val result = try {
             PanoNativeDumper(prefix).dump(connection, output)
@@ -605,7 +605,9 @@ class PanoBackupService(
         const val PHASE_APPLYING = "APPLYING"
 
         /** Stable error code for the UI + whether the rollback put the previous state back. */
-        fun describe(error: Throwable): Pair<String, Boolean> = when (error) {
+        fun describe(error: Throwable): Pair<String, Boolean> = if (PanoDiskFullException.find(error) != null) {
+            PanoDiskFullException.CODE to ((error as? PanoBackupException)?.rolledBack ?: false)
+        } else when (error) {
             is PanoArcException -> error.code.name to false
             is PanoHostException -> error.code to false
             is PanoBackupException -> {

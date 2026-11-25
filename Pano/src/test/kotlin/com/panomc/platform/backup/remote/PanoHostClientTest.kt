@@ -217,4 +217,64 @@ class PanoHostClientTest {
             server.stop(0)
         }
     }
+
+    @Test
+    fun `a streamed download that breaks or stalls resumes from its byte and checks the whole`() {
+        val body = Random(6).nextBytes(256 * 1024)
+        val sha256 = java.security.MessageDigest.getInstance("SHA-256").digest(body).joinToString("") { "%02x".format(it) }
+        val ranges = java.util.Collections.synchronizedList(ArrayList<String?>())
+        val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+
+        server.createContext("/file") { exchange ->
+            val range = exchange.requestHeaders.getFirst("Range")
+
+            ranges.add(range)
+
+            val from = range?.removePrefix("bytes=")?.substringBefore('-')?.toInt() ?: 0
+            val length = body.size - from
+
+            exchange.sendResponseHeaders(if (range != null) 206 else 200, length.toLong())
+
+            when (ranges.size) {
+                // First: a third, then the connection drops.
+                1 -> exchange.responseBody.write(body, 0, body.size / 3)
+                // Second: some more, then nothing comes.
+                2 -> {
+                    exchange.responseBody.write(body, from, 1000)
+                    exchange.responseBody.flush()
+                    Thread.sleep(5_000)
+                }
+                else -> exchange.responseBody.write(body, from, length)
+            }
+
+            runCatching { exchange.close() }
+        }
+        server.executor = java.util.concurrent.Executors.newCachedThreadPool()
+        server.start()
+
+        try {
+            val client = PanoHostClient({ host.baseUrl }, { FakePanoHost.TOKEN }, { identity }, RetryPolicy(attempts = 3, baseDelayMs = 10, stallMs = 300))
+            val url = "http://127.0.0.1:${server.address.port}/file"
+            var progress = 0L
+
+            val read = client.openStream(url, body.size.toLong(), sha256) { progress = it }.use { it.readBytes() }
+
+            assertArrayEquals(body, read)
+            assertEquals(body.size.toLong(), progress)
+            assertEquals(null, ranges[0])
+            assertEquals("bytes=${body.size / 3}-", ranges[1], "resumed where the connection dropped")
+            assertEquals("bytes=${body.size / 3 + 1000}-", ranges[2], "and again after the stall")
+
+            // A wrong checksum fails the last read, so whoever passes the bytes on fails its side.
+            ranges.clear()
+            ranges.add("skip")
+            ranges.add("skip")
+
+            assertThrows<PanoHostException> {
+                client.openStream(url, body.size.toLong(), "0".repeat(64)).use { it.readBytes() }
+            }
+        } finally {
+            server.stop(0)
+        }
+    }
 }

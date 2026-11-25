@@ -54,8 +54,18 @@ data class ConnectedAccount(val username: String, val platformId: String) {
  * Every archive/restore/upload runs as the one [PanoBackupService] job (single flight). Not
  * connected → [PanoHostException.CONNECT_REQUIRED].
  */
-/** A snapshot rebuilt into a plain archive, waiting to be downloaded until [expiresAt]. */
-class SnapshotDownload(val jobId: String, val file: File, val fileName: String, val expiresAt: Long)
+/**
+ * A download the panel prepared (the backup exists, the passphrase opens it) and the browser fetches next: nothing is
+ * built ahead, [write] reads the backup out of Pano Backup and writes the file into the stream it gets as the browser
+ * takes it. Taken once; [wipe] forgets the key it holds, whether it was taken or expired after [expiresAt].
+ */
+class PendingDownload(
+    val jobId: String,
+    val fileName: String,
+    val expiresAt: Long,
+    val write: (java.io.OutputStream) -> Unit,
+    val wipe: () -> Unit = {}
+)
 
 class PanoRemoteBackupService(
     private val client: PanoHostClient,
@@ -88,9 +98,8 @@ class PanoRemoteBackupService(
     @Volatile
     private var interruptedChecked = false
 
-    /** The archive of the last snapshot download job, waiting to be fetched by the panel. */
-    @Volatile
-    private var download: SnapshotDownload? = null
+    /** Downloads prepared by a DOWNLOAD job, waiting for the browser to fetch them. */
+    private val downloads = ConcurrentHashMap<String, PendingDownload>()
 
     /** A scheduled run the storage refused (full, or no plan): the next attempt is the next slot, or earlier when the overview changes. */
     private class StorageRefusal(val at: Long, val tierId: String?, val freeBytes: Long?) {
@@ -423,48 +432,67 @@ class PanoRemoteBackupService(
     }
 
     /**
-     * Builds snapshot [id] (any finished snapshot of the account) into a plain `.panoarc` for the admin to download: the
-     * same rebuild as [startSnapshotRestore], but nothing is restored. The file waits in the temp folder for
-     * [takeDownload] for [DOWNLOAD_TTL_MS] (one at a time: the next download job replaces it).
+     * Prepares snapshot [id] (any finished snapshot of the account) as a plain `.panoarc` for the admin to download: the
+     * job only checks the snapshot opens, the archive is rebuilt from its chunks while the browser downloads it
+     * ([takeDownload]), so it never waits on Pano's disk. Only the packs being read and the database dump do.
      */
-    fun startSnapshotDownload(id: String): PanoBackupJob {
-        val temp = tempFile("snapshot-download")
-        val dir = workDir("snapshot-download")
-        var ready = false
-
-        return backups.startTask(PanoBackupJob.Type.DOWNLOAD, cleanup = { deleteTree(dir); if (!ready) delete(temp) }) { job ->
+    fun startSnapshotDownload(id: String): PanoBackupJob =
+        backups.startTask(PanoBackupJob.Type.DOWNLOAD) { job ->
             requireConnected()
-            discardDownload()
 
             job.remoteId = id
             job.phase = PanoBackupService.PHASE_DOWNLOADING
 
-            val session = client.openSnapshot(id)
+            // Its manifest is read now, so a snapshot that cannot be opened fails here and not in the browser.
+            val check = workDir("snapshot-check")
 
-            withContext(Dispatchers.IO) {
-                SnapshotRestoreArchive(client, session, dir) { done, total ->
-                    job.bytesDone = done
-                    job.bytesTotal = total
-                }.build(temp)
+            try {
+                withContext(Dispatchers.IO) { SnapshotRestoreArchive(client, client.openSnapshot(id), check).checkReadable() }
+            } finally {
+                deleteTree(check)
             }
 
-            ready = true
-            download = SnapshotDownload(job.id, temp, "pano-snapshot-${id.take(8)}${PanoBackupStore.EXTENSION}", clock() + DOWNLOAD_TTL_MS)
+            offerDownload(job, "pano-snapshot-${id.take(8)}${PanoBackupStore.EXTENSION}", write = { out ->
+                val dir = workDir("snapshot-download")
+
+                try {
+                    SnapshotRestoreArchive(client, kotlinx.coroutines.runBlocking { client.openSnapshot(id) }, dir).build(out)
+                } finally {
+                    dir.deleteRecursively()
+                }
+            })
         }
+
+    private fun offerDownload(job: PanoBackupJob, fileName: String, write: (java.io.OutputStream) -> Unit, wipe: () -> Unit = {}) {
+        discardExpiredDownloads()
+
+        downloads[job.id] = PendingDownload(job.id, fileName, clock() + DOWNLOAD_TTL_MS, write, wipe)
     }
 
-    /** The archive built by download job [jobId], or null when it is not (or no longer) there. */
-    fun takeDownload(jobId: String, now: Long = clock()): SnapshotDownload? =
-        download?.takeIf { it.jobId == jobId && it.expiresAt > now && it.file.isFile }
+    /** The download prepared by job [jobId], once: null when there is none (any more). */
+    fun takeDownload(jobId: String, now: Long = clock()): PendingDownload? {
+        val download = downloads.remove(jobId) ?: return null
 
-    /** Removes the pending download file, once it was sent or when it is replaced or expired. */
+        if (download.expiresAt <= now) {
+            download.wipe()
+
+            return null
+        }
+
+        return download
+    }
+
+    /** Forgets the download of [jobId] (null = every one) without sending it. */
     fun discardDownload(jobId: String? = null) {
-        val current = download ?: return
+        val taken = if (jobId == null) downloads.keys.toList().mapNotNull { downloads.remove(it) } else listOfNotNull(downloads.remove(jobId))
 
-        if (jobId != null && current.jobId != jobId) return
+        taken.forEach { it.wipe() }
+    }
 
-        download = null
-        current.file.delete()
+    private fun discardExpiredDownloads(now: Long = clock()) {
+        downloads.values.filter { it.expiresAt <= now }.forEach { expired ->
+            if (downloads.remove(expired.jobId, expired)) expired.wipe()
+        }
     }
 
     // Moving out of Pano Host
@@ -740,6 +768,9 @@ class PanoRemoteBackupService(
             job.details = JsonObject().put("serverId", source.serverId).put("backupId", source.backupId)
 
             try {
+                // Fetched here and wrapped into a second file: both are on Pano's disk until the upload.
+                withContext(Dispatchers.IO) { com.panomc.platform.backup.PanoDiskGuard.of(zip).require(source.sizeBytes * 2) }
+
                 job.phase = PanoBackupService.PHASE_FETCHING
                 followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
 
@@ -916,6 +947,8 @@ class PanoRemoteBackupService(
 
             try {
                 if (direct == null) {
+                    withContext(Dispatchers.IO) { com.panomc.platform.backup.PanoDiskGuard.of(zip).require(source.sizeBytes) }
+
                     job.phase = PanoBackupService.PHASE_FETCHING
                     followFile(job, zip, source.sizeBytes) { source.fetch(zip) }
                 }
@@ -1082,9 +1115,11 @@ class PanoRemoteBackupService(
     }
 
     /**
-     * Brings `mc-server` backup [id] (any backup of the account) into managed server [serverId]'s own backups:
-     * download → verify → open with [passphrase] (null = the saved one) → handed to [importer], which pushes the zip to
-     * the server's node (and restores it there when the importer was asked to).
+     * Brings `mc-server` backup [id] (any backup of the account) into managed server [serverId]'s own backups. A node that
+     * takes a stream ([McServerBackupImporter.canStream], protocol 11) gets it straight out of Pano Backup, decrypted with
+     * [passphrase] (null = the saved one) on its way through Pano, which keeps none of it on its disk; an older node gets
+     * the zip the old way: download → verify → open here → pushed to the node (room for both checked first). The
+     * importer restores the server afterwards when it was asked to.
      */
     fun startMcImport(
         id: String,
@@ -1104,6 +1139,18 @@ class PanoRemoteBackupService(
 
             job.details = JsonObject().put("serverId", serverId).put("restore", restore)
 
+            if (importer.canStream(serverId)) {
+                // The node takes it as it is read out of Pano Backup: nothing of it lands on Pano's disk.
+                job.remoteId = id
+                job.phase = PHASE_IMPORTING
+
+                val source = mcStream(job, id, snapshot, key, dir)
+
+                job.backupId = importer.importStream(serverId, source.size, source.write) { }
+
+                return@startTask
+            }
+
             val (zip, meta) = fetchMcZip(job, id, snapshot, key, temp, dir)
 
             job.phase = PHASE_IMPORTING
@@ -1114,27 +1161,89 @@ class PanoRemoteBackupService(
     }
 
     /**
-     * Builds `mc-server` backup [id] back into the zip its node had (an archive opened with [passphrase], null = the saved
-     * one; a snapshot rebuilt from its chunks) for the admin to download: [takeDownload] serves it as `<backup name>.zip`.
+     * Prepares `mc-server` backup [id] for the admin to download as the zip its node had (an archive opened with
+     * [passphrase], null = the saved one; a snapshot rebuilt from its chunks). The job checks the backup is there and the
+     * passphrase opens it; the zip is then produced while the browser downloads it ([takeDownload]), decrypted on the
+     * way, never stored on Pano's disk.
      */
     fun startMcDownload(id: String, passphrase: CharArray?, snapshot: Boolean = false): PanoBackupJob {
-        val temp = tempFile("mc-download")
-        val out = tempFile("mc-download-zip")
-        val dir = workDir("mc-download")
-        val key = passphrase ?: passphraseFile?.read()
-        var ready = false
+        val key = passphrase?.copyOf() ?: passphraseFile?.read()
+        var offered = false
 
-        return backups.startTask(PanoBackupJob.Type.DOWNLOAD, cleanup = { key?.fill('\u0000'); delete(temp); deleteTree(dir); if (!ready) delete(out) }) { job ->
+        return backups.startTask(PanoBackupJob.Type.DOWNLOAD, cleanup = { if (!offered) key?.fill('\u0000') }) { job ->
             requireConnected()
-            discardDownload()
 
-            val (zip, meta) = fetchMcZip(job, id, snapshot, key, temp, dir)
-            val name = (meta.getString("name") ?: "").replace(Regex("[^A-Za-z0-9._ -]+"), "-").trim().take(80).ifEmpty { "server-backup" }
+            job.remoteId = id
+            job.phase = PanoBackupService.PHASE_DOWNLOADING
 
-            withContext(Dispatchers.IO) { java.nio.file.Files.move(zip.toPath(), out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+            val name = mcBackupName(id, snapshot)
+            // Checked now (the backup exists, the passphrase opens it), opened again when the browser comes.
+            mcStream(null, id, snapshot, key, null)
 
-            ready = true
-            download = SnapshotDownload(job.id, out, "$name.zip", clock() + DOWNLOAD_TTL_MS)
+            offerDownload(job, "$name.zip", write = { out ->
+                val dir = workDir("mc-download")
+
+                try {
+                    kotlinx.coroutines.runBlocking { mcStream(null, id, snapshot, key, dir) }.write(out)
+                } finally {
+                    dir.deleteRecursively()
+                }
+            }, wipe = { key?.fill('\u0000') })
+
+            offered = true
+        }
+    }
+
+    /** What `mc-server` backup [id] is called, for its download's file name. */
+    private suspend fun mcBackupName(id: String, snapshot: Boolean): String {
+        val info = runCatching { if (snapshot) null else client.getBackup(id) }.getOrNull()
+        // The summary the upload completed with is kept as the backup's `manifest`.
+        val summary = info?.getJsonObject("manifest") ?: info?.getJsonObject("summary")
+        val name = summary?.getString("backupName") ?: info?.getString("name") ?: ""
+
+        return name.replace(Regex("[^A-Za-z0-9._ -]+"), "-").trim().take(80).ifEmpty { "server-backup-${id.take(8)}" }
+    }
+
+    /** A server backup read out of Pano Backup as a stream: [write] writes the node's zip and returns its meta. */
+    private class McStream(val size: Long?, val write: (java.io.OutputStream) -> JsonObject)
+
+    /**
+     * Opens `mc-server` backup [id] for streaming: an archive's link is fetched and its header checked against [key]
+     * (a wrong or missing passphrase fails here, before any download), a snapshot is opened. [dir] holds a snapshot's
+     * packs while they are read (null: only check). [job], when given, follows the bytes read.
+     */
+    private suspend fun mcStream(job: PanoBackupJob?, id: String, snapshot: Boolean, key: CharArray?, dir: File?): McStream {
+        if (snapshot) {
+            val session = client.openSnapshot(id)
+
+            return McStream(null) { out ->
+                val work = dir ?: throw IllegalStateException("A snapshot needs a work folder.")
+
+                SnapshotRestoreArchive(client, session, work, McServerSnapshot.SCOPE) { done, total ->
+                    job?.bytesDone = done
+                    job?.bytesTotal = total
+                }.buildServerZip(out)
+            }
+        }
+
+        val download = client.downloadBackup(id)
+        val url = download.getString("url") ?: throw PanoHostException(PanoHostException.DOWNLOAD_FAILED)
+        val size = download.getLong("sizeBytes")
+        val sha256 = download.getString("sha256")
+        val prefix = client.readPrefix(url, HEADER_PREFIX_BYTES)
+
+        if (key != null && key.isNotEmpty() && !PanoArcEnvelope.isEnvelope(prefix)) {
+            throw PanoArcException(PanoArcException.Code.TAMPERED, "The backup is not encrypted, but a passphrase was given.")
+        }
+
+        withContext(Dispatchers.IO) { McServerArchive.checkKey(prefix.inputStream(), key) }
+
+        job?.bytesTotal = size ?: 0L
+
+        return McStream(size) { out ->
+            client.openStream(url, size, sha256, refreshUrl = { client.downloadBackup(id).getString("url") ?: url }) { read ->
+                job?.bytesDone = read
+            }.use { input -> McServerArchive.stream(input, key, out) }
         }
     }
 
@@ -1155,6 +1264,11 @@ class PanoRemoteBackupService(
             }
 
             return zip to meta
+        }
+
+        // The archive and the zip it opens into are both here for a moment: room for both is needed up front.
+        client.downloadBackup(id).getLong("sizeBytes")?.let { size ->
+            withContext(Dispatchers.IO) { com.panomc.platform.backup.PanoDiskGuard.of(temp).require(size * 2) }
         }
 
         target.fetch(id, temp) { job.bytesDone = it }
@@ -1195,7 +1309,7 @@ class PanoRemoteBackupService(
      * waits for the next scheduled slot, or for a change of plan / free space seen in the overview.
      */
     suspend fun tick(now: Long = clock()) {
-        download?.takeIf { it.expiresAt <= now }?.let { discardDownload(it.jobId) }
+        discardExpiredDownloads(now)
 
         settleScheduled()
 
@@ -1411,7 +1525,11 @@ class PanoRemoteBackupService(
         private const val EXPORT_DONE = "DONE"
         private const val EXPORT_FAILED = "FAILED"
         /** How long a built snapshot download waits to be fetched. */
+        /** How long a prepared download waits for the browser to start it; once started it runs as long as it takes. */
         const val DOWNLOAD_TTL_MS = 30L * 60 * 1000
+
+        /** Enough of an archive to read its envelope header. */
+        private const val HEADER_PREFIX_BYTES = 64 * 1024
 
         const val EXPORT_POLL_MS = 5_000L
 

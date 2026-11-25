@@ -63,4 +63,20 @@ class McServerDirectRequest(
  */
 fun interface McServerBackupImporter {
     suspend fun import(serverId: Long, zip: File, meta: JsonObject, onProgress: (Long) -> Unit): String
+
+    /** Whether server [serverId]'s node takes a backup as a stream ([importStream]); otherwise the zip is built here first. */
+    suspend fun canStream(serverId: Long): Boolean = false
+
+    /**
+     * Puts a backup into server [serverId] without it ever touching Pano's disk: [produce] writes the node's zip into the
+     * stream it gets, as it reads it out of Pano Backup, and returns the backup's meta once all of it was read and
+     * verified (throwing fails the import, and the node deletes what it received). [declaredSize] is what the node
+     * checks its disk against up front. Returns the id of the backup it became.
+     */
+    suspend fun importStream(
+        serverId: Long,
+        declaredSize: Long?,
+        produce: (java.io.OutputStream) -> JsonObject,
+        onProgress: (Long) -> Unit
+    ): String = throw UnsupportedOperationException("This importer cannot stream.")
 }

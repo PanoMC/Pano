@@ -87,6 +87,13 @@ object NodeProtocol {
      */
     const val DISK_SPACE_VERSION = 10
 
+    /**
+     * First version that takes a backup out of Pano Backup as a stream (`BACKUP_IMPORT` stages RECEIVE / COMMIT /
+     * ABORT): the archive is decrypted on its way through Pano and only the node's disk holds it. An older node gets
+     * the zip the old way, rebuilt on Pano's disk first.
+     */
+    const val STREAMED_IMPORT_VERSION = 11
+
     /** Whether a node that announced [protocolVersion] reports its free disk space. */
     fun supportsDiskSpace(protocolVersion: Int?): Boolean =
         (protocolVersion ?: LEGACY_PROTOCOL_VERSION) >= DISK_SPACE_VERSION

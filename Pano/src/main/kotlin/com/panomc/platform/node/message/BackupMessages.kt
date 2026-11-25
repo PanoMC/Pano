@@ -75,12 +75,26 @@ class BackupImportMessage(
     val backupId: String,
     val ticket: String,
     val name: String,
-    val size: Long,
-    val sha256: String,
+    val size: Long?,
+    val sha256: String?,
     val createdAt: Long,
     val scope: String = "ALL",
-    val fileCount: Long? = null
-) : NodeRequestMessage()
+    val fileCount: Long? = null,
+    /**
+     * Null: the one-step import above. From protocol [com.panomc.platform.node.NodeProtocol.STREAMED_IMPORT_VERSION]
+     * a backup streamed out of Pano Backup comes in two steps, because its meta is only known once the whole archive
+     * was read: [STAGE_RECEIVE] takes the bytes under [ticket] (size and checksum unknown up front) and answers
+     * `{ok, sizeBytes, sha256}` with the file kept aside; [STAGE_COMMIT] then moves it into place with this message's
+     * meta, [STAGE_ABORT] deletes it.
+     */
+    val stage: String? = null
+) : NodeRequestMessage() {
+    companion object {
+        const val STAGE_RECEIVE = "RECEIVE"
+        const val STAGE_COMMIT = "COMMIT"
+        const val STAGE_ABORT = "ABORT"
+    }
+}
 
 /**
  * Sends backup [backupId] of [serverUuid] to Pano Backup straight from the node (protocol 8). [mode] `ARCHIVE`: the

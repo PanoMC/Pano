@@ -134,4 +134,70 @@ class BackupImportTest {
         // An unknown server is refused before anything is fetched.
         assertFalse(backups.importBackup(message(zip).copy(serverUuid = "nobody"), fetchOf(zip)).getBoolean("ok"))
     }
+
+    /** Receives [file] the way a streamed import does: into the part file next to [destination]. */
+    private fun receiveOf(file: File): (String, File) -> com.panomc.node.files.TransferService.Received = { _, destination ->
+        val part = File(destination.parentFile, destination.name + ".pano-part").also { destination.parentFile.mkdirs() }
+
+        file.copyTo(part, overwrite = true)
+
+        com.panomc.node.files.TransferService.Received(part, part.length(), Sha256.of(part))
+    }
+
+    private fun staged(stage: String, sha256: String? = null) = BackupImportMessage(
+        serverUuid = "s1", backupId = "b-stream", ticket = "t2", name = "Streamed", size = null, sha256 = sha256,
+        createdAt = 99L, scope = "WORLDS", fileCount = 3, stage = stage
+    )
+
+    @Test
+    fun `a streamed import is received aside, then committed with the meta Pano read last`() {
+        val backups = service()
+        val zip = zip()
+        val released = ArrayList<File>()
+
+        val received = backups.importBackup(staged("RECEIVE"), fetch = { _, _, _ -> error("not the old path") }, receive = receiveOf(zip)) { released.add(it) }
+
+        assertTrue(received.getBoolean("ok"), received.encode())
+        assertEquals(zip.length(), received.getLong("sizeBytes"))
+        assertEquals(Sha256.of(zip), received.getString("sha256"))
+        assertTrue(backups.list(BackupListMessage(serverUuid = "s1")).getJsonArray("backups").none { (it as JsonObject).getString("id") == "b-stream" }, "not a backup before its commit")
+
+        val committed = backups.importBackup(staged("COMMIT", received.getString("sha256")), fetch = { _, _, _ -> 0 }) { released.add(it) }
+
+        assertTrue(committed.getBoolean("ok"), committed.encode())
+
+        val listed = backups.list(BackupListMessage(serverUuid = "s1")).getJsonArray("backups").map { it as JsonObject }.single { it.getString("id") == "b-stream" }
+
+        assertEquals("Streamed", listed.getString("name"))
+        assertEquals("WORLDS", listed.getString("scope"))
+        assertEquals(1, released.size, "the part's record is dropped once it is in place")
+    }
+
+    @Test
+    fun `an aborted or broken streamed import leaves nothing`() {
+        val backups = service()
+        val zip = zip()
+
+        backups.importBackup(staged("RECEIVE"), fetch = { _, _, _ -> 0 }, receive = receiveOf(zip))
+
+        val aborted = backups.importBackup(staged("ABORT"), fetch = { _, _, _ -> 0 })
+
+        assertTrue(aborted.getBoolean("ok"))
+        assertEquals(0, dataDir.walkTopDown().count { it.isFile && it.name.contains("b-stream") }, "the part is gone")
+
+        // A part that is no zip is refused at the commit, and deleted.
+        val junk = File(source, "junk.bin").apply { writeBytes(ByteArray(100) { 7 }) }
+
+        backups.importBackup(staged("RECEIVE"), fetch = { _, _, _ -> 0 }, receive = receiveOf(junk))
+
+        val refused = backups.importBackup(staged("COMMIT"), fetch = { _, _, _ -> 0 })
+
+        assertFalse(refused.getBoolean("ok"))
+        assertEquals(0, dataDir.walkTopDown().count { it.isFile && it.name.contains("b-stream") })
+
+        // A receive that fails (the disk, the link) reports it and keeps nothing.
+        val failed = backups.importBackup(staged("RECEIVE"), fetch = { _, _, _ -> 0 }, receive = { _, _ -> throw java.io.IOException("reset") })
+
+        assertEquals("TRANSFER_FAILED", failed.getString("error"))
+    }
 }

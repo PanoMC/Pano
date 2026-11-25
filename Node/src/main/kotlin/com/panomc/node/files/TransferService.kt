@@ -362,6 +362,65 @@ class TransferService(
         }
     }
 
+    /** What [receive] stored: the part file (still recorded until [releasePartial]), its size and sha256. */
+    class Received(val file: File, val bytes: Long, val sha256: String)
+
+    /**
+     * Takes the stream Pano sends under [ticket] (a backup read out of Pano Backup, size and checksum unknown up front)
+     * into a part file next to [destination], keeping the disk reserve the whole way: the size Pano announced is
+     * checked first, the free space again while it is written. The part is recorded, so a node that dies with it
+     * deletes it on its next start; the caller moves or deletes it and then calls [releasePartial]. Anything that goes
+     * wrong deletes the part and throws ([NotEnoughSpaceException] for a full disk).
+     */
+    fun receive(ticket: String, destination: File): Received {
+        destination.parentFile?.mkdirs()
+
+        val part = File(destination.parentFile, "${destination.name}$PARTIAL_SUFFIX")
+        val guard = DiskGuard(destination.parentFile ?: destination.absoluteFile.parentFile)
+        val record = recordPartial(part)
+
+        try {
+            val upload = openUpload(ticket)
+            val digest = MessageDigest.getInstance("SHA-256")
+            var copied = 0L
+
+            upload.input.use { input ->
+                upload.size?.let { guard.require(it) }
+
+                guard.wrap(part.outputStream()).buffered().use { output ->
+                    val buffer = ByteArray(BUFFER_SIZE)
+
+                    while (true) {
+                        val read = input.read(buffer)
+
+                        if (read < 0) {
+                            break
+                        }
+
+                        copied += read
+                        digest.update(buffer, 0, read)
+                        output.write(buffer, 0, read)
+                    }
+                }
+            }
+
+            return Received(part, copied, digest.digest().joinToString("") { "%02x".format(it) })
+        } catch (exception: Throwable) {
+            part.delete()
+            record?.delete()
+
+            throw exception
+        }
+    }
+
+    /** Forgets the record of a part file [receive] wrote, once it was moved into place or deleted. */
+    fun releasePartial(part: File) {
+        val directory = partialsDirectory() ?: return
+        val digest = MessageDigest.getInstance("SHA-256").digest(part.absolutePath.toByteArray())
+
+        File(directory, digest.take(12).joinToString("") { "%02x".format(it) }).delete()
+    }
+
     /**
      * Opens the browser's upload under [ticket] as a stream, for an import that unpacks it as it
      * arrives. Pano parks this request until the browser starts sending (the import's create step

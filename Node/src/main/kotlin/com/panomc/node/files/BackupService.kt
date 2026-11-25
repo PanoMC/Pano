@@ -16,6 +16,7 @@ import com.panomc.node.console.ConsoleLevel
 import com.panomc.node.console.ConsoleLogWriter
 import com.panomc.node.net.BackupCreateMessage
 import com.panomc.node.net.BackupDeleteMessage
+import com.panomc.node.archive.NotEnoughSpaceException
 import com.panomc.node.net.BackupImportMessage
 import com.panomc.node.net.BackupListMessage
 import com.panomc.node.net.BackupRestoreMessage
@@ -436,7 +437,16 @@ class BackupService(
      * and only then moved into place with its meta. The server directory is not touched; restoring it is the ordinary
      * `BACKUP_RESTORE` of that id.
      */
-    fun importBackup(message: BackupImportMessage, fetch: (ticket: String, target: File, maxBytes: Long) -> Long): JsonObject {
+    fun importBackup(
+        message: BackupImportMessage,
+        fetch: (ticket: String, target: File, maxBytes: Long) -> Long,
+        receive: ((ticket: String, destination: File) -> TransferService.Received)? = null,
+        releasePartial: (File) -> Unit = {}
+    ): JsonObject {
+        if (message.stage != null) {
+            return importStage(message, receive, releasePartial)
+        }
+
         val uuid = message.serverUuid
         val backupId = message.backupId
         val ticket = message.ticket
@@ -505,6 +515,153 @@ class BackupService(
             logger.warn("Could not import backup $backupId of $uuid: ${exception.message}")
 
             FileService.failure(exception.message ?: exception.javaClass.simpleName)
+        }
+    }
+
+    /** A backup received by a streamed import, waiting for its COMMIT (or ABORT). */
+    private class PendingImport(val serverUuid: String, val part: File, val bytes: Long, val sha256: String, val receivedAt: Long)
+
+    private val pendingImports = java.util.concurrent.ConcurrentHashMap<String, PendingImport>()
+
+    /**
+     * A streamed import out of Pano Backup (protocol 11), in the three stages Pano sends:
+     * - `RECEIVE`: the bytes under the ticket go into a part file next to the server's backups (the disk reserve kept,
+     *   nothing announced to check them against); answers `{sizeBytes, sha256}` and keeps the part aside,
+     * - `COMMIT`: Pano verified the archive and sends the meta: the part, which must open as a zip, becomes the backup,
+     * - `ABORT`: the part is deleted.
+     * A part never committed is deleted after [PENDING_IMPORT_TTL_MS], and at the next start if the node dies first.
+     */
+    private fun importStage(
+        message: BackupImportMessage,
+        receive: ((ticket: String, destination: File) -> TransferService.Received)?,
+        releasePartial: (File) -> Unit
+    ): JsonObject {
+        val uuid = message.serverUuid
+        val backupId = message.backupId
+
+        if (uuid.isNullOrBlank() || backupId.isNullOrBlank()) {
+            return FileService.failure(FileService.ERROR_NOT_FOUND)
+        }
+
+        if (!PathSafety.isSafeSegment(uuid) || !PathSafety.isSafeSegment(backupId)) {
+            return FileService.failure(FileService.ERROR_PATH_DENIED)
+        }
+
+        expirePendingImports(releasePartial)
+
+        val key = "$uuid/$backupId"
+
+        when (message.stage) {
+            STAGE_RECEIVE -> {
+                val ticket = message.ticket
+
+                if (ticket.isNullOrBlank() || receive == null) {
+                    return FileService.failure(FileService.ERROR_NOT_FOUND)
+                }
+
+                registry.get(uuid) ?: return FileService.failure(FileService.ERROR_UNKNOWN_SERVER)
+
+                val archive = archiveFile(uuid, backupId)
+
+                if (archive.exists() || metaFile(uuid, backupId).exists() || pendingImports.containsKey(key)) {
+                    return FileService.failure(ERROR_BACKUP_EXISTS)
+                }
+
+                return try {
+                    val received = receive(ticket, archive)
+
+                    pendingImports[key] = PendingImport(uuid, received.file, received.bytes, received.sha256, System.currentTimeMillis())
+
+                    logger.info("Received backup $backupId of $uuid (${received.bytes} bytes), waiting for its meta.")
+
+                    FileService.success().put("sizeBytes", received.bytes).put("sha256", received.sha256)
+                } catch (exception: NotEnoughSpaceException) {
+                    logger.warn("Stopped importing backup $backupId of $uuid: the disk would drop below its reserve.")
+
+                    FileService.failure(exception.code).put("free", exception.free).also { result ->
+                        exception.required?.let { result.put("required", it) }
+                    }
+                } catch (exception: java.io.IOException) {
+                    logger.warn("Importing backup $backupId of $uuid broke off: ${exception.message}")
+
+                    FileService.failure(TransferService.ERROR_TRANSFER_FAILED)
+                } catch (exception: Exception) {
+                    logger.warn("Could not import backup $backupId of $uuid: ${exception.message}")
+
+                    FileService.failure(exception.message ?: exception.javaClass.simpleName)
+                }
+            }
+
+            STAGE_COMMIT -> {
+                val pending = pendingImports.remove(key) ?: return FileService.failure(FileService.ERROR_NOT_FOUND)
+                val archive = archiveFile(uuid, backupId)
+
+                return try {
+                    if (message.sha256 != null && !message.sha256.equals(pending.sha256, ignoreCase = true)) {
+                        throw IllegalStateException(ERROR_IMPORT_MISMATCH)
+                    }
+
+                    // A zip that does not open would only fail later, at the restore somebody is counting on.
+                    ZipFile(pending.part).use { }
+
+                    if (archive.exists()) {
+                        throw IllegalStateException(ERROR_BACKUP_EXISTS)
+                    }
+
+                    if (!pending.part.renameTo(archive)) {
+                        pending.part.copyTo(archive, overwrite = false)
+                        pending.part.delete()
+                    }
+
+                    writeMeta(
+                        uuid,
+                        BackupMeta(
+                            id = backupId,
+                            name = message.name?.takeIf { it.isNotBlank() } ?: backupId,
+                            sizeBytes = pending.bytes,
+                            sha256 = pending.sha256,
+                            createdAt = message.createdAt ?: System.currentTimeMillis(),
+                            mode = BackupMode.FULL.name,
+                            scope = BackupScopeKind.values().firstOrNull { it.name == message.scope }?.name ?: BackupScopeKind.ALL.name,
+                            fileCount = message.fileCount
+                        )
+                    )
+
+                    logger.info("Imported backup $backupId of $uuid (${pending.bytes} bytes).")
+
+                    FileService.success().put("sizeBytes", pending.bytes).put("sha256", pending.sha256)
+                } catch (exception: Exception) {
+                    pending.part.delete()
+
+                    logger.warn("Could not import backup $backupId of $uuid: ${exception.message}")
+
+                    FileService.failure(exception.message ?: exception.javaClass.simpleName)
+                } finally {
+                    releasePartial(pending.part)
+                }
+            }
+
+            STAGE_ABORT -> {
+                pendingImports.remove(key)?.let { pending ->
+                    pending.part.delete()
+                    releasePartial(pending.part)
+
+                    logger.info("Dropped the import of backup $backupId of $uuid.")
+                }
+
+                return FileService.success()
+            }
+
+            else -> return FileService.failure(FileService.ERROR_NOT_FOUND)
+        }
+    }
+
+    private fun expirePendingImports(releasePartial: (File) -> Unit, now: Long = System.currentTimeMillis()) {
+        pendingImports.entries.filter { now - it.value.receivedAt > PENDING_IMPORT_TTL_MS }.forEach { (key, pending) ->
+            if (pendingImports.remove(key, pending)) {
+                pending.part.delete()
+                releasePartial(pending.part)
+            }
         }
     }
 
@@ -752,6 +909,13 @@ class BackupService(
 
         /** An imported zip while it is still arriving. */
         private const val IMPORT_PART_SUFFIX = ".import.part"
+
+        const val STAGE_RECEIVE = "RECEIVE"
+        const val STAGE_COMMIT = "COMMIT"
+        const val STAGE_ABORT = "ABORT"
+
+        /** A received backup Pano never committed (it died, the link broke) is deleted after this. */
+        private const val PENDING_IMPORT_TTL_MS = 6L * 60 * 60 * 1000
 
         const val ERROR_BACKUP_EXISTS = "BACKUP_EXISTS"
         const val ERROR_IMPORT_MISMATCH = "IMPORT_MISMATCH"

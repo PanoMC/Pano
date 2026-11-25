@@ -116,7 +116,7 @@ class SnapshotUpload(
                     val ids = ArrayList<String>()
                     val gz = File(dir, "dump.sql.gz")
                     val size = dump.inputStream().buffered(256 * 1024).use { input ->
-                        GZIPOutputStream(gz.outputStream().buffered(64 * 1024), 64 * 1024).use { gzip ->
+                        GZIPOutputStream(com.panomc.platform.backup.PanoDiskGuard.of(gz).wrap(gz.outputStream()).buffered(64 * 1024), 64 * 1024).use { gzip ->
                             val cut = ChunkingOutputStream(cdc) { buffer, offset, length ->
                                 ids += chunker.add(buffer, offset, length)
                                 chunked += length

@@ -127,17 +127,12 @@ class MaintenanceGateHandler(
     }
 
     private suspend fun handlePage(context: RoutingContext, path: String, access: Access) {
-        if (!access.canBypass) {
-            serve(context, path, access)
+        val isDocument = RequestClassification.isDocumentRequest(context.request())
 
-            return
-        }
-
-        // Subresources are gated by the permission, not by the cookie. An authorised user who was
-        // just handed a theme page still has to be able to fetch its stylesheets, images and
-        // client-side data, and their client-side navigation inside the theme never issues a
-        // document request. The cookie only decides which UI a *navigation* gets.
-        if (!RequestClassification.isDocumentRequest(context.request())) {
+        // The panel's theme settings are the theme's own settings page in an iframe. That page is
+        // panel work, not a visit to the site: it opens for panel-access holders without the skip
+        // cookie, else the panel shows a maintenance page where the settings should be.
+        if (access.hasPanelAccess && isThemeSettingsPath(path)) {
             if (uiManager.activatedUIList[Route.Type.THEME_UI] == null) {
                 endPlain503(context)
             } else {
@@ -147,7 +142,22 @@ class MaintenanceGateHandler(
             return
         }
 
-        if (!maintenanceModeManager.hasSkipCookie(context)) {
+        // Subresources are gated by the permission, not by the cookie. An authorised user who was
+        // just handed a theme page still has to be able to fetch its stylesheets, images and
+        // client-side data, and their client-side navigation inside the theme never issues a
+        // document request. The cookie only decides which UI a *navigation* gets. Panel-access
+        // holders get them too, for the theme settings page above.
+        if (!isDocument && (access.canBypass || access.hasPanelAccess)) {
+            if (uiManager.activatedUIList[Route.Type.THEME_UI] == null) {
+                endPlain503(context)
+            } else {
+                context.next()
+            }
+
+            return
+        }
+
+        if (!access.canBypass || !maintenanceModeManager.hasSkipCookie(context)) {
             serve(context, path, access)
 
             return
@@ -296,6 +306,10 @@ class MaintenanceGateHandler(
 
     companion object {
         private const val ROBOTS_TXT_PATH = "/robots.txt"
+        private const val THEME_SETTINGS_PATH = "/theme-settings"
+
+        /** The theme's settings page the panel shows in an iframe, and the client-side data under it. */
+        fun isThemeSettingsPath(path: String) = path == THEME_SETTINGS_PATH || path.startsWith("$THEME_SETTINGS_PATH/")
         private const val PLAIN_503_BODY = "The site is temporarily unavailable while we carry out maintenance."
     }
 }

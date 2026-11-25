@@ -262,8 +262,13 @@ class PanoHostClientTest {
             assertArrayEquals(body, read)
             assertEquals(body.size.toLong(), progress)
             assertEquals(null, ranges[0])
-            assertEquals("bytes=${body.size / 3}-", ranges[1], "resumed where the connection dropped")
-            assertEquals("bytes=${body.size / 3 + 1000}-", ranges[2], "and again after the stall")
+            // The server may lose the last unflushed bytes when it drops the connection, so the client resumes from
+            // what it really got: somewhere in the first third, then later again after the stall.
+            val firstResume = ranges[1]!!.removePrefix("bytes=").removeSuffix("-").toInt()
+            val secondResume = ranges[2]!!.removePrefix("bytes=").removeSuffix("-").toInt()
+
+            assertTrue(firstResume in 1..body.size / 3, "resumed where the connection dropped: ${ranges[1]}")
+            assertTrue(secondResume in firstResume + 1..firstResume + 1000, "and again after the stall: ${ranges[2]}")
 
             // A wrong checksum fails the last read, so whoever passes the bytes on fails its side.
             ranges.clear()

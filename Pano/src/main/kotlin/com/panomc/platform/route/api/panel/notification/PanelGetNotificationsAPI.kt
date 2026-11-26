@@ -29,7 +29,8 @@ class PanelGetNotificationsAPI(
         val notifications = databaseManager.panelNotificationDao.getLast10ByUserId(userId, sqlClient)
 
         if (!Main.IS_DEMO) {
-            databaseManager.panelNotificationDao.markReadLast10(userId, sqlClient)
+            // Only the ones this page shows: one that arrived after they were read stays unread.
+            databaseManager.panelNotificationDao.markReadByIds(userId, notifications.map { it.id }, sqlClient)
         }
 
         return Successful(

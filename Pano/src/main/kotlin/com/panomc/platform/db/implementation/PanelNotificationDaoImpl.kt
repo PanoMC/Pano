@@ -158,6 +158,28 @@ class PanelNotificationDaoImpl : PanelNotificationDao() {
         return rows.toEntities()
     }
 
+    override suspend fun markReadByIds(
+        userId: Long,
+        ids: List<Long>,
+        sqlClient: SqlClient
+    ) {
+        if (ids.isEmpty()) {
+            return
+        }
+
+        val query =
+            "UPDATE `${getTablePrefix() + tableName}` SET status = ? WHERE `userId` = ? AND `id` IN (${ids.joinToString(", ") { "?" }})"
+
+        val parameters = Tuple.of(NotificationStatus.READ, userId)
+
+        ids.forEach { parameters.addLong(it) }
+
+        sqlClient
+            .preparedQuery(query)
+            .execute(parameters)
+            .coAwait()
+    }
+
     override suspend fun markReadLast10(
         userId: Long,
         sqlClient: SqlClient

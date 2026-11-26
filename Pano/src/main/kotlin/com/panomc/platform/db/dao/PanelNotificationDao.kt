@@ -36,6 +36,13 @@ abstract class PanelNotificationDao : Dao<PanelNotification>(PanelNotification::
         sqlClient: SqlClient
     ): List<PanelNotification>
 
+    /** Marks the given notifications of [userId] as read. */
+    abstract suspend fun markReadByIds(
+        userId: Long,
+        ids: List<Long>,
+        sqlClient: SqlClient
+    )
+
     abstract suspend fun markReadLast10(
         userId: Long,
         sqlClient: SqlClient

@@ -12,6 +12,7 @@ import com.panomc.platform.db.DatabaseManager
 import com.panomc.platform.db.model.Server
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
+import com.panomc.platform.route.api.panel.dashboard.PanelCloseMaintenanceAlertAPI
 import com.panomc.platform.server.PlatformCodeManager
 import io.vertx.ext.web.RoutingContext
 import io.vertx.json.schema.SchemaRepository
@@ -99,7 +100,18 @@ class PanelGetBasicDataAPI(
             result["hasUpdate"] = platformUpdate != null || resourceUpdatesInfo.isNotEmpty()
         }
 
-        result["maintenanceMode"] = maintenanceModeManager.isEnabled()
+        val maintenanceEnabled = maintenanceModeManager.isEnabled()
+
+        result["maintenanceMode"] = maintenanceEnabled
+
+        // The banner stays hidden for a user who closed it until maintenance is turned on again.
+        if (maintenanceEnabled) {
+            val dismissed = databaseManager.panelConfigDao.byUserIdAndOption(userId, PanelCloseMaintenanceAlertAPI.OPTION, sqlClient)
+            result["showMaintenanceAlert"] = dismissed?.value != "true"
+        } else {
+            result["showMaintenanceAlert"] = true
+            databaseManager.panelConfigDao.deleteByOption(PanelCloseMaintenanceAlertAPI.OPTION, sqlClient)
+        }
 
         if (authProvider.hasPermission(ManageServersPermission(), context)) {
             val mainServerId = databaseManager.systemPropertyDao.getByOption(

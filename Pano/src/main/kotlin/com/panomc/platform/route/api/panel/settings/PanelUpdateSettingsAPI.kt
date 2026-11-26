@@ -19,6 +19,7 @@ import com.panomc.platform.error.*
 import com.panomc.platform.i18n.I18nManager
 import com.panomc.platform.maintenance.MaintenanceModeManager
 import com.panomc.platform.model.*
+import com.panomc.platform.route.api.panel.dashboard.PanelCloseMaintenanceAlertAPI
 import com.panomc.platform.server.ServerManager
 import com.panomc.platform.server.response.GetServerSettingsEventResponse
 import com.panomc.platform.util.FileUploadUtil
@@ -686,6 +687,11 @@ class PanelUpdateSettingsAPI(
             // Deliberately no platformStateManager.restartRequired.
             maintenanceModeManager.composeAndSavePage()
             maintenanceModeManager.invalidateAccessCache()
+
+            // Turned on again: the banner shows again for everyone who closed it last time.
+            if (maintenanceToggledTo == true) {
+                databaseManager.panelConfigDao.deleteByOption(PanelCloseMaintenanceAlertAPI.OPTION, sqlClient)
+            }
 
             if (maintenanceToggledTo != null) {
                 val authUserId = authProvider.getUserIdFromRoutingContext(context)

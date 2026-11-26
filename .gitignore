@@ -51,3 +51,9 @@ node-data
 
 # the snapshot golden fixtures contain a config.json and a config.conf of their own
 !Snapshot/src/test/resources/snapshot/**
+
+# runtime files Pano writes into its working directory
+Pano/extensions.idx
+Pano/pano-node.jar
+Pano/pano-node.jar.part
+Pano/config.conf.bak*

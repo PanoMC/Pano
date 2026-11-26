@@ -40,21 +40,23 @@ object RouteRemoval {
 
     private fun removeFromState(router: Router, routes: Collection<Route>): Boolean = try {
         // RouterImpl's own synchronized methods lock the router: route changes stay serialized with them.
-        synchronized(router) {
-            val stateField = findField(router.javaClass, "state")
-            val state = stateField.get(router)
+        val target = unwrap(router)
+
+        synchronized(target) {
+            val stateField = findField(target.javaClass, "state")
+            val state = stateField.get(target)
 
             val current = method(state.javaClass, "getRoutes").invoke(state) as Set<*>
             val kept = LinkedHashSet<Any?>(current.filter { existing -> routes.none { it === existing } })
 
             val newState = method(state.javaClass, "setRoutes", Set::class.java).invoke(state, kept)
 
-            stateField.set(router, newState)
+            stateField.set(target, newState)
 
             // As RouterImpl.remove does.
             @Suppress("UNCHECKED_CAST")
             (method(newState.javaClass, "getModifiedHandler").invoke(newState) as? io.vertx.core.Handler<Router>)
-                ?.handle(router)
+                ?.handle(target)
         }
 
         true
@@ -62,6 +64,16 @@ object RouteRemoval {
         log.warn("Could not rebuild the router's routes ({}); removing them one by one", e.toString())
 
         false
+    }
+
+    /**
+     * The real router behind a Spring proxy. Classes that take the router `@Lazy` get a proxy, which has no `state`
+     * field: without this the rebuild always failed and fell back to `Route.remove()` (the warning on every theme switch).
+     */
+    private fun unwrap(router: Router): Router {
+        val target = (router as? org.springframework.aop.framework.Advised)?.targetSource?.target
+
+        return target as? Router ?: router
     }
 
     private fun method(type: Class<*>, name: String, vararg parameters: Class<*>) =

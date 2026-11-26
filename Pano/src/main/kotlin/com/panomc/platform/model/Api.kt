@@ -144,7 +144,7 @@ abstract class Api : Route() {
             }
 
             if (failure !is Result) {
-                logger.error("Error on endpoint URL: {} {}", context.request().method(), context.request().path())
+                logger.error("Error on endpoint URL: {} {}", context.request().method(), context.request().path(), failure)
                 sendResult(InternalServerError(), context)
 
                 throw failure
